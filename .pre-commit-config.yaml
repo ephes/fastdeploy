@@ -1,0 +1,8 @@
+repos:
+  - repo: https://github.com/jazzband/pip-tools
+    rev: 6.3.1
+    hooks:
+    hooks:
+      - id: pip-compile
+        files: ^requirements/production\.(in|txt)$
+        args: [--generate-hashes, requirements/production.in]
