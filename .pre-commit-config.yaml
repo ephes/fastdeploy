@@ -4,5 +4,10 @@ repos:
     hooks:
     hooks:
       - id: pip-compile
+        name: pip-compile production
         files: ^requirements/production\.(in|txt)$
         args: [--generate-hashes, requirements/production.in]
+      - id: pip-compile
+        name: pip-compile develop
+        files: ^requirements/develop\.(in|txt)$
+        args: [--generate-hashes, requirements/develop.in]
