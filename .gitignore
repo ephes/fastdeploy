@@ -1,2 +1,5 @@
 # virtualfish
 .venv
+
+# python
+__pycache__
