@@ -1,0 +1,2 @@
+# backend app server start
+uvicorn backend/main:app --reload
