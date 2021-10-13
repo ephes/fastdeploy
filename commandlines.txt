@@ -1,2 +1,7 @@
 # backend app server start
-uvicorn backend/main:app --reload
+uvicorn backend.views:app --reload
+
+# frontend
+cd frontend
+npm install
+npm run dev
