@@ -1,17 +1,17 @@
 <script setup lang="ts">
+import Message from './Message.vue';
 
-const props = defineProps<{ messages: any }>();
+defineProps<{ messages: Message[] }>();
 defineEmits(['send']);
 </script>
 
 <template>
   <div>
-    <h1>View deployment</h1>
-    <p>Some paragraph..</p>
+    <h1>Live Deployment</h1>
     <button @click="$emit('send')">send message</button>
     <ul id="messages">
-      <li v-for="message in props.messages" :key="message.message">
-        {{ message.message }}
+      <li v-for="message in messages">
+          <Message :message="message" />
       </li>
     </ul>
   </div>
