@@ -1,6 +1,10 @@
 # backend app server start
 uvicorn backend.views:app --reload
 
+# backend update dependencies
+pip-compile backend/requirements/develop.in && pip-compile backend/requirements/production.in
+pip-sync backend/requirements/production.txt backend/requirements/develop.txt
+
 # frontend
 cd frontend
 npm install
