@@ -6,3 +6,7 @@ __pycache__
 
 # jupyter notebooks
 .ipynb_checkpoints
+
+# vim
+.*swp
+.*swo
