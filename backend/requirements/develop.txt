@@ -17,7 +17,9 @@ attrs==21.2.0
 backcall==0.2.0
     # via ipython
 black==21.9b0
-    # via -r backend/requirements/develop.in
+    # via
+    #   -r backend/requirements/develop.in
+    #   nb-black
 bleach==4.1.0
     # via nbconvert
 cffi==1.14.6
@@ -39,7 +41,9 @@ iniconfig==1.1.1
 ipykernel==6.4.1
     # via notebook
 ipython==7.28.0
-    # via ipykernel
+    # via
+    #   ipykernel
+    #   nb-black
 ipython-genutils==0.2.0
     # via
     #   ipykernel
@@ -76,6 +80,8 @@ mistune==0.8.4
     # via nbconvert
 mypy-extensions==0.4.3
     # via black
+nb-black==1.0.7
+    # via -r backend/requirements/develop.in
 nbclient==0.5.4
     # via nbconvert
 nbconvert==6.2.0
