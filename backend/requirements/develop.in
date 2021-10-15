@@ -2,3 +2,4 @@ pytest
 notebook
 black
 nb-black
+httpx
