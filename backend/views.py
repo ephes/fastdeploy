@@ -1,7 +1,8 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from .connection import connection_manager
+from .deployment import run_deploy
 
 
 app = FastAPI()
@@ -34,3 +35,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
     except WebSocketDisconnect:
         connection_manager.disconnect(websocket)
         await connection_manager.broadcast(f"Client #{client_id} left the chat")
+
+
+@app.post("/deploy")
+async def deploy(background_tasks: BackgroundTasks):
+    print("received deploy event")
+    import os
+    print("dir: ", os.getcwd())
+    background_tasks.add_task(run_deploy, connection_manager)
+    return {"message": "deploying"}
