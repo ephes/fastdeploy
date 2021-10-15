@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .connection import connection_manager
@@ -40,7 +40,5 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
 @app.post("/deploy")
 async def deploy(background_tasks: BackgroundTasks):
     print("received deploy event")
-    import os
-    print("dir: ", os.getcwd())
     background_tasks.add_task(run_deploy, connection_manager)
     return {"message": "deploying"}
