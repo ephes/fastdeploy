@@ -20,8 +20,8 @@ repos:
         args: [--generate-hashes, backend/requirements/production.in]
       - id: pip-compile
         name: pip-compile develop
-        files: ^backend/requirements/develop\.(in|txt)$
-        args: [--generate-hashes, backend/requirements/develop.in]
+        files: ^backend/requirements/(develop|production)\.(in|txt)$
+        args: [--generate-hashes, backend/requirements/develop.in, backend/requirements/production.in, --output-file backend/requirements/develop.txt]
   - repo: https://github.com/psf/black
     rev: 21.8b0
     hooks:
