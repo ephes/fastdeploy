@@ -3,3 +3,4 @@ notebook
 black
 nb-black
 httpx
+pytest-asyncio

@@ -1,8 +1,10 @@
-from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from .auth import get_current_active_user
 from .connection import connection_manager
 from .deployment import run_deploy
+from .models import User
 
 
 app = FastAPI()
@@ -42,3 +44,9 @@ async def deploy(background_tasks: BackgroundTasks):
     print("received deploy event")
     background_tasks.add_task(run_deploy, connection_manager)
     return {"message": "deploying"}
+
+
+@app.get("/users/me/", response_model=User)
+async def read_users_me(current_user: User = Depends(get_current_active_user)):
+    print("in read_users_me")
+    return current_user
