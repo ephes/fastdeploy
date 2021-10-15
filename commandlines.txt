@@ -11,3 +11,6 @@ pip-sync backend/requirements/develop.txt
 cd frontend
 npm install
 npm run dev
+
+# jupyter notebook
+PYTHONPATH=.. jupyter notebook --notebook-dir notebooks
