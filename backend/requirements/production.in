@@ -2,3 +2,4 @@ fastapi[all]
 orjson==3.6.3
 sqlmodel
 passlib[bcrypt]
+jose

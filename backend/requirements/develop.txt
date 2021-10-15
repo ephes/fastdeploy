@@ -305,6 +305,9 @@ jinja2==3.0.2 \
     #   fastapi
     #   nbconvert
     #   notebook
+jose==1.0.0 \
+    --hash=sha256:8436c3617cd94e1ba97828fbb1ce27c129f66c78fb855b4bb47e122b5f345fba
+    # via -r backend/requirements/production.in
 jsonschema==4.1.0 \
     --hash=sha256:2b3cca28580511d44326f0e7fc582eab3cbe31aabd1a1c2cfa74a399796ffd84 \
     --hash=sha256:9dd7c33b4a96138dc37bb86b3610d3b12d30d96433d4d73435ca3025804154a8
