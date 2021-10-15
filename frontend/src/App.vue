@@ -11,7 +11,7 @@ const client = ref(new Client());
 <template>
   <!-- <img alt="Vue logo" src="./assets/logo.png" /> -->
   <!-- <HelloWorld msg="Hello Vue 3 + TypeScript + Vite" /> -->
-  <Deployment :client="client" :messages="client.messages" @send="client.sendMessage()" />
+  <Deployment :client="client" :messages="client.messages" @send="client.startDeployment()" />
 </template>
 
 <style>

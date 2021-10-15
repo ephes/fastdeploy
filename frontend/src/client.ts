@@ -28,6 +28,11 @@ class Client {
       JSON.stringify({ message: 'message from client client!' })
     );
   }
+  startDeployment() {
+    fetch("http://localhost:8000/deploy", { method: 'POST' })
+      .then(response => response.json())
+      .then(data => console.log("fetch response: ", data))
+  }
 }
 
 export default Client;

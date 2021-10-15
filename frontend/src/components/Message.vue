@@ -4,5 +4,9 @@ defineProps<{ message: Message }>();
 </script>
 
 <template>
-    <div id="message">{{ message.message }}</div>
+    <p id="message">
+        {{ message.name }} <br />
+        {{ message.state }} <br />
+        {{ message.changed }}
+    </p>
 </template>

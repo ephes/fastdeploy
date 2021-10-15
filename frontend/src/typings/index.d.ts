@@ -1,3 +1,5 @@
 interface Message {
-    message: string
+    name: string
+    state: string
+    changed: boolean
 }
