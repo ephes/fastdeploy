@@ -1,0 +1,2 @@
+remove password from users/me
+remove databases link in notebooks
