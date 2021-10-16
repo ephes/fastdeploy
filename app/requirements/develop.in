@@ -4,3 +4,4 @@ black
 nb-black
 httpx
 pytest-asyncio
+coverage

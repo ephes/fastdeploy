@@ -14,3 +14,7 @@ npm run dev
 
 # jupyter notebook
 PYTHONPATH=.. jupyter notebook --notebook-dir notebooks
+
+# tests
+TEST=true pytest
+TEST=true coverage run -m pytest && coverage html
