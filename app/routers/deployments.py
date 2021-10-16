@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, WebSocket, WebSocketDisconnect
 
-from ..auth import get_current_active_user
 from ..connection import connection_manager
+from ..dependencies import get_current_active_user
 from ..deployment import run_deploy
 
 
