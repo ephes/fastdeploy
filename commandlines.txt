@@ -2,10 +2,10 @@
 uvicorn app.main:app --reload
 
 # backend update dependencies
-pip-compile --generate-hashes backend/requirements/production.in
-pip-compile --generate-hashes backend/requirements/production.in backend/requirements/develop.in --output-file backend/requirements/develop.txt
-pip-sync backend/requirements/production.txt
-pip-sync backend/requirements/develop.txt
+pip-compile --generate-hashes app/requirements/production.in
+pip-compile --generate-hashes app/requirements/production.in app/requirements/develop.in --output-file app/requirements/develop.txt
+pip-sync app/requirements/production.txt
+pip-sync app/requirements/develop.txt
 
 # frontend
 cd frontend

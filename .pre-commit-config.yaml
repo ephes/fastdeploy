@@ -16,8 +16,8 @@ repos:
     hooks:
       - id: pip-compile
         name: pip-compile production
-        files: ^backend/requirements/production\.(in|txt)$
-        args: [--generate-hashes, backend/requirements/production.in]
+        files: ^app/requirements/production\.(in|txt)$
+        args: [--generate-hashes, app/requirements/production.in]
   - repo: https://github.com/psf/black
     rev: 21.8b0
     hooks:
