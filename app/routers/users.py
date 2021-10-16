@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 
 from .. import auth
 from ..config import settings
@@ -12,7 +13,17 @@ from ..models import User
 router = APIRouter()
 
 
-@router.get("/users/me", response_model=User)
+class UserOut(BaseModel):
+    """Just to avoid making private fields like password public."""
+
+    id: int
+    name: str
+
+    class Config:
+        orm_mode = True
+
+
+@router.get("/users/me", response_model=UserOut)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 

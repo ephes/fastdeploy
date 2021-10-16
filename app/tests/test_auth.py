@@ -3,6 +3,7 @@ import pytest
 from httpx import AsyncClient
 
 from ..auth import verify_password
+from ..routers.users import UserOut
 
 
 def test_verify_password(user, password):
@@ -35,4 +36,4 @@ async def test_api_token(app, base_url, user_in_db, password):
         response = await ac.get("/users/me", headers=headers)
 
     assert response.status_code == 200
-    assert response.json() == user.dict()
+    assert response.json() == UserOut.from_orm(user).dict()
