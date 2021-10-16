@@ -1,8 +1,8 @@
 import pytest
 
 from ..auth import get_password_hash
+from ..main import app as fastapi_app
 from ..models import User
-from ..views import app as fastapi_app
 
 
 @pytest.fixture

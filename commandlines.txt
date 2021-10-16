@@ -1,5 +1,5 @@
 # backend app server start
-uvicorn backend.views:app --reload
+uvicorn app.main:app --reload
 
 # backend update dependencies
 pip-compile --generate-hashes backend/requirements/production.in
