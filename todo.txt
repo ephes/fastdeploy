@@ -1,1 +1,3 @@
 use coverage
+add position ids to ansible task output
+use files to bootstrap self deploy?
