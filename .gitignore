@@ -16,3 +16,6 @@ __pycache__
 
 # environment
 .env
+
+# databases
+databases
