@@ -24,6 +24,7 @@ class Settings(BaseSettings):
         "http://localhost",
         "http://localhost:3000",
     ]
+    project_root: Path = ROOT_DIR
 
     class Config:
         env_file = ROOT_DIR / ".env"
@@ -49,7 +50,7 @@ def working_directory(path):
         os.chdir(prev_cwd)
 
 
-with working_directory(ROOT_DIR):
+with working_directory(settings.project_root):
     # would not work in jupyter notebooks if we didn't
     # change working directory
     settings.db_engine = create_engine(settings.database_url, echo=False)
