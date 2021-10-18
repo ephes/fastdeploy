@@ -28,15 +28,20 @@ def user(password):
 
 
 @pytest.fixture
-def user_in_db(password):
-    user = User(name="user", password=get_password_hash(password), is_active=True)
+def session():
     with Session(settings.db_engine) as session:
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        yield user
-        session.delete(user)
-        session.commit()
+        yield session
+
+
+@pytest.fixture
+def user_in_db(session, password):
+    user = User(name="user", password=get_password_hash(password), is_active=True)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    yield user
+    session.delete(user)
+    session.commit()
 
 
 @pytest.fixture
