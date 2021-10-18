@@ -32,5 +32,7 @@ class TestSettings(Settings):
 
 
 settings = Settings()
-if settings.test:
-    settings = TestSettings()
+
+# settings = Settings()
+# if settings.test:
+#     settings = TestSettings()

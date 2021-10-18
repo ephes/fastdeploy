@@ -2,6 +2,7 @@ import pytest
 
 from sqlmodel import Session
 
+from .. import config
 from ..auth import get_password_hash
 from ..config import settings
 from ..main import app as fastapi_app
@@ -9,9 +10,12 @@ from ..models import User, create_database
 
 
 @pytest.fixture(scope="session", autouse=True)
-def create_test_database():
+def test_session():
     # runs before test starts
+    config.settings = config.TestSettings()
+    print("config database url: ", config.settings.database_url)
     create_database()
+
     yield
     # runs after test ends
     ...
