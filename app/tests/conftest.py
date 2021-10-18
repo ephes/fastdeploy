@@ -5,7 +5,16 @@ from sqlmodel import Session
 from ..auth import get_password_hash
 from ..config import settings
 from ..main import app as fastapi_app
-from ..models import User
+from ..models import User, create_database
+
+
+@pytest.fixture(scope="session", autouse=True)
+def create_test_database():
+    # runs before test starts
+    create_database()
+    yield
+    # runs after test ends
+    ...
 
 
 @pytest.fixture
@@ -25,7 +34,9 @@ def user_in_db(password):
         session.add(user)
         session.commit()
         session.refresh(user)
-    return user
+        yield user
+        session.delete(user)
+        session.commit()
 
 
 @pytest.fixture

@@ -1,11 +1,8 @@
-import contextlib
-import os
 import typing
 
 from pathlib import Path
 
 from pydantic import BaseSettings, Field
-from sqlmodel import SQLModel, create_engine
 
 
 ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent
@@ -37,21 +34,3 @@ class TestSettings(Settings):
 settings = Settings()
 if settings.test:
     settings = TestSettings()
-
-
-@contextlib.contextmanager
-def working_directory(path):
-    """Changes working directory and returns to previous on exit."""
-    prev_cwd = Path.cwd()
-    os.chdir(path)
-    try:
-        yield
-    finally:
-        os.chdir(prev_cwd)
-
-
-with working_directory(settings.project_root):
-    # would not work in jupyter notebooks if we didn't
-    # change working directory
-    settings.db_engine = create_engine(settings.database_url, echo=False)
-    SQLModel.metadata.create_all(settings.db_engine)
