@@ -17,9 +17,6 @@ __pycache__
 # environment
 .env
 
-# databases
-databases
-
 # coverage
 .coverage
 htmlcov
