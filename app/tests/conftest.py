@@ -1,24 +1,11 @@
 import pytest
 
-from sqlmodel import Session
+from sqlmodel import Session, SQLModel
 
-from .. import config
+from .. import database
 from ..auth import get_password_hash
-from ..config import settings
 from ..main import app as fastapi_app
-from ..models import User, create_database
-
-
-@pytest.fixture(scope="session", autouse=True)
-def test_session():
-    # runs before test starts
-    config.settings = config.TestSettings()
-    print("config database url: ", config.settings.database_url)
-    create_database()
-
-    yield
-    # runs after test ends
-    ...
+from ..models import User
 
 
 @pytest.fixture
@@ -32,20 +19,22 @@ def user(password):
 
 
 @pytest.fixture
-def session():
-    with Session(settings.db_engine) as session:
-        yield session
+def cleanup_database_after_test():
+    database.create_db_and_tables()
+    yield
+    # after test ran, drop all tables and recreate them
+    # to bring the database back into a clean state
+    SQLModel.metadata.drop_all(database.engine)
 
 
 @pytest.fixture
-def user_in_db(session, password):
+def user_in_db(cleanup_database_after_test, password):
     user = User(name="user", password=get_password_hash(password), is_active=True)
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    yield user
-    session.delete(user)
-    session.commit()
+    with Session(database.engine) as session:
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    return user
 
 
 @pytest.fixture

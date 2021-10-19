@@ -622,9 +622,13 @@ pytest==6.2.5 \
     # via
     #   -r app/requirements/develop.in
     #   pytest-asyncio
+    #   pytest-env
 pytest-asyncio==0.15.1 \
     --hash=sha256:2564ceb9612bbd560d19ca4b41347b54e7835c2f792c504f698e05395ed63f6f \
     --hash=sha256:3042bcdf1c5d978f6b74d96a151c4cfb9dcece65006198389ccd7e6c60eb1eea
+    # via -r app/requirements/develop.in
+pytest-env==0.6.2 \
+    --hash=sha256:7e94956aef7f2764f3c147d216ce066bf6c42948bb9e293169b1b1c880a580c2
     # via -r app/requirements/develop.in
 python-dateutil==2.8.2 \
     --hash=sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86 \

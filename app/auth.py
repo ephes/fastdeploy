@@ -8,6 +8,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from . import database
 from .config import settings
 from .models import User
 
@@ -37,7 +38,7 @@ class TokenData(BaseModel):
 
 
 async def authenticate_user(username: str, password: str):
-    with Session(settings.db_engine) as session:
+    with Session(database.engine) as session:
         statement = select(User).where(User.name == username)
         results = session.exec(statement)
         user = results.first()
@@ -74,7 +75,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    with Session(settings.db_engine) as session:
+    with Session(database.engine) as session:
         user = session.exec(select(User).where(User.name == token_data.username)).first()
     if user is None:
         raise credentials_exception

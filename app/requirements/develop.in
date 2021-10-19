@@ -5,3 +5,4 @@ nb-black
 httpx
 pytest-asyncio
 coverage
+pytest-env

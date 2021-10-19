@@ -27,12 +27,4 @@ class Settings(BaseSettings):
         env_file = ROOT_DIR / ".env"
 
 
-class TestSettings(Settings):
-    database_url: str = Field(..., env="TEST_DATABASE_URL")
-
-
 settings = Settings()
-
-# settings = Settings()
-# if settings.test:
-#     settings = TestSettings()
