@@ -34,5 +34,5 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
 @router.post("/deploy")
 async def deploy(background_tasks: BackgroundTasks):
     print("received deploy event")
-    background_tasks.add_task(run_deploy, connection_manager)
+    background_tasks.add_task(run_deploy)
     return {"message": "deploying"}

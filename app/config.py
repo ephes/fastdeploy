@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     database_url: str = Field(..., env="DATABASE_URL")
     db_engine: typing.Any
     secret_key: str = Field(..., env="SECRET_KEY")
-    test: bool = Field(default=False, env="TEST")
     origins: list[str] = [
         "http://localhost",
         "http://localhost:3000",
