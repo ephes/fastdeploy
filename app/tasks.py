@@ -18,21 +18,26 @@ from .config import settings
 async def run_deploy(user):
     print("running deployment")
     access_token = create_access_token(data={"sub": user.name}, expires_delta=timedelta(minutes=30))
-    environment = {"ACCESS_TOKEN": access_token, "DEPLOY_SCRIPT": "create_lines.py"}
-    # command = [sys.executable, settings.project_root / "app" / "tasks.py"]
-    command = [sys.executable, "-m", "app.tasks"]
+    environment = {"ACCESS_TOKEN": access_token, "DEPLOY_SCRIPT": "create_lines.py", "EVENT_URL": settings.event_url}
+    command = [sys.executable, "-m", "app.tasks"]  # make relative imports work
     subprocess.Popen(command, start_new_session=True, env=environment)
 
 
 class DeployTask(BaseSettings):
     deploy_script: str = Field(..., env="DEPLOY_SCRIPT")
     access_token: str = Field(..., env="ACCESS_TOKEN")
+    event_url: str = Field(..., env="EVENT_URL")
 
     async def process_deploy_event(self, event):
         print("process..")
         headers = {"authorization": f"Bearer {self.access_token}"}
         async with httpx.AsyncClient() as client:
-            r = await client.post("http://localhost:8000/deployments/event", json=event, headers=headers)
+            for attempt in range(3):
+                try:
+                    r = await client.post(self.event_url, json=event, headers=headers)
+                    break
+                except httpx.ConnectError:
+                    await asyncio.sleep(3)
             print("response: ", r.status_code, r.json())
 
     async def run_deploy(self):

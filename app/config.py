@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     ]
     project_root: Path = ROOT_DIR
     deploy_root: Path = project_root / "deployments"
+    event_url: str = Field("http://localhost:8000/deployments/event", env="EVENT_URL")
 
     class Config:
         env_file = ROOT_DIR / ".env"
