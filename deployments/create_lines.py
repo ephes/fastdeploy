@@ -7,7 +7,7 @@ from time import sleep
 
 def main():
     for i in range(100):
-        message = json.dumps({"name": f"message number {i}"})
+        message = json.dumps({"name": f"message number {i}", "state": "done", "changed": False})
         line = f"{message}"
         print(line, flush=True)
         sleep(0.5)
