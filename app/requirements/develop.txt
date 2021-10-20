@@ -128,6 +128,7 @@ click==8.0.3 \
     --hash=sha256:410e932b050f5eed773c4cda94de75971c89cdb3155a72a0831139a79e5ecb5b
     # via
     #   black
+    #   pip-tools
     #   uvicorn
 coverage==6.0.2 \
     --hash=sha256:04560539c19ec26995ecfb3d9307ff154fbb9a172cb57e3b3cfc4ced673103d1 \
@@ -512,6 +513,10 @@ pathspec==0.9.0 \
     --hash=sha256:7d15c4ddb0b5c802d161efc417ec1a2558ea2653c2e8ad9c19098201dc1c993a \
     --hash=sha256:e564499435a2673d586f6b2130bb5b95f04a3ba06f81b8f895b651a3c76aabb1
     # via black
+pep517==0.12.0 \
+    --hash=sha256:931378d93d11b298cf511dd634cf5ea4cb249a28ef84160b3247ee9afb4e8ab0 \
+    --hash=sha256:dd884c326898e2c6e11f9e0b64940606a93eb10ea022a2e067959f3a110cf161
+    # via pip-tools
 pexpect==4.8.0 \
     --hash=sha256:0b48a55dcb3c05f3329815901ea4fc1537514d6ba867a152b581d69ae3710937 \
     --hash=sha256:fc65a43959d153d0114afe13997d439c22823a27cefceb5ff35c2178c6784c0c
@@ -520,6 +525,10 @@ pickleshare==0.7.5 \
     --hash=sha256:87683d47965c1da65cdacaf31c8441d12b8044cdec9aca500cd78fc2c683afca \
     --hash=sha256:9649af414d74d4df115d5d718f82acb59c9d418196b7b4290ed47a12ce62df56
     # via ipython
+pip-tools==6.4.0 \
+    --hash=sha256:65553a15b1ba34be5e43889345062e38fb9b219ffa23b084ca0d4c4039b6f53b \
+    --hash=sha256:bb2c3272bc229b4a6d25230ebe255823aba1aa466a0d698c48ab7eb5ab7efdc9
+    # via -r app/requirements/develop.in
 platformdirs==2.4.0 \
     --hash=sha256:367a5e80b3d04d2428ffa76d33f124cf11e8fff2acdaa9b43d545f5c7d661ef2 \
     --hash=sha256:8868bbe3c3c80d42f20156f22e7131d2fb321f5bc86a2a345375c6481a67021d
@@ -869,7 +878,9 @@ toml==0.10.2 \
 tomli==1.2.1 \
     --hash=sha256:8dd0e9524d6f386271a36b41dbf6c57d8e32fd96fd22b6584679dc569d20899f \
     --hash=sha256:a5b75cb6f3968abb47af1b40c1819dc519ea82bcc065776a866e8d74c5ca9442
-    # via black
+    # via
+    #   black
+    #   pep517
 tornado==6.1 \
     --hash=sha256:0a00ff4561e2929a2c37ce706cb8233b7907e0cdc22eab98888aca5dd3775feb \
     --hash=sha256:0d321a39c36e5f2c4ff12b4ed58d41390460f798422c4504e09eb5678e09998c \
@@ -1049,7 +1060,12 @@ websockets==10.0 \
     --hash=sha256:fe83b3ec9ef34063d86dfe1029160a85f24a5a94271036e5714a57acfdd089a1 \
     --hash=sha256:ff59c6bdb87b31f7e2d596f09353d5a38c8c8ff571b0e2238e8ee2d55ad68465
     # via uvicorn
+wheel==0.37.0 \
+    --hash=sha256:21014b2bd93c6d0034b6ba5d35e4eb284340e09d63c59aef6fc14b0f346146fd \
+    --hash=sha256:e2ef7239991699e3355d54f8e968a21bb940a1dbf34a4d226741e64462516fad
+    # via pip-tools
 
 # WARNING: The following packages were not pinned, but pip requires them to be
 # pinned when the requirements file includes hashes. Consider using the --allow-unsafe flag.
+# pip
 # setuptools
