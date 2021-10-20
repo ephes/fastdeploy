@@ -4,6 +4,7 @@ class Client {
   name = 'websocket client..';
   connection: any;
   messages: any;
+  access_token: string = ''
 
   constructor() {
     this.messages = ref([]);
@@ -11,7 +12,8 @@ class Client {
   }
 
   initWebsocketConnection() {
-    this.connection = new WebSocket('ws://localhost:8000/ws/1');
+    //document.cookie = 'auth=' + this.access_token + '; path="/deployments"'
+    this.connection = new WebSocket('ws://localhost:8000/deployments/ws/1', Headers);
     this.connection.onopen = (event: MessageEvent) => {
       console.log(event);
       console.log('Successfully connected to the echo websocket server...');
@@ -29,7 +31,8 @@ class Client {
     );
   }
   startDeployment() {
-    fetch("http://localhost:8000/deploy", { method: 'POST' })
+    const headers = {'authorization': `Bearer ${this.access_token}`}
+    fetch("http://localhost:8000/deployments/deploy", { method: 'POST' , headers: headers})
       .then(response => response.json())
       .then(data => console.log("fetch response: ", data))
   }
