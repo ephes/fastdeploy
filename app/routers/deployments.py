@@ -2,7 +2,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, WebSocket, WebSocketDis
 
 from ..connection import connection_manager
 from ..dependencies import get_current_active_user
-from ..deployment import run_deploy
+from ..models import User
+from ..tasks import run_deploy
 
 
 router = APIRouter(
@@ -32,7 +33,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: int):
 
 
 @router.post("/deploy")
-async def deploy(background_tasks: BackgroundTasks):
-    print("received deploy event")
-    background_tasks.add_task(run_deploy)
+async def deploy(background_tasks: BackgroundTasks, current_user: User = Depends(get_current_active_user)):
+    print("received deploy event from user: ", current_user)
+    background_tasks.add_task(run_deploy, current_user)
     return {"message": "deploying"}
+
+
+@router.post("/event")
+async def receive_deploy_event(event: dict):
+    print("received event: ", event)
+    return {"received": True}

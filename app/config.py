@@ -21,6 +21,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",
     ]
     project_root: Path = ROOT_DIR
+    deploy_root: Path = project_root / "deployments"
 
     class Config:
         env_file = ROOT_DIR / ".env"
