@@ -5,6 +5,7 @@ import { ref } from 'vue';
 import { getCurrentInstance } from 'vue'
 import Client from './client';
 import Deployment from './components/Deployment.vue';
+import Login from './components/Login.vue';
 
 const app = getCurrentInstance()
 const router = app.appContext.config.globalProperties.$router
@@ -14,35 +15,16 @@ function navigateToHello() {
   console.log("pressed navigate to hello: ", router)
   router.push({ name: 'hello', params: { msg: "foo bar baz" } })
 }
-
-export default = {
-  data: function () {
-    console.log("in data function")
-    return {
-      greeting: 'Hello'
-    }
-  }
-}
-
-// const navigateToHello: () => {
-//   console.log("pressed navigate to hello: ", router)
-//   console.log("this is undefined? ", this)
-//   // router.push({ name: 'hello', params: { msg: "foo bar baz" } })
-// }
 </script>
 
 <template>
-  <!-- <img alt="Vue logo" src="./assets/logo.png" /> -->
-  <!-- <HelloWorld msg="Hello Vue 3 + TypeScript + Vite" /> -->
-  <p>
-    <router-link to="/">Go to Home</router-link>
-    <br />
-    <!-- <router-link to="{ name: 'user', params: { msg: 'fido' }}">Go to Hello</router-link> -->
-  </p>
-  <button @click="navigateToHello()">Got to Hello</button>
-  <Deployment :client="client" :messages="client.messages" @send="client.startDeployment()" />
-  <h1>Wut?</h1>
-  <router-view></router-view>
+  <div v-if="client.is_authenticated">
+      <Deployment :client="client" :messages="client.messages" @send="client.startDeployment()" />
+  </div>
+  <div v-else>
+    <Login @login="client.login"/>
+  </div>
+  <br />
 </template>
 
 <style>
