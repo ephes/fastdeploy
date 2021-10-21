@@ -13,7 +13,7 @@ class Client {
 
   initWebsocketConnection() {
     //document.cookie = 'auth=' + this.access_token + '; path="/deployments"'
-    this.connection = new WebSocket('ws://localhost:8000/deployments/ws/1', Headers);
+    this.connection = new WebSocket('ws://localhost:8000/deployments/ws/1');
     this.connection.onopen = (event: MessageEvent) => {
       console.log(event);
       console.log('Successfully connected to the echo websocket server...');
