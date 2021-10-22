@@ -57,6 +57,7 @@ import { App, ref, Ref } from 'vue';
 // }
 
 interface Client {
+  errorMessage: Ref;
   isAuthenticated: Ref;
   accessToken: string | null;
   connection: any;
@@ -79,6 +80,7 @@ let isAuthenticated = false;
 
 export function createClient(): Client {
   const client: Client = {
+    errorMessage: ref(false),
     connection: null,
     accessToken: null,
     isAuthenticated: ref(false),
@@ -122,8 +124,10 @@ export function createClient(): Client {
         // error
         console.log("login error: ", result)
         client.isAuthenticated.value = false
+        client.errorMessage.value = result.detail
       } else {
         console.log('login success: ', result);
+        client.errorMessage.value = false;
         client.isAuthenticated.value = true;
         client.accessToken = result.access_token;
         client.initWebsocketConnection()

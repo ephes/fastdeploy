@@ -14,8 +14,8 @@ console.log('client: ', client);
 console.log('is authenticated: ', client.isAuthenticated.value);
 
 // dunno why this is necessary FIXME
-const messages = client.messages;
 const isAuthenticated = client.isAuthenticated;
+const clientErrorMessage = client.errorMessage
 
 
 async function login(username: string, password: string) {
@@ -31,9 +31,10 @@ async function login(username: string, password: string) {
 <template>
   <div>
     <h1>App Component</h1>
+    <p v-if="clientErrorMessage">Client-Error: {{ clientErrorMessage }}</p>
     <p v-if="isAuthenticated">
-      <router-link to="/">Home</router-link> |
-      <router-link to="/hello">Hello</router-link> |
+      <router-link to="/">Home</router-link>|
+      <router-link to="/hello">Hello</router-link>|
       <router-link to="/deployment">Deployment</router-link>
     </p>
     <router-view @send="client.startDeployment()" @login="login"></router-view>
