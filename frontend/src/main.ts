@@ -9,11 +9,13 @@ import Home from './components/Home.vue'
 import DeploymentVue from './components/Deployment.vue'
 
 
+const client = createClient()
+
 const routes = [
     { path: '/', component: Home },
-    { path: '/login', component: Login},
-    { path: '/hello', component: HelloWorldVue},
-    { path: '/deployment', component: DeploymentVue},
+    { path: '/login', name: 'login', component: Login },
+    { path: '/hello', component: HelloWorldVue },
+    { path: '/deployment', component: DeploymentVue },
 ]
 
 const router = createRouter({
@@ -21,7 +23,20 @@ const router = createRouter({
     routes,
 })
 
-const client = createClient()
+router.beforeEach((to, from) => {
+    console.log("beforeEach: ", client.isAuthenticated.value, to, from)
+    if (!client.isAuthenticated.value && to.name !== 'login') {
+        // redirect to login if not authenticated
+        return { name: "login" }
+    } else {
+        // if (to.name === 'login') {
+        //     // redirect to home after login
+        //     return {to: "/"}
+        // }
+        return true
+    }
+})
+
 const app = createApp(App)
 app.use(router)
 app.use(client)

@@ -118,14 +118,16 @@ export function createClient(): Client {
         body: formData,
       });
       const result = await response.json();
-      console.log('username, password: ', username, password);
-      console.log('returned data: ', result);
-      // this.isAuthenticated = result.access_token;
-      // isAuthenticated.value = true;
-      client.isAuthenticated.value = true;
-      client.accessToken = result.access_token;
-      console.log("this: ", client)
-      client.initWebsocketConnection()
+      if (!response.ok) {
+        // error
+        console.log("login error: ", result)
+        client.isAuthenticated.value = false
+      } else {
+        console.log('login success: ', result);
+        client.isAuthenticated.value = true;
+        client.accessToken = result.access_token;
+        client.initWebsocketConnection()
+      }
     },
   };
   return client;

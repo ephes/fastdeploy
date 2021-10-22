@@ -17,34 +17,26 @@ console.log('is authenticated: ', client.isAuthenticated.value);
 const messages = client.messages;
 const isAuthenticated = client.isAuthenticated;
 
-// function navigateToHello() {
-//   console.log('pressed navigate to hello: ', router);
-//   router.push({ name: 'hello', params: { msg: 'foo bar baz' } });
-// }
+
+async function login(username: string, password: string) {
+  await client.login(username, password)
+  if (client.isAuthenticated) {
+    // redirect to home after successful login
+    router.push("/")
+  }
+}
+
 </script>
 
 <template>
   <div>
     <h1>App Component</h1>
-  <!-- <div v-if="!isAuthenticated">
-    <Login @login="client.login" />
-  </div>
-  <div v-else>
-  <Deployment
-    :messages="messages"
-    @send="client.startDeployment()"
-  />
-  </div> -->
     <p v-if="isAuthenticated">
       <router-link to="/">Home</router-link> |
-      <router-link to="/login">Login</router-link> |
       <router-link to="/hello">Hello</router-link> |
       <router-link to="/deployment">Deployment</router-link>
     </p>
-    <p v-else>
-      <Login @login="client.login" />
-    </p>
-    <router-view @send="client.startDeployment()"></router-view>
+    <router-view @send="client.startDeployment()" @login="login"></router-view>
   </div>
 </template>
 
