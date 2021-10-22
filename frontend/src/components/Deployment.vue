@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Message from './Message.vue';
 
-defineProps<{ messages: Message[] }>();
+defineProps<{ messages: any[] }>();
 defineEmits(['send']);
 </script>
 
