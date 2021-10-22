@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { inject } from 'vue';
 import Message from './Message.vue';
 
-defineProps<{ messages: any[] }>();
+const client: any = inject("client");
+const messages = client.messages;
+// defineProps<{ messages: any[] }>();
 defineEmits(['send']);
 </script>
 

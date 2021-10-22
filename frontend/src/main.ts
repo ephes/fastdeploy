@@ -6,12 +6,14 @@ import { createClient } from './client'
 import Login from './components/Login.vue'
 import HelloWorldVue from './components/HelloWorld.vue'
 import Home from './components/Home.vue'
+import DeploymentVue from './components/Deployment.vue'
 
 
 const routes = [
     { path: '/', component: Home },
     { path: '/login', component: Login},
     { path: '/hello', component: HelloWorldVue},
+    { path: '/deployment', component: DeploymentVue},
 ]
 
 const router = createRouter({

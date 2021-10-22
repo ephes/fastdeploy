@@ -44,7 +44,7 @@ const isAuthenticated = client.isAuthenticated;
     <p v-else>
       <Login @login="client.login" />
     </p>
-    <router-view></router-view>
+    <router-view @send="client.startDeployment()"></router-view>
   </div>
 </template>
 
