@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import database
 from .config import settings
-from .connection import connection_manager
 from .routers import deployments, users
+from .websocket import connection_manager
 
 
 database.create_db_and_tables()
