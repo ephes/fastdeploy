@@ -1,22 +1,14 @@
 <script setup lang="ts">
-// This starter template is using Vue 3 <script setup> SFCs
-// Check out https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup
-import { ref, inject } from 'vue';
+import { inject } from 'vue';
 import { useRouter } from 'vue-router';
 import { getCurrentInstance } from 'vue';
-import Deployment from './components/Deployment.vue';
-import Login from './components/Login.vue';
 
-const app = getCurrentInstance();
 const router = useRouter();
 const client: any = inject('client');
-console.log('client: ', client);
-console.log('is authenticated: ', client.isAuthenticated.value);
 
 // dunno why this is necessary FIXME
 const isAuthenticated = client.isAuthenticated;
 const clientErrorMessage = client.errorMessage
-
 
 async function login(username: string, password: string) {
   await client.login(username, password)
@@ -25,7 +17,6 @@ async function login(username: string, password: string) {
     router.push("/")
   }
 }
-
 </script>
 
 <template>
@@ -33,8 +24,8 @@ async function login(username: string, password: string) {
     <h1>App Component</h1>
     <p v-if="clientErrorMessage">Client-Error: {{ clientErrorMessage }}</p>
     <p v-if="isAuthenticated">
-      <router-link to="/">Home</router-link>|
-      <router-link to="/hello">Hello</router-link>|
+      <router-link to="/">Home</router-link> |
+      <router-link to="/hello">Hello</router-link> |
       <router-link to="/deployment">Deployment</router-link>
     </p>
     <router-view @send="client.startDeployment()" @login="login"></router-view>

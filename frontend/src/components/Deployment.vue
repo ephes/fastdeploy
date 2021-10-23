@@ -4,7 +4,6 @@ import Message from './Message.vue';
 
 const client: any = inject("client");
 const messages = client.messages;
-// defineProps<{ messages: any[] }>();
 defineEmits(['send']);
 </script>
 
