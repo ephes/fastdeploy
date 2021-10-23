@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,14 +31,13 @@ async def read_root():
 # This only works with fastapi app not with api router
 # see: https://github.com/tiangolo/fastapi/issues/98
 @app.websocket("/deployments/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: int):
-    # print("auth cookie: ", auth)
-    await connection_manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, client_id: UUID):
+    await connection_manager.connect(client_id, websocket)
     try:
         while True:
             data = await websocket.receive_json()
             await connection_manager.broadcast({"message": "message from backend!"})
             print("received data: ", data)
     except WebSocketDisconnect:
-        connection_manager.disconnect(websocket)
+        connection_manager.disconnect(client_id, websocket)
         await connection_manager.broadcast(f"Client #{client_id} left the chat")

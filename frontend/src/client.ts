@@ -1,6 +1,8 @@
 import { App, ref, Ref } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Client {
+  uuid: any;
   errorMessage: Ref;
   isAuthenticated: Ref;
   accessToken: string | null;
@@ -21,6 +23,7 @@ interface Client {
 
 export function createClient(): Client {
   const client: Client = {
+    uuid: uuidv4(),
     errorMessage: ref(false),
     connection: null,
     accessToken: null,
@@ -30,7 +33,7 @@ export function createClient(): Client {
     },
     messages: ref([]),
     initWebsocketConnection() {
-      this.connection = new WebSocket('ws://localhost:8000/deployments/ws/1');
+      this.connection = new WebSocket(`ws://localhost:8000/deployments/ws/${this.uuid}`);
       this.connection.onopen = (event: MessageEvent) => {
         console.log(event);
         console.log('Successfully connected to the echo websocket server...');

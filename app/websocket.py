@@ -1,19 +1,22 @@
+from uuid import UUID
+
 from fastapi import WebSocket
 
 
 class ConnectionManager:
     def __init__(self) -> None:
-        self.active_connections: list[WebSocket] = []
+        self.all_connections: dict[UUID, WebSocket] = {}
+        self.active_connections: dict[UUID, WebSocket] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, client_id: UUID, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        self.all_connections[client_id] = websocket
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+    def disconnect(self, client_id: UUID, websocket: WebSocket):
+        del self.all_connections[client_id]
 
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        for connection in self.all_connections.values():
             await connection.send_json(message)
 
 
