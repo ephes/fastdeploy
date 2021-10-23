@@ -12,7 +12,7 @@ class ConnectionManager:
         await websocket.accept()
         self.all_connections[client_id] = websocket
 
-    def disconnect(self, client_id: UUID, websocket: WebSocket):
+    def disconnect(self, client_id: UUID):
         del self.all_connections[client_id]
 
     async def broadcast(self, message: dict):

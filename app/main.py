@@ -39,5 +39,5 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID):
             await connection_manager.broadcast({"message": "message from backend!"})
             print("received data: ", data)
     except WebSocketDisconnect:
-        connection_manager.disconnect(client_id, websocket)
+        connection_manager.disconnect(client_id)
         await connection_manager.broadcast(f"Client #{client_id} left the chat")
