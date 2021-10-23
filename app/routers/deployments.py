@@ -1,9 +1,9 @@
 from fastapi import APIRouter, BackgroundTasks, Depends
 
-from ..connection import connection_manager
 from ..dependencies import get_current_active_user
 from ..models import User
 from ..tasks import run_deploy
+from ..websocket import connection_manager
 
 
 router = APIRouter(
