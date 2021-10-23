@@ -55,6 +55,11 @@ def valid_access_token():
 
 
 @pytest.fixture
+def invalid_access_token():
+    return create_access_token({"sub": "user"}, timedelta(minutes=-5))
+
+
+@pytest.fixture
 def stub_websocket():
     class StubWebsocket:
         sent = []
