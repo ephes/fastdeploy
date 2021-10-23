@@ -35,7 +35,7 @@ class ConnectionManager:
         await self.all_connections[client_id].send_json(message)
 
     async def broadcast(self, message: dict):
-        for connection in self.all_connections.values():
+        for connection in self.active_connections.values():
             await connection.send_json(message)
 
 

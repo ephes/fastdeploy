@@ -45,3 +45,19 @@ def test_websocket_disconnect(stub_websocket):
 
     assert client_id not in cm.all_connections
     assert client_id not in cm.active_connections
+
+
+@pytest.mark.asyncio
+async def test_broadcast_only_to_authenticated_connections(stub_websocket):
+    client_id = uuid4()
+    cm = ConnectionManager()
+    cm.all_connections[client_id] = stub_websocket
+
+    message = {"test": "message"}
+    await cm.broadcast(message)
+
+    assert message not in stub_websocket.sent
+
+    cm.active_connections[client_id] = stub_websocket
+    await cm.broadcast(message)
+    assert message in stub_websocket.sent
