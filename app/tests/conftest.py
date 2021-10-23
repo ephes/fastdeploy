@@ -1,9 +1,11 @@
+from datetime import timedelta
+
 import pytest
 
 from sqlmodel import Session, SQLModel
 
 from .. import database
-from ..auth import get_password_hash
+from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
 from ..models import User
 
@@ -45,3 +47,19 @@ def app():
 @pytest.fixture
 def base_url():
     return "http://test"
+
+
+@pytest.fixture
+def valid_access_token():
+    return create_access_token({"sub": "user"}, timedelta(minutes=5))
+
+
+@pytest.fixture
+def stub_websocket():
+    class StubWebsocket:
+        sent = []
+
+        async def send_json(self, message):
+            self.sent.append(message)
+
+    return StubWebsocket()

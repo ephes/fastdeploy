@@ -61,6 +61,19 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
+def verify_access_token(access_token: str) -> TokenData:
+    payload = jwt.decode(
+        access_token,
+        settings.secret_key,
+        algorithms=[settings.password_hash_algorithm],
+    )
+    username: str = payload.get("sub")
+    if username is None:
+        raise JWTError("no username")
+    token_data = TokenData(username=username)
+    return token_data
+
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -68,11 +81,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.password_hash_algorithm])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-        token_data = TokenData(username=username)
+        token_data = verify_access_token(token)
     except JWTError:
         raise credentials_exception
     with Session(database.engine) as session:
