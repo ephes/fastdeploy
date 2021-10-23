@@ -63,8 +63,12 @@ def invalid_access_token():
 def stub_websocket():
     class StubWebsocket:
         sent = []
+        has_accepted = False
 
         async def send_json(self, message):
             self.sent.append(message)
+
+        async def accept(self):
+            self.has_accepted = True
 
     return StubWebsocket()
