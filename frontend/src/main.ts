@@ -29,10 +29,6 @@ router.beforeEach((to, from) => {
         // redirect to login if not authenticated
         return { name: "login" }
     } else {
-        // if (to.name === 'login') {
-        //     // redirect to home after login
-        //     return {to: "/"}
-        // }
         return true
     }
 })
