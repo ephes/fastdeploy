@@ -36,8 +36,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID):
     try:
         while True:
             data = await websocket.receive_json()
-            await connection_manager.broadcast({"message": "message from backend!"})
             print("received data: ", data)
+            if data.get("access_token") is not None:
+                # try to authenticate client
+                await connection_manager.authenticate(client_id, data["access_token"])
+                print("client authenticated..")
+            else:
+                await connection_manager.broadcast({"message": "message from backend!"})
     except WebSocketDisconnect:
         connection_manager.disconnect(client_id)
         await connection_manager.broadcast(f"Client #{client_id} left the chat")

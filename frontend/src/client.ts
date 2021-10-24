@@ -18,6 +18,7 @@ interface Client {
   install(app: App, options: any): void;
   login(username: string, password: string): void;
   initWebsocketConnection(): void;
+  authenticateWebsocketConnection(): void;
   startDeployment(): void;
 }
 
@@ -37,12 +38,17 @@ export function createClient(): Client {
       this.connection.onopen = (event: MessageEvent) => {
         console.log(event);
         console.log('Successfully connected to the echo websocket server...');
+        this.authenticateWebsocketConnection()
       };
       this.connection.onmessage = (event: MessageEvent) => {
         const message = JSON.parse(event.data);
         console.log('in client.ts: ', message);
         this.messages.value.push(message);
       };
+    },
+    authenticateWebsocketConnection() {
+      const credentials = JSON.stringify({ access_token: this.accessToken })
+      this.connection.send(credentials)
     },
     startDeployment() {
       const headers = { authorization: `Bearer ${this.accessToken}` };
@@ -73,6 +79,7 @@ export function createClient(): Client {
         client.isAuthenticated.value = true;
         client.accessToken = result.access_token;
         client.initWebsocketConnection()
+        // client.authenticateWebsocketConnection()
       }
     },
   };
