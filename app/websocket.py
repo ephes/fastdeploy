@@ -28,7 +28,8 @@ class ConnectionManager:
         await self.send(client_id, message)
 
     def disconnect(self, client_id: UUID):
-        del self.active_connections[client_id]
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
         del self.all_connections[client_id]
 
     async def send(self, client_id, message: dict):

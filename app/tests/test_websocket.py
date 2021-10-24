@@ -17,6 +17,15 @@ async def test_websocket_connect(stub_websocket):
 def test_websocket_disconnect(stub_websocket):
     cm = ConnectionManager()
     client_id = uuid4()
+
+    # inactive connection
+    cm.all_connections[client_id] = stub_websocket
+
+    cm.disconnect(client_id)
+
+    assert client_id not in cm.all_connections
+
+    # active connection
     cm.all_connections[client_id] = stub_websocket
     cm.active_connections[client_id] = stub_websocket
 
