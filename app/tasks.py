@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 
@@ -18,7 +19,13 @@ from .config import settings
 async def run_deploy(user):
     print("running deployment")
     access_token = create_access_token(data={"sub": user.name}, expires_delta=timedelta(minutes=30))
-    environment = {"ACCESS_TOKEN": access_token, "DEPLOY_SCRIPT": "create_lines.py", "EVENT_URL": settings.event_url}
+    # environment = {"ACCESS_TOKEN": access_token, "DEPLOY_SCRIPT": "create_lines.py", "EVENT_URL": settings.event_url}
+    environment = {
+        "ACCESS_TOKEN": access_token,
+        "DEPLOY_SCRIPT": "cast_hosting.sh",
+        "EVENT_URL": settings.event_url,
+        "SSH_AUTH_SOCK": os.environ["SSH_AUTH_SOCK"],
+    }
     command = [sys.executable, "-m", "app.tasks"]  # make relative imports work
     subprocess.Popen(command, start_new_session=True, env=environment)
 
@@ -41,8 +48,10 @@ class DeployTask(BaseSettings):
             print("response: ", r.status_code, r.json())
 
     async def run_deploy(self):
-        command = f"{sys.executable} {settings.deploy_root / self.deploy_script}"
+        # command = f"{sys.executable} {settings.deploy_root / self.deploy_script}"
+        command = str(settings.deploy_root / self.deploy_script)
         print("command: ", command)
+        print("env: ", self.access_token, self.deploy_script, self.event_url)
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
