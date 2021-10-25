@@ -1,4 +1,4 @@
-#!/usr/bin/env fish
+#!/usr/local/bin/fish
 
 for i in (seq 1 100)
     echo \{\"name\": \"message number $i\"\}
