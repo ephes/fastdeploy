@@ -66,7 +66,7 @@ async def test_websocket_authenticate_valid_token(valid_access_token, stub_webso
 
 
 @pytest.mark.asyncio
-async def test_broadcast_only_to_authenticated_connections(stub_websocket):
+async def test_broadcast_only_to_active_connections(stub_websocket):
     client_id = uuid4()
     cm = ConnectionManager()
     cm.all_connections[client_id] = stub_websocket
