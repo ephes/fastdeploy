@@ -22,7 +22,7 @@ async def run_deploy(user):
     # environment = {"ACCESS_TOKEN": access_token, "DEPLOY_SCRIPT": "create_lines.py", "EVENT_URL": settings.event_url}
     environment = {
         "ACCESS_TOKEN": access_token,
-        "DEPLOY_SCRIPT": "cast_hosting.sh",
+        "DEPLOY_SCRIPT": "fastdeploy.sh",
         "EVENT_URL": settings.event_url,
         "SSH_AUTH_SOCK": os.environ["SSH_AUTH_SOCK"],
     }
