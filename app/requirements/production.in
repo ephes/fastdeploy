@@ -3,3 +3,4 @@ orjson==3.6.3
 sqlmodel
 passlib[bcrypt]
 python-jose
+httpx

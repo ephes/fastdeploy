@@ -3,7 +3,6 @@ pytest
 notebook
 black
 nb-black
-httpx
 pytest-asyncio
 coverage
 pytest-env
