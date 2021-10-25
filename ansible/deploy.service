@@ -1,0 +1,14 @@
+# Contents of /etc/systemd/system/multi-user.target.wants/deploy.service
+[Unit]
+Description=Small Deploy Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+WorkingDirectory=/home/deploy/site
+User=cast
+ExecStart=/home/deploy/site/uvicorn.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,67 @@
+- hosts: staging
+  vars:
+    - username: deploy
+    - site_path: "/home/{{ username }}/site"
+    - global_python: python3.10
+    - venv_bin: "{{ site_path }}/venv/bin"
+    - python: "{{ venv_bin }}/python"
+    - pip_sync: "{{ venv_bin }}/pip-sync"
+  tasks:
+    - include_vars: secrets.yml
+
+    - name: Install required build packages (git,)
+      apt:
+        name: ["git"]
+
+    - name: Add the user "{{ username }}" with a bash shell
+      user:
+        name: "{{ username }}"
+        shell: /bin/bash
+
+    - name: Git checkout repository
+      git:
+        repo: "https://github.com/ephes/fastdeploy"
+        dest: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create .env file
+      template:
+        src: env.template.j2
+        dest: "{{ site_path }}/.env"
+        mode: '0600'
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create virtualenv for python
+      shell: "{{ global_python }} -m venv {{ site_path }}/venv"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Upgrade pip
+      shell: "{{ python }} -m pip install --upgrade pip"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Install pip-tools
+      shell: "{{ python }} -m pip install pip-tools"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Install app production requirements
+      shell: "{{ pip_sync }} app/requirements/production.txt"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create a symbolic link for uvicorn systemd service
+      file:
+        src: "{{ site_path }}/ansible/deploy.service"
+        dest: /etc/systemd/system/deploy.service
+        state: link
+
+    - name: Make sure deploy uvicorn service is running
+      systemd:
+        state: restarted
+        name: "{{ username }}"

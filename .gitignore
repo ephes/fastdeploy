@@ -20,3 +20,6 @@ __pycache__
 # coverage
 .coverage
 htmlcov
+
+# ansible vault password
+.vault_password
