@@ -1,0 +1,37 @@
+http:
+  routers:
+    web-router:
+      rule: "Host(`deploy.staging.wersdoerfer.de`)"
+
+      entryPoints:
+        - web
+      middlewares:
+        - redirect
+        - csrf
+      service: fastdeploy
+
+    web-secure-router:
+      rule: "Host(`deploy.staging.wersdoerfer.de`)"
+
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+      service: fastdeploy
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    csrf:
+      headers:
+        hostsProxyHeaders: ["X-CSRFToken"]
+
+  services:
+    fastdeploy:
+      loadBalancer:
+        servers:
+          - url: http://localhost:9999

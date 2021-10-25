@@ -65,3 +65,9 @@
       systemd:
         state: restarted
         name: "{{ username }}"
+
+    - name: Create a symbolic link for traefik loadbalancer
+      file:
+        src: "{{ site_path }}/ansible/deploy.traefik.yml"
+        dest: /etc/traefik/dynamic/deploy.traefik.yml
+        state: link
