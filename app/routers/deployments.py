@@ -2,8 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from .. import database
-from ..auth import get_current_service
-from ..dependencies import get_current_active_user
+from ..dependencies import get_current_active_user, get_current_service
 from ..models import Service, User
 from ..tasks import (
     get_deploy_environment_by_service,
