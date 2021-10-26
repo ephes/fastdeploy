@@ -10,7 +10,6 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column=Column("name", String, unique=True))
     password: str
-    deploy_only: bool
 
 
 class Service(SQLModel, table=True):

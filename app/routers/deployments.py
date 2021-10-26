@@ -1,13 +1,12 @@
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlmodel import Session, select
 
-from ..dependencies import (
-    get_current_active_user,
-    get_current_service,
-    get_service_by_id,
-)
+from .. import database
+from ..dependencies import get_current_active_user, get_current_service
 from ..models import Service, User
-from ..tasks import (  # get_deploy_environment_by_user,
+from ..tasks import (
     get_deploy_environment_by_service,
+    get_deploy_environment_by_user,
     run_deploy,
 )
 from ..websocket import connection_manager
@@ -26,22 +25,22 @@ async def read_root():
     return {"Hello": "Deployments"}
 
 
-# @router.post("/deploy-by-user/{service_id}")
-# async def deploy_by_user(
-#     service_id: int, background_tasks: BackgroundTasks, current_user: User = Depends(get_current_active_user)
-# ):
-@router.post("/deploy-by-user/{service_id}")
+@router.post("/deploy-by-user")
 async def deploy_by_user(
-    service_id: int,
+    service: Service,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
-    service: Service = Depends(get_service_by_id),
 ):
     print("received deploy event from user: ", current_user)
-    print("service_id: ", service_id)
-    # print("service: ", service)
-    # environment = get_deploy_environment_by_user(current_user, None)
-    # background_tasks.add_task(run_deploy, environment)
+    with Session(database.engine) as session:
+        service_from_db = session.exec(select(Service).where(Service.name == service.name)).first()
+    if service_from_db is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Service not found",
+        )
+    environment = get_deploy_environment_by_user(current_user, service_from_db)
+    background_tasks.add_task(run_deploy, environment)
     return {"message": "deploying"}
 
 

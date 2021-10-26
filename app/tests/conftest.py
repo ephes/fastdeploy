@@ -22,7 +22,16 @@ def user(password):
 
 @pytest.fixture
 def service():
-    return Service(id=1, name="fastdeploy")
+    return Service(name="fastdeploy")
+
+
+@pytest.fixture
+def service_in_db(cleanup_database_after_test, service):
+    with Session(database.engine) as session:
+        session.add(service)
+        session.commit()
+        session.refresh(service)
+    return service
 
 
 @pytest.fixture
@@ -35,8 +44,7 @@ def cleanup_database_after_test():
 
 
 @pytest.fixture
-def user_in_db(cleanup_database_after_test, password):
-    user = User(name="user", password=get_password_hash(password), deploy_only=False)
+def user_in_db(cleanup_database_after_test, user):
     with Session(database.engine) as session:
         session.add(user)
         session.commit()
