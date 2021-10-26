@@ -78,6 +78,21 @@ def invalid_access_token(user):
 
 
 @pytest.fixture
+def invalid_service_token(service):
+    return create_access_token({"service": service.name}, timedelta(minutes=-5))
+
+
+@pytest.fixture
+def valid_service_token(service):
+    return create_access_token({"service": service.name}, timedelta(minutes=5))
+
+
+@pytest.fixture
+def valid_service_token_in_db(service_in_db):
+    return create_access_token({"service": service_in_db.name}, timedelta(minutes=5))
+
+
+@pytest.fixture
 def stub_websocket():
     class StubWebsocket:
         sent = []

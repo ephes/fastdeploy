@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from . import database
 from .config import settings
-from .models import User
+from .models import Service, User
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -96,6 +96,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise credentials_exception
     with Session(database.engine) as session:
+        # protect against validating an access_token from a deleted user
         user = session.exec(select(User).where(User.name == token_data.username)).first()
     if user is None:
         raise credentials_exception
@@ -113,7 +114,8 @@ async def get_current_service(token: str = Depends(oauth2_scheme)):
     except JWTError:
         raise credentials_exception
     with Session(database.engine) as session:
-        user = session.exec(select(User).where(User.name == token_data.username)).first()
-    if user is None:
+        # protect against validating an access_token from a deleted service
+        service = session.exec(select(Service).where(Service.name == token_data.servicename)).first()
+    if service is None:
         raise credentials_exception
-    return user
+    return service

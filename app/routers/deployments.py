@@ -2,7 +2,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from .. import database
-from ..dependencies import get_current_active_user, get_current_service
+from ..auth import get_current_service
+from ..dependencies import get_current_active_user
 from ..models import Service, User
 from ..tasks import (
     get_deploy_environment_by_service,
@@ -15,7 +16,6 @@ from ..websocket import connection_manager
 router = APIRouter(
     prefix="/deployments",
     tags=["deployments"],
-    dependencies=[Depends(get_current_active_user)],
     responses={404: {"description": "Not found"}},
 )
 
