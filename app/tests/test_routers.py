@@ -13,7 +13,6 @@ async def test_deploy_by_user_service_not_found(app, base_url, valid_access_toke
             response = await client.post("/deployments/deploy-by-user", headers=headers, json=service.dict())
 
     assert response.status_code == 400
-    print("response: ", response.json())
     assert response.json() == {"detail": "Service not found"}
 
 
