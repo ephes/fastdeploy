@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import User
+from ..models import Service, User
 
 
 @pytest.fixture
@@ -18,6 +18,11 @@ def password():
 @pytest.fixture
 def user(password):
     return User(name="user", password=get_password_hash(password))
+
+
+@pytest.fixture
+def service():
+    return Service(id=1, name="fastdeploy")
 
 
 @pytest.fixture
@@ -51,12 +56,17 @@ def base_url():
 
 @pytest.fixture
 def valid_access_token():
-    return create_access_token({"sub": "user"}, timedelta(minutes=5))
+    return create_access_token({"user": "user"}, timedelta(minutes=5))
+
+
+@pytest.fixture
+def valid_access_token_in_db(user_in_db):
+    return create_access_token({"user": user_in_db.name}, timedelta(minutes=5))
 
 
 @pytest.fixture
 def invalid_access_token():
-    return create_access_token({"sub": "user"}, timedelta(minutes=-5))
+    return create_access_token({"user": "user"}, timedelta(minutes=-5))
 
 
 @pytest.fixture

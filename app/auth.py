@@ -13,9 +13,6 @@ from .config import settings
 from .models import User
 
 
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -35,6 +32,7 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+    servicename: Optional[str] = None
 
 
 async def authenticate_user(username: str, password: str):
@@ -67,10 +65,23 @@ def verify_access_token(access_token: str) -> TokenData:
         settings.secret_key,
         algorithms=[settings.password_hash_algorithm],
     )
-    username: str = payload.get("sub")
+    username: str = payload.get("user")
     if username is None:
         raise JWTError("no username")
     token_data = TokenData(username=username)
+    return token_data
+
+
+def verify_service_token(service_token: str) -> TokenData:
+    payload = jwt.decode(
+        service_token,
+        settings.secret_key,
+        algorithms=[settings.password_hash_algorithm],
+    )
+    servicename: str = payload.get("service")
+    if servicename is None:
+        raise JWTError("no service name")
+    token_data = TokenData(servicename=servicename)
     return token_data
 
 
@@ -82,6 +93,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     )
     try:
         token_data = verify_access_token(token)
+    except JWTError:
+        raise credentials_exception
+    with Session(database.engine) as session:
+        user = session.exec(select(User).where(User.name == token_data.username)).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+
+async def get_current_service(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        token_data = verify_service_token(token)
     except JWTError:
         raise credentials_exception
     with Session(database.engine) as session:
