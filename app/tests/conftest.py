@@ -63,8 +63,8 @@ def base_url():
 
 
 @pytest.fixture
-def valid_access_token():
-    return create_access_token({"user": "user"}, timedelta(minutes=5))
+def valid_access_token(user):
+    return create_access_token({"user": user.name}, timedelta(minutes=5))
 
 
 @pytest.fixture
@@ -73,8 +73,8 @@ def valid_access_token_in_db(user_in_db):
 
 
 @pytest.fixture
-def invalid_access_token():
-    return create_access_token({"user": "user"}, timedelta(minutes=-5))
+def invalid_access_token(user):
+    return create_access_token({"user": user.name}, timedelta(minutes=-5))
 
 
 @pytest.fixture
