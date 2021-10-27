@@ -1,14 +1,42 @@
+from datetime import datetime, timedelta
+
 import pytest
 
 from httpx import AsyncClient
 
-from ..auth import verify_password
+from ..auth import (
+    authenticate_user,
+    create_access_token,
+    verify_access_token,
+    verify_password,
+)
+from ..config import settings
 from ..routers.users import UserOut
 
 
 def test_verify_password(user, password):
     assert verify_password(password, user.password)
     assert not verify_password("", user.password)
+
+
+@pytest.mark.asyncio
+async def test_authenticate_user_not_in_db():
+    assert not await authenticate_user("foobar", "bar")
+
+
+@pytest.mark.asyncio
+async def test_authenticate_user_wrong_password(user_in_db):
+    user = user_in_db
+    assert not await authenticate_user(user.name, f"{user.password}foo")
+
+
+def test_create_access_token_without_expire():
+    access_token = create_access_token(data={"foo": "bar"})
+    payload = verify_access_token(access_token)
+    actual_expire = datetime.utcfromtimestamp(payload["exp"])
+    expected_expire = datetime.utcnow() + timedelta(minutes=settings.default_expire_minutes)
+    diff_seconds = (expected_expire - actual_expire).total_seconds()
+    assert diff_seconds < 1
 
 
 @pytest.mark.asyncio

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     ]
     project_root: Path = ROOT_DIR
     deploy_root: Path = project_root / "deployments"
+    default_expire_minutes: int = 15
     taskresult_by_user_url: str = Field(
         "http://localhost:8000/deployments/taskresult-by-user", env="TASKRESULT_BY_USER_URL"
     )
