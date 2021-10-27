@@ -105,3 +105,8 @@ def stub_websocket():
             self.has_accepted = True
 
     return StubWebsocket()
+
+
+@pytest.fixture
+def taskresult():
+    return {"foo": "bar"}
