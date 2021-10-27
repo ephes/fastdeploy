@@ -23,3 +23,6 @@ htmlcov
 
 # ansible vault password
 .vault_password
+
+# pycharm
+.idea
