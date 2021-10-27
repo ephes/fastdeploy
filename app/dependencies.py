@@ -2,8 +2,8 @@ from fastapi import Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from . import database
-from .auth import get_current_service, get_current_user
-from .models import Service, User
+from .auth import get_current_deployment, get_current_service, get_current_user
+from .models import Deployment, Service, User
 
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
@@ -12,6 +12,10 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 
 async def get_current_service(current_service: Service = Depends(get_current_service)):
     return current_service
+
+
+async def get_current_active_deployment(deployment: Deployment = Depends(get_current_deployment)):
+    return deployment
 
 
 def get_service_by_name(name: str) -> Service:

@@ -5,34 +5,28 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from . import database
 from .config import settings
-from .models import Service, User
+from .models import Deployment, Service, User
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
+OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
+CREDENTIALS_EXCEPTION = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Could not validate credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
 
 def get_password_hash(plain):
-    return pwd_context.hash(plain)
+    return PWD_CONTEXT.hash(plain)
 
 
 def verify_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
-    servicename: Optional[str] = None
+    return PWD_CONTEXT.verify(plain, hashed)
 
 
 async def authenticate_user(username: str, password: str):
@@ -59,63 +53,69 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-def verify_access_token(access_token: str) -> TokenData:
-    payload = jwt.decode(
+def verify_access_token(access_token: str) -> dict:
+    return jwt.decode(
         access_token,
         settings.secret_key,
         algorithms=[settings.password_hash_algorithm],
     )
-    username: str = payload.get("user")
-    if username is None:
+
+
+def verify_user_token(access_token: str) -> str:
+    payload = verify_access_token(access_token)
+    if (username := payload.get("user")) is None:
         raise JWTError("no username")
-    token_data = TokenData(username=username)
-    return token_data
+    return username
 
 
-def verify_service_token(service_token: str) -> TokenData:
-    payload = jwt.decode(
-        service_token,
-        settings.secret_key,
-        algorithms=[settings.password_hash_algorithm],
-    )
-    servicename: str = payload.get("service")
-    if servicename is None:
+def verify_service_token(access_token: str) -> str:
+    payload = verify_access_token(access_token)
+    if (servicename := payload.get("service")) is None:
         raise JWTError("no service name")
-    token_data = TokenData(servicename=servicename)
-    return token_data
+    return servicename
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+def verify_deployment_token(access_token: str) -> int:
+    payload = verify_access_token(access_token)
+    if (deployment_id := payload.get("deployment")) is None:
+        raise JWTError("no deployment id")
+    return deployment_id
+
+
+async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     try:
-        token_data = verify_access_token(token)
+        username = verify_user_token(token)
     except JWTError:
-        raise credentials_exception
+        raise CREDENTIALS_EXCEPTION
     with Session(database.engine) as session:
         # protect against validating an access_token from a deleted user
-        user = session.exec(select(User).where(User.name == token_data.username)).first()
+        user = session.exec(select(User).where(User.name == username)).first()
     if user is None:
-        raise credentials_exception
+        raise CREDENTIALS_EXCEPTION
     return user
 
 
-async def get_current_service(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+async def get_current_service(token: str = Depends(OAUTH2_SCHEME)) -> Service:
     try:
-        token_data = verify_service_token(token)
+        servicename = verify_service_token(token)
     except JWTError:
-        raise credentials_exception
+        raise CREDENTIALS_EXCEPTION
     with Session(database.engine) as session:
         # protect against validating an access_token from a deleted service
-        service = session.exec(select(Service).where(Service.name == token_data.servicename)).first()
+        service = session.exec(select(Service).where(Service.name == servicename)).first()
     if service is None:
-        raise credentials_exception
+        raise CREDENTIALS_EXCEPTION
     return service
+
+
+async def get_current_deployment(token: str = Depends(OAUTH2_SCHEME)) -> Deployment:
+    try:
+        deployment_id = verify_deployment_token(token)
+    except JWTError:
+        raise CREDENTIALS_EXCEPTION
+    with Session(database.engine) as session:
+        # protect against validating an access_token from a deleted deployment
+        deployment = session.exec(select(Deployment).where(Deployment.id == deployment_id)).first()
+    if deployment is None:
+        raise CREDENTIALS_EXCEPTION
+    return deployment

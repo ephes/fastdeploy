@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Service, User
+from ..models import Service, Task, User
 
 
 @pytest.fixture
@@ -108,5 +108,5 @@ def stub_websocket():
 
 
 @pytest.fixture
-def taskresult():
-    return {"foo": "bar"}
+def task():
+    return Task(id=1, deployment_id=23)

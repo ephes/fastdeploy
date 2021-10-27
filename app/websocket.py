@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import WebSocket
 from jose import JWTError
 
-from .auth import verify_access_token
+from .auth import verify_user_token
 
 
 class ConnectionManager:
@@ -17,10 +17,10 @@ class ConnectionManager:
 
     async def authenticate(self, client_id: UUID, access_token: str):
         try:
-            token_data = verify_access_token(access_token)
+            username = verify_user_token(access_token)
             message = {
                 "type": "authentication",
-                "detail": f"access token verification successful for user {token_data.username}",
+                "detail": f"access token verification successful for user {username}",
             }
             self.active_connections[client_id] = self.all_connections[client_id]
         except JWTError:
