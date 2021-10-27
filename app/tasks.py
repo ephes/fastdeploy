@@ -38,7 +38,7 @@ def get_deploy_environment_by_user(user, service):
     return get_deploy_environment(service, access_token, settings.taskresult_by_user_url)
 
 
-async def get_deploy_environment_by_service(service):
+def get_deploy_environment_by_service(service):
     print("get deploy environment for service")
     access_token = create_access_token(data={"service": service.name}, expires_delta=timedelta(minutes=30))
     return get_deploy_environment(service, access_token, settings.taskresult_by_service_url)
