@@ -1,5 +1,7 @@
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from sqlmodel import Session, select
 
+from . import database
 from .auth import get_current_service, get_current_user
 from .models import Service, User
 
@@ -10,3 +12,14 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 
 async def get_current_service(current_service: Service = Depends(get_current_service)):
     return current_service
+
+
+def get_service_by_name(name: str) -> Service:
+    with Session(database.engine) as session:
+        service_from_db = session.exec(select(Service).where(Service.name == name)).first()
+    if service_from_db is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Service not found",
+        )
+    return service_from_db
