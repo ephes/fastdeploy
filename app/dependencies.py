@@ -2,16 +2,22 @@ from fastapi import Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from . import database
-from .auth import get_current_deployment, get_current_service, get_current_user
-from .models import Deployment, Service, User
+from .auth import (
+    get_current_deployment,
+    get_current_service_and_origin,
+    get_current_user,
+)
+from .models import Deployment, Service, ServiceAndOrigin, User
 
 
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-async def get_current_service(current_service: Service = Depends(get_current_service)):
-    return current_service
+async def get_current_service_and_origin(
+    service_and_origin: ServiceAndOrigin = Depends(get_current_service_and_origin),
+):
+    return service_and_origin
 
 
 async def get_current_active_deployment(deployment: Deployment = Depends(get_current_deployment)):

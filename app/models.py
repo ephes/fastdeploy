@@ -17,6 +17,11 @@ class Service(SQLModel, table=True):
     name: str = Field(sa_column=Column("name", String, unique=True))
 
 
+class ServiceAndOrigin(SQLModel):
+    service: Service
+    origin: str
+
+
 class Deployment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     service_id: int = Field(foreign_key="service.id")

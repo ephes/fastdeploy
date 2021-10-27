@@ -89,7 +89,11 @@ def valid_service_token(service):
 
 @pytest.fixture
 def valid_service_token_in_db(service_in_db):
-    return create_access_token({"service": service_in_db.name}, timedelta(minutes=5))
+    data = {
+        "service": service_in_db.name,
+        "origin": "GitHub",
+    }
+    return create_access_token(data, timedelta(minutes=5))
 
 
 @pytest.fixture

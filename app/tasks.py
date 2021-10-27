@@ -14,6 +14,7 @@ from pydantic import BaseSettings, Field
 
 from .auth import create_access_token
 from .config import settings
+from .models import ServiceAndOrigin
 
 
 async def run_deploy(environment):
@@ -21,27 +22,20 @@ async def run_deploy(environment):
     subprocess.Popen(command, start_new_session=True, env=environment)
 
 
-def get_deploy_environment(service, access_token, taskresult_url):
+def get_deploy_environment(service_and_origin: ServiceAndOrigin):
+    print("get deploy environment for service")
+    data = {
+        "service": service_and_origin.service.name,
+        "origin": service_and_origin.origin,
+    }
+    access_token = create_access_token(data=data, expires_delta=timedelta(minutes=30))
     environment = {
         "ACCESS_TOKEN": access_token,
         "DEPLOY_SCRIPT": "fastdeploy.sh",
-        "EVENT_URL": taskresult_url,
+        "TASKS_URL": settings.tasks_url,
         "SSH_AUTH_SOCK": os.environ["SSH_AUTH_SOCK"],
     }
     return environment
-
-
-def get_deploy_environment_by_user(user, service):
-    print("get deploy environment for user")
-    access_token = create_access_token(data={"user": user.name}, expires_delta=timedelta(minutes=30))
-    # environment = {"ACCESS_TOKEN": access_token, "DEPLOY_SCRIPT": "create_lines.py", "EVENT_URL": settings.event_url}
-    return get_deploy_environment(service, access_token, settings.taskresult_by_user_url)
-
-
-def get_deploy_environment_by_service(service):
-    print("get deploy environment for service")
-    access_token = create_access_token(data={"service": service.name}, expires_delta=timedelta(minutes=30))
-    return get_deploy_environment(service, access_token, settings.taskresult_by_service_url)
 
 
 class DeployTask(BaseSettings):

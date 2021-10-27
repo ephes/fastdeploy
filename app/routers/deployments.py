@@ -1,16 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks, Depends
 
-from ..dependencies import (
-    get_current_active_user,
-    get_current_service,
-    get_service_by_name,
-)
-from ..models import Service, User
-from ..tasks import (
-    get_deploy_environment_by_service,
-    get_deploy_environment_by_user,
-    run_deploy,
-)
+from ..dependencies import get_current_service_and_origin
+from ..models import ServiceAndOrigin
+from ..tasks import get_deploy_environment, run_deploy
 
 
 router = APIRouter(
@@ -25,24 +17,11 @@ async def read_root():
     return {"Hello": "Deployments"}
 
 
-@router.post("/deploy-by-user")
-async def deploy_by_user(
-    service: Service,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_active_user),
+@router.post("/")
+async def deployments(
+    background_tasks: BackgroundTasks, service_and_origin: ServiceAndOrigin = Depends(get_current_service_and_origin)
 ):
-    print("received deploy event from user: ", current_user)
-    service_from_db = get_service_by_name(service.name)
-    environment = get_deploy_environment_by_user(current_user, service_from_db)
-    background_tasks.add_task(run_deploy, environment)
-    return {"message": "deploying"}
-
-
-@router.post("/deploy-by-service")
-async def deploy_by_service(
-    background_tasks: BackgroundTasks, current_service: Service = Depends(get_current_service)
-):
-    print("received deploy event from service: ", current_service)
-    environment = get_deploy_environment_by_service(current_service)
+    print("received deploy event for service and origin: ", service_and_origin)
+    environment = get_deploy_environment(service_and_origin)
     background_tasks.add_task(run_deploy, environment)
     return {"message": "deploying"}
