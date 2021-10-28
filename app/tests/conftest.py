@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Service, Step, User
+from ..models import Deployment, Service, Step, User
 
 
 @pytest.fixture
@@ -32,6 +32,21 @@ def service_in_db(cleanup_database_after_test, service):
         session.commit()
         session.refresh(service)
     return service
+
+
+@pytest.fixture
+def deployment(service_in_db):
+    print("servicd in db: ", service_in_db)
+    return Deployment(service_id=service_in_db.id)
+
+
+@pytest.fixture
+def deployment_in_db(cleanup_database_after_test, deployment):
+    with Session(database.engine) as session:
+        session.add(deployment)
+        session.commit()
+        session.refresh(deployment)
+    return deployment
 
 
 @pytest.fixture
@@ -114,3 +129,20 @@ def stub_websocket():
 @pytest.fixture
 def step():
     return Step(id=1, deployment_id=23)
+
+
+@pytest.fixture
+def invalid_deploy_token():
+    return create_access_token({"deployment": 1}, timedelta(minutes=-5))
+
+
+@pytest.fixture
+def valid_deploy_token(deployment):
+    data = {"deployment": deployment.id}
+    return create_access_token(data, timedelta(minutes=5))
+
+
+@pytest.fixture
+def valid_deploy_token_in_db(deployment_in_db):
+    data = {"deployment": deployment_in_db.id}
+    return create_access_token(data, timedelta(minutes=5))

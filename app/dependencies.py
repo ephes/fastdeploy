@@ -18,5 +18,5 @@ async def get_current_service_and_origin(
     return service_and_origin
 
 
-async def get_current_active_deployment(deployment: Deployment = Depends(get_current_deployment)):
+async def get_current_deployment(deployment: Deployment = Depends(get_current_deployment)):
     return deployment
