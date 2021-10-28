@@ -36,18 +36,12 @@ async def test_post_step_deployment_not_found(app, base_url, step, valid_deploy_
 
 
 @pytest.mark.asyncio
-async def test_post_step_deployment_found(app, base_url, step, valid_deploy_token_in_db, deployment_in_db):
-    step.deployment_id = deployment_in_db.id
+async def test_post_step_deployment_found(app, base_url, step, valid_deploy_token_in_db):
     headers = {"authorization": f"Bearer {valid_deploy_token_in_db}"}
-    data = {
-        "step": step.dict(),
-        "deployment_id": 1,
-    }
     async with AsyncClient(app=app, base_url=base_url) as client:
         test_url = app.url_path_for("steps")
-        response = await client.post(test_url, data=data, headers=headers)
+        response = await client.post(test_url, json=step.dict(), headers=headers)
 
-    print("response: ", response.json())
     assert response.status_code == 200
     assert response.json() == {"received": True}
     assert False

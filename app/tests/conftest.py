@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Deployment, Service, Step, User
+from ..models import Deployment, Service, StepBase, User
 
 
 @pytest.fixture
@@ -128,7 +128,7 @@ def stub_websocket():
 
 @pytest.fixture
 def step():
-    return Step(id=1, deployment_id=23)
+    return StepBase(name="foo bar baz")
 
 
 @pytest.fixture

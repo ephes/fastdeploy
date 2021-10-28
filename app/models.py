@@ -31,9 +31,13 @@ class Deployment(SQLModel, table=True):
     )
 
 
-class Step(SQLModel, table=True):
+class StepBase(SQLModel):
+    name: str
+
+
+class Step(StepBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    deployment_id: int = Field(foreign_key="deployment.id")
+    deployment_id: Optional[int] = Field(foreign_key="deployment.id")
     created: datetime = Field(
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
