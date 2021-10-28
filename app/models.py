@@ -3,7 +3,9 @@ from typing import Optional
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.sql.schema import Column
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Session, SQLModel
+
+from . import database
 
 
 class User(SQLModel, table=True):
@@ -42,3 +44,10 @@ class Step(StepBase, table=True):
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
     )
+
+
+def add_step(step: Step):
+    with Session(database.engine) as session:
+        session.add(step)
+        session.commit()
+        session.refresh(step)
