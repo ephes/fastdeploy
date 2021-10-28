@@ -32,9 +32,8 @@ async def test_deploy_invalid_access_token(app, base_url, invalid_service_token)
 async def test_deploy_service_not_found(app, base_url, valid_service_token, cleanup_database_after_test):
     headers = {"authorization": f"Bearer {valid_service_token}"}
     async with AsyncClient(app=app, base_url=base_url) as client:
-        with patch("app.routers.deployments.run_deploy"):
-            test_url = app.url_path_for("deployments")
-            response = await client.post(test_url, headers=headers)
+        test_url = app.url_path_for("deployments")
+        response = await client.post(test_url, headers=headers)
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Could not validate credentials"}
