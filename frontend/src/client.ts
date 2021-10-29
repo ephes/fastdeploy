@@ -20,6 +20,7 @@ interface Client {
   initWebsocketConnection(): void;
   authenticateWebsocketConnection(): void;
   startDeployment(): void;
+  fetchServiceToken(accessToken: string): string;
 }
 
 export function createClient(): Client {
@@ -50,9 +51,25 @@ export function createClient(): Client {
       const credentials = JSON.stringify({ access_token: this.accessToken })
       this.connection.send(credentials)
     },
-    startDeployment() {
-      const headers = { authorization: `Bearer ${this.accessToken}` };
-      fetch('http://localhost:8000/deployments/deploy', {
+    async fetchServiceToken(accessToken: string) {
+      const headers = { authorization: `Bearer ${accessToken}` };
+      const response = await fetch('http://localhost:8000/service-token', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          name: "fastdeploy",
+          origin: "GitHub",
+        }),
+      });
+      const json = await response.json();
+      console.log("service token response: ", json)
+      return json.service_token;
+    },
+    async startDeployment() {
+      const serviceToken = await this.fetchServiceToken(this.accessToken);
+      const headers = { authorization: `Bearer ${serviceToken}` };
+      console.log("service token: ", serviceToken)
+      fetch('http://localhost:8000/deployments/', {
         method: 'POST',
         headers: headers,
       })
@@ -61,6 +78,7 @@ export function createClient(): Client {
     },
     async login(username: string, password: string) {
       let formData = new FormData();
+      console.log("login! ", username, password);
       formData.append('username', username);
       formData.append('password', password);
       const response = await fetch('http://localhost:8000/token', {
