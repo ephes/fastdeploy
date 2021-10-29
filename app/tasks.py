@@ -14,7 +14,7 @@ from pydantic import BaseSettings, Field
 
 from .auth import create_access_token
 from .config import settings
-from .models import Deployment, ServiceToken
+from .models import Deployment
 
 
 async def run_deploy(environment):
@@ -22,7 +22,7 @@ async def run_deploy(environment):
     subprocess.Popen(command, start_new_session=True, env=environment)
 
 
-def get_deploy_environment(deployment: Deployment, service_token: ServiceToken):
+def get_deploy_environment(deployment: Deployment):
     print("get deploy environment for service")
     data = {
         "type": "deployment",
@@ -32,7 +32,7 @@ def get_deploy_environment(deployment: Deployment, service_token: ServiceToken):
     environment = {
         "ACCESS_TOKEN": access_token,
         "DEPLOY_SCRIPT": "fastdeploy.sh",
-        "TASKS_URL": settings.tasks_url,
+        "STEPS_URL": settings.steps_url,
         "SSH_AUTH_SOCK": os.environ["SSH_AUTH_SOCK"],
     }
     return environment
@@ -41,7 +41,7 @@ def get_deploy_environment(deployment: Deployment, service_token: ServiceToken):
 class DeployTask(BaseSettings):
     deploy_script: str = Field(..., env="DEPLOY_SCRIPT")
     access_token: str = Field(..., env="ACCESS_TOKEN")
-    event_url: str = Field(..., env="EVENT_URL")
+    steps_url: str = Field(..., env="STEPS_URL")
 
     async def process_deploy_event(self, event):
         print("process..")
@@ -49,7 +49,7 @@ class DeployTask(BaseSettings):
         async with httpx.AsyncClient() as client:
             for attempt in range(3):
                 try:
-                    r = await client.post(self.event_url, json=event, headers=headers)
+                    r = await client.post(self.steps_url, json=event, headers=headers)
                     break
                 except httpx.ConnectError:
                     await asyncio.sleep(3)
@@ -59,7 +59,7 @@ class DeployTask(BaseSettings):
         # command = f"{sys.executable} {settings.deploy_root / self.deploy_script}"
         command = str(settings.deploy_root / self.deploy_script)
         print("command: ", command)
-        print("env: ", self.access_token, self.deploy_script, self.event_url)
+        print("env: ", self.access_token, self.deploy_script, self.steps_url)
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,

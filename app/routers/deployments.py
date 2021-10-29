@@ -22,8 +22,8 @@ async def deployments(
     background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_service_token)
 ):
     print("received deploy event for service and origin: ", service_token)
-    deployment = Deployment(service_id=service_token.service.id, origin=service_token.origin)
+    deployment = Deployment(service_id=service_token.service.id, origin=service_token.origin, user=service_token.user)
     add_deployment(deployment)
-    environment = get_deploy_environment(deployment, service_token)
+    environment = get_deploy_environment(deployment)
     background_tasks.add_task(run_deploy, environment)
     return {"message": "deploying"}

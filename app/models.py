@@ -29,6 +29,7 @@ class Deployment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     service_id: int = Field(foreign_key="service.id")
     origin: str = Field(sa_column=Column("origin", String))
+    user: str = Field(sa_column=Column("user", String))
     created: datetime = Field(
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
