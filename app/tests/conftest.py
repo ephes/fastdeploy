@@ -7,7 +7,8 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Deployment, Service, ServiceToken, StepBase, User
+from ..models import Deployment, Service, StepBase, User
+from ..routers.users import ServiceIn
 
 
 @pytest.fixture
@@ -155,5 +156,5 @@ def origin():
 
 
 @pytest.fixture
-def service_token(service, origin):
-    return ServiceToken(service=service, origin=origin, user="foobar")
+def service_in(service, origin):
+    return ServiceIn(service=service.name, origin=origin)

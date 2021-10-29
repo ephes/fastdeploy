@@ -45,7 +45,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 
 class ServiceIn(BaseModel):
-    name: str
+    service: str
     origin: str
 
 
@@ -55,7 +55,7 @@ async def service_token(service_in: ServiceIn, user: User = Depends(get_current_
     service_token_expires = timedelta(minutes=30)
     data = {
         "type": "service",
-        "service": service_in.name,
+        "service": service_in.service,
         "origin": service_in.origin,
         "user": user.name,
     }
