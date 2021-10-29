@@ -3,6 +3,10 @@ from unittest.mock import patch
 import pytest
 
 from httpx import AsyncClient
+from sqlmodel import Session, select
+
+from .. import database
+from ..models import Deployment
 
 
 @pytest.mark.asyncio
@@ -47,7 +51,10 @@ async def test_deploy_service(app, base_url, valid_service_token_in_db, service_
             test_url = app.url_path_for("deployments")
             response = await client.post(test_url, headers=headers)
 
-    print("")
-    print("response: ", response.json())
     assert response.status_code == 200
     assert response.json() == {"message": "deploying"}
+
+    # make sure deployment was added to service in database
+    with Session(database.engine) as session:
+        deployment_from_db = session.exec(select(Deployment).where(Deployment.service_id == service_in_db.id)).first()
+    assert deployment_from_db.id > 0
