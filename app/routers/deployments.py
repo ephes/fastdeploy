@@ -1,8 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks, Depends
 
-from ..dependencies import get_current_service_and_origin
-from ..models import ServiceAndOrigin
-from ..tasks import get_deploy_environment, run_deploy
+from ..dependencies import get_current_service_token
+from ..models import ServiceToken
+from ..tasks import run_deploy
 
 
 router = APIRouter(
@@ -19,9 +19,10 @@ async def read_root():
 
 @router.post("/")
 async def deployments(
-    background_tasks: BackgroundTasks, service_and_origin: ServiceAndOrigin = Depends(get_current_service_and_origin)
+    background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_service_token)
 ):
-    print("received deploy event for service and origin: ", service_and_origin)
-    environment = get_deploy_environment(service_and_origin)
+    print("received deploy event for service and origin: ", service_token)
+    # environment = get_deploy_environment(service_token)
+    environment = {}
     background_tasks.add_task(run_deploy, environment)
     return {"message": "deploying"}

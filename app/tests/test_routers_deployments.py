@@ -47,5 +47,7 @@ async def test_deploy_service(app, base_url, valid_service_token_in_db, service_
             test_url = app.url_path_for("deployments")
             response = await client.post(test_url, headers=headers)
 
+    print("")
+    print("response: ", response.json())
     assert response.status_code == 200
     assert response.json() == {"message": "deploying"}

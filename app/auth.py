@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from . import database
 from .config import settings
-from .models import Deployment, Service, ServiceAndOrigin, User
+from .models import Deployment, Service, ServiceToken, User
 
 
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -70,7 +70,7 @@ def verify_user_token(access_token: str) -> str:
     return username
 
 
-def verify_service_token(access_token: str) -> (str, str):
+def verify_service_token(access_token: str) -> ServiceToken:
     payload = verify_access_token(access_token)
     if payload.get("type") != "service":
         raise JWTError("not a service token")
@@ -78,7 +78,14 @@ def verify_service_token(access_token: str) -> (str, str):
         raise JWTError("no service name")
     if (origin := payload.get("origin")) is None:
         raise JWTError("no service origin")
-    return service_name, origin
+    if (user := payload.get("user")) is None:
+        raise JWTError("no user name")
+    with Session(database.engine) as session:
+        # protect against validating an access_token from a deleted service
+        service = session.exec(select(Service).where(Service.name == service_name)).first()
+    if service is None:
+        raise JWTError("service not in db")
+    return ServiceToken(service=service, origin=origin, user=user)
 
 
 def verify_deployment_token(access_token: str) -> int:
@@ -103,17 +110,12 @@ async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     return user
 
 
-async def get_current_service_and_origin(token: str = Depends(OAUTH2_SCHEME)) -> ServiceAndOrigin:
+async def get_current_service_token(token: str = Depends(OAUTH2_SCHEME)) -> ServiceToken:
     try:
-        service_name, origin = verify_service_token(token)
+        service_token = verify_service_token(token)
     except JWTError:
         raise CREDENTIALS_EXCEPTION
-    with Session(database.engine) as session:
-        # protect against validating an access_token from a deleted service
-        service = session.exec(select(Service).where(Service.name == service_name)).first()
-    if service is None:
-        raise CREDENTIALS_EXCEPTION
-    return ServiceAndOrigin(service=service, origin=origin)
+    return service_token
 
 
 async def get_current_deployment(token: str = Depends(OAUTH2_SCHEME)) -> Deployment:

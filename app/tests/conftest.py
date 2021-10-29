@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Deployment, Service, ServiceAndOrigin, StepBase, User
+from ..models import Deployment, Service, ServiceToken, StepBase, User
 
 
 @pytest.fixture
@@ -94,21 +94,21 @@ def invalid_access_token(user):
 
 @pytest.fixture
 def invalid_service_token(service):
-    return create_access_token({"type": "service", "service": service.name}, timedelta(minutes=-5))
+    return create_access_token(
+        {"type": "service", "user": "foobar", "origin": "GitHub", "service": service.name}, timedelta(minutes=-5)
+    )
 
 
 @pytest.fixture
 def valid_service_token(service):
-    return create_access_token({"type": "service", "service": service.name}, timedelta(minutes=5))
+    return create_access_token(
+        {"type": "service", "user": "foobar", "origin": "GitHub", "service": service.name}, timedelta(minutes=5)
+    )
 
 
 @pytest.fixture
 def valid_service_token_in_db(service_in_db):
-    data = {
-        "type": "service",
-        "service": service_in_db.name,
-        "origin": "GitHub",
-    }
+    data = {"type": "service", "service": service_in_db.name, "origin": "GitHub", "user": "foobar"}
     return create_access_token(data, timedelta(minutes=5))
 
 
@@ -155,5 +155,5 @@ def origin():
 
 
 @pytest.fixture
-def service_and_origin(service, origin):
-    return ServiceAndOrigin(service=service, origin=origin)
+def service_token(service, origin):
+    return ServiceToken(service=service, origin=origin, user="foobar")

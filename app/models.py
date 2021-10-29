@@ -19,9 +19,10 @@ class Service(SQLModel, table=True):
     name: str = Field(sa_column=Column("name", String, unique=True))
 
 
-class ServiceAndOrigin(SQLModel):
+class ServiceToken(SQLModel):
     service: Service
     origin: str
+    user: str
 
 
 class Deployment(SQLModel, table=True):

@@ -14,7 +14,7 @@ from pydantic import BaseSettings, Field
 
 from .auth import create_access_token
 from .config import settings
-from .models import ServiceAndOrigin
+from .models import Deployment, ServiceToken
 
 
 async def run_deploy(environment):
@@ -22,12 +22,11 @@ async def run_deploy(environment):
     subprocess.Popen(command, start_new_session=True, env=environment)
 
 
-def get_deploy_environment(service_and_origin: ServiceAndOrigin):
+def get_deploy_environment(deployment: Deployment, service_token: ServiceToken):
     print("get deploy environment for service")
     data = {
         "type": "deployment",
-        "service": service_and_origin.service.name,
-        "origin": service_and_origin.origin,
+        "deployment": deployment.id,
     }
     access_token = create_access_token(data=data, expires_delta=timedelta(minutes=30))
     environment = {

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from .. import auth
 from ..config import settings
 from ..dependencies import get_current_active_user
-from ..models import ServiceAndOrigin, User
+from ..models import ServiceToken, User
 
 
 router = APIRouter()
@@ -45,12 +45,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 
 
 @router.post("/service-token")
-async def service_token(service_and_origin: ServiceAndOrigin, user: User = Depends(get_current_active_user)):
+async def service_token(service_token: ServiceToken, user: User = Depends(get_current_active_user)):
     service_token_expires = timedelta(minutes=30)
     data = {
         "type": "service",
-        "service": service_and_origin.service.name,
-        "origin": service_and_origin.origin,
+        "service": service_token.service.name,
+        "origin": service_token.origin,
         "user": user.name,
     }
     token = auth.create_access_token(data=data, expires_delta=service_token_expires)
