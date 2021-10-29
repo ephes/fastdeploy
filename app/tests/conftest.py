@@ -79,32 +79,33 @@ def base_url():
 
 @pytest.fixture
 def valid_access_token(user):
-    return create_access_token({"user": user.name}, timedelta(minutes=5))
+    return create_access_token({"type": "user", "user": user.name}, timedelta(minutes=5))
 
 
 @pytest.fixture
 def valid_access_token_in_db(user_in_db):
-    return create_access_token({"user": user_in_db.name}, timedelta(minutes=5))
+    return create_access_token({"type": "user", "user": user_in_db.name}, timedelta(minutes=5))
 
 
 @pytest.fixture
 def invalid_access_token(user):
-    return create_access_token({"user": user.name}, timedelta(minutes=-5))
+    return create_access_token({"type": "user", "user": user.name}, timedelta(minutes=-5))
 
 
 @pytest.fixture
 def invalid_service_token(service):
-    return create_access_token({"service": service.name}, timedelta(minutes=-5))
+    return create_access_token({"type": "service", "service": service.name}, timedelta(minutes=-5))
 
 
 @pytest.fixture
 def valid_service_token(service):
-    return create_access_token({"service": service.name}, timedelta(minutes=5))
+    return create_access_token({"type": "service", "service": service.name}, timedelta(minutes=5))
 
 
 @pytest.fixture
 def valid_service_token_in_db(service_in_db):
     data = {
+        "type": "service",
         "service": service_in_db.name,
         "origin": "GitHub",
     }
@@ -133,18 +134,18 @@ def step():
 
 @pytest.fixture
 def invalid_deploy_token():
-    return create_access_token({"deployment": 1}, timedelta(minutes=-5))
+    return create_access_token({"type": "deployment", "deployment": 1}, timedelta(minutes=-5))
 
 
 @pytest.fixture
 def valid_deploy_token(deployment):
-    data = {"deployment": deployment.id}
+    data = {"type": "deployment", "deployment": deployment.id}
     return create_access_token(data, timedelta(minutes=5))
 
 
 @pytest.fixture
 def valid_deploy_token_in_db(deployment_in_db):
-    data = {"deployment": deployment_in_db.id}
+    data = {"type": "deployment", "deployment": deployment_in_db.id}
     return create_access_token(data, timedelta(minutes=5))
 
 

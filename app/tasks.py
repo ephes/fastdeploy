@@ -25,6 +25,7 @@ async def run_deploy(environment):
 def get_deploy_environment(service_and_origin: ServiceAndOrigin):
     print("get deploy environment for service")
     data = {
+        "type": "deployment",
         "service": service_and_origin.service.name,
         "origin": service_and_origin.origin,
     }
