@@ -63,6 +63,8 @@ def verify_access_token(access_token: str) -> dict:
 
 def verify_user_token(access_token: str) -> str:
     payload = verify_access_token(access_token)
+    if payload.get("type") != "user":
+        raise JWTError("not a user token")
     if (username := payload.get("user")) is None:
         raise JWTError("no username")
     return username
@@ -70,6 +72,8 @@ def verify_user_token(access_token: str) -> str:
 
 def verify_service_token(access_token: str) -> (str, str):
     payload = verify_access_token(access_token)
+    if payload.get("type") != "service":
+        raise JWTError("not a service token")
     if (service_name := payload.get("service")) is None:
         raise JWTError("no service name")
     if (origin := payload.get("origin")) is None:
@@ -79,6 +83,8 @@ def verify_service_token(access_token: str) -> (str, str):
 
 def verify_deployment_token(access_token: str) -> int:
     payload = verify_access_token(access_token)
+    if payload.get("type") != "deployment":
+        raise JWTError("not a deployment token")
     if (deployment_id := payload.get("deployment")) is None:
         raise JWTError("no deployment id")
     return deployment_id

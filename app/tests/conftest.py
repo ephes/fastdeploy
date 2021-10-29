@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Deployment, Service, StepBase, User
+from ..models import Deployment, Service, ServiceAndOrigin, StepBase, User
 
 
 @pytest.fixture
@@ -146,3 +146,13 @@ def valid_deploy_token(deployment):
 def valid_deploy_token_in_db(deployment_in_db):
     data = {"deployment": deployment_in_db.id}
     return create_access_token(data, timedelta(minutes=5))
+
+
+@pytest.fixture
+def origin():
+    return "GitHub"
+
+
+@pytest.fixture
+def service_and_origin(service, origin):
+    return ServiceAndOrigin(service=service, origin=origin)
