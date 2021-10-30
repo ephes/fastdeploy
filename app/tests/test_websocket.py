@@ -66,16 +66,15 @@ async def test_websocket_authenticate_valid_token(valid_access_token, stub_webso
 
 
 @pytest.mark.asyncio
-async def test_broadcast_only_to_active_connections(stub_websocket):
+async def test_broadcast_only_to_active_connections(stub_websocket, test_message):
     client_id = uuid4()
     cm = ConnectionManager()
     cm.all_connections[client_id] = stub_websocket
 
-    message = {"test": "message"}
-    await cm.broadcast(message)
+    await cm.broadcast(test_message)
 
-    assert message not in stub_websocket.sent
+    assert test_message.json() not in stub_websocket.sent
 
     cm.active_connections[client_id] = stub_websocket
-    await cm.broadcast(message)
-    assert message in stub_websocket.sent
+    await cm.broadcast(test_message)
+    assert test_message.json() in stub_websocket.sent

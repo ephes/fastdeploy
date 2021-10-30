@@ -20,7 +20,7 @@ interface Client {
   initWebsocketConnection(): void;
   authenticateWebsocketConnection(): void;
   startDeployment(): void;
-  fetchServiceToken(accessToken: string): string;
+  fetchServiceToken(accessToken: string): any;
 }
 
 export function createClient(): Client {
@@ -52,23 +52,27 @@ export function createClient(): Client {
       this.connection.send(credentials)
     },
     async fetchServiceToken(accessToken: string) {
-      const headers = { authorization: `Bearer ${accessToken}` };
+      const headers = { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' }
+      const body = JSON.stringify({
+        service: "fastdeploy",
+        origin: "GitHub",
+      })
+      console.log("service token body: ", body)
       const response = await fetch('http://localhost:8000/service-token', {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({
-          name: "fastdeploy",
-          origin: "GitHub",
-        }),
+        body: body,
       });
       const json = await response.json();
       console.log("service token response: ", json)
       return json.service_token;
     },
     async startDeployment() {
+      if (!this.accessToken) {
+        return false
+      }
       const serviceToken = await this.fetchServiceToken(this.accessToken);
-      const headers = { authorization: `Bearer ${serviceToken}` };
-      console.log("service token: ", serviceToken)
+      const headers = { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json'};
       fetch('http://localhost:8000/deployments/', {
         method: 'POST',
         headers: headers,

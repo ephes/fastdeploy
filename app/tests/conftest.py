@@ -122,6 +122,9 @@ def stub_websocket():
         async def send_json(self, message):
             self.sent.append(message)
 
+        async def send_text(self, message):
+            self.sent.append(message)
+
         async def accept(self):
             self.has_accepted = True
 
@@ -158,3 +161,11 @@ def origin():
 @pytest.fixture
 def service_in(service, origin):
     return ServiceIn(service=service.name, origin=origin)
+
+
+@pytest.fixture
+def test_message():
+    class Message(SQLModel):
+        test: str = "message"
+
+    return Message()

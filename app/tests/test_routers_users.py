@@ -16,10 +16,12 @@ async def test_fetch_service_token_no_access_token(app, base_url, service_in):
 
 @pytest.mark.asyncio
 async def test_fetch_service_token(app, base_url, service_in, valid_access_token_in_db):
+    body_data = {"service": "fastdeploy", "origin": "GitHub"}
     async with AsyncClient(app=app, base_url=base_url) as client:
         response = await client.post(
             app.url_path_for("service_token"),
-            json=service_in.dict(),
+            # json=service_in.dict(),
+            json=body_data,
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
         )
 

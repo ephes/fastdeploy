@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import WebSocket
 from jose import JWTError
+from pydantic import BaseModel
 
 from .auth import verify_user_token
 
@@ -35,9 +36,9 @@ class ConnectionManager:
     async def send(self, client_id, message: dict):
         await self.all_connections[client_id].send_json(message)
 
-    async def broadcast(self, message: dict):
+    async def broadcast(self, message: BaseModel):
         for connection in self.active_connections.values():
-            await connection.send_json(message)
+            await connection.send_text(message.json())
 
 
 connection_manager = ConnectionManager()
