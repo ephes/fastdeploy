@@ -62,6 +62,24 @@ async def test_add_step(app, base_url, step, valid_deploy_token_in_db, deploymen
 
 
 @pytest.mark.asyncio
+async def test_update_step_wrong_deployment(
+    app, base_url, step_in_db, valid_different_deploy_token_in_db, deployment_in_db
+):
+    step = step_in_db
+    step.deployment_id += 1
+    step.name = f"{step.name} updated"
+    async with AsyncClient(app=app, base_url=base_url) as client:
+        response = await client.put(
+            app.url_path_for("step_update", step_id=step.id),
+            content=step.json().encode("utf8"),
+            headers={"authorization": f"Bearer {valid_different_deploy_token_in_db}"},
+        )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Could not validate credentials"}
+
+
+@pytest.mark.asyncio
 async def test_update_step(app, base_url, step_in_db, valid_deploy_token_in_db, deployment_in_db):
     step = step_in_db
     step.name = f"{step.name} updated"

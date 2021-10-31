@@ -50,6 +50,16 @@ def deployment_in_db(cleanup_database_after_test, deployment):
 
 
 @pytest.fixture
+def different_deployment_in_db(cleanup_database_after_test, deployment):
+    deployment.id += 1
+    with Session(database.engine) as session:
+        session.add(deployment)
+        session.commit()
+        session.refresh(deployment)
+    return deployment
+
+
+@pytest.fixture
 def cleanup_database_after_test():
     database.create_db_and_tables()
     yield
@@ -159,6 +169,12 @@ def valid_deploy_token(deployment):
 @pytest.fixture
 def valid_deploy_token_in_db(deployment_in_db):
     data = {"type": "deployment", "deployment": deployment_in_db.id}
+    return create_access_token(data, timedelta(minutes=5))
+
+
+@pytest.fixture
+def valid_different_deploy_token_in_db(different_deployment_in_db):
+    data = {"type": "deployment", "deployment": different_deployment_in_db.id}
     return create_access_token(data, timedelta(minutes=5))
 
 
