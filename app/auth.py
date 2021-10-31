@@ -63,11 +63,9 @@ class TokenBase(BaseModel):
         return self._fetch_item_from_db() is not None
 
     def _fetch_item_from_db(self):
-        print("session: ", Session)
         with Session(database.engine) as session:
             # protect against validating an token from a deleted user / service / deployment
             item = session.exec(self.select_item_stmt).first()
-            print("item: ", item, session)
         self.item_from_db = item
         return item
 

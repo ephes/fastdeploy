@@ -37,7 +37,6 @@ def service_in_db(cleanup_database_after_test, service):
 
 @pytest.fixture
 def deployment(service_in_db):
-    print("servicd in db: ", service_in_db)
     return Deployment(service_id=service_in_db.id)
 
 
