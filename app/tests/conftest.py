@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Deployment, Service, StepBase, User
+from ..models import Deployment, Service, Step, StepBase, User
 from ..routers.users import ServiceIn
 
 
@@ -133,6 +133,16 @@ def stub_websocket():
 @pytest.fixture
 def step():
     return StepBase(name="foo bar baz")
+
+
+@pytest.fixture
+def step_in_db(step, deployment_in_db):
+    step = Step(name=step.name, deployment_id=deployment_in_db.id)
+    with Session(database.engine) as session:
+        session.add(step)
+        session.commit()
+        session.refresh(step)
+    return step
 
 
 @pytest.fixture

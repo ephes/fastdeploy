@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.sql.schema import Column
-from sqlmodel import Field, Session, SQLModel
+from sqlmodel import Field, Session, SQLModel, select
 
 from . import database
 
@@ -55,3 +55,13 @@ def add_step(step: Step):
         session.add(step)
         session.commit()
         session.refresh(step)
+
+
+def get_step_by_id(step_id):
+    with Session(database.engine) as session:
+        step = session.exec(select(Step).where(Step.id == step_id)).first()
+    return step
+
+
+def update_step(step: Step):
+    add_step(step)
