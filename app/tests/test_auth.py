@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 
@@ -7,6 +8,7 @@ from httpx import AsyncClient
 from ..auth import (
     authenticate_user,
     create_access_token,
+    payload_to_token,
     verify_access_token,
     verify_password,
 )
@@ -31,12 +33,33 @@ async def test_authenticate_user_wrong_password(user_in_db):
 
 
 def test_create_access_token_without_expire():
-    access_token = create_access_token(data={"foo": "bar"})
-    payload = verify_access_token(access_token)
-    actual_expire = datetime.utcfromtimestamp(payload["exp"])
+    access_token = create_access_token(data={"type": "user", "user": "user"})
+    with patch("app.auth.Session"):
+        token = verify_access_token(access_token)
     expected_expire = datetime.utcnow() + timedelta(minutes=settings.default_expire_minutes)
-    diff_seconds = (expected_expire - actual_expire).total_seconds()
+    diff_seconds = (expected_expire - token.expires_at).total_seconds()
     assert diff_seconds < 1
+
+
+def test_payload_to_token_user():
+    payload = {"type": "user", "user": "user", "exp": 123}
+    token = payload_to_token(payload)
+    with patch("app.auth.Session"):
+        assert token.validate()
+
+
+def test_payload_to_token_service():
+    payload = {"type": "service", "service": "fastdeploy", "origin": "GitHub", "user": "user", "exp": 123}
+    token = payload_to_token(payload)
+    with patch("app.auth.Session"):
+        assert token.validate()
+
+
+def test_payload_to_token_deployment():
+    payload = {"type": "deployment", "deployment": 1, "exp": 123}
+    token = payload_to_token(payload)
+    with patch("app.auth.Session"):
+        assert token.validate()
 
 
 @pytest.mark.asyncio

@@ -3,13 +3,14 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import jwt
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from . import database
 from .config import settings
-from .models import Deployment, Service, ServiceToken, User
+from .models import Deployment, Service, User
 
 
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -53,79 +54,99 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-def verify_access_token(access_token: str) -> dict:
-    return jwt.decode(
+class TokenBase(BaseModel):
+    type: str
+    exp: int
+    item_from_db: Optional[BaseModel]
+
+    def item_exists_in_database(self):
+        return self._fetch_item_from_db() is not None
+
+    def _fetch_item_from_db(self):
+        print("session: ", Session)
+        with Session(database.engine) as session:
+            # protect against validating an token from a deleted user / service / deployment
+            item = session.exec(self.select_item_stmt).first()
+            print("item: ", item, session)
+        self.item_from_db = item
+        return item
+
+    def validate(self):
+        return self.item_exists_in_database()
+
+    @property
+    def expires_at(self):
+        return datetime.utcfromtimestamp(self.exp)
+
+
+class UserToken(TokenBase):
+    user: str
+
+    @property
+    def select_item_stmt(self):
+        return select(User).where(User.name == self.user)
+
+
+class ServiceToken(TokenBase):
+    service: str
+    origin: str
+    user: str
+
+    @property
+    def select_item_stmt(self):
+        return select(Service).where(Service.name == self.service)
+
+
+class DeploymentToken(TokenBase):
+    deployment: int
+
+    @property
+    def select_item_stmt(self):
+        return select(Deployment).where(Deployment.id == self.deployment)
+
+
+def payload_to_token(payload):
+    type_to_token = {
+        "user": UserToken,
+        "service": ServiceToken,
+        "deployment": DeploymentToken,
+    }
+    token_type = type_to_token.get(payload.get("type"))
+    if token_type is None:
+        raise ValueError("unknown token type")
+    return token_type.parse_obj(payload)
+
+
+def verify_access_token(access_token: str) -> UserToken | ServiceToken | DeploymentToken:
+    payload = jwt.decode(
         access_token,
         settings.secret_key,
         algorithms=[settings.password_hash_algorithm],
     )
-
-
-def verify_user_token(access_token: str) -> str:
-    payload = verify_access_token(access_token)
-    if payload.get("type") != "user":
-        raise JWTError("not a user token")
-    if (username := payload.get("user")) is None:
-        raise JWTError("no username")
-    return username
-
-
-def verify_service_token(access_token: str) -> ServiceToken:
-    payload = verify_access_token(access_token)
-    if payload.get("type") != "service":
-        raise JWTError("not a service token")
-    if (service_name := payload.get("service")) is None:
-        raise JWTError("no service name")
-    if (origin := payload.get("origin")) is None:
-        raise JWTError("no service origin")
-    if (user := payload.get("user")) is None:
-        raise JWTError("no user name")
-    with Session(database.engine) as session:
-        # protect against validating an access_token from a deleted service
-        service = session.exec(select(Service).where(Service.name == service_name)).first()
-    if service is None:
-        raise JWTError("service not in db")
-    return ServiceToken(service=service, origin=origin, user=user)
-
-
-def verify_deployment_token(access_token: str) -> int:
-    payload = verify_access_token(access_token)
-    if payload.get("type") != "deployment":
-        raise JWTError("not a deployment token")
-    if (deployment_id := payload.get("deployment")) is None:
-        raise JWTError("no deployment id")
-    return deployment_id
+    token = payload_to_token(payload)
+    assert token.validate()
+    return token
 
 
 async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     try:
-        username = verify_user_token(token)
-    except JWTError:
+        token = verify_access_token(token)
+        return token.item_from_db
+    except Exception:
         raise CREDENTIALS_EXCEPTION
-    with Session(database.engine) as session:
-        # protect against validating an access_token from a deleted user
-        user = session.exec(select(User).where(User.name == username)).first()
-    if user is None:
-        raise CREDENTIALS_EXCEPTION
-    return user
 
 
 async def get_current_service_token(token: str = Depends(OAUTH2_SCHEME)) -> ServiceToken:
     try:
-        service_token = verify_service_token(token)
-    except JWTError:
+        service_token = verify_access_token(token)
+        return service_token
+    except Exception:
         raise CREDENTIALS_EXCEPTION
-    return service_token
 
 
 async def get_current_deployment(token: str = Depends(OAUTH2_SCHEME)) -> Deployment:
     try:
-        deployment_id = verify_deployment_token(token)
-    except JWTError:
+        deployment_token = verify_access_token(token)
+        return deployment_token.item_from_db
+    except Exception:
         raise CREDENTIALS_EXCEPTION
-    with Session(database.engine) as session:
-        # protect against validating an access_token from a deleted deployment
-        deployment = session.exec(select(Deployment).where(Deployment.id == deployment_id)).first()
-    if deployment is None:
-        raise CREDENTIALS_EXCEPTION
-    return deployment

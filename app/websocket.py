@@ -4,7 +4,7 @@ from fastapi import WebSocket
 from jose import JWTError
 from pydantic import BaseModel
 
-from .auth import verify_user_token
+from .auth import verify_access_token
 
 
 class ConnectionManager:
@@ -18,10 +18,10 @@ class ConnectionManager:
 
     async def authenticate(self, client_id: UUID, access_token: str):
         try:
-            username = verify_user_token(access_token)
+            token = verify_access_token(access_token)
             message = {
                 "type": "authentication",
-                "detail": f"access token verification successful for user {username}",
+                "detail": f"access token verification successful for user {token.user}",
             }
             self.active_connections[client_id] = self.all_connections[client_id]
         except JWTError:

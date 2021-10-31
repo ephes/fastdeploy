@@ -19,12 +19,6 @@ class Service(SQLModel, table=True):
     name: str = Field(sa_column=Column("name", String, unique=True))
 
 
-class ServiceToken(SQLModel):
-    service: Service
-    origin: str
-    user: str
-
-
 class Deployment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     service_id: int = Field(foreign_key="service.id")
