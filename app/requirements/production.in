@@ -4,3 +4,5 @@ sqlmodel
 passlib[bcrypt]
 python-jose
 httpx
+typer
+rich

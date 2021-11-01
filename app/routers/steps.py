@@ -14,15 +14,17 @@ router = APIRouter(
 
 
 @router.post("/")
-async def steps(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)):
+async def steps(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)) -> Step:
     step = Step(**step_in.dict(), deployment_id=deployment.id)
     add_step(step)
     await connection_manager.broadcast(step)
-    return {"received": True}
+    return step
 
 
 @router.put("/{step_id}")
-async def step_update(step_id: int, step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)):
+async def step_update(
+    step_id: int, step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)
+) -> Step:
     step = get_step_by_id(step_id)
     if step.deployment_id != deployment.id:
         raise CREDENTIALS_EXCEPTION

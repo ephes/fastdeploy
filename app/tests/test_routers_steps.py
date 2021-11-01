@@ -52,7 +52,9 @@ async def test_add_step(app, base_url, step, valid_deploy_token_in_db, deploymen
             )
 
     assert response.status_code == 200
-    assert response.json() == {"received": True}
+    actual_step = response.json()
+    assert actual_step["id"] > 0
+    assert actual_step["name"] == step.name
 
     # make sure added step was broadcast to websockets
     connection_manager.broadcast.assert_called()

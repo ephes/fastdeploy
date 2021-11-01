@@ -27,6 +27,6 @@ async def deployments(
         service_id=service_token.item_from_db.id, origin=service_token.origin, user=service_token.user
     )
     add_deployment(deployment)
-    environment = get_deploy_environment(deployment)
+    environment = get_deploy_environment(service_token.item_from_db, deployment)
     background_tasks.add_task(run_deploy, environment)
     return {"message": "deploying"}

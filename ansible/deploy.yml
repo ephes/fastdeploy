@@ -13,7 +13,7 @@
       apt:
         name: ["git"]
 
-    - name: Add the user "{{ username }}" with a bash shell
+    - name: Add a unix user with a bash shell
       user:
         name: "{{ username }}"
         shell: /bin/bash

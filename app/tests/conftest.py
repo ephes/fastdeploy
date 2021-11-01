@@ -7,7 +7,7 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Deployment, Service, Step, StepBase, User
+from ..models import Deployment, Service, Step, StepBase, User, create_service
 from ..routers.users import ServiceIn
 
 
@@ -23,16 +23,12 @@ def user(password):
 
 @pytest.fixture
 def service():
-    return Service(name="fastdeploy")
+    return Service(name="fastdeploy", collect="fastdeploy_collect.py", deploy="fastdeploy_deploy.sh")
 
 
 @pytest.fixture
 def service_in_db(cleanup_database_after_test, service):
-    with Session(database.engine) as session:
-        session.add(service)
-        session.commit()
-        session.refresh(service)
-    return service
+    return create_service(service.name, service.collect, service.deploy)
 
 
 @pytest.fixture

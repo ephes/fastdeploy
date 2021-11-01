@@ -14,9 +14,31 @@ class User(SQLModel, table=True):
     password: str
 
 
+def create_user(username: str, password: str) -> User:
+    from .auth import get_password_hash
+
+    user = User(name=username, password=get_password_hash(password))
+    with Session(database.engine) as session:
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    return user
+
+
 class Service(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column=Column("name", String, unique=True))
+    collect: str
+    deploy: str
+
+
+def create_service(service_name: str, collect: str, deploy: str) -> Service:
+    service = Service(name=service_name, collect=collect, deploy=deploy)
+    with Session(database.engine) as session:
+        session.add(service)
+        session.commit()
+        session.refresh(service)
+    return service
 
 
 class Deployment(SQLModel, table=True):
