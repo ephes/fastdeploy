@@ -41,25 +41,30 @@ def test_create_access_token_without_expire():
     assert diff_seconds < 1
 
 
-def test_payload_to_token_user():
-    payload = {"type": "user", "user": "user", "exp": 123}
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"type": "user", "user": "user", "exp": 123},
+        {"type": "service", "service": "fastdeploy", "origin": "GitHub", "user": "user", "exp": 123},
+        {"type": "deployment", "deployment": 1, "exp": 123},
+    ],
+)
+def test_payload_to_token_valid(payload):
     token = payload_to_token(payload)
     with patch("app.auth.Session"):
         assert token.validate()
 
 
-def test_payload_to_token_service():
-    payload = {"type": "service", "service": "fastdeploy", "origin": "GitHub", "user": "user", "exp": 123}
-    token = payload_to_token(payload)
-    with patch("app.auth.Session"):
-        assert token.validate()
-
-
-def test_payload_to_token_deployment():
-    payload = {"type": "deployment", "deployment": 1, "exp": 123}
-    token = payload_to_token(payload)
-    with patch("app.auth.Session"):
-        assert token.validate()
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"type": "asdf", "user": "user", "exp": 123},
+        {"user": "user", "exp": 123},
+    ],
+)
+def test_payload_to_token_type_value_error(payload):
+    with pytest.raises(ValueError):
+        payload_to_token(payload)
 
 
 @pytest.mark.asyncio

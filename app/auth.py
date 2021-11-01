@@ -109,8 +109,7 @@ def payload_to_token(payload):
         "service": ServiceToken,
         "deployment": DeploymentToken,
     }
-    token_type = type_to_token.get(payload.get("type"))
-    if token_type is None:
+    if (token_type := type_to_token.get(payload.get("type"))) is None:
         raise ValueError("unknown token type")
     return token_type.parse_obj(payload)
 
