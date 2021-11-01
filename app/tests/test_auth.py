@@ -3,11 +3,13 @@ from unittest.mock import patch
 
 import pytest
 
+from fastapi import HTTPException
 from httpx import AsyncClient
 
 from ..auth import (
     authenticate_user,
     create_access_token,
+    get_current_user,
     payload_to_token,
     verify_access_token,
     verify_password,
@@ -65,6 +67,12 @@ def test_payload_to_token_valid(payload):
 def test_payload_to_token_type_value_error(payload):
     with pytest.raises(ValueError):
         payload_to_token(payload)
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_not_in_db(valid_access_token):
+    with pytest.raises(HTTPException):
+        await get_current_user(valid_access_token)
 
 
 @pytest.mark.asyncio
