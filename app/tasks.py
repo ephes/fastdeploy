@@ -25,7 +25,6 @@ async def run_deploy(environment):  # pragma no cover
 
 
 def get_deploy_environment(service: Service, deployment: Deployment):
-    print("get deploy environment for service")
     data = {
         "type": "deployment",
         "deployment": deployment.id,
@@ -64,7 +63,6 @@ class DeployTask(BaseSettings):
                 await asyncio.sleep(self.sleep_on_fail)
 
     async def process_deploy_step(self, step):
-        print("process..")
         if (collected_step := self.step_by_name.get(step["name"])) is not None:
             # update collected step
             step_url = urljoin(self.steps_url, str(collected_step["id"]))
@@ -75,23 +73,17 @@ class DeployTask(BaseSettings):
 
     async def post_collected_steps(self, steps):
         for step in steps:
-            print("step: ", step)
             r = await self.client.post(self.steps_url, json=step)
             self.step_by_name[step["name"]] = r.json()
 
     async def collect_steps(self):
         command = str(settings.deploy_root / self.collect_script)
         proc = subprocess.run([command], check=False, text=True, stdout=subprocess.PIPE)
-        print("stdout: ", proc.stdout)
         steps = [step for step in json.loads(proc.stdout) if "name" in step]
         await self.post_collected_steps(steps)
-        print(self.step_by_name)
 
     async def deploy_steps(self):
-        # command = f"{sys.executable} {settings.deploy_root / self.deploy_script}"
         command = str(settings.deploy_root / self.deploy_script)
-        print("command: ", command)
-        print("env: ", self.access_token, self.deploy_script, self.steps_url)
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -99,18 +91,15 @@ class DeployTask(BaseSettings):
         )
         while True:
             data = await proc.stdout.readline()
-            print("read data: ", data)
             if len(data) == 0:
                 break
 
             decoded = data.decode("UTF-8")
             try:
                 step = json.loads(decoded)
-                print("data: ", data)
                 if len(step.get("name", "")) > 0:
                     await self.process_deploy_step(step)
             except json.decoder.JSONDecodeError:
-                print("could not json decode: ", decoded)
                 pass
 
     async def run_deploy(self):
