@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from datetime import timedelta
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
@@ -47,41 +48,41 @@ class DeployTask(BaseSettings):
     steps_url: str = Field(..., env="STEPS_URL")
     step_by_name: dict = {}
     attempts: int = 3
+    client: Any = None
 
     @property
     def headers(self):
         return {"authorization": f"Bearer {self.access_token}"}
 
-    async def update_step(self, client, collected_step, step):
+    async def update_step(self, collected_step, step):
         step_url = urljoin(self.steps_url, str(collected_step["id"]))
         for attempt in range(self.attempts):
             try:
-                await client.put(step_url, json=step)
+                await self.client.put(step_url, json=step)
                 break
             except httpx.ConnectError:
                 await asyncio.sleep(3)
 
-    async def add_step(self, client, step):
+    async def add_step(self, step):
         for attempt in range(self.attempts):
             try:
-                await client.post(self.steps_url, json=step)
+                await self.client.post(self.steps_url, json=step)
                 break
             except httpx.ConnectError:
                 await asyncio.sleep(3)
 
-    async def process_deploy_step(self, client, step):
+    async def process_deploy_step(self, step):
         print("process..")
         if (collected_step := self.step_by_name.get(step["name"])) is not None:
-            await self.update_step(client, collected_step, step)
+            await self.update_step(collected_step, step)
         else:
-            await self.add_step(client, step)
+            await self.add_step(step)
 
     async def post_collected_steps(self, steps):
-        async with httpx.AsyncClient(headers=self.headers) as client:
-            for step in steps:
-                print("step: ", step)
-                r = await client.post(self.steps_url, json=step)
-                self.step_by_name[step["name"]] = r.json()
+        for step in steps:
+            print("step: ", step)
+            r = await self.client.post(self.steps_url, json=step)
+            self.step_by_name[step["name"]] = r.json()
 
     async def collect_steps(self):
         command = str(settings.deploy_root / self.collect_script)
@@ -101,27 +102,33 @@ class DeployTask(BaseSettings):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        async with httpx.AsyncClient(headers=self.headers) as client:
-            while True:
-                data = await proc.stdout.readline()
-                print("read data: ", data)
-                if len(data) == 0:
-                    break
+        while True:
+            data = await proc.stdout.readline()
+            print("read data: ", data)
+            if len(data) == 0:
+                break
 
-                decoded = data.decode("UTF-8")
-                try:
-                    step = json.loads(decoded)
-                    print("data: ", data)
-                    if len(step.get("name", "")) > 0:
-                        await self.process_deploy_step(client, step)
-                except json.decoder.JSONDecodeError:
-                    print("could not json decode: ", decoded)
-                    pass
+            decoded = data.decode("UTF-8")
+            try:
+                step = json.loads(decoded)
+                print("data: ", data)
+                if len(step.get("name", "")) > 0:
+                    await self.process_deploy_step(step)
+            except json.decoder.JSONDecodeError:
+                print("could not json decode: ", decoded)
+                pass
 
     async def run_deploy(self):
         await self.collect_steps()
         await self.deploy_steps()
 
 
+async def run_deploy_task():
+    deploy_task = DeployTask()
+    async with httpx.AsyncClient(headers=deploy_task.headers) as client:
+        deploy_task.client = client
+        await deploy_task.run_deploy()
+
+
 if __name__ == "__main__":
-    asyncio.run(DeployTask().run_deploy())
+    asyncio.run(run_deploy_task())
