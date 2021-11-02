@@ -19,7 +19,7 @@ from .config import settings
 from .models import Deployment, Service
 
 
-async def run_deploy(environment):
+async def run_deploy(environment):  # pragma no cover
     command = [sys.executable, "-m", "app.tasks"]  # make relative imports work
     subprocess.Popen(command, start_new_session=True, env=environment)
 
