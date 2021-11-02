@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urljoin
 
@@ -16,7 +16,7 @@ from pydantic import BaseSettings, Field
 
 from .auth import create_access_token
 from .config import settings
-from .models import Deployment, Service
+from .models import Deployment, Service, Step
 
 
 async def run_deploy(environment):  # pragma no cover
@@ -45,7 +45,8 @@ class DeployTask(BaseSettings):
     collect_script: str = Field(..., env="COllECT_SCRIPT")
     access_token: str = Field(..., env="ACCESS_TOKEN")
     steps_url: str = Field(..., env="STEPS_URL")
-    step_by_name: dict = {}
+    steps: list[Step] = []
+    current_step_index: int = 0
     attempts: int = 3
     sleep_on_fail: float = 3.0
     client: Any = None
@@ -53,6 +54,17 @@ class DeployTask(BaseSettings):
     @property
     def headers(self):
         return {"authorization": f"Bearer {self.access_token}"}
+
+    async def post_collected_steps(self, steps):
+        for step in steps:
+            r = await self.client.post(self.steps_url, json=step)
+            self.steps.append(Step.parse_obj(r.json()))
+
+    async def collect_steps(self):
+        command = str(settings.deploy_root / self.collect_script)
+        proc = subprocess.run([command], check=False, text=True, stdout=subprocess.PIPE)
+        steps = [step for step in json.loads(proc.stdout) if "name" in step]
+        await self.post_collected_steps(steps)
 
     async def send_step(self, method, step_url, step):
         for attempt in range(self.attempts):
@@ -62,25 +74,35 @@ class DeployTask(BaseSettings):
             except httpx.ConnectError:
                 await asyncio.sleep(self.sleep_on_fail)
 
-    async def process_deploy_step(self, step):
-        if (collected_step := self.step_by_name.get(step["name"])) is not None:
-            # update collected step
-            step_url = urljoin(self.steps_url, str(collected_step["id"]))
-            await self.send_step(self.client.put, step_url, step)
-        else:
-            # post new step
+    async def put_step(self, step):
+        step_url = urljoin(self.steps_url, str(step.id))
+        await self.send_step(self.client.put, step_url, step)
+
+    @property
+    def has_more_steps(self):
+        # True if there are still unprocessed steps
+        return self.current_step_index < len(self.steps)
+
+    @property
+    def current_step(self):
+        if self.has_more_steps:
+            return self.steps[self.current_step_index]
+
+    async def start_step(self, step):
+        step.started = datetime.utcnow()
+        await self.put_step(step)
+
+    async def finish_step(self, step, step_result):
+        if step is None:
+            step = Step(**step_result)
+            step.finished = datetime.utcnow()
             await self.send_step(self.client.post, self.steps_url, step)
-
-    async def post_collected_steps(self, steps):
-        for step in steps:
-            r = await self.client.post(self.steps_url, json=step)
-            self.step_by_name[step["name"]] = r.json()
-
-    async def collect_steps(self):
-        command = str(settings.deploy_root / self.collect_script)
-        proc = subprocess.run([command], check=False, text=True, stdout=subprocess.PIPE)
-        steps = [step for step in json.loads(proc.stdout) if "name" in step]
-        await self.post_collected_steps(steps)
+        assert step.name == step_result["name"]
+        step.finished = datetime.utcnow()
+        await self.put_step(step)
+        self.current_step_index += 1
+        if self.current_step is not None:
+            await self.start_step(self.current_step)
 
     async def deploy_steps(self):
         command = str(settings.deploy_root / self.deploy_script)
@@ -89,6 +111,8 @@ class DeployTask(BaseSettings):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
+        if self.current_step is not None:
+            await self.start_step(self.current_step)
         while True:
             data = await proc.stdout.readline()
             if len(data) == 0:
@@ -96,9 +120,9 @@ class DeployTask(BaseSettings):
 
             decoded = data.decode("UTF-8")
             try:
-                step = json.loads(decoded)
-                if len(step.get("name", "")) > 0:
-                    await self.process_deploy_step(step)
+                step_result = json.loads(decoded)
+                if len(step_result.get("name", "")) > 0:
+                    await self.finish_step(self.current_step, step_result)
             except json.decoder.JSONDecodeError:
                 pass
 

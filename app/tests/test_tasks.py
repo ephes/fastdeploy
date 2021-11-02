@@ -127,17 +127,18 @@ class DeployProc:
 async def test_deploy_steps_post(stdout_lines, expected_steps, task):
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
-    assert task.client.post_calls == expected_steps
+    actual_steps = [{"name": step.name} for step in task.client.post_calls]
+    assert actual_steps == expected_steps
 
 
 @pytest.mark.asyncio
 async def test_deploy_steps_put(task):
     step = {"id": 1, "name": "foo"}
     stdout_lines = [step, None]
-    task.step_by_name[step["name"]] = step
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
-    assert task.client.put_calls == [step]
+    actual_steps = [{"name": step.name, "id": step.id} for step in task.client.put_calls]
+    assert actual_steps == [step]
 
 
 def test_task_headers(task):
@@ -155,12 +156,37 @@ async def test_task_sleep_on_connect_error(task):
     assert asyncio.waited_for_connection
 
 
+@pytest.mark.parametrize(
+    "collect_stdout, deploy_lines, steps_posted, steps_put",
+    [
+        # None is sentinel for last line
+        ([], [None], [], []),  # no steps collected, no steps deployed -> no steps posted or put
+        ([{"foo": "bar"}], [{"foo": "bar"}, None], [], []),  # no steps with names -> no steps posted or put
+        (
+            [{"name": "bar"}, {"name": "foo"}],  # two steps because of current step is not None coverage
+            [{"name": "bar"}, {"name": "foo"}, None],
+            [{"name": "bar"}, {"name": "foo"}],
+            [{"id": 1, "name": "bar"}, {"id": 2, "name": "foo"}],
+        ),  # happy path
+    ],
+)
 @pytest.mark.asyncio
-async def test_task_run_deploy(task):
-    stdout = []
-    stdout_lines = [None]
-    with patch("app.tasks.subprocess", new=CollectProc(stdout)):
-        with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
+async def test_task_run_deploy(collect_stdout, deploy_lines, steps_put, steps_posted, task):
+    with patch("app.tasks.subprocess", new=CollectProc(collect_stdout)):
+        with patch("app.tasks.asyncio", new=DeployProc(deploy_lines)):
             await task.run_deploy()
-    assert task.client.post_calls == []
-    assert task.client.put_calls == []
+    assert task.client.post_calls == steps_posted
+
+    actual_put = []
+    for step in task.client.put_calls:
+        raw = step.dict()
+        for field in ["created", "finished", "started"]:
+            del raw[field]  # make sure field exists
+        # append twice, once for started, once for finished
+        actual_put.append(raw)
+    expected_steps_put = []
+    for step in steps_put:
+        # append twice, once for started, once for finished
+        expected_steps_put.append(step)
+        expected_steps_put.append(step)
+    assert actual_put == expected_steps_put
