@@ -30,6 +30,11 @@ def createservice(name: str, collect: str, deploy: str):
 
 @app.command()
 def update():
+    """
+    Update the development environment by calling:
+    - pip-compile
+    - pip-sync
+    """
     subprocess.call(
         [
             "pip-compile",
