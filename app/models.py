@@ -70,6 +70,14 @@ class Step(StepBase, table=True):
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
     )
+    started: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column("started", DateTime),
+    )
+    finished: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column("finished", DateTime),
+    )
 
 
 def add_step(step: Step):
