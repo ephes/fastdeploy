@@ -32,6 +32,17 @@ class Client:
         return Response(content)
 
 
+@pytest.fixture
+def task_kwargs():
+    task_attrs = ["deploy_script", "collect_script", "access_token", "steps_url"]
+    return {attr: attr for attr in task_attrs}
+
+
+@pytest.fixture
+def task(task_kwargs):
+    return DeployTask(**task_kwargs, client=Client())
+
+
 class CollectProc:
     PIPE = None
 
@@ -55,10 +66,7 @@ class CollectProc:
     ],
 )
 @pytest.mark.asyncio
-async def test_collect_steps(stdout, expected_steps):
-    task_attrs = ["deploy_script", "collect_script", "access_token", "steps_url"]
-    task_kwargs = {attr: attr for attr in task_attrs}
-    task = DeployTask(**task_kwargs, client=Client())
+async def test_collect_steps(stdout, expected_steps, task):
     with patch("app.tasks.subprocess", new=CollectProc(stdout)):
         await task.collect_steps()
     assert task.client.post_calls == expected_steps
@@ -106,20 +114,14 @@ class DeployProc:
     ],
 )
 @pytest.mark.asyncio
-async def test_deploy_steps_post(stdout_lines, expected_steps):
-    task_attrs = ["deploy_script", "collect_script", "access_token", "steps_url"]
-    task_kwargs = {attr: attr for attr in task_attrs}
-    task = DeployTask(**task_kwargs, client=Client())
+async def test_deploy_steps_post(stdout_lines, expected_steps, task):
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
     assert task.client.post_calls == expected_steps
 
 
 @pytest.mark.asyncio
-async def test_deploy_steps_put():
-    task_attrs = ["deploy_script", "collect_script", "access_token", "steps_url"]
-    task_kwargs = {attr: attr for attr in task_attrs}
-    task = DeployTask(**task_kwargs, client=Client())
+async def test_deploy_steps_put(task):
     step = {"id": 1, "name": "foo"}
     stdout_lines = [step, None]
     task.step_by_name[step["name"]] = step
