@@ -48,6 +48,7 @@ class DeployTask(BaseSettings):
     steps_url: str = Field(..., env="STEPS_URL")
     step_by_name: dict = {}
     attempts: int = 3
+    sleep_on_fail: float = 3.0
     client: Any = None
 
     @property
@@ -60,7 +61,7 @@ class DeployTask(BaseSettings):
                 await method(step_url, json=step)
                 break
             except httpx.ConnectError:
-                await asyncio.sleep(3)
+                await asyncio.sleep(self.sleep_on_fail)
 
     async def process_deploy_step(self, step):
         print("process..")
@@ -117,12 +118,12 @@ class DeployTask(BaseSettings):
         await self.deploy_steps()
 
 
-async def run_deploy_task():
+async def run_deploy_task():  # pragma: no cover
     deploy_task = DeployTask()
     async with httpx.AsyncClient(headers=deploy_task.headers) as client:
         deploy_task.client = client
         await deploy_task.run_deploy()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     asyncio.run(run_deploy_task())

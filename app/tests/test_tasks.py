@@ -2,6 +2,7 @@ import json
 
 from unittest.mock import patch
 
+import httpx
 import pytest
 
 from ..tasks import DeployTask
@@ -20,11 +21,16 @@ class Client:
         self.put_calls = []
         self.post_calls = []
         self.current_id = 0
+        self.raise_connect_error = False
 
     async def put(self, url, json=None):
+        if self.raise_connect_error:
+            raise httpx.ConnectError("no connection")
         self.put_calls.append(json)
 
     async def post(self, url, json=None):
+        if self.raise_connect_error:
+            raise httpx.ConnectError("no connection")
         self.post_calls.append(json)
         content = dict(json)
         self.current_id += 1
@@ -83,6 +89,7 @@ class DeployProc:
 
     def __init__(self, stdout_lines: list):
         self._stdout_lines = stdout_lines
+        self.waited_for_connection = False
 
     @property
     def subprocess(self):
@@ -101,6 +108,9 @@ class DeployProc:
         if line == "decodeerror":
             return line.encode("utf8")
         return json.dumps(line).encode("utf8")
+
+    async def sleep(self, duration):
+        self.waited_for_connection = True
 
 
 @pytest.mark.parametrize(
@@ -132,3 +142,25 @@ async def test_deploy_steps_put(task):
 
 def test_task_headers(task):
     assert task.headers == {"authorization": f"Bearer {task.access_token}"}
+
+
+@pytest.mark.asyncio
+async def test_task_sleep_on_connect_error(task):
+    task.client.raise_connect_error = True
+    step = {"id": 1, "name": "foo"}
+    stdout_lines = [step, None]
+    asyncio = DeployProc(stdout_lines)
+    with patch("app.tasks.asyncio", new=asyncio):
+        await task.deploy_steps()
+    assert asyncio.waited_for_connection
+
+
+@pytest.mark.asyncio
+async def test_task_run_deploy(task):
+    stdout = []
+    stdout_lines = [None]
+    with patch("app.tasks.subprocess", new=CollectProc(stdout)):
+        with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
+            await task.run_deploy()
+    assert task.client.post_calls == []
+    assert task.client.put_calls == []
