@@ -61,6 +61,14 @@ def add_deployment(deployment: Deployment):
 
 class StepBase(SQLModel):
     name: str
+    started: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column("started", DateTime),
+    )
+    finished: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column("finished", DateTime),
+    )
 
 
 class Step(StepBase, table=True):
@@ -69,14 +77,6 @@ class Step(StepBase, table=True):
     created: datetime = Field(
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
-    )
-    started: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column("started", DateTime),
-    )
-    finished: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column("finished", DateTime),
     )
 
 

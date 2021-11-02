@@ -69,7 +69,7 @@ class DeployTask(BaseSettings):
     async def send_step(self, method, step_url, step):
         for attempt in range(self.attempts):
             try:
-                await method(step_url, json=step)
+                await method(step_url, json=json.loads(step.json()))
                 break
             except httpx.ConnectError:
                 await asyncio.sleep(self.sleep_on_fail)
@@ -97,6 +97,8 @@ class DeployTask(BaseSettings):
             step = Step(**step_result)
             step.finished = datetime.utcnow()
             await self.send_step(self.client.post, self.steps_url, step)
+        print("step name: ", step.name)
+        print("step result name: ", step_result["name"])
         assert step.name == step_result["name"]
         step.finished = datetime.utcnow()
         await self.put_step(step)

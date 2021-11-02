@@ -127,7 +127,8 @@ class DeployProc:
 async def test_deploy_steps_post(stdout_lines, expected_steps, task):
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
-    actual_steps = [{"name": step.name} for step in task.client.post_calls]
+    print(task.client.post_calls)
+    actual_steps = [{"name": step["name"]} for step in task.client.post_calls]
     assert actual_steps == expected_steps
 
 
@@ -137,7 +138,7 @@ async def test_deploy_steps_put(task):
     stdout_lines = [step, None]
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
-    actual_steps = [{"name": step.name, "id": step.id} for step in task.client.put_calls]
+    actual_steps = [{"name": step["name"], "id": step["id"]} for step in task.client.put_calls]
     assert actual_steps == [step]
 
 
@@ -179,11 +180,10 @@ async def test_task_run_deploy(collect_stdout, deploy_lines, steps_put, steps_po
 
     actual_put = []
     for step in task.client.put_calls:
-        raw = step.dict()
         for field in ["created", "finished", "started"]:
-            del raw[field]  # make sure field exists
+            del step[field]  # make sure field exists
         # append twice, once for started, once for finished
-        actual_put.append(raw)
+        actual_put.append(step)
     expected_steps_put = []
     for step in steps_put:
         # append twice, once for started, once for finished

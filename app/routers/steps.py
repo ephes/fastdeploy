@@ -21,14 +21,25 @@ async def steps(step_in: StepBase, deployment: Deployment = Depends(get_current_
     return step
 
 
+class StepOut(Step):
+    def dict(self, *args, **kwargs):
+        serialized = super().dict(*args, **kwargs)
+        serialized["in_progress"] = self.started is not None and self.finished is None
+        serialized["done"] = self.finished is not None
+        return serialized
+
+
 @router.put("/{step_id}")
 async def step_update(
     step_id: int, step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)
-) -> Step:
+) -> StepOut:
     step = get_step_by_id(step_id)
     if step.deployment_id != deployment.id:
         raise CREDENTIALS_EXCEPTION
     step.name = step_in.name
+    step.started = step_in.started
+    step.finished = step_in.finished
     update_step(step)
-    await connection_manager.broadcast(step)
-    return step
+    step_out = StepOut.parse_obj(step)
+    await connection_manager.broadcast(step_out)
+    return step_out
