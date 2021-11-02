@@ -128,3 +128,7 @@ async def test_deploy_steps_put(task):
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
     assert task.client.put_calls == [step]
+
+
+def test_task_headers(task):
+    assert task.headers == {"authorization": f"Bearer {task.access_token}"}
