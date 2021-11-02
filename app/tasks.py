@@ -54,19 +54,10 @@ class DeployTask(BaseSettings):
     def headers(self):
         return {"authorization": f"Bearer {self.access_token}"}
 
-    async def update_step(self, collected_step, step):
-        step_url = urljoin(self.steps_url, str(collected_step["id"]))
+    async def send_step(self, method, step_url, step):
         for attempt in range(self.attempts):
             try:
-                await self.client.put(step_url, json=step)
-                break
-            except httpx.ConnectError:
-                await asyncio.sleep(3)
-
-    async def add_step(self, step):
-        for attempt in range(self.attempts):
-            try:
-                await self.client.post(self.steps_url, json=step)
+                await method(step_url, json=step)
                 break
             except httpx.ConnectError:
                 await asyncio.sleep(3)
@@ -74,9 +65,12 @@ class DeployTask(BaseSettings):
     async def process_deploy_step(self, step):
         print("process..")
         if (collected_step := self.step_by_name.get(step["name"])) is not None:
-            await self.update_step(collected_step, step)
+            # update collected step
+            step_url = urljoin(self.steps_url, str(collected_step["id"]))
+            await self.send_step(self.client.put, step_url, step)
         else:
-            await self.add_step(step)
+            # post new step
+            await self.send_step(self.client.post, self.steps_url, step)
 
     async def post_collected_steps(self, steps):
         for step in steps:
