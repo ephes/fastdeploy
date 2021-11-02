@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import typer
 
@@ -25,6 +26,21 @@ def createuser():
 def createservice(name: str, collect: str, deploy: str):
     rprint(f"creating service {name} {collect} {deploy}")
     create_service(name, collect, deploy)
+
+
+@app.command()
+def update():
+    subprocess.call(
+        [
+            "pip-compile",
+            "--generate-hashes",
+            "app/requirements/production.in",
+            "app/requirements/develop.in",
+            "--output-file",
+            "app/requirements/develop.txt",
+        ]
+    )
+    subprocess.call(["pip-sync", "app/requirements/develop.txt"])
 
 
 if __name__ == "__main__":
