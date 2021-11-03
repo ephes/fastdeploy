@@ -1,29 +1,7 @@
 import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
-import {Message} from "./typings";
+import { Step, Client } from "./typings";
 
-interface Client {
-  uuid: any;
-  errorMessage: Ref;
-  isAuthenticated: Ref;
-  accessToken: string | null;
-  connection: any;
-  messages: any;
-  nameToStep: any;
-  /**
-   * Called automatically by `app.use(client)`. Should not be called manually by
-   * the user.
-   *
-   * @internal
-   * @param app - Application that uses the client
-   */
-  install(app: App, options: any): void;
-  login(username: string, password: string): void;
-  initWebsocketConnection(): void;
-  authenticateWebsocketConnection(): void;
-  startDeployment(): void;
-  fetchServiceToken(accessToken: string): any;
-}
 
 export function createClient(): Client {
   const client: Client = {
@@ -35,7 +13,7 @@ export function createClient(): Client {
     install(app: App, options: any) {
       app.provide('client', this);
     },
-    messages: reactive({}),
+    steps: reactive({}),
     initWebsocketConnection() {
       this.connection = new WebSocket(`ws://localhost:8000/deployments/ws/${this.uuid}`);
       this.connection.onopen = (event: MessageEvent) => {
@@ -47,7 +25,8 @@ export function createClient(): Client {
         const message = JSON.parse(event.data);
         console.log('in client.ts: ', message);
         if (message.type === "step") {
-          this.messages[message.name] = message
+          const step = message
+          this.steps[step.name] = step
         }
       };
     },

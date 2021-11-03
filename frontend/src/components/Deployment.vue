@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { inject } from 'vue';
-import Message from './Message.vue';
+import Step from './Step.vue';
 
 const client: any = inject("client");
-const messages = client.messages;
+const steps = client.steps;
 defineEmits(['send']);
 </script>
 
@@ -12,15 +12,15 @@ defineEmits(['send']);
     <h1>Live Deployment</h1>
     <button @click="$emit('send')">start deployment</button>
     <transition-group name="list" tag="p">
-      <div v-for="message in messages" :key="message.name" class="list-message">
-        <message :message="message" />
+      <div v-for="step in steps" :key="step.name" class="list-step">
+        <step :step="step" />
       </div>
     </transition-group>
   </div>
 </template>
 
 <style scoped>
-.list-message {
+.list-step {
   margin-right: 10px;
 }
 .list-enter-active,
