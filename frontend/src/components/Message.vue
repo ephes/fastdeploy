@@ -8,7 +8,9 @@ const item = ref(null)
 watchEffect(() => {
   if (props.message.in_progress) {
     console.log("scroll to: ", props.message.name, item.value);
-    item.value.scrollIntoView({ behavior: "smooth" });
+    if (item.value) {
+      item.value.scrollIntoView({ behavior: "smooth" });
+    }
   }
 });
 </script>
