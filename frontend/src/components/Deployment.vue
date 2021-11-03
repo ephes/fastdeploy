@@ -12,8 +12,8 @@ defineEmits(['send']);
     <h1>Live Deployment</h1>
     <button @click="$emit('send')">start deployment</button>
     <transition-group name="list" tag="p">
-      <div v-for="message in messages.slice().reverse()" :key="message.name" class="list-message">
-        <Message :message="message" />
+      <div v-for="message in messages" :key="message.name" class="list-message">
+        <message :message="message" />
       </div>
     </transition-group>
   </div>

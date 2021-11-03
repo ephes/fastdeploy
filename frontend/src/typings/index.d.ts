@@ -4,6 +4,10 @@ interface Message {
   name: string;
   state: string;
   changed: boolean;
+  in_progress: boolean;
+  created: string;
+  started: string | null;
+  finished: string | null;
 }
 
 interface Client {

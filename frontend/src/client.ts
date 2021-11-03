@@ -1,5 +1,6 @@
 import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
+import {Message} from "./typings";
 
 interface Client {
   uuid: any;
@@ -7,7 +8,7 @@ interface Client {
   isAuthenticated: Ref;
   accessToken: string | null;
   connection: any;
-  messages: Ref;
+  messages: any;
   nameToStep: any;
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
@@ -46,11 +47,7 @@ export function createClient(): Client {
         const message = JSON.parse(event.data);
         console.log('in client.ts: ', message);
         if (message.type === "step") {
-          const seen = message.name in this.nameToStep
-          this.nameToStep[message.name] = message
-          if (!seen) {
-            this.messages.value.push(message)
-          }
+          this.messages[message.name] = message
         }
       };
     },
@@ -108,7 +105,6 @@ export function createClient(): Client {
         client.isAuthenticated.value = true;
         client.accessToken = result.access_token;
         client.initWebsocketConnection()
-        // client.authenticateWebsocketConnection()
       }
     },
   };
