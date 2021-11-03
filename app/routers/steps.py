@@ -13,20 +13,23 @@ router = APIRouter(
 )
 
 
-@router.post("/")
-async def steps(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)) -> Step:
-    step = Step(**step_in.dict(), deployment_id=deployment.id)
-    add_step(step)
-    await connection_manager.broadcast(step)
-    return step
-
-
 class StepOut(Step):
+    type: str = "step"
+
     def dict(self, *args, **kwargs):
         serialized = super().dict(*args, **kwargs)
         serialized["in_progress"] = self.started is not None and self.finished is None
         serialized["done"] = self.finished is not None
         return serialized
+
+
+@router.post("/")
+async def steps(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)) -> StepOut:
+    step = Step(**step_in.dict(), deployment_id=deployment.id)
+    add_step(step)
+    step_out = StepOut.parse_obj(step)
+    await connection_manager.broadcast(step_out)
+    return step_out
 
 
 @router.put("/{step_id}")
