@@ -1,4 +1,4 @@
-import { App, ref, Ref } from 'vue';
+import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Client {
@@ -8,6 +8,7 @@ interface Client {
   accessToken: string | null;
   connection: any;
   messages: Ref;
+  nameToStep: any;
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
    * the user.
@@ -33,7 +34,7 @@ export function createClient(): Client {
     install(app: App, options: any) {
       app.provide('client', this);
     },
-    messages: ref([]),
+    messages: reactive({}),
     initWebsocketConnection() {
       this.connection = new WebSocket(`ws://localhost:8000/deployments/ws/${this.uuid}`);
       this.connection.onopen = (event: MessageEvent) => {
@@ -44,7 +45,13 @@ export function createClient(): Client {
       this.connection.onmessage = (event: MessageEvent) => {
         const message = JSON.parse(event.data);
         console.log('in client.ts: ', message);
-        this.messages.value.push(message);
+        if (message.type === "step") {
+          const seen = message.name in this.nameToStep
+          this.nameToStep[message.name] = message
+          if (!seen) {
+            this.messages.value.push(message)
+          }
+        }
       };
     },
     authenticateWebsocketConnection() {
