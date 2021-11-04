@@ -1,8 +1,6 @@
 import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { Step, Client } from "./typings";
-import StepVue from './components/Step.vue';
-
 
 function createStep(message: Step): Step {
   const step: Step = {
