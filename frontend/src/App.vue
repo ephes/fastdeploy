@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { inject } from 'vue';
 import { useRouter } from 'vue-router';
-import { getCurrentInstance } from 'vue';
 
 const router = useRouter();
 const client: any = inject('client');

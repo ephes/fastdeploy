@@ -1,6 +1,6 @@
 import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
-import { Step, Client } from "./typings";
+import { Step, Client, Service } from "./typings";
 
 function toUtcDate(date: Date): Date {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
@@ -21,6 +21,16 @@ function createStep(message: Step): Step {
   return step;
 }
 
+function createService(item: Service): Service {
+  const service: Service = {
+    id: item.id,
+    name: item.name,
+    origin: item.origin,
+    user: item.user,
+  };
+  return service;
+}
+
 
 export function createClient(): Client {
   const client: Client = {
@@ -33,6 +43,7 @@ export function createClient(): Client {
       app.provide('client', this);
     },
     steps: reactive(new Map<string, Step>()),
+    services: new Map<number, Service>(),
     initWebsocketConnection() {
       this.connection = new WebSocket(`ws://localhost:8000/deployments/ws/${this.uuid}`);
       this.connection.onopen = (event: MessageEvent) => {
@@ -111,6 +122,10 @@ export function createClient(): Client {
       const response = await fetch('http://localhost:8000/services/', { headers: headers });
       const services = await response.json();
       console.log('fetchServices: ', services);
+      for (const item of services) {
+        const service = createService(item) as Service;
+        client.services.set(service.id, service);
+      }
       return services;
     }
   };

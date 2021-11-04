@@ -21,6 +21,7 @@ onMounted(async () => {
         <ul>
             <li v-for="service in services">
                 service: {{ service.name }}
+                <router-link :to="{ name: 'service-detail', params: { id: service.id }}">Link to service {{ service.id }}</router-link>
             </li>
         </ul>
     </div>
