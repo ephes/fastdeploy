@@ -19,6 +19,9 @@ watchEffect(() => {
 <template>
     <p ref="el" id="step">
         {{ step.name }} <br />
+        created: {{ step.created }} <br />
+        started: {{ step.started }} <br />
+        finished: {{ step.finished }} <br />
         in progress: {{ step.in_progress }} <br />
         done: {{ step.done }} <br />
         {{ step.state }} <br />

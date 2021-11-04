@@ -2,6 +2,11 @@ import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { Step, Client } from "./typings";
 
+function toUtcDate(date: Date): Date {
+  return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+}
+
+
 function createStep(message: Step): Step {
   const step: Step = {
     name: message.name,
@@ -9,9 +14,9 @@ function createStep(message: Step): Step {
     changed: message.changed,
     in_progress: message.in_progress,
     done: message.done,
-    created: message.created,
-    started: message.started,
-    finished: message.finished,
+    created: toUtcDate(new Date(message.created)),
+    started: message.started ? toUtcDate(new Date(message.started)): null,
+    finished: message.finished ? toUtcDate(new Date(message.finished)): null,
   };
   return step;
 }

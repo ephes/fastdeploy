@@ -6,9 +6,9 @@ interface Step {
   changed: boolean;
   in_progress: boolean;
   done: boolean;
-  created: string;
-  started: string | null;
-  finished: string | null;
+  created: Date;
+  started: Date | null;
+  finished: Date | null;
 }
 
 
