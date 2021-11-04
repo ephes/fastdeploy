@@ -11,6 +11,12 @@ interface Step {
   finished: Date | null;
 }
 
+interface Service {
+  name: string;
+  origin: string;
+  user: string;
+}
+
 
 interface Client {
   uuid: any;
@@ -32,4 +38,5 @@ interface Client {
   authenticateWebsocketConnection(): void;
   startDeployment(): void;
   fetchServiceToken(accessToken: string): any;
+  fetchServices(): Service[];
 }

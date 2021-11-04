@@ -6,13 +6,14 @@ import { createClient } from './client'
 import Login from './components/Login.vue'
 import HelloWorldVue from './components/HelloWorld.vue'
 import Home from './components/Home.vue'
+import Services from './components/Services.vue'
 import DeploymentVue from './components/Deployment.vue'
 
 
 const client = createClient()
 
 const routes = [
-    { path: '/', component: Home },
+    { path: '/', component: Services },
     { path: '/login', name: 'login', component: Login },
     { path: '/hello', component: HelloWorldVue },
     { path: '/deployment', component: DeploymentVue },

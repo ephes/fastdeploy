@@ -15,8 +15,8 @@ function createStep(message: Step): Step {
     in_progress: message.in_progress,
     done: message.done,
     created: toUtcDate(new Date(message.created)),
-    started: message.started ? toUtcDate(new Date(message.started)): null,
-    finished: message.finished ? toUtcDate(new Date(message.finished)): null,
+    started: message.started ? toUtcDate(new Date(message.started)) : null,
+    finished: message.finished ? toUtcDate(new Date(message.finished)) : null,
   };
   return step;
 }
@@ -75,7 +75,7 @@ export function createClient(): Client {
         return false
       }
       const serviceToken = await this.fetchServiceToken(this.accessToken);
-      const headers = { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json'};
+      const headers = { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json' };
       fetch('http://localhost:8000/deployments/', {
         method: 'POST',
         headers: headers,
@@ -106,6 +106,13 @@ export function createClient(): Client {
         client.initWebsocketConnection()
       }
     },
+    async fetchServices() {
+      const headers = { authorization: `Bearer ${this.accessToken}`, 'content-type': 'application/json' }
+      const response = await fetch('http://localhost:8000/services/', { headers: headers });
+      const services = await response.json();
+      console.log('fetchServices: ', services);
+      return services;
+    }
   };
   return client;
 }
