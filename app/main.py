@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import database
 from .config import settings
-from .routers import deployments, steps, users
+from .routers import deployments, services, steps, users
 from .websocket import connection_manager
 
 
@@ -14,6 +14,7 @@ app = FastAPI()
 app.include_router(users.router)
 app.include_router(deployments.router)
 app.include_router(steps.router)
+app.include_router(services.router)
 
 app.add_middleware(
     CORSMiddleware,

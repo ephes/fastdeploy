@@ -41,6 +41,13 @@ def create_service(service_name: str, collect: str, deploy: str) -> Service:
     return service
 
 
+def get_services_from_db():
+    with Session(database.engine) as session:
+        services = session.exec(select(Service)).all()
+    print(services)
+    return services
+
+
 class Deployment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     service_id: int = Field(foreign_key="service.id")
