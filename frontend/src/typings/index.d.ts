@@ -18,7 +18,7 @@ interface Client {
   isAuthenticated: Ref;
   accessToken: string | null;
   connection: any;
-  steps: any;
+  steps: Map<string, Step>;
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
    * the user.

@@ -1,6 +1,22 @@
 import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { Step, Client } from "./typings";
+import StepVue from './components/Step.vue';
+
+
+function createStep(message: Step): Step {
+  const step: Step = {
+    name: message.name,
+    state: message.state,
+    changed: message.changed,
+    in_progress: message.in_progress,
+    done: message.done,
+    created: message.created,
+    started: message.started,
+    finished: message.finished,
+  };
+  return step;
+}
 
 
 export function createClient(): Client {
@@ -13,7 +29,7 @@ export function createClient(): Client {
     install(app: App, options: any) {
       app.provide('client', this);
     },
-    steps: reactive({}),
+    steps: reactive(new Map<string, Step>()),
     initWebsocketConnection() {
       this.connection = new WebSocket(`ws://localhost:8000/deployments/ws/${this.uuid}`);
       this.connection.onopen = (event: MessageEvent) => {
@@ -25,8 +41,9 @@ export function createClient(): Client {
         const message = JSON.parse(event.data);
         console.log('in client.ts: ', message);
         if (message.type === "step") {
-          const step = message
-          this.steps[step.name] = step
+          const step = createStep(message) as Step;
+          console.log("step: ", step);
+          this.steps.set(step.name, step);
         }
       };
     },
