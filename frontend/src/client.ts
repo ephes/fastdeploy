@@ -154,6 +154,21 @@ export function createClient(): Client {
       console.log('add service: ', newService);
       return newService;
     },
+    async deleteService(serviceId: number) {
+      const headers = {
+        authorization: `Bearer ${this.accessToken}`,
+        'content-type': 'application/json',
+      };
+      const response = await fetch(
+        `http://localhost:8000/services/${serviceId}`,
+        {
+          method: 'DELETE',
+          headers: headers,
+        }
+      );
+      console.log('delete service: ', await response.json());
+      client.services.delete(serviceId);
+    },
   };
   return client;
 }

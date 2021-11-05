@@ -25,3 +25,12 @@ async def create_service(
 ) -> Service:
     print("service in: ", service)
     return repository.add_service(service)
+
+
+@router.delete("/{service_id}")
+async def delete_service(
+    service_id: int,
+    current_user: User = Depends(get_current_active_user),
+) -> Service:
+    repository.delete_service_by_id(service_id)
+    return {"detail": f"Service {service_id} deleted"}

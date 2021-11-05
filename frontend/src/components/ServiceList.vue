@@ -27,6 +27,11 @@ async function addService() {
   const service = await client.addService(newService);
   services.value.push(service);
 }
+
+async function deleteService(serviceId: number) {
+  await client.deleteService(serviceId);
+  services.value = services.value.filter((service) => service.id !== serviceId);
+}
 </script>
 
 <template>
@@ -54,6 +59,9 @@ async function addService() {
             :to="{ name: 'service-detail', params: { id: service.id } }"
             >Link to service {{ service.id }}</router-link
           >
+        </td>
+        <td>
+          <button @click="deleteService(service.id)">delete</button>
         </td>
       </tr>
     </table>

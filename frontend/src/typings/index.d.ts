@@ -42,4 +42,5 @@ interface Client {
   fetchServiceToken(accessToken: string): any;
   fetchServices(): Promise<Service[]>;
   addService(service: Service): Promise<Service>;
+  deleteService(serviceId: number): Promise<void>;
 }
