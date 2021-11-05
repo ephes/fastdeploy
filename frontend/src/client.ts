@@ -1,6 +1,6 @@
 import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
-import { Step, Client, Service } from './typings';
+import { Step, Client, Service, Deployment } from './typings';
 
 function toUtcDate(date: Date): Date {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
@@ -28,6 +28,17 @@ export function createService(item: Service): Service {
     deploy: item.deploy,
   };
   return service;
+}
+
+function createDeployment(item: Deployment): Deployment {
+  const deployment: Deployment = {
+    id: item.id,
+    service_id: item.service_id,
+    origin: item.origin,
+    user: item.user,
+    created: toUtcDate(new Date(item.created)),
+  };
+  return deployment;
 }
 
 export function createClient(): Client {

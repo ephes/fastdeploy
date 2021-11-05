@@ -1,4 +1,4 @@
-import {App, Ref} from 'vue';
+import { App, Ref } from 'vue';
 
 interface Step {
   name: string;
@@ -18,6 +18,13 @@ interface Service {
   deploy: string;
 }
 
+interface Deployment {
+  id: number | null;
+  service_id: number;
+  origin: string;
+  user: string;
+  created: Date;
+}
 
 interface Client {
   uuid: any;
