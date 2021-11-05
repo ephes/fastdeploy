@@ -28,9 +28,13 @@ async function addService() {
   services.value.push(service);
 }
 
-async function deleteService(serviceId: number) {
-  await client.deleteService(serviceId);
-  services.value = services.value.filter((service) => service.id !== serviceId);
+async function deleteService(serviceId: number | null) {
+  if (serviceId) {
+    await client.deleteService(serviceId);
+    services.value = services.value.filter(
+      (service) => service.id !== serviceId
+    );
+  }
 }
 </script>
 
