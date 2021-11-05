@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.sql.schema import Column
-from sqlmodel import Field, Session, SQLModel, select
+from sqlmodel import Field, Session, SQLModel
 
 from . import database
 
@@ -58,9 +58,3 @@ class Step(StepBase, table=True):
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
     )
-
-
-def get_step_by_id(step_id):
-    with Session(database.engine) as session:
-        step = session.exec(select(Step).where(Step.id == step_id)).first()
-    return step
