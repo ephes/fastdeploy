@@ -2,7 +2,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 from .filesystem import working_directory
-from .models import Service, Step, User
+from .models import Deployment, Service, Step, User
 
 
 with working_directory(settings.project_root):
@@ -69,6 +69,12 @@ class SQLiteRepository:
         with Session(self.engine) as session:
             step = session.query(Step).filter(Step.id == step_id).first()
         return step
+
+    # Deployment
+    def get_deployments(self) -> list[Deployment]:
+        with Session(self.engine) as session:
+            deployments = session.query(Deployment).all()
+        return deployments
 
 
 repository = SQLiteRepository()

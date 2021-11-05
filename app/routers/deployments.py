@@ -1,8 +1,9 @@
 from fastapi import APIRouter, BackgroundTasks, Depends
 
 from ..auth import ServiceToken
-from ..dependencies import get_current_service_token
-from ..models import Deployment, add_deployment
+from ..database import repository
+from ..dependencies import get_current_active_user, get_current_service_token
+from ..models import Deployment, User, add_deployment
 from ..tasks import get_deploy_environment, run_deploy
 
 
@@ -14,12 +15,12 @@ router = APIRouter(
 
 
 @router.get("/")
-async def read_root():
-    return {"Hello": "Deployments"}
+async def get_deployments(current_user: User = Depends(get_current_active_user)) -> list[Deployment]:
+    return repository.get_deployments()
 
 
 @router.post("/")
-async def deployments(
+async def create_deployment(
     background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_service_token)
 ):
     print("received deploy event for service and origin: ", service_token)
