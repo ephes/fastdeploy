@@ -3,7 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from ..auth import ServiceToken
 from ..database import repository
 from ..dependencies import get_current_active_user, get_current_service_token
-from ..models import Deployment, User, add_deployment
+from ..models import Deployment, User
 from ..tasks import get_deploy_environment, run_deploy
 
 
@@ -27,7 +27,7 @@ async def create_deployment(
     deployment = Deployment(
         service_id=service_token.item_from_db.id, origin=service_token.origin, user=service_token.user
     )
-    add_deployment(deployment)
+    repository.add_deployment(deployment)
     environment = get_deploy_environment(service_token.item_from_db, deployment)
     background_tasks.add_task(run_deploy, environment)
     return {"message": "deploying"}

@@ -3,9 +3,7 @@ from typing import Optional
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.sql.schema import Column
-from sqlmodel import Field, Session, SQLModel
-
-from . import database
+from sqlmodel import Field, SQLModel
 
 
 class User(SQLModel, table=True):
@@ -30,13 +28,6 @@ class Deployment(SQLModel, table=True):
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
     )
-
-
-def add_deployment(deployment: Deployment):
-    with Session(database.engine) as session:
-        session.add(deployment)
-        session.commit()
-        session.refresh(deployment)
 
 
 class StepBase(SQLModel):

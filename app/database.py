@@ -76,5 +76,12 @@ class SQLiteRepository:
             deployments = session.query(Deployment).all()
         return deployments
 
+    def add_deployment(self, deployment: Deployment) -> Deployment:
+        with Session(self.engine) as session:
+            session.add(deployment)
+            session.commit()
+            session.refresh(deployment)
+        return deployment
+
 
 repository = SQLiteRepository()
