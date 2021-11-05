@@ -24,6 +24,7 @@ async function login(username: string, password: string) {
     <p v-if="clientErrorMessage">Client-Error: {{ clientErrorMessage }}</p>
     <p v-if="isAuthenticated">
       <router-link to="/">Services</router-link> |
+      <router-link to="/deployments">Deployments</router-link> |
       <router-link to="/hello">Hello</router-link> |
       <router-link to="/deployment">Deployment</router-link>
     </p>

@@ -9,6 +9,8 @@ import Home from './components/Home.vue'
 import ServiceList from './components/ServiceList.vue'
 import ServiceDetail from './components/ServiceDetail.vue'
 import DeploymentVue from './components/Deployment.vue'
+import DeploymentList from './components/DeploymentList.vue'
+import DeploymentDetail from './components/DeploymentDetail.vue'
 
 
 const client = createClient()
@@ -16,6 +18,8 @@ const client = createClient()
 const routes = [
     { path: '/', component: ServiceList },
     { path: '/services/:id', name: 'service-detail', component: ServiceDetail },
+    { path: '/deployments', component: DeploymentList },
+    { path: '/deployments/:id', name: 'deployment-detail', component: DeploymentDetail },
     { path: '/login', name: 'login', component: Login },
     { path: '/hello', component: HelloWorldVue },
     { path: '/deployment', component: DeploymentVue },

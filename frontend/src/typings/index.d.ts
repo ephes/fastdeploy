@@ -34,6 +34,7 @@ interface Client {
   connection: any;
   steps: Map<string, Step>;
   services: Map<number | null, Service>;
+  deployments: Map<number | null, Deployment>;
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
    * the user.
@@ -50,4 +51,5 @@ interface Client {
   fetchServices(): Promise<Service[]>;
   addService(service: Service): Promise<Service>;
   deleteService(serviceId: number): Promise<void>;
+  fetchDeployments(): Promise<Deployment[]>;
 }
