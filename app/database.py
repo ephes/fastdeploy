@@ -2,7 +2,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 from .filesystem import working_directory
-from .models import Service, Step
+from .models import Service, Step, User
 
 
 with working_directory(settings.project_root):
@@ -16,6 +16,14 @@ def create_db_and_tables():
 class SQLiteRepository:
     def __init__(self):
         self.engine = engine
+
+    # User
+    def add_user(self, user: User) -> User:
+        with Session(self.engine) as session:
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+        return user
 
     # Service
     def get_services(self) -> list[Service]:

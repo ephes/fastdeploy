@@ -14,17 +14,6 @@ class User(SQLModel, table=True):
     password: str
 
 
-def create_user(username: str, password: str) -> User:
-    from .auth import get_password_hash
-
-    user = User(name=username, password=get_password_hash(password))
-    with Session(database.engine) as session:
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    return user
-
-
 class Service(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column=Column("name", String, unique=True))

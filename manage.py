@@ -7,7 +7,8 @@ from rich import print as rprint
 from rich.prompt import Prompt
 
 from app import database
-from app.models import Service, create_user
+from app.auth import get_password_hash
+from app.models import Service, User
 
 
 database.create_db_and_tables()
@@ -19,7 +20,9 @@ def createuser():
     username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
     password = Prompt.ask("Enter password", password=True)
     rprint(f"creating user {username}")
-    create_user(username, password)
+    user = User(username=username, password=get_password_hash(password))
+    user_in_db = database.repository.add_user(user)
+    rprint(f"created user with id: {user_in_db.id}")
 
 
 @app.command()
