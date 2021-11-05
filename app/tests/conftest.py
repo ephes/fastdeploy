@@ -190,3 +190,8 @@ def test_message():
         test: str = "message"
 
     return Message()
+
+
+@pytest.fixture
+def repository():
+    return database.repository

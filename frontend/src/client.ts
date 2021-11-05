@@ -128,6 +128,17 @@ export function createClient(): Client {
       }
       return services;
     }
+    async addService() {
+      const headers = { authorization: `Bearer ${this.accessToken}`, 'content-type': 'application/json' }
+      const response = await fetch('http://localhost:8000/services/', { headers: headers });
+      const services = await response.json();
+      console.log('fetchServices: ', services);
+      for (const item of services) {
+        const service = createService(item) as Service;
+        client.services.set(service.id, service);
+      }
+      return services;
+    }
   };
   return client;
 }

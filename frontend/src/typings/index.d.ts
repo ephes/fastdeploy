@@ -41,5 +41,4 @@ interface Client {
   startDeployment(): void;
   fetchServiceToken(accessToken: string): any;
   fetchServices(): Promise<Service[]>;
-  getService(serviceId: number): Service;
 }
