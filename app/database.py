@@ -17,6 +17,11 @@ class SQLiteRepository:
     def __init__(self):
         self.engine = engine
 
+    def get_services(self) -> list[Service]:
+        with Session(self.engine) as session:
+            services = session.query(Service).all()
+        return services
+
     def add_service(self, service: Service) -> Service:
         with Session(self.engine) as session:
             session.add(service)
