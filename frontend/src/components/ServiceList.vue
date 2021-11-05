@@ -46,7 +46,6 @@ async function deleteService(serviceId: number | null) {
     <input v-model="newService.deploy" placeholder="deploy script" />
     <button @click="addService()">add</button>
     <br />
-    len: {{ services.length }}
     <table align="center">
       <tr>
         <th>name</th>
@@ -61,7 +60,7 @@ async function deleteService(serviceId: number | null) {
         <td>
           <router-link
             :to="{ name: 'service-detail', params: { id: service.id } }"
-            >Link to service {{ service.id }}</router-link
+            >details for {{ service.name }}</router-link
           >
         </td>
         <td>
