@@ -2,7 +2,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 from .filesystem import working_directory
-from .models import Service
+from .models import Service, Step
 
 
 with working_directory(settings.project_root):
@@ -17,6 +17,7 @@ class SQLiteRepository:
     def __init__(self):
         self.engine = engine
 
+    # Service
     def get_services(self) -> list[Service]:
         with Session(self.engine) as session:
             services = session.query(Service).all()
@@ -44,6 +45,22 @@ class SQLiteRepository:
             service = session.query(Service).filter(Service.id == service_id).first()
             session.delete(service)
             session.commit()
+
+    # Step
+    def add_step(self, step: Step) -> Step:
+        with Session(self.engine) as session:
+            session.add(step)
+            session.commit()
+            session.refresh(step)
+        return step
+
+    def update_step(self, step: Step) -> Step:
+        return self.add_step(step)
+
+    def get_step_by_id(self, step_id: int) -> Step | None:
+        with Session(self.engine) as session:
+            step = session.query(Step).filter(Step.id == step_id).first()
+        return step
 
 
 repository = SQLiteRepository()
