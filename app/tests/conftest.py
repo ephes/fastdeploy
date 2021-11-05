@@ -7,8 +7,13 @@ from sqlmodel import Session, SQLModel
 from .. import database
 from ..auth import create_access_token, get_password_hash
 from ..main import app as fastapi_app
-from ..models import Deployment, Service, Step, StepBase, User, create_service
+from ..models import Deployment, Service, Step, StepBase, User
 from ..routers.users import ServiceIn
+
+
+@pytest.fixture
+def repository():
+    return database.repository
 
 
 @pytest.fixture
@@ -27,8 +32,8 @@ def service():
 
 
 @pytest.fixture
-def service_in_db(cleanup_database_after_test, service):
-    return create_service(service.name, service.collect, service.deploy)
+def service_in_db(cleanup_database_after_test, repository, service):
+    return repository.add_service(service)
 
 
 @pytest.fixture
@@ -190,8 +195,3 @@ def test_message():
         test: str = "message"
 
     return Message()
-
-
-@pytest.fixture
-def repository():
-    return database.repository

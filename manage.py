@@ -7,7 +7,7 @@ from rich import print as rprint
 from rich.prompt import Prompt
 
 from app import database
-from app.models import create_service, create_user
+from app.models import Service, create_user
 
 
 database.create_db_and_tables()
@@ -25,7 +25,9 @@ def createuser():
 @app.command()
 def createservice(name: str, collect: str, deploy: str):
     rprint(f"creating service {name} {collect} {deploy}")
-    create_service(name, collect, deploy)
+    service = Service(name=name, collect=collect, deploy=deploy)
+    service_in_db = database.repository.add_service(service)
+    rprint(f"created service with id: {service_in_db.id}")
 
 
 @app.command()

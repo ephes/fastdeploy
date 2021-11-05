@@ -32,15 +32,6 @@ class Service(SQLModel, table=True):
     deploy: str
 
 
-def create_service(service_name: str, collect: str, deploy: str) -> Service:
-    service = Service(name=service_name, collect=collect, deploy=deploy)
-    with Session(database.engine) as session:
-        session.add(service)
-        session.commit()
-        session.refresh(service)
-    return service
-
-
 def get_services_from_db():
     with Session(database.engine) as session:
         services = session.exec(select(Service)).all()
