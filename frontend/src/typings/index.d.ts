@@ -12,10 +12,10 @@ interface Step {
 }
 
 interface Service {
-  id: number;
+  id: number | null;
   name: string;
-  origin: string;
-  user: string;
+  collect: string;
+  deploy: string;
 }
 
 
@@ -26,7 +26,7 @@ interface Client {
   accessToken: string | null;
   connection: any;
   steps: Map<string, Step>;
-  services: Map<number, Service>;
+  services: Map<number | null, Service>;
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
    * the user.
@@ -41,4 +41,5 @@ interface Client {
   startDeployment(): void;
   fetchServiceToken(accessToken: string): any;
   fetchServices(): Promise<Service[]>;
+  addService(service: Service): Promise<Service>;
 }
