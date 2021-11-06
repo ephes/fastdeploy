@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     deploy_root: Path = project_root / "deployments"
     default_expire_minutes: int = 15
     steps_url: str = Field("http://localhost:8000/steps/", env="STEPS_URL")
+    repository: str = Field("sqlite", env="REPOSITORY")
 
     class Config:
         env_file = ROOT_DIR / ".env"

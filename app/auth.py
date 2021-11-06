@@ -6,11 +6,10 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from sqlmodel import Session, select
 
 from . import database
 from .config import settings
-from .models import Deployment, Service, User
+from .models import Deployment, User
 
 
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -31,10 +30,7 @@ def verify_password(plain, hashed):
 
 
 async def authenticate_user(username: str, password: str):
-    with Session(database.engine) as session:
-        statement = select(User).where(User.name == username)
-        results = session.exec(statement)
-        user = results.first()
+    user = database.repository.get_user_by_name(username)
 
     if not user:
         return False
@@ -59,18 +55,12 @@ class TokenBase(BaseModel):
     exp: int
     item_from_db: Optional[BaseModel]
 
-    def item_exists_in_database(self):
-        return self._fetch_item_from_db() is not None
-
-    def _fetch_item_from_db(self):
-        with Session(database.engine) as session:
-            # protect against validating an token from a deleted user / service / deployment
-            item = session.exec(self.select_item_stmt).first()
-        self.item_from_db = item
-        return item
+    def item_exists_in_database(self, item_from_db: Optional[BaseModel]):
+        return self.item_from_db is not None
 
     def validate(self):
-        return self.item_exists_in_database()
+        self.item_from_db = self.fetch_item_from_db()
+        return self.item_exists_in_database(self.item_from_db)
 
     @property
     def expires_at(self):
@@ -80,9 +70,8 @@ class TokenBase(BaseModel):
 class UserToken(TokenBase):
     user: str
 
-    @property
-    def select_item_stmt(self):
-        return select(User).where(User.name == self.user)
+    def fetch_item_from_db(self):
+        return database.repository.get_user_by_name(self.user)
 
 
 class ServiceToken(TokenBase):
@@ -90,17 +79,15 @@ class ServiceToken(TokenBase):
     origin: str
     user: str
 
-    @property
-    def select_item_stmt(self):
-        return select(Service).where(Service.name == self.service)
+    def fetch_item_from_db(self):
+        return database.repository.get_service_by_name(self.service)
 
 
 class DeploymentToken(TokenBase):
     deployment: int
 
-    @property
-    def select_item_stmt(self):
-        return select(Deployment).where(Deployment.id == self.deployment)
+    def fetch_item_from_db(self):
+        return database.repository.get_deployment_by_id(self.deployment)
 
 
 def payload_to_token(payload):

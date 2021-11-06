@@ -2,7 +2,7 @@ from datetime import timedelta
 
 import pytest
 
-from sqlmodel import Session, SQLModel
+from sqlmodel import SQLModel
 
 from .. import database
 from ..auth import create_access_token, get_password_hash
@@ -13,7 +13,10 @@ from ..routers.users import ServiceIn
 
 @pytest.fixture
 def repository():
-    return database.repository
+    yield database.repository
+    # after test ran, drop all tables and recreate them
+    # to bring the database back into a clean state
+    database.repository.reset()
 
 
 @pytest.fixture
@@ -32,7 +35,7 @@ def service():
 
 
 @pytest.fixture
-def service_in_db(cleanup_database_after_test, repository, service):
+def service_in_db(repository, service):
     return repository.add_service(service)
 
 
@@ -42,40 +45,19 @@ def deployment(service_in_db):
 
 
 @pytest.fixture
-def deployment_in_db(cleanup_database_after_test, deployment):
-    with Session(database.engine) as session:
-        session.add(deployment)
-        session.commit()
-        session.refresh(deployment)
-    return deployment
+def deployment_in_db(repository, deployment):
+    return repository.add_deployment(deployment)
 
 
 @pytest.fixture
-def different_deployment_in_db(cleanup_database_after_test, deployment):
-    deployment.id += 1
-    with Session(database.engine) as session:
-        session.add(deployment)
-        session.commit()
-        session.refresh(deployment)
-    return deployment
+def different_deployment_in_db(repository, deployment):
+    different_deployment = Deployment(service_id=deployment.service_id + 1, origin="foo", user="bar")
+    return repository.add_deployment(different_deployment)
 
 
 @pytest.fixture
-def cleanup_database_after_test():
-    database.create_db_and_tables()
-    yield
-    # after test ran, drop all tables and recreate them
-    # to bring the database back into a clean state
-    SQLModel.metadata.drop_all(database.engine)
-
-
-@pytest.fixture
-def user_in_db(cleanup_database_after_test, user):
-    with Session(database.engine) as session:
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    return user
+def user_in_db(repository, user):
+    return repository.add_user(user)
 
 
 @pytest.fixture
@@ -147,13 +129,9 @@ def step():
 
 
 @pytest.fixture
-def step_in_db(step, deployment_in_db):
+def step_in_db(repository, step, deployment_in_db):
     step = Step(name=step.name, deployment_id=deployment_in_db.id)
-    with Session(database.engine) as session:
-        session.add(step)
-        session.commit()
-        session.refresh(step)
-    return step
+    return repository.add_step(step)
 
 
 @pytest.fixture

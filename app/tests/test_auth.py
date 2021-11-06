@@ -36,7 +36,7 @@ async def test_authenticate_user_wrong_password(user_in_db):
 
 def test_create_access_token_without_expire():
     access_token = create_access_token(data={"type": "user", "user": "user"})
-    with patch("app.auth.Session"):
+    with patch("app.database.repository"):
         token = verify_access_token(access_token)
     expected_expire = datetime.utcnow() + timedelta(minutes=settings.default_expire_minutes)
     diff_seconds = (expected_expire - token.expires_at).total_seconds()
@@ -53,7 +53,7 @@ def test_create_access_token_without_expire():
 )
 def test_payload_to_token_valid(payload):
     token = payload_to_token(payload)
-    with patch("app.auth.Session"):
+    with patch("app.database.repository"):
         assert token.validate()
 
 

@@ -127,7 +127,6 @@ class DeployProc:
 async def test_deploy_steps_post(stdout_lines, expected_steps, task):
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
-    print(task.client.post_calls)
     actual_steps = [{"name": step["name"]} for step in task.client.post_calls]
     assert actual_steps == expected_steps
 

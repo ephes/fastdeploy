@@ -22,7 +22,6 @@ async def create_service(
     service: Service,
     current_user: User = Depends(get_current_active_user),
 ) -> Service:
-    print("service in: ", service)
     return repository.add_service(service)
 
 

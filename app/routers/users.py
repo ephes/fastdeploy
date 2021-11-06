@@ -51,7 +51,6 @@ class ServiceIn(BaseModel):
 
 @router.post("/service-token")
 async def service_token(service_in: ServiceIn, user: User = Depends(get_current_active_user)):
-    print("service data: ", service_in)
     service_token_expires = timedelta(minutes=30)
     data = {
         "type": "service",

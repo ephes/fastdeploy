@@ -23,7 +23,6 @@ async def get_deployments(current_user: User = Depends(get_current_active_user))
 async def create_deployment(
     background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_service_token)
 ):
-    print("received deploy event for service and origin: ", service_token)
     deployment = Deployment(
         service_id=service_token.item_from_db.id, origin=service_token.origin, user=service_token.user
     )
