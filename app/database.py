@@ -2,7 +2,8 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 from .filesystem import working_directory
-from .models import Deployment, Service, Step, User
+from .models import Deployment, Service, Step, StepOut, User
+from .websocket import connection_manager
 
 
 with working_directory(settings.project_root):
@@ -62,15 +63,17 @@ class InMemoryRepository:
                 self.services.remove(service)
 
     # Step
-    def add_step(self, step: Step) -> Step:
+    async def add_step(self, step: Step) -> Step:
         self.steps.append(step)
         step.id = len(self.steps)
+        await connection_manager.broadcast(StepOut.parse_obj(step))
         return step
 
-    def update_step(self, step: Step) -> Step:
+    async def update_step(self, step: Step) -> Step:
         for index, step in enumerate(self.steps):
             if step.id == step.id:
                 self.steps[index] = step
+        await connection_manager.broadcast(StepOut.parse_obj(step))
         return step
 
     def get_step_by_id(self, step_id: int) -> Step | None:
@@ -160,15 +163,18 @@ class SQLiteRepository:
             session.commit()
 
     # Step
-    def add_step(self, step: Step) -> Step:
+    async def add_step(self, step: Step) -> Step:
         with Session(self.engine) as session:
             session.add(step)
             session.commit()
             session.refresh(step)
+        await connection_manager.broadcast(StepOut.parse_obj(step))
         return step
 
-    def update_step(self, step: Step) -> Step:
-        return self.add_step(step)
+    async def update_step(self, step: Step) -> Step:
+        step = self.add_step(step)
+        await connection_manager.broadcast(StepOut.parse_obj(step))
+        return step
 
     def get_step_by_id(self, step_id: int) -> Step | None:
         with Session(self.engine) as session:

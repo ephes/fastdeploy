@@ -41,7 +41,7 @@ async def test_add_step_deployment_not_found(app, base_url, step, valid_deploy_t
 @pytest.mark.asyncio
 async def test_add_step(app, base_url, repository, step, valid_deploy_token_in_db, deployment_in_db):
     connection_manager = AsyncMock()
-    with patch("app.routers.steps.connection_manager", new=connection_manager):
+    with patch("app.database.connection_manager", new=connection_manager):
         async with AsyncClient(app=app, base_url=base_url) as client:
             response = await client.post(
                 app.url_path_for("steps"),
@@ -87,7 +87,7 @@ async def test_update_step(app, base_url, repository, step_in_db, valid_deploy_t
     step = step_in_db
     step.name = f"{step.name} updated"
     connection_manager = AsyncMock()
-    with patch("app.routers.steps.connection_manager", new=connection_manager):
+    with patch("app.database.connection_manager", new=connection_manager):
         async with AsyncClient(app=app, base_url=base_url) as client:
             response = await client.put(
                 app.url_path_for("step_update", step_id=step.id),

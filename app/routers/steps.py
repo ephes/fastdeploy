@@ -3,8 +3,7 @@ from fastapi import APIRouter, Depends
 from ..auth import CREDENTIALS_EXCEPTION
 from ..database import repository
 from ..dependencies import get_current_deployment
-from ..models import Deployment, Step, StepBase
-from ..websocket import connection_manager
+from ..models import Deployment, Step, StepBase, StepOut
 
 
 router = APIRouter(
@@ -14,23 +13,11 @@ router = APIRouter(
 )
 
 
-class StepOut(Step):
-    type: str = "step"
-
-    def dict(self, *args, **kwargs):
-        serialized = super().dict(*args, **kwargs)
-        serialized["in_progress"] = self.started is not None and self.finished is None
-        serialized["done"] = self.finished is not None
-        return serialized
-
-
 @router.post("/")
 async def steps(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)) -> StepOut:
     step = Step(**step_in.dict(), deployment_id=deployment.id)
-    repository.add_step(step)
-    step_out = StepOut.parse_obj(step)
-    await connection_manager.broadcast(step_out)
-    return step_out
+    step = await repository.add_step(step)
+    return StepOut.parse_obj(step)
 
 
 @router.put("/{step_id}")
@@ -43,7 +30,5 @@ async def step_update(
     step.name = step_in.name
     step.started = step_in.started
     step.finished = step_in.finished
-    repository.update_step(step)
-    step_out = StepOut.parse_obj(step)
-    await connection_manager.broadcast(step_out)
-    return step_out
+    step = await repository.update_step(step)
+    return StepOut.parse_obj(step)

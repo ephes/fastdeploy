@@ -49,3 +49,13 @@ class Step(StepBase, table=True):
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
     )
+
+
+class StepOut(Step):
+    type: str = "step"
+
+    def dict(self, *args, **kwargs):
+        serialized = super().dict(*args, **kwargs)
+        serialized["in_progress"] = self.started is not None and self.finished is None
+        serialized["done"] = self.finished is not None
+        return serialized

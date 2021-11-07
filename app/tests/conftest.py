@@ -129,9 +129,9 @@ def step():
 
 
 @pytest.fixture
-def step_in_db(repository, step, deployment_in_db):
+async def step_in_db(repository, step, deployment_in_db):
     step = Step(name=step.name, deployment_id=deployment_in_db.id)
-    return repository.add_step(step)
+    return await repository.add_step(step)
 
 
 @pytest.fixture
