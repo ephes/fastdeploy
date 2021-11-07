@@ -52,7 +52,7 @@ export function createClient(): Client {
       app.provide('client', this);
     },
     steps: reactive(new Map<string, Step>()),
-    services: new Map<number, Service>(),
+    services: reactive(new Map<number, Service>()),
     deployments: new Map<number, Deployment>(),
     initWebsocketConnection() {
       this.connection = new WebSocket(
@@ -70,6 +70,14 @@ export function createClient(): Client {
           const step = createStep(message) as Step;
           console.log('step: ', step);
           this.steps.set(step.name, step);
+        } else if (message.type === 'service') {
+          const service = createService(message) as Service;
+          console.log('service: ', service);
+          this.services.set(service.id, service);
+        } else if (message.type === 'deployment') {
+          const deployment = createDeployment(message) as Deployment;
+          console.log('deployment: ', deployment);
+          this.deployments.set(deployment.id, deployment);
         }
       };
     },

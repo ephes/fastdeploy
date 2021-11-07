@@ -4,13 +4,13 @@ import { createService } from '../client';
 import { Client, Service } from '../typings';
 
 const client: Client = inject('client') as Client;
-const services = ref([] as Service[]);
+const services = client.services;
 const newService = reactive(
   createService({ id: null, name: '', collect: '', deploy: '' })
 );
 
 async function fetchServices() {
-  services.value = await client.fetchServices();
+  await client.fetchServices();
 }
 
 onMounted(async () => {
@@ -24,16 +24,12 @@ async function addService() {
     newService.collect,
     newService.deploy
   );
-  const service = await client.addService(newService);
-  services.value.push(service);
+  await client.addService(newService);
 }
 
 async function deleteService(serviceId: number | null) {
   if (serviceId) {
     await client.deleteService(serviceId);
-    services.value = services.value.filter(
-      (service) => service.id !== serviceId
-    );
   }
 }
 </script>
@@ -53,7 +49,7 @@ async function deleteService(serviceId: number | null) {
         <th>deploy script</th>
         <th>link</th>
       </tr>
-      <tr v-for="service in services">
+      <tr v-for="[id, service] in services" class="list-service">
         <td>{{ service.name }}</td>
         <td>{{ service.collect }}</td>
         <td>{{ service.deploy }}</td>
