@@ -12,7 +12,7 @@ from .config import settings
 from .models import Deployment, User
 
 
-PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
+PWD_CONTEXT = CryptContext(schemes=[settings.password_hash_algorithm], deprecated="auto")
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
 CREDENTIALS_EXCEPTION = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -46,7 +46,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.password_hash_algorithm)
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.token_sign_algorithm)
     return encoded_jwt
 
 
@@ -105,7 +105,7 @@ def verify_access_token(access_token: str) -> UserToken | ServiceToken | Deploym
     payload = jwt.decode(
         access_token,
         settings.secret_key,
-        algorithms=[settings.password_hash_algorithm],
+        algorithms=[settings.token_sign_algorithm],
     )
     token = payload_to_token(payload)
     assert token.validate()

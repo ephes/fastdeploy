@@ -11,7 +11,8 @@ ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent
 class Settings(BaseSettings):
     app_name: str = "Small Deployment Frontend"
     admin_email: str = "jochen-fastdeploy@wersdoerfer.de"
-    password_hash_algorithm: str = "HS256"
+    password_hash_algorithm: str = Field("bcrypt", env="PASSWORD_HASH_ALGORITHM")
+    token_sign_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     database_url: str = Field(..., env="DATABASE_URL")
     db_engine: typing.Any
