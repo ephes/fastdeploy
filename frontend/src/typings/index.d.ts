@@ -13,7 +13,7 @@ interface Step {
 }
 
 interface Service {
-  id: number | null;
+  id: number;
   name: string;
   collect: string;
   deploy: string;
