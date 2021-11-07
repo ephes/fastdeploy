@@ -8,6 +8,7 @@ function toUtcDate(date: Date): Date {
 
 function createStep(message: Step): Step {
   const step: Step = {
+    id: message.id,
     name: message.name,
     state: message.state,
     changed: message.changed,
@@ -51,7 +52,7 @@ export function createClient(): Client {
     install(app: App, options: any) {
       app.provide('client', this);
     },
-    steps: reactive(new Map<string, Step>()),
+    steps: reactive(new Map<number, Step>()),
     services: reactive(new Map<number, Service>()),
     deployments: new Map<number, Deployment>(),
     initWebsocketConnection() {
@@ -69,7 +70,7 @@ export function createClient(): Client {
         if (message.type === 'step') {
           const step = createStep(message) as Step;
           console.log('step: ', step);
-          this.steps.set(step.name, step);
+          this.steps.set(step.id, step);
         } else if (message.type === 'service') {
           const service = createService(message) as Service;
           console.log('service: ', service);

@@ -49,7 +49,7 @@ async function deleteService(serviceId: number | null) {
         <th>deploy script</th>
         <th>link</th>
       </tr>
-      <tr v-for="[id, service] in services" class="list-service">
+      <tr v-for="[id, service] in services" :key="id" class="list-service">
         <td>{{ service.name }}</td>
         <td>{{ service.collect }}</td>
         <td>{{ service.deploy }}</td>

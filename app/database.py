@@ -42,7 +42,8 @@ class InMemoryRepository:
 
     async def add_service(self, service: Service) -> Service:
         self.services.append(service)
-        service.id = len(self.services)
+        if service.id is None:
+            service.id = len(self.services)
         await connection_manager.broadcast(ServiceOut.parse_obj(service))
         return service
 
@@ -174,7 +175,7 @@ class SQLiteRepository:
         return step
 
     async def update_step(self, step: Step) -> Step:
-        step = self.add_step(step)
+        step = await self.add_step(step)
         await connection_manager.broadcast(StepOut.parse_obj(step))
         return step
 

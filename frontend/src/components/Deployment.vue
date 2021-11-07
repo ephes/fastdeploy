@@ -11,8 +11,9 @@ defineEmits(['send']);
   <div>
     <h1>Live Deployment</h1>
     <button @click="$emit('send')">start deployment</button>
+    Number of steps: {{ steps.length }}
     <transition-group name="list" tag="p">
-      <div v-for="[name, step] in steps" :key="name" class="list-step">
+      <div v-for="[id, step] in steps" :key="id" class="list-step">
         <step :step="step" />
       </div>
     </transition-group>

@@ -22,6 +22,7 @@ async def create_service(
     service: Service,
     current_user: User = Depends(get_current_active_user),
 ) -> Service:
+    service.id = None  # forgid setting the id from client
     return await repository.add_service(service)
 
 

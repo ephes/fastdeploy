@@ -1,6 +1,7 @@
 import { App, Ref } from 'vue';
 
 interface Step {
+  id: number;
   name: string;
   state: string;
   changed: boolean;
@@ -32,7 +33,7 @@ interface Client {
   isAuthenticated: Ref;
   accessToken: string | null;
   connection: any;
-  steps: Map<string, Step>;
+  steps: Map<number, Step>;
   services: Map<number | null, Service>;
   deployments: Map<number | null, Deployment>;
   /**

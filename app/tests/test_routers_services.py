@@ -39,6 +39,7 @@ async def test_create_service_without_authentication(app, base_url, service):
 
 @pytest.mark.asyncio
 async def test_create_service(app, base_url, repository, service, valid_access_token_in_db):
+    service.id = given_id = -1
     connection_manager = AsyncMock()
     with patch("app.database.connection_manager", new=connection_manager):
         async with AsyncClient(app=app, base_url=base_url) as client:
@@ -57,6 +58,7 @@ async def test_create_service(app, base_url, repository, service, valid_access_t
     service_from_db = repository.get_service_by_name(result["name"])
     assert service_from_db.collect == service.collect
     assert service_from_db.deploy == service.deploy
+    assert service_from_db.id != given_id
 
 
 @pytest.mark.asyncio

@@ -4,8 +4,6 @@ from fastapi import WebSocket
 from jose import JWTError
 from pydantic import BaseModel
 
-from .auth import verify_access_token
-
 
 class ConnectionManager:
     def __init__(self) -> None:
@@ -17,6 +15,8 @@ class ConnectionManager:
         self.all_connections[client_id] = websocket
 
     async def authenticate(self, client_id: UUID, access_token: str):
+        from .auth import verify_access_token
+
         try:
             token = verify_access_token(access_token)
             message = {
