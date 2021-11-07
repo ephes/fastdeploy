@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from httpx import AsyncClient
@@ -37,14 +39,20 @@ async def test_create_service_without_authentication(app, base_url, service):
 
 @pytest.mark.asyncio
 async def test_create_service(app, base_url, repository, service, valid_access_token_in_db):
-    async with AsyncClient(app=app, base_url=base_url) as client:
-        response = await client.post(
-            app.url_path_for("create_service"),
-            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
-            json=service.dict(),
-        )
+    connection_manager = AsyncMock()
+    with patch("app.database.connection_manager", new=connection_manager):
+        async with AsyncClient(app=app, base_url=base_url) as client:
+            response = await client.post(
+                app.url_path_for("create_service"),
+                headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+                json=service.dict(),
+            )
 
     assert response.status_code == 200
+
+    # make sure added step was broadcast to websockets
+    connection_manager.broadcast.assert_called()
+
     result = response.json()
     service_from_db = repository.get_service_by_name(result["name"])
     assert service_from_db.collect == service.collect

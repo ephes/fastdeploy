@@ -35,8 +35,8 @@ def service():
 
 
 @pytest.fixture
-def service_in_db(repository, service):
-    return repository.add_service(service)
+async def service_in_db(repository, service):
+    return await repository.add_service(service)
 
 
 @pytest.fixture

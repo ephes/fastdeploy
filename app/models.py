@@ -19,6 +19,10 @@ class Service(SQLModel, table=True):
     deploy: str
 
 
+class ServiceOut(Service):
+    type: str = "service"
+
+
 class Deployment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     service_id: int = Field(foreign_key="service.id")

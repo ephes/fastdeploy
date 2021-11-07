@@ -2,7 +2,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 from .filesystem import working_directory
-from .models import Deployment, Service, Step, StepOut, User
+from .models import Deployment, Service, ServiceOut, Step, StepOut, User
 from .websocket import connection_manager
 
 
@@ -40,9 +40,10 @@ class InMemoryRepository:
     def get_services(self) -> list[Service]:
         return self.services
 
-    def add_service(self, service: Service) -> Service:
+    async def add_service(self, service: Service) -> Service:
         self.services.append(service)
         service.id = len(self.services)
+        await connection_manager.broadcast(ServiceOut.parse_obj(service))
         return service
 
     def get_service_by_name(self, name: str) -> Service | None:
@@ -139,11 +140,12 @@ class SQLiteRepository:
             services = session.query(Service).all()
         return services
 
-    def add_service(self, service: Service) -> Service:
+    async def add_service(self, service: Service) -> Service:
         with Session(self.engine) as session:
             session.add(service)
             session.commit()
             session.refresh(service)
+        await connection_manager.broadcast(ServiceOut.parse_obj(service))
         return service
 
     def get_service_by_name(self, name: str) -> Service | None:
