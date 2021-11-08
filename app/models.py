@@ -21,6 +21,7 @@ class Service(SQLModel, table=True):
 
 class ServiceOut(Service):
     type: str = "service"
+    deleted: bool = False
 
 
 class Deployment(SQLModel, table=True):
@@ -32,6 +33,11 @@ class Deployment(SQLModel, table=True):
         default=datetime.now(timezone.utc),
         sa_column=Column("created", DateTime),
     )
+
+
+class DeploymentOut(Deployment):
+    type: str = "deployment"
+    deleted: bool = False
 
 
 class StepBase(SQLModel):
@@ -57,6 +63,7 @@ class Step(StepBase, table=True):
 
 class StepOut(Step):
     type: str = "step"
+    deleted: bool = False
 
     def dict(self, *args, **kwargs):
         serialized = super().dict(*args, **kwargs)

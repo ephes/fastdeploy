@@ -1,2 +1,4 @@
-add position ids to ansible task output
-use files to bootstrap self deploy?
+* broadcast delete events for service
+* clean step list / detail handling
+* make all repository functions async
+* step utc dates to correct local time

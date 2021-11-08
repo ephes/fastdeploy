@@ -10,6 +10,7 @@ interface Step {
   created: Date;
   started: Date | null;
   finished: Date | null;
+  deleted: boolean;
 }
 
 interface Service {
@@ -17,6 +18,7 @@ interface Service {
   name: string;
   collect: string;
   deploy: string;
+  deleted: boolean;
 }
 
 interface Deployment {
@@ -25,6 +27,7 @@ interface Deployment {
   origin: string;
   user: string;
   created: Date;
+  deleted: boolean;
 }
 
 interface Client {

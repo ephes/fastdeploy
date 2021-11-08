@@ -2,7 +2,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 from .filesystem import working_directory
-from .models import Deployment, Service, ServiceOut, Step, StepOut, User
+from .models import Deployment, DeploymentOut, Service, ServiceOut, Step, StepOut, User
 from .websocket import connection_manager
 
 
@@ -159,10 +159,14 @@ class SQLiteRepository:
             service = session.query(Service).filter(Service.id == service_id).first()
         return service
 
-    def delete_service_by_id(self, service_id: int) -> None:
+    async def delete_service_by_id(self, service_id: int) -> None:
+        await self.delete_deployments_by_service_id(service_id)
         with Session(self.engine) as session:
             service = session.query(Service).filter(Service.id == service_id).first()
             session.delete(service)
+            service_out = ServiceOut.parse_obj(service)
+            service_out.deleted = True
+            await connection_manager.broadcast(service_out)
             session.commit()
 
     # Step
@@ -189,6 +193,16 @@ class SQLiteRepository:
             steps = session.query(Step).filter(Step.name == name).all()
         return steps
 
+    async def delete_steps_by_deployment_id(self, deployment_id: int) -> None:
+        with Session(self.engine) as session:
+            steps = session.query(Step).filter(Step.deployment_id == deployment_id).all()
+            for step in steps:
+                session.delete(step)
+                step_out = StepOut.parse_obj(step)
+                step_out.deleted = True
+                await connection_manager.broadcast(step_out)
+            session.commit()
+
     # Deployment
     def get_deployments(self) -> list[Deployment]:
         with Session(self.engine) as session:
@@ -211,6 +225,17 @@ class SQLiteRepository:
         with Session(self.engine) as session:
             deployments = session.query(Deployment).filter(Deployment.service_id == service_id).all()
         return deployments
+
+    async def delete_deployments_by_service_id(self, service_id: int) -> None:
+        with Session(self.engine) as session:
+            deployments = session.query(Deployment).filter(Deployment.service_id == service_id).all()
+            for deployment in deployments:
+                await self.delete_steps_by_deployment_id(deployment.id)
+                session.delete(deployment)
+                deployment_out = DeploymentOut.parse_obj(deployment)
+                deployment_out.deleted = True
+                await connection_manager.broadcast(deployment_out)
+            session.commit()
 
 
 if settings.repository == "sqlite":

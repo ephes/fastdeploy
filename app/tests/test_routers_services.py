@@ -71,12 +71,14 @@ async def test_delete_service_without_authentication(app, base_url, service):
 
 
 @pytest.mark.asyncio
-async def test_delete_service(app, base_url, repository, service_in_db, valid_access_token_in_db):
-    async with AsyncClient(app=app, base_url=base_url) as client:
-        response = await client.delete(
-            app.url_path_for("delete_service", service_id=service_in_db.id),
-            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
-        )
+async def test_delete_service(app, base_url, repository, service_in_db, deployment_in_db, valid_access_token_in_db):
+    connection_manager = AsyncMock()
+    with patch("app.database.connection_manager", new=connection_manager):
+        async with AsyncClient(app=app, base_url=base_url) as client:
+            response = await client.delete(
+                app.url_path_for("delete_service", service_id=service_in_db.id),
+                headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+            )
 
     # make sure delete was called properly
     assert response.status_code == 200
@@ -85,3 +87,6 @@ async def test_delete_service(app, base_url, repository, service_in_db, valid_ac
 
     # make sure service_in_db is not in db anymore
     assert repository.get_service_by_id(service_in_db.id) is None
+
+    # make sure deployment_in_db is not in db anymore
+    assert repository.get_deployment_by_id(deployment_in_db.id) is None

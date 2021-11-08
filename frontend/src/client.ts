@@ -2,6 +2,8 @@ import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { Step, Client, Service, Deployment } from './typings';
 
+// import VITE_SOME_KEY from '@/config';
+
 function toUtcDate(date: Date): Date {
   return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
 }
@@ -17,27 +19,30 @@ function createStep(message: Step): Step {
     created: toUtcDate(new Date(message.created)),
     started: message.started ? toUtcDate(new Date(message.started)) : null,
     finished: message.finished ? toUtcDate(new Date(message.finished)) : null,
+    deleted: message.deleted,
   };
   return step;
 }
 
-export function createService(item: Service): Service {
+export function createService(message: Service): Service {
   const service: Service = {
-    id: item.id,
-    name: item.name,
-    collect: item.collect,
-    deploy: item.deploy,
+    id: message.id,
+    name: message.name,
+    collect: message.collect,
+    deploy: message.deploy,
+    deleted: message.deleted,
   };
   return service;
 }
 
-function createDeployment(item: Deployment): Deployment {
+function createDeployment(message: Deployment): Deployment {
   const deployment: Deployment = {
-    id: item.id,
-    service_id: item.service_id,
-    origin: item.origin,
-    user: item.user,
-    created: toUtcDate(new Date(item.created)),
+    id: message.id,
+    service_id: message.service_id,
+    origin: message.origin,
+    user: message.user,
+    created: toUtcDate(new Date(message.created)),
+    deleted: message.deleted,
   };
   return deployment;
 }
@@ -70,15 +75,27 @@ export function createClient(): Client {
         if (message.type === 'step') {
           const step = createStep(message) as Step;
           console.log('step: ', step);
-          this.steps.set(step.id, step);
+          if (step.deleted) {
+            this.steps.delete(step.id);
+          } else {
+            this.steps.set(step.id, step);
+          }
         } else if (message.type === 'service') {
           const service = createService(message) as Service;
           console.log('service: ', service);
-          this.services.set(service.id, service);
+          if (service.deleted) {
+            this.services.delete(service.id);
+          } else {
+            this.services.set(service.id, service);
+          }
         } else if (message.type === 'deployment') {
           const deployment = createDeployment(message) as Deployment;
           console.log('deployment: ', deployment);
-          this.deployments.set(deployment.id, deployment);
+          if (deployment.deleted) {
+            this.deployments.delete(deployment.id);
+          } else {
+            this.deployments.set(deployment.id, deployment);
+          }
         }
       };
     },
@@ -188,7 +205,7 @@ export function createClient(): Client {
         }
       );
       console.log('delete service: ', await response.json());
-      client.services.delete(serviceId);
+      // client.services.delete(serviceId);
     },
     async fetchDeployments() {
       const headers = {
