@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CREDENTIALS_EXCEPTION
 from ..database import repository
-from ..dependencies import get_current_deployment
-from ..models import Deployment, Step, StepBase, StepOut
+from ..dependencies import get_current_active_user, get_current_deployment
+from ..models import Deployment, Step, StepBase, StepOut, User
 
 
 router = APIRouter(
@@ -14,10 +14,18 @@ router = APIRouter(
 
 
 @router.post("/")
-async def steps(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)) -> StepOut:
+async def create_step(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)) -> StepOut:
     step = Step(**step_in.dict(), deployment_id=deployment.id)
     step = await repository.add_step(step)
     return StepOut.parse_obj(step)
+
+
+@router.get("/")
+async def get_steps_by_deployment(
+    deployment_id: int, current_user: User = Depends(get_current_active_user)
+) -> list[StepOut]:
+    steps = await repository.get_steps_by_deployment_id(deployment_id)
+    return [StepOut.parse_obj(step) for step in steps]
 
 
 @router.put("/{step_id}")

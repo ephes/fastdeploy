@@ -70,6 +70,13 @@ class InMemoryRepository:
                 break
 
     # Step
+    async def get_steps_by_deployment_id(self, deployment_id: int) -> list[Step]:
+        steps = []
+        for step in self.steps:
+            if step.deployment_id == deployment_id:
+                steps.append(step)
+        return steps
+
     async def add_step(self, step: Step) -> Step:
         self.steps.append(step)
         step.id = len(self.steps)
@@ -192,6 +199,11 @@ class SQLiteRepository:
             session.commit()
 
     # Step
+    async def get_steps_by_deployment_id(self, deployment_id: int) -> list[Step]:
+        with Session(self.engine) as session:
+            steps = session.query(Step).filter(Step.deployment_id == deployment_id).all()
+        return steps
+
     async def add_step(self, step: Step) -> Step:
         with Session(self.engine) as session:
             session.add(step)
