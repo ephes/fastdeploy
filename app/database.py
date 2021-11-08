@@ -59,10 +59,15 @@ class InMemoryRepository:
                 return service
         return None
 
-    def delete_service_by_id(self, service_id: int) -> None:
+    async def delete_service_by_id(self, service_id: int) -> None:
+        await self.delete_deployments_by_service_id(service_id)
         for service in self.services:
             if service.id == service_id:
                 self.services.remove(service)
+                service_out = ServiceOut.parse_obj(service)
+                service_out.deleted = True
+                await connection_manager.broadcast(service_out)
+                break
 
     # Step
     async def add_step(self, step: Step) -> Step:
@@ -91,6 +96,14 @@ class InMemoryRepository:
                 steps.append(step)
         return steps
 
+    async def delete_steps_by_deployment_id(self, deployment_id: int) -> None:
+        for step in self.steps:
+            if step.deployment_id == deployment_id:
+                self.steps.remove(step)
+                step_out = StepOut.parse_obj(step)
+                step_out.deleted = True
+                await connection_manager.broadcast(step_out)
+
     # Deployment
     def get_deployments(self) -> list[Deployment]:
         return self.deployments
@@ -112,6 +125,15 @@ class InMemoryRepository:
             if deployment.service_id == service_id:
                 deployments.append(deployment)
         return deployments
+
+    async def delete_deployments_by_service_id(self, service_id: int) -> None:
+        for deployment in self.deployments:
+            if deployment.service_id == service_id:
+                await self.delete_steps_by_deployment_id(deployment.id)
+                self.deployments.remove(deployment)
+                deployment_out = DeploymentOut.parse_obj(deployment)
+                deployment_out.deleted = True
+                await connection_manager.broadcast(deployment_out)
 
 
 class SQLiteRepository:
