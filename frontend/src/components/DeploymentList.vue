@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { inject, ref, reactive, onMounted } from 'vue';
-import { Client, Deployment } from '../typings';
+import { inject, onMounted } from 'vue';
+import { Client } from '../typings';
 
 const client: Client = inject('client') as Client;
 const deployments = client.deployments;
