@@ -2,10 +2,8 @@ import { App, ref, Ref, reactive } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { Step, Client, Service, Deployment } from './typings';
 
-// import VITE_SOME_KEY from '@/config';
-
 function toUtcDate(date: Date): Date {
-  return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
 }
 
 function createStep(message: Step): Step {
