@@ -56,8 +56,8 @@ export function createClient(): Client {
       app.provide('client', this);
     },
     steps: reactive(new Map<number, Step>()),
-    services: reactive(new Map<number, Service>()),
-    deployments: new Map<number, Deployment>(),
+    services: reactive(new Map<number | undefined, Service>()),
+    deployments: reactive(new Map<number, Deployment>()),
     initWebsocketConnection() {
       this.connection = new WebSocket(
         `ws://localhost:8000/deployments/ws/${this.uuid}`
@@ -203,7 +203,6 @@ export function createClient(): Client {
         }
       );
       console.log('delete service: ', await response.json());
-      // client.services.delete(serviceId);
     },
     async fetchDeployments() {
       const headers = {

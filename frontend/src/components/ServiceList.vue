@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { inject, ref, reactive, onMounted } from 'vue';
+import { inject, reactive, onMounted } from 'vue';
 import { createService } from '../client';
-import { Client, Service } from '../typings';
+import { Client } from '../typings';
 
 const client: Client = inject('client') as Client;
 const services = client.services;
 const newService = reactive(
-  createService({ id: null, name: '', collect: '', deploy: '' })
+  createService({ id: undefined, name: '', collect: '', deploy: '', deleted: false })
 );
 
 async function fetchServices() {
@@ -14,20 +14,16 @@ async function fetchServices() {
 }
 
 onMounted(async () => {
+  // using onMounted to be able to define an async function
+  // rather belongs to create lifecycle hook, but cannot await in setup
   await fetchServices();
 });
 
 async function addService() {
-  console.log(
-    'adding: ',
-    newService.name,
-    newService.collect,
-    newService.deploy
-  );
   await client.addService(newService);
 }
 
-async function deleteService(serviceId: number | null) {
+async function deleteService(serviceId: number | undefined) {
   if (serviceId) {
     await client.deleteService(serviceId);
   }

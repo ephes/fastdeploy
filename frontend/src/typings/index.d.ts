@@ -14,7 +14,7 @@ interface Step {
 }
 
 interface Service {
-  id: number;
+  id: number | undefined;
   name: string;
   collect: string;
   deploy: string;
@@ -22,7 +22,7 @@ interface Service {
 }
 
 interface Deployment {
-  id: number | null;
+  id: number;
   service_id: number;
   origin: string;
   user: string;
@@ -37,8 +37,8 @@ interface Client {
   accessToken: string | null;
   connection: any;
   steps: Map<number, Step>;
-  services: Map<number | null, Service>;
-  deployments: Map<number | null, Deployment>;
+  services: Map<number | undefined, Service>;
+  deployments: Map<number, Deployment>;
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
    * the user.
