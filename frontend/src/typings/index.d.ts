@@ -6,6 +6,7 @@ interface Step {
   state: string;
   changed: boolean;
   in_progress: boolean;
+  deployment_id: number;
   done: boolean;
   created: Date;
   started: Date | null;
@@ -56,4 +57,5 @@ interface Client {
   addService(service: Service): Promise<Service>;
   deleteService(serviceId: number): Promise<void>;
   fetchDeployments(): Promise<Deployment[]>;
+  fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
 }

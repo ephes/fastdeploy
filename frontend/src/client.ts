@@ -13,6 +13,7 @@ function createStep(message: Step): Step {
     state: message.state,
     changed: message.changed,
     in_progress: message.in_progress,
+    deployment_id: message.deployment_id,
     done: message.done,
     created: toUtcDate(new Date(message.created)),
     started: message.started ? toUtcDate(new Date(message.started)) : null,
@@ -217,8 +218,33 @@ export function createClient(): Client {
         client.deployments.set(deployment.id, deployment);
       }
       console.log('fetchDeployments: ', deployments);
+      for (const deployment of deployments) {
+        client.deployments.set(deployment.id, deployment);
+      }
       return deployments;
-    }
+    },
+    async fetchStepsFromDeployment(deploymentId: number) {
+      const headers = {
+        authorization: `Bearer ${this.accessToken}`,
+        'content-type': 'application/json',
+      };
+      const params = {
+        deployment_id: deploymentId.toString(),
+      }
+      const response = await fetch(
+        'http://localhost:8000/steps/?' +
+          new URLSearchParams(params),
+        {
+          headers: headers,
+        }
+      );
+      const steps = (await response.json()).map(createStep);
+      console.log('fetchSteps by deployment id: ', steps);
+      for (const step of steps) {
+        client.steps.set(step.id, step);
+      }
+      return steps;
+    },
   };
   return client;
 }
