@@ -71,8 +71,10 @@ async def test_deploy_service(app, base_url, repository, valid_service_token_in_
             response = await client.post(test_url, headers=headers)
 
     assert response.status_code == 200
-    assert response.json() == {"message": "deploying"}
+    deployment_from_api = response.json()
+    assert "id" in deployment_from_api
 
     # make sure deployment was added to service in database
     deployments_by_service = repository.get_deployments_by_service_id(service_in_db.id)
     assert len(deployments_by_service) == 1
+    assert deployment_from_api["id"] == deployments_by_service[0].id

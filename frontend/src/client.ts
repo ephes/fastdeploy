@@ -102,14 +102,14 @@ export function createClient(): Client {
       const credentials = JSON.stringify({ access_token: this.accessToken });
       this.connection.send(credentials);
     },
-    async fetchServiceToken(accessToken: string) {
+    async fetchServiceToken(serviceName: string, accessToken: string) {
       const headers = {
         authorization: `Bearer ${accessToken}`,
         'content-type': 'application/json',
       };
       const body = JSON.stringify({
-        service: 'fastdeploy',
-        origin: 'GitHub',
+        service: serviceName,
+        origin: 'fastdeploy',
       });
       console.log('service token body: ', body);
       const response = await fetch('http://localhost:8000/service-token', {
@@ -121,21 +121,23 @@ export function createClient(): Client {
       console.log('service token response: ', json);
       return json.service_token;
     },
-    async startDeployment() {
+    async startDeployment(serviceName: string) {
       if (!this.accessToken) {
         return false;
       }
-      const serviceToken = await this.fetchServiceToken(this.accessToken);
+      const serviceToken = await this.fetchServiceToken(serviceName, this.accessToken);
       const headers = {
         authorization: `Bearer ${serviceToken}`,
         'content-type': 'application/json',
       };
-      fetch('http://localhost:8000/deployments/', {
+      const response = await fetch('http://localhost:8000/deployments/', {
         method: 'POST',
         headers: headers,
       })
-        .then((response) => response.json())
-        .then((data) => console.log('fetch response: ', data));
+      const deployment = createDeployment(await response.json());
+      console.log('start deployment response: ', deployment);
+      this.deployments.set(deployment.id, deployment);
+      return deployment;
     },
     async login(username: string, password: string) {
       let formData = new FormData();

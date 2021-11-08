@@ -29,4 +29,4 @@ async def create_deployment(
     repository.add_deployment(deployment)
     environment = get_deploy_environment(service_token.item_from_db, deployment)
     background_tasks.add_task(run_deploy, environment)
-    return {"message": "deploying"}
+    return deployment

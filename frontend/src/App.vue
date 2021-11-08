@@ -28,7 +28,7 @@ async function login(username: string, password: string) {
       <router-link to="/hello">Hello</router-link> |
       <router-link to="/deployment">Deployment</router-link>
     </p>
-    <router-view @send="client.startDeployment()" @login="login"></router-view>
+    <router-view @send="client.startDeployment('fastdeploy')" @login="login"></router-view>
   </div>
 </template>
 

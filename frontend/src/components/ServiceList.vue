@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { inject, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { createService } from '../client';
-import { Client } from '../typings';
+import { Client, Deployment } from '../typings';
 
 const client: Client = inject('client') as Client;
+const router = useRouter();
 const services = client.services;
 const newService = reactive(
   createService({ id: undefined, name: '', collect: '', deploy: '', deleted: false })
@@ -21,13 +23,18 @@ onMounted(async () => {
 
 async function addService() {
   await client.addService(newService);
-}
+};
 
 async function deleteService(serviceId: number | undefined) {
   if (serviceId) {
     await client.deleteService(serviceId);
   }
-}
+};
+
+async function startDeployment(serviceName: string) {
+  const deployment: Deployment = await client.startDeployment(serviceName);
+  router.push({ name: 'deployment-detail', params: { id: deployment.id } });
+};
 </script>
 
 <template>
@@ -44,6 +51,8 @@ async function deleteService(serviceId: number | undefined) {
         <th>collect script</th>
         <th>deploy script</th>
         <th>link</th>
+        <th>deploy</th>
+        <th>delete</th>
       </tr>
       <tr v-for="[id, service] in services" :key="id" class="list-service">
         <td>{{ service.name }}</td>
@@ -52,8 +61,10 @@ async function deleteService(serviceId: number | undefined) {
         <td>
           <router-link
             :to="{ name: 'service-detail', params: { id: service.id } }"
-            >details for {{ service.name }}</router-link
-          >
+          >details for {{ service.name }}</router-link>
+        </td>
+        <td>
+          <button @click="startDeployment(service.name)">deploy</button>
         </td>
         <td>
           <button @click="deleteService(service.id)">delete</button>
