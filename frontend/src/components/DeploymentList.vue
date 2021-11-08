@@ -3,14 +3,10 @@ import { inject, ref, reactive, onMounted } from 'vue';
 import { Client, Deployment } from '../typings';
 
 const client: Client = inject('client') as Client;
-const deployments = ref([] as Deployment[]);
-
-async function fetchDeployments() {
-  deployments.value = await client.fetchDeployments();
-}
+const deployments = client.deployments;
 
 onMounted(async () => {
-  await fetchDeployments();
+   await client.fetchDeployments();
 });
 </script>
 
@@ -25,7 +21,7 @@ onMounted(async () => {
         <th>user</th>
         <th>link</th>
       </tr>
-      <tr v-for="deployment in deployments">
+      <tr v-for="[id, deployment] in deployments" :key="id">
         <td>{{ deployment.id }}</td>
         <td>{{ deployment.service_id }}</td>
         <td>{{ deployment.origin }}</td>
