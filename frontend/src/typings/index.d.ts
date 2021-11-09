@@ -33,6 +33,7 @@ interface Deployment {
 
 interface Client {
   uuid: any;
+  apiBase: string;
   errorMessage: Ref;
   isAuthenticated: Ref;
   accessToken: string | null;
@@ -48,6 +49,7 @@ interface Client {
    * @param app - Application that uses the client
    */
   install(app: App, options: any): void;
+  getUrl(path: string): string;
   login(username: string, password: string): void;
   initWebsocketConnection(): void;
   authenticateWebsocketConnection(): void;

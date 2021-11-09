@@ -46,9 +46,18 @@ function createDeployment(message: Deployment): Deployment {
   return deployment;
 }
 
+function getApiBase(): string {
+  if (import.meta.env.VITE_API_BASE) {
+    return String(import.meta.env.VITE_API_BASE);
+  } else {
+    return 'http://localhost:8000';
+  }
+}
+
 export function createClient(): Client {
   const client: Client = {
     uuid: uuidv4(),
+    apiBase: getApiBase(),
     errorMessage: ref(false),
     connection: null,
     accessToken: null,
@@ -59,10 +68,15 @@ export function createClient(): Client {
     steps: reactive(new Map<number, Step>()),
     services: reactive(new Map<number | undefined, Service>()),
     deployments: reactive(new Map<number, Deployment>()),
+    getUrl(path: string): string {
+      return new URL(this.apiBase) + path;
+    },
     initWebsocketConnection() {
-      this.connection = new WebSocket(
-        `ws://localhost:8000/deployments/ws/${this.uuid}`
-      );
+      let websocketUrl = 'ws://localhost:8000/deployments/ws'
+      if (import.meta.env.VITE_WEBSOCKET_URL) {
+        websocketUrl = String(import.meta.env.VITE_WEBSOCKET_URL);
+      }
+      this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
       this.connection.onopen = (event: MessageEvent) => {
         console.log(event);
         console.log('Successfully connected to the echo websocket server...');
@@ -112,7 +126,7 @@ export function createClient(): Client {
         origin: 'fastdeploy',
       });
       console.log('service token body: ', body);
-      const response = await fetch('http://localhost:8000/service-token', {
+      const response = await fetch(this.getUrl('service-token'), {
         method: 'POST',
         headers: headers,
         body: body,
@@ -130,7 +144,7 @@ export function createClient(): Client {
         authorization: `Bearer ${serviceToken}`,
         'content-type': 'application/json',
       };
-      const response = await fetch('http://localhost:8000/deployments/', {
+      const response = await fetch(this.getUrl('deployments'), {
         method: 'POST',
         headers: headers,
       })
@@ -141,10 +155,9 @@ export function createClient(): Client {
     },
     async login(username: string, password: string) {
       let formData = new FormData();
-      console.log('login! ', username, password);
       formData.append('username', username);
       formData.append('password', password);
-      const response = await fetch('http://localhost:8000/token', {
+      const response = await fetch(this.getUrl('token'), {
         method: 'POST',
         body: formData,
       });
@@ -167,7 +180,7 @@ export function createClient(): Client {
         authorization: `Bearer ${this.accessToken}`,
         'content-type': 'application/json',
       };
-      const response = await fetch('http://localhost:8000/services/', {
+      const response = await fetch(this.getUrl('services'), {
         headers: headers,
       });
       const services = await response.json();
@@ -183,7 +196,7 @@ export function createClient(): Client {
         authorization: `Bearer ${this.accessToken}`,
         'content-type': 'application/json',
       };
-      const response = await fetch('http://localhost:8000/services/', {
+      const response = await fetch(this.getUrl('services'), {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(service),
@@ -199,7 +212,7 @@ export function createClient(): Client {
         'content-type': 'application/json',
       };
       const response = await fetch(
-        `http://localhost:8000/services/${serviceId}`,
+        this.getUrl(`services/${serviceId}`),
         {
           method: 'DELETE',
           headers: headers,
@@ -212,7 +225,7 @@ export function createClient(): Client {
         authorization: `Bearer ${this.accessToken}`,
         'content-type': 'application/json',
       };
-      const response = await fetch('http://localhost:8000/deployments/', {
+      const response = await fetch(this.getUrl('deployments'), {
         headers: headers,
       });
       const deployments = (await response.json()).map(createDeployment);
@@ -235,8 +248,7 @@ export function createClient(): Client {
         deployment_id: deploymentId.toString(),
       }
       const response = await fetch(
-        'http://localhost:8000/steps/?' +
-          new URLSearchParams(params),
+        this.getUrl('steps/?' + new URLSearchParams(params)),
         {
           headers: headers,
         }
