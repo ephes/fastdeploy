@@ -24,7 +24,7 @@ def createuser():
     username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
     password = Prompt.ask("Enter password", password=True)
     rprint(f"creating user {username}")
-    user = User(username=username, password=get_password_hash(password))
+    user = User(name=username, password=get_password_hash(password))
     user_in_db = database.repository.add_user(user)
     rprint(f"created user with id: {user_in_db.id}")
 
