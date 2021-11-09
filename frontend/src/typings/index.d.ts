@@ -50,8 +50,8 @@ interface Client {
   install(app: App, options: any): void;
   login(username: string, password: string): void;
   initWebsocketConnection(): void;
-  authenticateWebsocketConnection(): Promise<Deployment>;
-  startDeployment(serviceName: string): Promise<Deployment;
+  authenticateWebsocketConnection(): void;
+  startDeployment(serviceName: string): Promise<Deployment>;
   fetchServiceToken(serviceName: string, accessToken: string): any;
   fetchServices(): Promise<Service[]>;
   addService(service: Service): Promise<Service>;

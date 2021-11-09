@@ -123,7 +123,7 @@ export function createClient(): Client {
     },
     async startDeployment(serviceName: string) {
       if (!this.accessToken) {
-        return false;
+        throw (new Error('No access token'));
       }
       const serviceToken = await this.fetchServiceToken(serviceName, this.accessToken);
       const headers = {
