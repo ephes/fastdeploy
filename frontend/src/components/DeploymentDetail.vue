@@ -1,26 +1,23 @@
 <script setup lang="ts">
-import { inject, onMounted } from 'vue';
+import { inject, onMounted, computed, reactive } from 'vue';
 import { useRoute } from 'vue-router';
 import Step from './Step.vue';
 import { Client, Deployment } from '../typings';
 
-const client: Client = inject('client') as Client;
-const steps = client.steps;
 const route = useRoute();
 const deploymentIdFromRoute = Number(route.params.id);
+
+const client: Client = inject('client') as Client;
 const deployment: Deployment | undefined = client.deployments.get(
   deploymentIdFromRoute
 );
+const foo = reactive(await client.fetchStepsFromDeployment(deploymentIdFromRoute));
+console.log("foo: ", foo)
+const steps = computed(() => [...client.steps].filter(([id, step]) => step.deployment_id === deploymentIdFromRoute));
 
-onMounted(async () => {
-  await client.fetchStepsFromDeployment(deploymentIdFromRoute);
-});
-
-function getSteps() {
-  return [...steps].filter(
-    ([id, step]) => step.deployment_id === deploymentIdFromRoute
-  );
-}
+// onMounted(async () => {
+//   await client.fetchStepsFromDeployment(deploymentIdFromRoute);
+// });
 </script>
 
 <template>

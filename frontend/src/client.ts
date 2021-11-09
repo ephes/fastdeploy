@@ -230,6 +230,7 @@ export function createClient(): Client {
         authorization: `Bearer ${this.accessToken}`,
         'content-type': 'application/json',
       };
+      console.log('fetchStepsFromDeployment: ', deploymentId);
       const params = {
         deployment_id: deploymentId.toString(),
       }
