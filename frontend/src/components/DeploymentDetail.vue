@@ -11,15 +11,14 @@ const client: Client = inject('client') as Client;
 const deployment: Deployment | undefined = client.deployments.get(
   deploymentIdFromRoute
 );
-// const steps = client.steps;
 
 const steps = computed(() => {
-  const filteredSteps = [...client.steps].filter(([id, step]) => step.deployment_id === deploymentIdFromRoute);
-  console.log("called computed..")
+  const filteredSteps = [...client.steps].filter(
+    ([id, step]) => step.deployment_id === deploymentIdFromRoute
+  );
+  console.log('called computed..');
   return filteredSteps;
 });
-
-console.log("steps is: ", steps.value)
 
 onMounted(async () => {
   // top level await does not quite work
