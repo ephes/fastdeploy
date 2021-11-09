@@ -4,11 +4,8 @@ import App from './App.vue'
 
 import { createClient } from './client'
 import Login from './components/Login.vue'
-import HelloWorldVue from './components/HelloWorld.vue'
-import Home from './components/Home.vue'
 import ServiceList from './components/ServiceList.vue'
 import ServiceDetail from './components/ServiceDetail.vue'
-import DeploymentVue from './components/Deployment.vue'
 import DeploymentList from './components/DeploymentList.vue'
 import DeploymentDetail from './components/DeploymentDetail.vue'
 
@@ -21,8 +18,6 @@ const routes = [
     { path: '/deployments', component: DeploymentList },
     { path: '/deployments/:id', name: 'deployment-detail', component: DeploymentDetail },
     { path: '/login', name: 'login', component: Login },
-    { path: '/hello', component: HelloWorldVue },
-    { path: '/deployment', component: DeploymentVue },
 ]
 
 const router = createRouter({
