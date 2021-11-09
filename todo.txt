@@ -1,4 +1,2 @@
 * make all repository functions async
-* step utc dates to correct local time
-* created is broken for step
 * use async sqlalchemy
