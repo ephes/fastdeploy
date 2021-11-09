@@ -18,7 +18,7 @@ watchEffect(() => {
 
 <template>
     <p ref="el" id="step">
-        {{ step.id }} {{ step.name }} <br />
+        {{ step.deployment_id }} {{ step.id }} {{ step.name }} <br />
         created: {{ step.created }} <br />
         started: {{ step.started }} <br />
         finished: {{ step.finished }} <br />

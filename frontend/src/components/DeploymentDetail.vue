@@ -11,18 +11,26 @@ const client: Client = inject('client') as Client;
 const deployment: Deployment | undefined = client.deployments.get(
   deploymentIdFromRoute
 );
-const foo = reactive(await client.fetchStepsFromDeployment(deploymentIdFromRoute));
-console.log("foo: ", foo)
-const steps = computed(() => [...client.steps].filter(([id, step]) => step.deployment_id === deploymentIdFromRoute));
+// const steps = client.steps;
 
-// onMounted(async () => {
-//   await client.fetchStepsFromDeployment(deploymentIdFromRoute);
-// });
+const steps = computed(() => {
+  const filteredSteps = [...client.steps].filter(([id, step]) => step.deployment_id === deploymentIdFromRoute);
+  console.log("called computed..")
+  return filteredSteps;
+});
+
+console.log("steps is: ", steps.value)
+
+onMounted(async () => {
+  // top level await does not quite work
+  await client.fetchStepsFromDeployment(deploymentIdFromRoute);
+});
 </script>
 
 <template>
   <div>
-    <h1>Deployment ID: {{ $route.params.id }}</h1>
+    <h1>Foo!</h1>
+    <h1>Deployment ID: {{ deploymentIdFromRoute }}</h1>
     <div v-if="deployment">
       <h2>deployment origin: {{ deployment.origin }}</h2>
     </div>
