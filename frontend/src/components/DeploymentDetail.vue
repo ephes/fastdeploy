@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, onMounted, computed, reactive } from 'vue';
+import { inject, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import Step from './Step.vue';
 import { Client, Deployment } from '../typings';
