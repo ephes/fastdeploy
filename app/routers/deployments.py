@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, BackgroundTasks, Depends
 
 from ..auth import ServiceToken
@@ -26,6 +28,7 @@ async def create_deployment(
     deployment = Deployment(
         service_id=service_token.item_from_db.id, origin=service_token.origin, user=service_token.user
     )
+    deployment.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
     repository.add_deployment(deployment)
     environment = get_deploy_environment(service_token.item_from_db, deployment)
     background_tasks.add_task(run_deploy, environment)

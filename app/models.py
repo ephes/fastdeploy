@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import DateTime, String
@@ -29,8 +29,8 @@ class Deployment(SQLModel, table=True):
     service_id: int = Field(foreign_key="service.id")
     origin: str = Field(sa_column=Column("origin", String))
     user: str = Field(sa_column=Column("user", String))
-    created: datetime = Field(
-        default=datetime.now(timezone.utc),
+    created: Optional[datetime] = Field(
+        default=None,
         sa_column=Column("created", DateTime),
     )
 
@@ -55,8 +55,8 @@ class StepBase(SQLModel):
 class Step(StepBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     deployment_id: int = Field(foreign_key="deployment.id")
-    created: datetime = Field(
-        default=datetime.now(timezone.utc),
+    created: Optional[datetime] = Field(
+        default=None,
         sa_column=Column("created", DateTime),
     )
 
