@@ -7,3 +7,4 @@
 * test deploy from github action
 * test wss:// over traefik
 * rename app api
+* no emit from login
