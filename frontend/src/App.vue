@@ -5,8 +5,6 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const client: any = inject('client');
 
-// dunno why this is necessary FIXME
-const isAuthenticated = client.isAuthenticated;
 const clientErrorMessage = client.errorMessage
 </script>
 
@@ -14,7 +12,7 @@ const clientErrorMessage = client.errorMessage
   <div>
     <h1>FastDeploy</h1>
     <p v-if="clientErrorMessage">Client-Error: {{ clientErrorMessage }}</p>
-    <p v-if="isAuthenticated">
+    <p v-if="client.isAuthenticated.value">
       <router-link to="/">Services</router-link> |
       <router-link to="/deployments">Deployments</router-link>
     </p>
