@@ -1,2 +1,8 @@
 * make all repository functions async
 * use async sqlalchemy
+* configure urls in frontend
+* clean up frontend
+* fix cast_hosting deployment
+* test deploy from github action
+* test wss:// over traefik
+* rename app api
