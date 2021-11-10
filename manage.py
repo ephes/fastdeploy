@@ -38,7 +38,7 @@ def create_initial_user():
     password_hash = os.environ["INITIAL_PASSWORD_HASH"]
     if user := asyncio.run(database.repository.get_user_by_name(username)):
         rprint(f"user {username} already exists")
-        sys.exit(1)
+        sys.exit(0)
     rprint(f"creating user {username}")
     user = User(name=username, password=password_hash)
     user_in_db = database.repository.add_user(user)
