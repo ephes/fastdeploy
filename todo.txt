@@ -1,8 +1,7 @@
 * make all repository functions async
 * use async sqlalchemy
-* configure urls in frontend
 * use pinia
 * fix cast_hosting deployment
 * test deploy from github action
-* test wss:// over traefik
 * rename app api
+* create user on deployment
