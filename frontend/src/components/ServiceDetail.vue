@@ -10,10 +10,11 @@ const service: Service | undefined = client.services.get(Number(route.params.id)
 const origin = ref('');
 const serviceToken = ref('');
 
-async function getServiceToken(serviceName: string) {
-    if (client.accessToken) {
-        serviceToken.value = await client.fetchServiceToken(serviceName, client.accessToken, origin.value);
-    }
+async function getServiceToken() {
+    if (service) {
+        if (client.accessToken) {
+            serviceToken.value = await client.fetchServiceToken(service.name, client.accessToken, origin.value);
+    }}
 }
 </script>
 
@@ -23,7 +24,7 @@ async function getServiceToken(serviceName: string) {
         <div v-if="service">
             <h2>service name: {{ service.name }}</h2>
             <input v-model="origin" placeholder="origin" />
-            <button @click="getServiceToken(service.name)">Get Service Token</button>
+            <button @click="getServiceToken()">Get Service Token</button>
             <div v-if="serviceToken">
                 <h3>Service Token</h3>
                 <pre>{{ serviceToken }}</pre>

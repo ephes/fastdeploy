@@ -47,8 +47,10 @@ function createDeployment(message: Deployment): Deployment {
 }
 
 function getApiBase(): string {
-  if (import.meta.env.VITE_API_BASE) {
-    return String(import.meta.env.VITE_API_BASE);
+  if (import.meta.env.MODE == 'production') {
+    return String(import.meta.env.VITE_API_BASE_PROD);
+  } else if (import.meta.env.MODE == 'development') {
+    return String(import.meta.env.VITE_API_BASE_DEV);
   } else {
     return 'http://localhost:8000';
   }
@@ -73,8 +75,10 @@ export function createClient(): Client {
     },
     initWebsocketConnection() {
       let websocketUrl = 'ws://localhost:8000/deployments/ws'
-      if (import.meta.env.VITE_WEBSOCKET_URL) {
-        websocketUrl = String(import.meta.env.VITE_WEBSOCKET_URL);
+      if (import.meta.env.VITE_WEBSOCKET_URL_PROD) {
+        websocketUrl = String(import.meta.env.VITE_WEBSOCKET_URL_PROD);
+      } else if (import.meta.env.VITE_WEBSOCKET_URL_DEV) {
+        websocketUrl = String(import.meta.env.VITE_WEBSOCKET_URL_DEV);
       }
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
       this.connection.onopen = (event: MessageEvent) => {
@@ -154,6 +158,10 @@ export function createClient(): Client {
       return deployment;
     },
     async login(username: string, password: string) {
+      console.log('env: ', import.meta.env)
+      console.log('vite api base: ', import.meta.env.VITE_API_BASE)
+      console.log('running in mode: ', import.meta.env.MODE)
+      console.log('api base: ', this.apiBase)
       let formData = new FormData();
       formData.append('username', username);
       formData.append('password', password);
