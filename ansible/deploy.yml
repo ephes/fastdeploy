@@ -95,6 +95,16 @@
       become: true
       become_user: "{{ username }}"
 
+    - name: Create initial user
+      shell: "{{ python }} manage.py create-initial-user"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        INITIAL_PASSWORD_HASH: "{{ initial_user_password_hash }}"
+        INITIAL_USER_NAME: jochen
+
     - name: Create a symbolic link for uvicorn systemd service
       file:
         src: "{{ site_path }}/ansible/deploy.service"
