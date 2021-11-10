@@ -35,7 +35,7 @@ def get_deploy_environment(service: Service, deployment: Deployment):
         "DEPLOY_SCRIPT": service.deploy,
         "COLLECT_SCRIPT": service.collect,
         "STEPS_URL": settings.steps_url,
-        "SSH_AUTH_SOCK": os.environ["SSH_AUTH_SOCK"],
+        "SSH_AUTH_SOCK": os.environ.get("SSH_AUTH_SOCK"),
     }
     return environment
 
