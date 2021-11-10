@@ -2,6 +2,8 @@ from uuid import UUID
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import database
 from .config import settings
@@ -24,10 +26,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/static", StaticFiles(directory="frontend/dist"), name="static")
+
 
 @app.get("/")
-async def read_root():
-    return {"Hello": "World"}
+async def redirect_typer():
+    return RedirectResponse("/static/index.html")
 
 
 # This only works with fastapi app not with api router
