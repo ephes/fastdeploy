@@ -1,5 +1,3 @@
-#!/Users/jochen/.virtualenvs/fd/bin/python
-
 # import sys
 import json
 

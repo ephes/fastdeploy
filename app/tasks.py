@@ -35,8 +35,9 @@ def get_deploy_environment(service: Service, deployment: Deployment):
         "DEPLOY_SCRIPT": service.deploy,
         "COLLECT_SCRIPT": service.collect,
         "STEPS_URL": settings.steps_url,
-        "SSH_AUTH_SOCK": os.environ.get("SSH_AUTH_SOCK"),
     }
+    if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):
+        environment["SSH_AUTH_SOCK"] = ssh_auth_sock
     return environment
 
 
@@ -61,8 +62,8 @@ class DeployTask(BaseSettings):
             self.steps.append(Step.parse_obj(r.json()))
 
     async def collect_steps(self):
-        command = str(settings.deploy_root / self.collect_script)
-        proc = subprocess.run([command], check=False, text=True, stdout=subprocess.PIPE)
+        command = [sys.executable, str(settings.deploy_root / self.collect_script)]
+        proc = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE)
         steps = [step for step in json.loads(proc.stdout) if "name" in step]
         await self.post_collected_steps(steps)
 
