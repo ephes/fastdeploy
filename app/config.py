@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     origins: list[str] = [
         "http://localhost",
         "http://localhost:3000",
+        "https://deploy.staging.wersdoerfer.de",
     ]
     project_root: Path = ROOT_DIR
     deploy_root: Path = project_root / "deployments"
