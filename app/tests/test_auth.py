@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -34,10 +34,12 @@ async def test_authenticate_user_wrong_password(user_in_db):
     assert not await authenticate_user(user.name, f"{user.password}foo")
 
 
-def test_create_access_token_without_expire():
+@pytest.mark.asyncio
+async def test_create_access_token_without_expire():
     access_token = create_access_token(data={"type": "user", "user": "user"})
-    with patch("app.database.repository"):
-        token = verify_access_token(access_token)
+    repository = AsyncMock()
+    with patch("app.database.repository", new=repository):
+        token = await verify_access_token(access_token)
     expected_expire = datetime.utcnow() + timedelta(minutes=settings.default_expire_minutes)
     diff_seconds = (expected_expire - token.expires_at).total_seconds()
     assert diff_seconds < 1
@@ -51,10 +53,12 @@ def test_create_access_token_without_expire():
         {"type": "deployment", "deployment": 1, "exp": 123},
     ],
 )
-def test_payload_to_token_valid(payload):
+@pytest.mark.asyncio
+async def test_payload_to_token_valid(payload):
     token = payload_to_token(payload)
-    with patch("app.database.repository"):
-        assert token.validate()
+    repository = AsyncMock()
+    with patch("app.database.repository", new=repository):
+        assert await token.validate()
 
 
 @pytest.mark.parametrize(

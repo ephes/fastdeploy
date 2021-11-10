@@ -30,7 +30,7 @@ def verify_password(plain, hashed):
 
 
 async def authenticate_user(username: str, password: str):
-    user = database.repository.get_user_by_name(username)
+    user = await database.repository.get_user_by_name(username)
 
     if not user:
         return False
@@ -58,8 +58,8 @@ class TokenBase(BaseModel):
     def item_exists_in_database(self, item_from_db: Optional[BaseModel]):
         return self.item_from_db is not None
 
-    def validate(self):
-        self.item_from_db = self.fetch_item_from_db()
+    async def validate(self):
+        self.item_from_db = await self.fetch_item_from_db()
         return self.item_exists_in_database(self.item_from_db)
 
     @property
@@ -70,8 +70,8 @@ class TokenBase(BaseModel):
 class UserToken(TokenBase):
     user: str
 
-    def fetch_item_from_db(self):
-        return database.repository.get_user_by_name(self.user)
+    async def fetch_item_from_db(self):
+        return await database.repository.get_user_by_name(self.user)
 
 
 class ServiceToken(TokenBase):
@@ -79,14 +79,14 @@ class ServiceToken(TokenBase):
     origin: str
     user: str
 
-    def fetch_item_from_db(self):
+    async def fetch_item_from_db(self):
         return database.repository.get_service_by_name(self.service)
 
 
 class DeploymentToken(TokenBase):
     deployment: int
 
-    def fetch_item_from_db(self):
+    async def fetch_item_from_db(self):
         return database.repository.get_deployment_by_id(self.deployment)
 
 
@@ -101,20 +101,20 @@ def payload_to_token(payload):
     return token_type.parse_obj(payload)
 
 
-def verify_access_token(access_token: str) -> UserToken | ServiceToken | DeploymentToken:
+async def verify_access_token(access_token: str) -> UserToken | ServiceToken | DeploymentToken:
     payload = jwt.decode(
         access_token,
         settings.secret_key,
         algorithms=[settings.token_sign_algorithm],
     )
     token = payload_to_token(payload)
-    assert token.validate()
+    assert await token.validate()
     return token
 
 
 async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     try:
-        token = verify_access_token(token)
+        token = await verify_access_token(token)
         return token.item_from_db
     except Exception:
         raise CREDENTIALS_EXCEPTION
@@ -122,7 +122,7 @@ async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
 
 async def get_current_service_token(token: str = Depends(OAUTH2_SCHEME)) -> ServiceToken:
     try:
-        service_token = verify_access_token(token)
+        service_token = await verify_access_token(token)
         return service_token
     except Exception:
         raise CREDENTIALS_EXCEPTION
@@ -130,7 +130,7 @@ async def get_current_service_token(token: str = Depends(OAUTH2_SCHEME)) -> Serv
 
 async def get_current_deployment(token: str = Depends(OAUTH2_SCHEME)) -> Deployment:
     try:
-        deployment_token = verify_access_token(token)
+        deployment_token = await verify_access_token(token)
         return deployment_token.item_from_db
     except Exception:
         raise CREDENTIALS_EXCEPTION

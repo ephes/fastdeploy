@@ -18,7 +18,7 @@ class ConnectionManager:
         from .auth import verify_access_token
 
         try:
-            token = verify_access_token(access_token)
+            token = await verify_access_token(access_token)
             message = {
                 "type": "authentication",
                 "detail": f"access token verification successful for user {token.user}",

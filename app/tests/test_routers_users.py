@@ -25,6 +25,6 @@ async def test_fetch_service_token(app, base_url, service_in, service_in_db, val
 
     assert response.status_code == 200
     token = response.json()["service_token"]
-    service_token = verify_access_token(token)
+    service_token = await verify_access_token(token)
     assert service_in.service == service_token.service
     assert service_in.origin == service_token.origin

@@ -30,7 +30,7 @@ class InMemoryRepository:
         user.id = len(self.users)
         return user
 
-    def get_user_by_name(self, username: str) -> User | None:
+    async def get_user_by_name(self, username: str) -> User | None:
         for user in self.users:
             if user.name == username:
                 return user
@@ -159,7 +159,7 @@ class SQLiteRepository:
             session.refresh(user)
         return user
 
-    def get_user_by_name(self, username: str) -> User | None:
+    async def get_user_by_name(self, username: str) -> User | None:
         with Session(self.engine) as session:
             user = session.query(User).filter(User.name == username).first()
         return user

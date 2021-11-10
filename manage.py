@@ -1,5 +1,7 @@
+import asyncio
 import os
 import subprocess
+import sys
 
 from datetime import timedelta
 
@@ -25,6 +27,20 @@ def createuser():
     password = Prompt.ask("Enter password", password=True)
     rprint(f"creating user {username}")
     user = User(name=username, password=get_password_hash(password))
+    user_in_db = database.repository.add_user(user)
+    rprint(f"created user with id: {user_in_db.id}")
+
+
+@app.command()
+def create_initial_user():
+    database.create_db_and_tables()
+    username = os.environ["INITIAL_USER_NAME"]
+    password_hash = os.environ["INITIAL_PASSWORD_HASH"]
+    if user := asyncio.run(database.repository.get_user_by_name(username)):
+        rprint(f"user {username} already exists")
+        sys.exit(1)
+    rprint(f"creating user {username}")
+    user = User(name=username, password=password_hash)
     user_in_db = database.repository.add_user(user)
     rprint(f"created user with id: {user_in_db.id}")
 

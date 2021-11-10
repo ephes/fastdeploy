@@ -26,7 +26,5 @@ async function login() {
     <button @click="login()">login</button>
     <br />
     {{ username }}
-    <br />
-    {{ password }}
   </div>
 </template>
