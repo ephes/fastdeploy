@@ -54,7 +54,7 @@ interface Client {
   initWebsocketConnection(): void;
   authenticateWebsocketConnection(): void;
   startDeployment(serviceName: string): Promise<Deployment>;
-  fetchServiceToken(serviceName: string, accessToken: string): any;
+  fetchServiceToken(serviceName: string, accessToken: string, origin: string): Promise<string>;
   fetchServices(): Promise<Service[]>;
   addService(service: Service): Promise<Service>;
   deleteService(serviceId: number): Promise<void>;

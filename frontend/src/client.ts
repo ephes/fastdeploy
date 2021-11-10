@@ -116,14 +116,14 @@ export function createClient(): Client {
       const credentials = JSON.stringify({ access_token: this.accessToken });
       this.connection.send(credentials);
     },
-    async fetchServiceToken(serviceName: string, accessToken: string) {
+    async fetchServiceToken(serviceName: string, accessToken: string, origin: string) {
       const headers = {
         authorization: `Bearer ${accessToken}`,
         'content-type': 'application/json',
       };
       const body = JSON.stringify({
         service: serviceName,
-        origin: 'fastdeploy',
+        origin,
       });
       console.log('service token body: ', body);
       const response = await fetch(this.getUrl('service-token'), {
@@ -133,13 +133,13 @@ export function createClient(): Client {
       });
       const json = await response.json();
       console.log('service token response: ', json);
-      return json.service_token;
+      return String(json.service_token);
     },
     async startDeployment(serviceName: string) {
       if (!this.accessToken) {
         throw (new Error('No access token'));
       }
-      const serviceToken = await this.fetchServiceToken(serviceName, this.accessToken);
+      const serviceToken = await this.fetchServiceToken(serviceName, this.accessToken, 'frontend');
       const headers = {
         authorization: `Bearer ${serviceToken}`,
         'content-type': 'application/json',
