@@ -1,4 +1,4 @@
 #!/usr/bin/bash
-cd ~/projects/fastdeploy/ansible
-ANSIBLE_STDOUT_CALLBACK=json_cb ~/ansible_venv/bin/ansible-playbook deploy.yml
+cd /home/deploy/ansible
+ANSIBLE_STDOUT_CALLBACK=json_cb /home/deploy/ansible_venv/bin/ansible-playbook deploy.yml
 cd -
