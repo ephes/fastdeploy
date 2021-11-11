@@ -7,7 +7,7 @@ After=network.target
 Type=simple
 Restart=always
 WorkingDirectory=/home/deploy/site
-User=deploy
+User=root
 ExecStart=/home/deploy/site/uvicorn.sh
 
 [Install]
