@@ -41,23 +41,23 @@ async def service_in_db(repository, service):
 
 @pytest.fixture
 def deployment(service_in_db):
-    return Deployment(service_id=service_in_db.id)
+    return Deployment(service_id=service_in_db.id, origin="github", user="fastdeploy")
 
 
 @pytest.fixture
-def deployment_in_db(repository, deployment):
-    return repository.add_deployment(deployment)
+async def deployment_in_db(repository, deployment):
+    return await repository.add_deployment(deployment)
 
 
 @pytest.fixture
-def different_deployment_in_db(repository, deployment):
+async def different_deployment_in_db(repository, deployment):
     different_deployment = Deployment(service_id=deployment.service_id + 1, origin="foo", user="bar")
-    return repository.add_deployment(different_deployment)
+    return await repository.add_deployment(different_deployment)
 
 
 @pytest.fixture
-def user_in_db(repository, user):
-    return repository.add_user(user)
+async def user_in_db(repository, user):
+    return await repository.add_user(user)
 
 
 @pytest.fixture

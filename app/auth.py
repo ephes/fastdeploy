@@ -83,14 +83,14 @@ class ServiceToken(TokenBase):
     user: str
 
     async def fetch_item_from_db(self):
-        return database.repository.get_service_by_name(self.service)
+        return await database.repository.get_service_by_name(self.service)
 
 
 class DeploymentToken(TokenBase):
     deployment: int
 
     async def fetch_item_from_db(self):
-        return database.repository.get_deployment_by_id(self.deployment)
+        return await database.repository.get_deployment_by_id(self.deployment)
 
 
 def payload_to_token(payload):

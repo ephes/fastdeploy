@@ -62,7 +62,7 @@ async def test_add_step(app, base_url, repository, step, valid_deploy_token_in_d
     connection_manager.broadcast.assert_called()
 
     # make sure step was added to deployment in database
-    steps_from_db = repository.get_steps_by_name(step.name)
+    steps_from_db = await repository.get_steps_by_name(step.name)
     step_from_db = steps_from_db[0]
     assert step_from_db.id > 0
     assert step.name == step_from_db.name
@@ -106,7 +106,7 @@ async def test_update_step(app, base_url, repository, step_in_db, valid_deploy_t
     connection_manager.broadcast.assert_called()
 
     # make sure step was updated in database
-    step_from_db = repository.get_step_by_id(step.id)
+    step_from_db = await repository.get_step_by_id(step.id)
     assert step.name == step_from_db.name
 
 

@@ -35,7 +35,7 @@ async def get_steps_by_deployment(
 async def step_update(
     step_id: int, step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)
 ) -> StepOut:
-    step = repository.get_step_by_id(step_id)
+    step = await repository.get_step_by_id(step_id)
     if step.deployment_id != deployment.id:
         raise CREDENTIALS_EXCEPTION
     step.name = step_in.name

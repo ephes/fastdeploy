@@ -55,7 +55,7 @@ async def test_create_service(app, base_url, repository, service, valid_access_t
     connection_manager.broadcast.assert_called()
 
     result = response.json()
-    service_from_db = repository.get_service_by_name(result["name"])
+    service_from_db = await repository.get_service_by_name(result["name"])
     assert service_from_db.collect == service.collect
     assert service_from_db.deploy == service.deploy
     assert service_from_db.id != given_id
@@ -86,7 +86,7 @@ async def test_delete_service(app, base_url, repository, service_in_db, deployme
     assert result == {"detail": f"Service {service_in_db.id} deleted"}
 
     # make sure service_in_db is not in db anymore
-    assert repository.get_service_by_id(service_in_db.id) is None
+    assert await repository.get_service_by_id(service_in_db.id) is None
 
     # make sure deployment_in_db is not in db anymore
-    assert repository.get_deployment_by_id(deployment_in_db.id) is None
+    assert await repository.get_deployment_by_id(deployment_in_db.id) is None

@@ -25,7 +25,7 @@ class InMemoryRepository:
         self.users = []
 
     # User
-    def add_user(self, user) -> User:
+    async def add_user(self, user) -> User:
         self.users.append(user)
         user.id = len(self.users)
         return user
@@ -37,7 +37,7 @@ class InMemoryRepository:
         return None
 
     # Service
-    def get_services(self) -> list[Service]:
+    async def get_services(self) -> list[Service]:
         return self.services
 
     async def add_service(self, service: Service) -> Service:
@@ -47,13 +47,13 @@ class InMemoryRepository:
         await connection_manager.broadcast(ServiceOut.parse_obj(service))
         return service
 
-    def get_service_by_name(self, name: str) -> Service | None:
+    async def get_service_by_name(self, name: str) -> Service | None:
         for service in self.services:
             if service.name == name:
                 return service
         return None
 
-    def get_service_by_id(self, service_id: int) -> Service | None:
+    async def get_service_by_id(self, service_id: int) -> Service | None:
         for service in self.services:
             if service.id == service_id:
                 return service
@@ -90,13 +90,13 @@ class InMemoryRepository:
         await connection_manager.broadcast(StepOut.parse_obj(step))
         return step
 
-    def get_step_by_id(self, step_id: int) -> Step | None:
+    async def get_step_by_id(self, step_id: int) -> Step | None:
         for step in self.steps:
             if step.id == step_id:
                 return step
         return None
 
-    def get_steps_by_name(self, name: str) -> list[Step]:
+    async def get_steps_by_name(self, name: str) -> list[Step]:
         steps = []
         for step in self.steps:
             if step.name == name:
@@ -112,21 +112,21 @@ class InMemoryRepository:
                 await connection_manager.broadcast(step_out)
 
     # Deployment
-    def get_deployments(self) -> list[Deployment]:
+    async def get_deployments(self) -> list[Deployment]:
         return self.deployments
 
-    def get_deployment_by_id(self, deployment_id: int) -> Deployment | None:
+    async def get_deployment_by_id(self, deployment_id: int) -> Deployment | None:
         for deployment in self.deployments:
             if deployment.id == deployment_id:
                 return deployment
         return None
 
-    def add_deployment(self, deployment: Deployment) -> Deployment:
+    async def add_deployment(self, deployment: Deployment) -> Deployment:
         self.deployments.append(deployment)
         deployment.id = len(self.deployments)
         return deployment
 
-    def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
+    async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
         deployments = []
         for deployment in self.deployments:
             if deployment.service_id == service_id:
@@ -152,7 +152,7 @@ class SQLiteRepository:
         create_db_and_tables()
 
     # User
-    def add_user(self, user: User) -> User:
+    async def add_user(self, user: User) -> User:
         with Session(self.engine) as session:
             session.add(user)
             session.commit()
@@ -165,7 +165,7 @@ class SQLiteRepository:
         return user
 
     # Service
-    def get_services(self) -> list[Service]:
+    async def get_services(self) -> list[Service]:
         with Session(self.engine) as session:
             services = session.query(Service).all()
         return services
@@ -178,12 +178,12 @@ class SQLiteRepository:
         await connection_manager.broadcast(ServiceOut.parse_obj(service))
         return service
 
-    def get_service_by_name(self, name: str) -> Service | None:
+    async def get_service_by_name(self, name: str) -> Service | None:
         with Session(self.engine) as session:
             service = session.query(Service).filter(Service.name == name).first()
         return service
 
-    def get_service_by_id(self, service_id: int) -> Service | None:
+    async def get_service_by_id(self, service_id: int) -> Service | None:
         with Session(self.engine) as session:
             service = session.query(Service).filter(Service.id == service_id).first()
         return service
@@ -217,12 +217,12 @@ class SQLiteRepository:
         await connection_manager.broadcast(StepOut.parse_obj(step))
         return step
 
-    def get_step_by_id(self, step_id: int) -> Step | None:
+    async def get_step_by_id(self, step_id: int) -> Step | None:
         with Session(self.engine) as session:
             step = session.query(Step).filter(Step.id == step_id).first()
         return step
 
-    def get_steps_by_name(self, name: str) -> list[Step]:
+    async def get_steps_by_name(self, name: str) -> list[Step]:
         with Session(self.engine) as session:
             steps = session.query(Step).filter(Step.name == name).all()
         return steps
@@ -238,24 +238,24 @@ class SQLiteRepository:
             session.commit()
 
     # Deployment
-    def get_deployments(self) -> list[Deployment]:
+    async def get_deployments(self) -> list[Deployment]:
         with Session(self.engine) as session:
             deployments = session.query(Deployment).all()
         return deployments
 
-    def get_deployment_by_id(self, deployment_id: int) -> Deployment | None:
+    async def get_deployment_by_id(self, deployment_id: int) -> Deployment | None:
         with Session(self.engine) as session:
             deployment = session.query(Deployment).filter(Deployment.id == deployment_id).first()
         return deployment
 
-    def add_deployment(self, deployment: Deployment) -> Deployment:
+    async def add_deployment(self, deployment: Deployment) -> Deployment:
         with Session(self.engine) as session:
             session.add(deployment)
             session.commit()
             session.refresh(deployment)
         return deployment
 
-    def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
+    async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
         with Session(self.engine) as session:
             deployments = session.query(Deployment).filter(Deployment.service_id == service_id).all()
         return deployments

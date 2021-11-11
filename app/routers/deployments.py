@@ -18,7 +18,7 @@ router = APIRouter(
 
 @router.get("/")
 async def get_deployments(current_user: User = Depends(get_current_active_user)) -> list[Deployment]:
-    return repository.get_deployments()
+    return await repository.get_deployments()
 
 
 @router.post("/")
@@ -29,7 +29,7 @@ async def create_deployment(
         service_id=service_token.item_from_db.id, origin=service_token.origin, user=service_token.user
     )
     deployment.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
-    repository.add_deployment(deployment)
+    await repository.add_deployment(deployment)
     environment = get_deploy_environment(service_token.item_from_db, deployment)
     background_tasks.add_task(run_deploy, environment)
     return deployment
