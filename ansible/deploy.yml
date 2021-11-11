@@ -1,10 +1,13 @@
-- hosts: staging
+- hosts: 127.0.0.1
   vars:
     - username: deploy
-    - site_path: "/home/{{ username }}/site"
+    - home_path: "/home/{{ username }}"
+    - site_path: "{{ home_path }}/site"
     - global_python: python3.10
     - venv_bin: "{{ site_path }}/venv/bin"
+    - ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
     - python: "{{ venv_bin }}/python"
+    - ansible_python: "{{ ansible_venv_bin }}/python"
     - pip_sync: "{{ venv_bin }}/pip-sync"
   tasks:
     - include_vars: secrets.yml
@@ -78,8 +81,23 @@
       become: true
       become_user: "{{ username }}"
 
-    - name: Upgrade pip
+    - name: Upgrade pip prod venv
       shell: "{{ python }} -m pip install --upgrade pip"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create virtualenv for ansible
+      shell: "{{ global_python }} -m venv {{ home_path }}/ansible_venv"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Upgrade pip ansible venv
+      shell: "{{ ansible_python }} -m pip install --upgrade pip"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Install ansible
+      shell: "{{ ansible_python }} -m pip install ansible"
       become: true
       become_user: "{{ username }}"
 
