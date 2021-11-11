@@ -70,7 +70,7 @@ class TokenBase(BaseModel):
 class UserToken(TokenBase):
     user: str
 
-    async def fetch_item_from_db(self):
+    async def fetch_item_from_db(self) -> Optional[User]:
         return await database.repository.get_user_by_name(self.user)
 
 
@@ -114,8 +114,8 @@ async def verify_access_token(access_token: str) -> UserToken | ServiceToken | D
 
 async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     try:
-        token = await verify_access_token(token)
-        return token.item_from_db
+        verified_token = await verify_access_token(token)
+        return verified_token.item_from_db
     except Exception:
         raise CREDENTIALS_EXCEPTION
 
