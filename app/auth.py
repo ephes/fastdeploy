@@ -58,6 +58,9 @@ class TokenBase(BaseModel):
     def item_exists_in_database(self, item_from_db: Optional[BaseModel]):
         return self.item_from_db is not None
 
+    async def fetch_item_from_db(self):
+        raise NotImplementedError()
+
     async def validate(self):
         self.item_from_db = await self.fetch_item_from_db()
         return self.item_exists_in_database(self.item_from_db)
