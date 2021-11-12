@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+cd {{ site_path }}/ansible
+ANSIBLE_STDOUT_CALLBACK=json_cb {{ ansible_venv_bin }}/ansible-playbook deploy.yml
+cd -

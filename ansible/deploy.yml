@@ -1,4 +1,4 @@
-- hosts: staging
+- hosts: 127.0.0.1
   vars:
     - username: deploy
     - home_path: "/home/{{ username }}"
@@ -55,7 +55,6 @@
         name: ["git"]
       environment:
         PATH: "{{ default_path }}"
-
 
     - name: Add a unix user with a bash shell
       user:
@@ -131,6 +130,26 @@
 
     - name: Install ansible
       shell: "{{ ansible_python }} -m pip install ansible"
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
+    - name: Create task collect file for fastdeploy
+      template:
+        src: fastdeploy_staging_collect.py.template.j2
+        dest: "{{ site_path }}/deployments/fastdeploy_staging_collect.py"
+        mode: '0600'
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
+    - name: Create task deploy file for fastdeploy
+      template:
+        src: fastdeploy_staging_deploy.sh.template.j2
+        dest: "{{ site_path }}/deployments/fastdeploy_staging_deploy.sh"
+        mode: '0600'
       become: true
       become_user: "{{ username }}"
       environment:
