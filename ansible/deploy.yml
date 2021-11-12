@@ -1,4 +1,4 @@
-- hosts: 127.0.0.1
+- hosts: staging
   vars:
     - username: deploy
     - home_path: "/home/{{ username }}"
@@ -9,7 +9,7 @@
     - python: "{{ venv_bin }}/python"
     - ansible_python: "{{ ansible_venv_bin }}/python"
     - pip_sync: "{{ venv_bin }}/pip-sync"
-    - default_path: "/root/.poetry/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/postgresql/13/bin"
+    - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
   tasks:
     - include_vars: secrets.yml
