@@ -159,7 +159,6 @@ export function createClient(): Client {
     },
     async login(username: string, password: string) {
       console.log('env: ', import.meta.env)
-      console.log('vite api base: ', import.meta.env.VITE_API_BASE)
       console.log('running in mode: ', import.meta.env.MODE)
       console.log('api base: ', this.apiBase)
       let formData = new FormData();
