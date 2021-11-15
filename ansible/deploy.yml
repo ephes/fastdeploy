@@ -137,7 +137,7 @@
 
     - name: Create local inventory
       template:
-        src: host.yml.template.j2
+        src: hosts.yml.template.j2
         dest: "{{ site_path }}/ansible/inventory/hosts.yml"
         mode: '0600'
       become: true
