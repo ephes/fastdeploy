@@ -6,3 +6,4 @@ nb-black
 pytest-asyncio
 coverage
 pytest-env
+pytest-xdist
