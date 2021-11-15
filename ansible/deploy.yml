@@ -1,4 +1,4 @@
-- hosts: 127.0.0.1
+- hosts: staging
   vars:
     - username: deploy
     - home_path: "/home/{{ username }}"
