@@ -26,3 +26,6 @@ htmlcov
 
 # pycharm
 .idea
+
+# deploy with remote staging for development
+ansible/inventory
