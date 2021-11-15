@@ -1,0 +1,19 @@
+all:
+  vars:
+    ansible_connection: ssh
+    ansible_ssh_user: root
+  hosts:
+    staging:
+      ansible_host: 127.0.0.1  # staging.wersdoerfer.de
+    production:
+      ansible_host: 127.0.0.1
+  children:
+    webservers:
+      hosts:
+        staging:
+    database:
+      hosts:
+        staging:
+    apt-servers:
+      hosts:
+        staging:

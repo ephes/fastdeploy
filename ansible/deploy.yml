@@ -135,6 +135,16 @@
       environment:
         PATH: "{{ default_path }}"
 
+    - name: Create local inventory
+      template:
+        src: host.yml.template.j2
+        dest: "{{ site_path }}/ansible/inventory/hosts.yml"
+        mode: '0600'
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
     - name: Create task collect file for fastdeploy
       template:
         src: fastdeploy_staging_collect.py.template.j2
