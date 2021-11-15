@@ -28,4 +28,4 @@ htmlcov
 .idea
 
 # deploy with remote staging for development
-ansible/inventory
+ansible/inventory/hosts.yml
