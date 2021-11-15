@@ -1,6 +1,6 @@
 * use async sqlalchemy
 * use pinia
+* transform snake to camel case for frontend
 * fix cast_hosting deployment
 * test deploy from github action
 * rename app api
-* parallelize pytest
