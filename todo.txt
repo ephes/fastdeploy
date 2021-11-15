@@ -3,4 +3,3 @@
 * fix cast_hosting deployment
 * test deploy from github action
 * rename app api
-* create user on deployment
