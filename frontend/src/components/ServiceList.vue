@@ -3,12 +3,23 @@ import { inject, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createService } from '../client';
 import { Client, Deployment } from '../typings';
+import { useDeployStore } from '../store';
+
+const store = useDeployStore();
+console.log('store: ', store);
+console.log('name: ', store.name)
 
 const client: Client = inject('client') as Client;
 const router = useRouter();
 const services = client.services;
 const newService = reactive(
-  createService({ id: undefined, name: '', collect: '', deploy: '', deleted: false })
+  createService({
+    id: undefined,
+    name: '',
+    collect: '',
+    deploy: '',
+    deleted: false,
+  })
 );
 
 async function fetchServices() {
@@ -23,18 +34,18 @@ onMounted(async () => {
 
 async function addService() {
   await client.addService(newService);
-};
+}
 
 async function deleteService(serviceId: number | undefined) {
   if (serviceId) {
     await client.deleteService(serviceId);
   }
-};
+}
 
 async function startDeployment(serviceName: string) {
   const deployment: Deployment = await client.startDeployment(serviceName);
   router.push({ name: 'deployment-detail', params: { id: deployment.id } });
-};
+}
 </script>
 
 <template>
@@ -61,7 +72,8 @@ async function startDeployment(serviceName: string) {
         <td>
           <router-link
             :to="{ name: 'service-detail', params: { id: service.id } }"
-          >details for {{ service.name }}</router-link>
+            >details for {{ service.name }}</router-link
+          >
         </td>
         <td>
           <button @click="startDeployment(service.name)">deploy</button>
