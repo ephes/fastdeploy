@@ -3,7 +3,7 @@ import { inject, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createService } from '../client';
 import { Client, Deployment } from '../typings';
-import { useDeployStore } from '../store';
+import { useDeployStore } from '../stores/store';
 
 const store = useDeployStore();
 console.log('store: ', store);
