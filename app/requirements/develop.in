@@ -7,3 +7,5 @@ pytest-asyncio
 coverage
 pytest-env
 pytest-xdist
+mypy
+flake8
