@@ -13,6 +13,8 @@ from rich.prompt import Prompt
 
 from app import database
 from app.auth import create_access_token, get_password_hash
+from app.config import settings
+from app.filesystem import working_directory
 from app.main import app as fastapi_app
 from app.models import Service, User
 
@@ -68,6 +70,7 @@ def update():
     Update the development environment by calling:
     - pip-compile
     - pip-sync
+    - npm update
     """
     subprocess.call(
         [
@@ -80,6 +83,8 @@ def update():
         ]
     )
     subprocess.call(["pip-sync", "app/requirements/develop.txt"])
+    with working_directory(settings.project_root / "frontend"):
+        subprocess.call(["npm", "update"])
 
 
 if __name__ == "__main__":
