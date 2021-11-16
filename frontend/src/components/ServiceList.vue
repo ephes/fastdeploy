@@ -3,11 +3,13 @@ import { inject, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { createService } from '../client';
 import { Client, Deployment } from '../typings';
-import { useDeployStore } from '../stores/store';
+import { useSettings } from '../stores/config';
 
-const store = useDeployStore();
-console.log('store: ', store);
-console.log('name: ', store.name);
+const settings = useSettings();
+console.log('store: ', settings);
+console.log('base api: ', settings.api);
+console.log('base websocket: ', settings.websocket);
+console.log('store client: ', settings.client);
 
 const client: Client = inject('client') as Client;
 const router = useRouter();
