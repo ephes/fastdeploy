@@ -1,7 +1,7 @@
-import { createApp } from "vue";
+import { createApp, markRaw } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
-
+import { Client } from "./typings";
 import { createClient } from "./client";
 import { createPinia } from "pinia";
 import Login from "./components/Login.vue";
@@ -39,13 +39,21 @@ router.beforeEach((to, from) => {
   }
 });
 
-function ClientPlugin() {
-  return { client: createClient() };
-}
-
 const app = createApp(App);
 const pinia = createPinia();
-pinia.use(ClientPlugin);
+
+import "pinia";
+
+declare module "pinia" {
+  export interface PiniaCustomProperties {
+    client: Client;
+  }
+}
+
+pinia.use(({ store }) => {
+  store.client = markRaw(client);
+});
+
 app.use(router);
 app.use(client);
 app.use(pinia);
