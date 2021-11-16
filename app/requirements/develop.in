@@ -9,3 +9,4 @@ pytest-env
 pytest-xdist
 mypy
 flake8
+bandit
