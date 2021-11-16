@@ -123,7 +123,7 @@ async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
         raise CREDENTIALS_EXCEPTION
 
 
-async def get_current_service_token(token: str = Depends(OAUTH2_SCHEME)) -> ServiceToken:
+async def get_current_service_token(token: str = Depends(OAUTH2_SCHEME)) -> ServiceToken | UserToken | DeploymentToken:
     try:
         service_token = await verify_access_token(token)
         return service_token
