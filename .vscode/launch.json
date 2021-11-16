@@ -1,6 +1,20 @@
 {
     "configurations": [
       {
+        "name": "Vite Devserver",
+        "request": "launch",
+        "runtimeArgs": [
+          "run",
+          "dev"
+        ],
+        "runtimeExecutable": "npm",
+        "skipFiles": [
+          "<node_internals>/**"
+        ],
+        "type": "pwa-node",
+        "cwd": "${workspaceFolder}/frontend",
+      },
+      {
         "name": "Python: FastAPI",
         "type": "python",
         "request": "launch",
