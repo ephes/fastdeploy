@@ -11,9 +11,6 @@ __pycache__
 .*swp
 .*swo
 
-# vscode
-.vscode
-
 # environment
 .env
 
