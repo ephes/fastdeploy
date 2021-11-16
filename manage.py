@@ -87,5 +87,15 @@ def update():
         subprocess.call(["npm", "update"])
 
 
+@app.command()
+def notebook():
+    """
+    Start the notebook server.
+    """
+    env = os.environ.copy()
+    env["PYTHONPATH"] = ".."
+    subprocess.call(["jupyter", "notebook", "--notebook-dir", "notebooks"], env=env)
+
+
 if __name__ == "__main__":
     app()
