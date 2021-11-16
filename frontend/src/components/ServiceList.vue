@@ -7,7 +7,7 @@ import { useDeployStore } from '../store';
 
 const store = useDeployStore();
 console.log('store: ', store);
-console.log('name: ', store.name)
+console.log('name: ', store.name);
 
 const client: Client = inject('client') as Client;
 const router = useRouter();
