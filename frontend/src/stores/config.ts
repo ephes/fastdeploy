@@ -1,4 +1,4 @@
-import { defineStore } from "pinia";
+import { defineStore, acceptHMRUpdate } from "pinia";
 
 export const useSettings = defineStore("settings", {
   state: () => {
@@ -16,22 +16,29 @@ export const useSettings = defineStore("settings", {
   },
   getters: {
     api: (state) => {
-      if (state.mode == 'production' && state.productionApiVite) {
-        return state.productionApiVite
-      } else if (state.mode == 'development', state.developmentApi) {
-        return state.developmentApi
+      if (state.mode == "production" && state.productionApiVite) {
+        return state.productionApiVite;
+      } else if ((state.mode == "development", state.developmentApi)) {
+        return state.developmentApi;
       } else {
-        return state.developmentApi
+        return state.developmentApi;
       }
     },
     websocket: (state) => {
-      if (state.mode == 'production' && state.productionWebsocketVite) {
-        return state.productionWebsocketVite
-      } else if (state.mode == 'development' && state.developmentWebsocketVite) {
-        return state.developmentWebsocketVite
+      if (state.mode == "production" && state.productionWebsocketVite) {
+        return state.productionWebsocketVite;
+      } else if (
+        state.mode == "development" &&
+        state.developmentWebsocketVite
+      ) {
+        return state.developmentWebsocketVite;
       } else {
-        return state.developmentWebsocket
+        return state.developmentWebsocket;
       }
-    }
-  }
+    },
+  },
 });
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useSettings, import.meta.hot));
+}
