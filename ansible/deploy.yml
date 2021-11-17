@@ -155,7 +155,7 @@
       template:
         src: fastdeploy_staging_collect.py.template.j2
         dest: "{{ site_path }}/deployments/fastdeploy_staging_collect.py"
-        mode: '0600'
+        mode: '0755'
       become: true
       become_user: "{{ username }}"
       environment:
@@ -165,7 +165,7 @@
       template:
         src: fastdeploy_staging_deploy.sh.template.j2
         dest: "{{ site_path }}/deployments/fastdeploy_staging_deploy.sh"
-        mode: '0600'
+        mode: '0755'
       become: true
       become_user: "{{ username }}"
       environment:
