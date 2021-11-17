@@ -1,7 +1,6 @@
 all:
   vars:
-    ansible_connection: ssh
-    ansible_ssh_user: root
+    ansible_connection: local
   hosts:
     staging:
       ansible_host: 127.0.0.1  # staging.wersdoerfer.de
