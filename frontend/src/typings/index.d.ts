@@ -1,5 +1,9 @@
 import { App, Ref } from 'vue';
 
+interface Environment {
+  MODE: string;
+}
+
 interface Step {
   id: number;
   name: string;
