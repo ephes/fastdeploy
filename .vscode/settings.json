@@ -6,12 +6,14 @@
     "python.linting.enabled": true,
     "cSpell.words": [
         "asyncio",
+        "fastdeploy",
         "httpx",
         "jochen",
         "pinia",
         "pydantic",
         "rprint",
         "typer",
+        "venv",
         "vite",
         "vitejs"
     ]
