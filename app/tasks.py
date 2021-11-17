@@ -62,7 +62,7 @@ class DeployTask(BaseSettings):
             self.steps.append(Step.parse_obj(r.json()))
 
     async def collect_steps(self):
-        command = ["sudo", "-u", settings.sudo_user, sys.executable, str(settings.deploy_root / self.collect_script)]
+        command = ["sudo", "-u", settings.sudo_user, str(settings.deploy_root / self.collect_script)]
         proc = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE)
         steps = [step for step in json.loads(proc.stdout) if "name" in step]
         await self.post_collected_steps(steps)
