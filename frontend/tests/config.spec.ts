@@ -12,12 +12,12 @@ declare module "pinia" {
   }
 }
 
-const app = createApp({});
 // const client = createClient();
 const client = {} as Client;
 
 describe("Settings Store", () => {
   beforeEach(() => {
+    const app = createApp({});
     const pinia = createPinia().use(({ store }) => {
       store.env = {...ENV_DEFAULT};
       store.client = markRaw(client);
