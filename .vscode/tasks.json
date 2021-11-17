@@ -8,6 +8,14 @@
         "isBackground": true,
         "options": {"cwd": "${workspaceFolder}"},
         "label": "Update project dependencies",
+      },
+      {
+        "type": "shell",
+        "command": "${command:python.interpreterPath}",
+        "args": ["manage.py", "test"],
+        "isBackground": true,
+        "options": {"cwd": "${workspaceFolder}"},
+        "label": "Run backend and frontend tests",
       }
     ]
   }

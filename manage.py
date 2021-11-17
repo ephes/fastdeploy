@@ -97,5 +97,17 @@ def notebook():
     subprocess.call(["jupyter", "notebook", "--notebook-dir", "notebooks"], env=env)
 
 
+@app.command()
+def test():
+    """
+    Run the tests:
+    - run backend tests via pytest
+    - fun frontend tests via jest
+    """
+    subprocess.call(["pytest"])
+    with working_directory(settings.project_root / "frontend"):
+        subprocess.call(["npm", "run", "test"])
+
+
 if __name__ == "__main__":
     app()
