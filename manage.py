@@ -29,7 +29,7 @@ def createuser():
     password = Prompt.ask("Enter password", password=True)
     rprint(f"creating user {username}")
     user = User(name=username, password=get_password_hash(password))
-    user_in_db = database.repository.add_user(user)
+    user_in_db = asyncio.run(database.repository.add_user(user))
     rprint(f"created user with id: {user_in_db.id}")
 
 
@@ -43,7 +43,7 @@ def create_initial_user():
         sys.exit(0)
     rprint(f"creating user {username}")
     user = User(name=username, password=password_hash)
-    user_in_db = database.repository.add_user(user)
+    user_in_db = asyncio.run(database.repository.add_user(user))
     rprint(f"created user with id: {user_in_db.id}")
 
 
