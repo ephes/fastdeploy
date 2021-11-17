@@ -62,7 +62,7 @@ class DeployTask(BaseSettings):
             self.steps.append(Step.parse_obj(r.json()))
 
     async def collect_steps(self):
-        command = [sys.executable, str(settings.deploy_root / self.collect_script)]
+        command = ["sudo", "-u", settings.sudo_user, sys.executable, str(settings.deploy_root / self.collect_script)]
         proc = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE)
         steps = [step for step in json.loads(proc.stdout) if "name" in step]
         await self.post_collected_steps(steps)
@@ -108,7 +108,10 @@ class DeployTask(BaseSettings):
             await self.start_step(self.current_step)
 
     async def deploy_steps(self):
-        command = str(settings.deploy_root / self.deploy_script)
+        sudo_command = f"sudo -u {settings.sudo_user}"
+        deploy_command = str(settings.deploy_root / self.deploy_script)
+        command = f"{sudo_command} {deploy_command}"
+        print("command: ", command)
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,

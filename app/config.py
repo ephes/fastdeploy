@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     default_expire_minutes: int = 15
     steps_url: str = Field("http://localhost:8000/steps/", env="STEPS_URL")
     repository: str = Field("sqlite", env="REPOSITORY")
+    sudo_user: str = Field("jochen", env="SUDO_USER")
 
     class Config:
         env_file = ROOT_DIR / ".env"
