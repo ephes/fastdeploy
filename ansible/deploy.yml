@@ -135,6 +135,12 @@
       environment:
         PATH: "{{ default_path }}"
 
+    - name: Create directory for ansible inventory
+      file:
+        path: "{{ site_path }}/ansible/inventory/"
+        state: directory
+        owner: "{{ username }}"
+
     - name: Create local inventory
       template:
         src: hosts.yml.template.j2
