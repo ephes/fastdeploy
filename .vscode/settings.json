@@ -13,6 +13,7 @@
         "pydantic",
         "rprint",
         "typer",
+        "uuidv",
         "venv",
         "vite",
         "vitejs",
