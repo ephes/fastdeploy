@@ -135,6 +135,16 @@
       environment:
         PATH: "{{ default_path }}"
 
+    - name: Create .vault_password file
+      template:
+        src: vault_password.template.j2
+        dest: "{{ site_path }}/ansible/.vault_password"
+        mode: '0600'
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
     - name: Create directory for ansible inventory
       file:
         path: "{{ site_path }}/ansible/inventory/"
