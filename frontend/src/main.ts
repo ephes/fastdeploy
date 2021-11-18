@@ -4,6 +4,7 @@ import App from "./App.vue";
 import { Client, Environment } from "./typings";
 import { createClient } from "./client";
 import {
+  useSettings,
   ENV_DEFAULT,
   WEBSOCKET_URL_DEFAULT,
   API_BASE_DEFAULT,
@@ -81,4 +82,9 @@ pinia.use(({ store }) => {
 app.use(router);
 app.use(client);
 app.use(pinia);
+
+// activate HMR for settings store
+const settings = useSettings();
+settings.useHMRUpdate(import.meta);
+
 app.mount("#app");
