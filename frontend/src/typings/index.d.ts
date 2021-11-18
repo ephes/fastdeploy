@@ -1,4 +1,4 @@
-import { App, Ref } from 'vue';
+import { App, Ref } from "vue";
 
 interface Environment {
   MODE: string;
@@ -60,13 +60,20 @@ interface Client {
   getUrl(path: string): string;
   login(username: string, password: string): void;
   initWebsocketConnection(): void;
-  authenticateWebsocketConnection(): void;
+  authenticateWebsocketConnection(connection: any, accessToken: string): void;
   startDeployment(serviceName: string): Promise<Deployment>;
-  fetchServiceToken(serviceName: string, accessToken: string, origin: string): Promise<string>;
+  fetchServiceToken(
+    serviceName: string,
+    accessToken: string,
+    origin: string
+  ): Promise<string>;
   fetchServices(): Promise<Service[]>;
   addService(service: Service): Promise<Service>;
   deleteService(serviceId: number): Promise<void>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
   registerStore(store: any): void;
+  onMessage(event: any): void;
+  onConnectionOpen(): void;
+  registerConnectionCallbacks(connection: any): void;
 }

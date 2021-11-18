@@ -47,6 +47,39 @@ function createDeployment(message: Deployment): Deployment {
   return deployment;
 }
 
+const onMessage = (event: MessageEvent) => {
+  const message = JSON.parse(event.data);
+  for (const store of this.stores) {
+    store.onMessage(message);
+  }
+  console.log("in client.ts: ", message);
+  if (message.type === "step") {
+    const step = createStep(message) as Step;
+    console.log("step: ", step);
+    if (step.deleted) {
+      this.steps.delete(step.id);
+    } else {
+      this.steps.set(step.id, step);
+    }
+  } else if (message.type === "service") {
+    const service = createService(message) as Service;
+    console.log("service: ", service);
+    if (service.deleted) {
+      this.services.delete(service.id);
+    } else {
+      this.services.set(service.id, service);
+    }
+  } else if (message.type === "deployment") {
+    const deployment = createDeployment(message) as Deployment;
+    console.log("deployment: ", deployment);
+    if (deployment.deleted) {
+      this.deployments.delete(deployment.id);
+    } else {
+      this.deployments.set(deployment.id, deployment);
+    }
+  }
+};
+
 export function createClient(): Client {
   const client: Client = {
     uuid: uuidv4(),
@@ -69,51 +102,57 @@ export function createClient(): Client {
       console.log("base api: ", settings.api);
       return new URL(settings.api) + path;
     },
+    onConnectionOpen(event: MessageEvent) {
+      console.log(event);
+      console.log("Successfully connected to the echo websocket server...");
+      this.authenticateWebsocketConnection(this.connection, this.accessToken);
+    },
+    onMessage(event: any) {
+      console.log("onMessage: ", event);
+      const message = JSON.parse(event.data);
+      for (const store of this.stores) {
+        store.onMessage(message);
+      }
+      console.log("in client.ts: ", message);
+      if (message.type === "step") {
+        const step = createStep(message) as Step;
+        console.log("step: ", step);
+        if (step.deleted) {
+          this.steps.delete(step.id);
+        } else {
+          this.steps.set(step.id, step);
+        }
+      } else if (message.type === "service") {
+        const service = createService(message) as Service;
+        console.log("service: ", service);
+        if (service.deleted) {
+          this.services.delete(service.id);
+        } else {
+          this.services.set(service.id, service);
+        }
+      } else if (message.type === "deployment") {
+        const deployment = createDeployment(message) as Deployment;
+        console.log("deployment: ", deployment);
+        if (deployment.deleted) {
+          this.deployments.delete(deployment.id);
+        } else {
+          this.deployments.set(deployment.id, deployment);
+        }
+      }
+    },
     initWebsocketConnection() {
       const settings = useSettings();
       let websocketUrl = settings.websocket;
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
-      this.connection.onopen = (event: MessageEvent) => {
-        console.log(event);
-        console.log("Successfully connected to the echo websocket server...");
-        this.authenticateWebsocketConnection();
-      };
-      this.connection.onmessage = (event: MessageEvent) => {
-        const message = JSON.parse(event.data);
-        for (const store of this.stores) {
-          store.onMessage(message);
-        }
-        console.log("in client.ts: ", message);
-        if (message.type === "step") {
-          const step = createStep(message) as Step;
-          console.log("step: ", step);
-          if (step.deleted) {
-            this.steps.delete(step.id);
-          } else {
-            this.steps.set(step.id, step);
-          }
-        } else if (message.type === "service") {
-          const service = createService(message) as Service;
-          console.log("service: ", service);
-          if (service.deleted) {
-            this.services.delete(service.id);
-          } else {
-            this.services.set(service.id, service);
-          }
-        } else if (message.type === "deployment") {
-          const deployment = createDeployment(message) as Deployment;
-          console.log("deployment: ", deployment);
-          if (deployment.deleted) {
-            this.deployments.delete(deployment.id);
-          } else {
-            this.deployments.set(deployment.id, deployment);
-          }
-        }
-      };
+      this.registerConnectionCallbacks(this.connection);
     },
-    authenticateWebsocketConnection() {
-      const credentials = JSON.stringify({ access_token: this.accessToken });
-      this.connection.send(credentials);
+    registerConnectionCallbacks(connection: any) {
+      this.connection.onopen = this.onConnectionOpen.bind(this);
+      this.connection.onmessage = this.onMessage.bind(this);
+    },
+    authenticateWebsocketConnection(connection: any, accessToken: string) {
+      const credentials = JSON.stringify({ access_token: accessToken });
+      connection.send(credentials);
     },
     async fetchServiceToken(
       serviceName: string,
