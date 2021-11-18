@@ -48,6 +48,7 @@ interface Client {
   steps: Map<number, Step>;
   services: Map<number | undefined, Service>;
   deployments: Map<number, Deployment>;
+  stores: any[];
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
    * the user.
@@ -67,4 +68,5 @@ interface Client {
   deleteService(serviceId: number): Promise<void>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
+  registerStore(store: any): void;
 }

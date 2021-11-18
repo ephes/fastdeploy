@@ -54,12 +54,16 @@ export function createClient(): Client {
     connection: null,
     accessToken: null,
     isAuthenticated: ref(false),
-    install(app: App, options: any) {
-      app.provide("client", this);
-    },
+    stores: [],
     steps: reactive(new Map<number, Step>()),
     services: reactive(new Map<number | undefined, Service>()),
     deployments: reactive(new Map<number, Deployment>()),
+    install(app: App, options: any) {
+      app.provide("client", this);
+    },
+    registerStore(store: any) {
+      this.stores.push(store);
+    },
     getUrl(path: string): string {
       const settings = useSettings();
       console.log("base api: ", settings.api);
@@ -76,6 +80,9 @@ export function createClient(): Client {
       };
       this.connection.onmessage = (event: MessageEvent) => {
         const message = JSON.parse(event.data);
+        for (const store of this.stores) {
+          store.onMessage(message);
+        }
         console.log("in client.ts: ", message);
         if (message.type === "step") {
           const step = createStep(message) as Step;

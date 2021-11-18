@@ -9,6 +9,7 @@ import {
   WEBSOCKET_URL_DEFAULT,
   API_BASE_DEFAULT,
 } from "./stores/config";
+import { useServices } from "./stores/services";
 import { createPinia } from "pinia";
 import Login from "./components/Login.vue";
 import ServiceList from "./components/ServiceList.vue";
@@ -83,8 +84,10 @@ app.use(router);
 app.use(client);
 app.use(pinia);
 
-// activate HMR for settings store
+// activate HMR for stores
 const settings = useSettings();
 settings.useHMRUpdate(import.meta);
+const services = useServices();
+services.useHMRUpdate(import.meta);
 
 app.mount("#app");
