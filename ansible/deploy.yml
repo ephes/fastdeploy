@@ -145,6 +145,14 @@
       environment:
         PATH: "{{ default_path }}"
 
+    - name: Create sudoers file for deploy scripts
+      template:
+        src: fastdeploy_sudoers.template.j2
+        dest: /etc/sudoers.d/fastdeploy_as_root
+        mode: '0440'
+      environment:
+        PATH: "{{ default_path }}"
+
     - name: Create directory for ansible inventory
       file:
         path: "{{ site_path }}/ansible/inventory/"
