@@ -15,6 +15,7 @@
         "typer",
         "venv",
         "vite",
-        "vitejs"
+        "vitejs",
+        "wersdoerfer"
     ]
 }
