@@ -41,7 +41,6 @@ interface Deployment {
 
 interface Client {
   uuid: any;
-  apiBase: string;
   errorMessage: Ref;
   isAuthenticated: Ref;
   accessToken: string | null;
