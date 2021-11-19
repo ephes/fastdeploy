@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { inject, ref } from 'vue'
 import { useRoute } from 'vue-router'
+
 import { Client, Service } from '../typings'
 import { useServices } from '../stores/service';
+import { useAuth } from '../stores/auth';
 
 const client: Client = inject("client") as Client
 const route = useRoute()
 const serviceStore = useServices()
 const service: Service | undefined = serviceStore.services.get(Number(route.params.id))
 
+const authStore = useAuth();
+
 const origin = ref('');
 const serviceToken = ref('');
 
 async function getServiceToken() {
     if (service) {
-        if (client.accessToken) {
-            serviceToken.value = await client.fetchServiceToken(service.name, client.accessToken, origin.value);
+        if (authStore.accessToken) {
+            serviceToken.value = await client.fetchServiceToken(service.name, authStore.accessToken, origin.value);
         }
     }
 }
