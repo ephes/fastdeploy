@@ -18,3 +18,7 @@ PYTHONPATH=.. jupyter notebook --notebook-dir notebooks
 # tests
 pytest
 coverage run -m pytest && coverage html
+
+# run individual frontend test
+cd frontend
+node_modules/jest/bin/jest.js -t "fetches the list of services"
