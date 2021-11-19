@@ -17,6 +17,7 @@ function createStubClient() {
     console.log("login in stub client: ", username, password);
     return loginResponse;
   };
+  client.initWebsocketConnection = (settings: any) => {};
   return client;
 }
 

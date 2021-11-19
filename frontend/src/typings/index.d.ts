@@ -45,7 +45,6 @@ interface Deployment {
 
 interface Client {
   uuid: any;
-  accessToken: string | null;
   connection: any;
   steps: Map<number, Step>;
   deployments: Map<number, Deployment>;
@@ -60,7 +59,7 @@ interface Client {
   install(app: App, options: any): void;
   getUrl(path: string): string;
   login(username: string, password: string): Promise<any>;
-  initWebsocketConnection(): void;
+  initWebsocketConnection(settings: any): void;
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
   startDeployment(serviceName: string): Promise<Deployment>;
   fetchServiceToken(

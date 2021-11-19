@@ -2,6 +2,7 @@ import { App, ref, Ref, reactive } from "vue";
 import { v4 as uuidv4 } from "uuid";
 import { Step, Client, Service, Deployment, Message } from "./typings";
 import { useSettings } from "./stores/config";
+import { useAuth } from "./stores/auth";
 
 function toUtcDate(date: Date): Date {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -40,7 +41,6 @@ export function createClient(): Client {
   const client: Client = {
     uuid: uuidv4(),
     connection: null,
-    accessToken: null,
     stores: [],
     steps: reactive(new Map<number, Step>()),
     deployments: reactive(new Map<number, Deployment>()),
@@ -58,7 +58,11 @@ export function createClient(): Client {
     onConnectionOpen(event: MessageEvent) {
       console.log(event);
       console.log("Successfully connected to the echo websocket server...");
-      this.authenticateWebsocketConnection(this.connection, String(this.accessToken));
+      const authStore = useAuth();
+      this.authenticateWebsocketConnection(
+        this.connection,
+        String(authStore.accessToken)
+      );
     },
     notifyStores(message: Message) {
       for (const store of this.stores) {
@@ -96,8 +100,7 @@ export function createClient(): Client {
         }
       }
     },
-    initWebsocketConnection() {
-      const settings = useSettings();
+    initWebsocketConnection(settings: any) {
       let websocketUrl = settings.websocket;
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
       this.registerWebsocketConnectionCallbacks(this.connection);
@@ -167,12 +170,10 @@ export function createClient(): Client {
       if (!response.ok) {
         // error
         console.log("login error: ", result);
-        return {accessToken: null, errorMessage: result.detail};
+        return { accessToken: null, errorMessage: result.detail };
       } else {
         console.log("login success: ", result);
-        client.accessToken = result.access_token;
-        client.initWebsocketConnection();
-        return {accessToken: result.access_token, errorMessage: null};
+        return { accessToken: result.access_token, errorMessage: null };
       }
     },
     async fetchServices() {
@@ -186,9 +187,9 @@ export function createClient(): Client {
       const services = await response.json();
       console.log("fetchServices: ", services);
       for (const item of services) {
-        const message = {...item, type: "service"};
-        console.log("notify with message: ", message)
-        this.notifyStores(message)
+        const message = { ...item, type: "service" };
+        console.log("notify with message: ", message);
+        this.notifyStores(message);
       }
       return services;
     },
@@ -202,7 +203,7 @@ export function createClient(): Client {
         headers: headers,
         body: JSON.stringify(service),
       });
-      return await response.json()
+      return await response.json();
     },
     async deleteService(serviceId: number) {
       const headers = {
