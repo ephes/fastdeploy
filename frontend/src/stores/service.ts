@@ -18,6 +18,7 @@ export const useServices = defineStore("services", {
       services: new Map<number | undefined, Service>(),
       logMessages: false as boolean,
       messages: [] as any[],
+      new: createService({name: "", collect: "", deploy: ""}),
     };
   },
   getters: {
@@ -31,8 +32,8 @@ export const useServices = defineStore("services", {
         meta.hot.accept(acceptHMRUpdate(useServices, meta.hot));
       }
     },
-    async addService(service: Service) {
-      const serviceWithId = await this.client.addService(service)
+    async addService() {
+      const serviceWithId = await this.client.addService(this.new)
       const newService = createService(serviceWithId);
       this.services.set(newService.id, newService);
     },

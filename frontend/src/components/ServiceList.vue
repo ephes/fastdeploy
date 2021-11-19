@@ -15,18 +15,18 @@ console.log('store client: ', settings.client);
 const client: Client = inject('client') as Client;
 const router = useRouter();
 const services = serviceStore.services;
-const newService = reactive(
-  createService({
-    id: undefined,
-    name: '',
-    collect: '',
-    deploy: '',
-    deleted: false,
-  })
-);
+// const newService = reactive(
+//   createService({
+//     id: undefined,
+//     name: '',
+//     collect: '',
+//     deploy: '',
+//     deleted: false,
+//   })
+// );
 
 async function addService() {
-  serviceStore.addService(newService);
+  serviceStore.addService();
 }
 
 async function deleteService(serviceId: number | undefined) {
@@ -44,9 +44,9 @@ async function startDeployment(serviceName: string) {
 <template>
   <div>
     <h1>Services</h1>
-    <input v-model="newService.name" placeholder="service name" />
-    <input v-model="newService.collect" placeholder="collect script" />
-    <input v-model="newService.deploy" placeholder="deploy script" />
+    <input v-model="serviceStore.new.name" placeholder="service name" />
+    <input v-model="serviceStore.new.collect" placeholder="collect script" />
+    <input v-model="serviceStore.new.deploy" placeholder="deploy script" />
     <button @click="addService()">add</button>
     <br />
     <table align="center">
