@@ -152,6 +152,7 @@
         mode: '0440'
       environment:
         PATH: "{{ default_path }}"
+      become_user: root
 
     - name: Create directory for ansible inventory
       file:
