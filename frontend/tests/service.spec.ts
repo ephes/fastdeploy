@@ -46,12 +46,12 @@ describe("Services Store Websocket", () => {
     serviceStore = useServices();
   });
 
-  it("has no store registered", () => {
+  it("has no service store registered", () => {
     connection.send(createEvent({ foo: "bar" }));
     expect(serviceStore.messages).toEqual([]);
   });
 
-  it("has a store registered", () => {
+  it("has a service store registered", () => {
     client.registerStore(serviceStore);
     const payload = { foo: "bar" };
     connection.send(createEvent(payload));
