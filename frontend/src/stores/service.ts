@@ -18,7 +18,7 @@ export const useServices = defineStore("services", {
       services: new Map<number | undefined, Service>(),
       logMessages: false as boolean,
       messages: [] as any[],
-      new: createService({name: "", collect: "", deploy: ""}),
+      new: createService({ name: "", collect: "", deploy: "" }),
     };
   },
   getters: {
@@ -33,14 +33,16 @@ export const useServices = defineStore("services", {
       }
     },
     async addService() {
-      const serviceWithId = await this.client.addService(this.new)
+      const serviceWithId = await this.client.addService(this.new);
       const newService = createService(serviceWithId);
       this.services.set(newService.id, newService);
     },
-    async deleteService(id: number) {
-      const deletedId = await this.client.deleteService(id);
-      if (deletedId) {
-        this.services.delete(deletedId);
+    async deleteService(id: number | undefined) {
+      if (id) {
+        const deletedId = await this.client.deleteService(id);
+        if (deletedId) {
+          this.services.delete(deletedId);
+        }
       }
     },
     async fetchServices() {
