@@ -1,13 +1,13 @@
 import { App, ref, Ref, reactive } from "vue";
 import { v4 as uuidv4 } from "uuid";
-import { Step, Client, Service, Deployment } from "./typings";
+import { Step, Client, Service, Deployment, Message } from "./typings";
 import { useSettings } from "./stores/config";
 
 function toUtcDate(date: Date): Date {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
 }
 
-function createStep(message: Step): Step {
+function createStep(message: any): Step {
   const step: Step = {
     id: message.id,
     name: message.name,
@@ -24,18 +24,7 @@ function createStep(message: Step): Step {
   return step;
 }
 
-export function createService(message: Service): Service {
-  const service: Service = {
-    id: message.id,
-    name: message.name,
-    collect: message.collect,
-    deploy: message.deploy,
-    deleted: message.deleted,
-  };
-  return service;
-}
-
-function createDeployment(message: Deployment): Deployment {
+function createDeployment(message: any): Deployment {
   const deployment: Deployment = {
     id: message.id,
     service_id: message.service_id,
@@ -47,39 +36,6 @@ function createDeployment(message: Deployment): Deployment {
   return deployment;
 }
 
-const onMessage = (event: MessageEvent) => {
-  const message = JSON.parse(event.data);
-  for (const store of this.stores) {
-    store.onMessage(message);
-  }
-  console.log("in client.ts: ", message);
-  if (message.type === "step") {
-    const step = createStep(message) as Step;
-    console.log("step: ", step);
-    if (step.deleted) {
-      this.steps.delete(step.id);
-    } else {
-      this.steps.set(step.id, step);
-    }
-  } else if (message.type === "service") {
-    const service = createService(message) as Service;
-    console.log("service: ", service);
-    if (service.deleted) {
-      this.services.delete(service.id);
-    } else {
-      this.services.set(service.id, service);
-    }
-  } else if (message.type === "deployment") {
-    const deployment = createDeployment(message) as Deployment;
-    console.log("deployment: ", deployment);
-    if (deployment.deleted) {
-      this.deployments.delete(deployment.id);
-    } else {
-      this.deployments.set(deployment.id, deployment);
-    }
-  }
-};
-
 export function createClient(): Client {
   const client: Client = {
     uuid: uuidv4(),
@@ -89,7 +45,6 @@ export function createClient(): Client {
     isAuthenticated: ref(false),
     stores: [],
     steps: reactive(new Map<number, Step>()),
-    services: reactive(new Map<number | undefined, Service>()),
     deployments: reactive(new Map<number, Deployment>()),
     install(app: App, options: any) {
       app.provide("client", this);
@@ -105,14 +60,17 @@ export function createClient(): Client {
     onConnectionOpen(event: MessageEvent) {
       console.log(event);
       console.log("Successfully connected to the echo websocket server...");
-      this.authenticateWebsocketConnection(this.connection, this.accessToken);
+      this.authenticateWebsocketConnection(this.connection, String(this.accessToken));
     },
-    onMessage(event: any) {
-      console.log("onMessage: ", event);
-      const message = JSON.parse(event.data);
+    notifyStores(message: Message) {
       for (const store of this.stores) {
         store.onMessage(message);
       }
+    },
+    onMessage(event: any) {
+      console.log("onMessage: ", event);
+      const message = JSON.parse(event.data) as Message;
+      this.notifyStores(message);
       console.log("in client.ts: ", message);
       if (message.type === "step") {
         const step = createStep(message) as Step;
@@ -123,13 +81,13 @@ export function createClient(): Client {
           this.steps.set(step.id, step);
         }
       } else if (message.type === "service") {
-        const service = createService(message) as Service;
-        console.log("service: ", service);
-        if (service.deleted) {
-          this.services.delete(service.id);
-        } else {
-          this.services.set(service.id, service);
-        }
+        // const service = createService(message) as Service;
+        // console.log("service: ", service);
+        // if (service.deleted) {
+        //   this.services.delete(service.id);
+        // } else {
+        //   this.services.set(service.id, service);
+        // }
       } else if (message.type === "deployment") {
         const deployment = createDeployment(message) as Deployment;
         console.log("deployment: ", deployment);
@@ -144,11 +102,11 @@ export function createClient(): Client {
       const settings = useSettings();
       let websocketUrl = settings.websocket;
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
-      this.registerConnectionCallbacks(this.connection);
+      this.registerWebsocketConnectionCallbacks(this.connection);
     },
-    registerConnectionCallbacks(connection: any) {
-      this.connection.onopen = this.onConnectionOpen.bind(this);
-      this.connection.onmessage = this.onMessage.bind(this);
+    registerWebsocketConnectionCallbacks(connection: any) {
+      connection.onopen = this.onConnectionOpen.bind(this);
+      connection.onmessage = this.onMessage.bind(this);
     },
     authenticateWebsocketConnection(connection: any, accessToken: string) {
       const credentials = JSON.stringify({ access_token: accessToken });
@@ -232,8 +190,9 @@ export function createClient(): Client {
       const services = await response.json();
       console.log("fetchServices: ", services);
       for (const item of services) {
-        const service = createService(item) as Service;
-        client.services.set(service.id, service);
+        const message = {...item, type: "service"};
+        console.log("notify with message: ", message)
+        this.notifyStores(message)
       }
       return services;
     },
@@ -247,10 +206,8 @@ export function createClient(): Client {
         headers: headers,
         body: JSON.stringify(service),
       });
-      const newService = createService(await response.json()) as Service;
-      client.services.set(newService.id, newService);
-      console.log("add service: ", newService);
-      return newService;
+      const message = {...await response.json(), type: "service"};
+      this.notifyStores(message)
     },
     async deleteService(serviceId: number) {
       const headers = {

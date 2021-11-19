@@ -8,6 +8,10 @@ interface Environment {
   VITE_WEBSOCKET_URL_PROD: string;
 }
 
+interface Message {
+  type: string;
+}
+
 interface Step {
   id: number;
   name: string;
@@ -46,7 +50,6 @@ interface Client {
   accessToken: string | null;
   connection: any;
   steps: Map<number, Step>;
-  services: Map<number | undefined, Service>;
   deployments: Map<number, Deployment>;
   stores: any[];
   /**
@@ -68,12 +71,13 @@ interface Client {
     origin: string
   ): Promise<string>;
   fetchServices(): Promise<Service[]>;
-  addService(service: Service): Promise<Service>;
+  addService(service: Service): void;
   deleteService(serviceId: number): Promise<void>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
   registerStore(store: any): void;
   onMessage(event: any): void;
-  onConnectionOpen(): void;
-  registerConnectionCallbacks(connection: any): void;
+  onConnectionOpen(event: MessageEvent): void;
+  registerWebsocketConnectionCallbacks(connection: any): void;
+  notifyStores(message: Message): void;
 }

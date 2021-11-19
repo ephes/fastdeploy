@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { inject, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { createService } from '../client';
+import { createService, useServices } from '../stores/service';
 import { Client, Deployment } from '../typings';
 import { useSettings } from '../stores/config';
 
 const settings = useSettings();
+const serviceStore = useServices();
 console.log('store: ', settings);
 console.log('base api: ', settings.api);
 console.log('base websocket: ', settings.websocket);
@@ -13,7 +14,8 @@ console.log('store client: ', settings.client);
 
 const client: Client = inject('client') as Client;
 const router = useRouter();
-const services = client.services;
+// const services = client.services;
+const services = serviceStore.services;
 const newService = reactive(
   createService({
     id: undefined,

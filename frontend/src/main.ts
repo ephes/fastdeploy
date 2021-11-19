@@ -9,7 +9,7 @@ import {
   WEBSOCKET_URL_DEFAULT,
   API_BASE_DEFAULT,
 } from "./stores/config";
-import { useServices } from "./stores/services";
+import { useServices } from "./stores/service";
 import { createPinia } from "pinia";
 import Login from "./components/Login.vue";
 import ServiceList from "./components/ServiceList.vue";
@@ -61,16 +61,20 @@ declare module "pinia" {
 function getEnv(): Environment {
   const env = ENV_DEFAULT;
   env.MODE = import.meta.env.MODE || "development";
-  env.VITE_API_BASE_DEV =
-    String(import.meta.env.VITE_API_BASE_DEV || API_BASE_DEFAULT);
-  env.VITE_API_BASE_PROD =
-    String(import.meta.env.VITE_API_BASE_PROD ||
-    "https://deploy.staging.wersdoerfer.de");
-  env.VITE_WEBSOCKET_URL_DEV =
-    String(import.meta.env.VITE_WEBSOCKET_URL_DEV || WEBSOCKET_URL_DEFAULT);
-  env.VITE_WEBSOCKET_URL_PROD =
-    String(import.meta.env.VITE_WEBSOCKET_URL_PROD ||
-    "ws://deploy.staging.wersdoerfer.de/deployments/ws");
+  env.VITE_API_BASE_DEV = String(
+    import.meta.env.VITE_API_BASE_DEV || API_BASE_DEFAULT
+  );
+  env.VITE_API_BASE_PROD = String(
+    import.meta.env.VITE_API_BASE_PROD ||
+      "https://deploy.staging.wersdoerfer.de"
+  );
+  env.VITE_WEBSOCKET_URL_DEV = String(
+    import.meta.env.VITE_WEBSOCKET_URL_DEV || WEBSOCKET_URL_DEFAULT
+  );
+  env.VITE_WEBSOCKET_URL_PROD = String(
+    import.meta.env.VITE_WEBSOCKET_URL_PROD ||
+      "ws://deploy.staging.wersdoerfer.de/deployments/ws"
+  );
   return env;
 }
 
@@ -89,5 +93,6 @@ const settings = useSettings();
 settings.useHMRUpdate(import.meta);
 const services = useServices();
 services.useHMRUpdate(import.meta);
+client.registerStore(services);
 
 app.mount("#app");
