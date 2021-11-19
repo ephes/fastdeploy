@@ -17,7 +17,13 @@ function createStubClient() {
     console.log("login in stub client: ", username, password);
     return loginResponse;
   };
-  client.initWebsocketConnection = (settings: any) => {};
+  client.initWebsocketConnection = (settings: any) => {
+    // initWebsocketConnection is called after login
+  };
+  client.fetchServices = async () => {
+    // fetchServices is called via authStore.onLogin
+    return []
+  };
   return client;
 }
 

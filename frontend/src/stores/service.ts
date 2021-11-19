@@ -42,6 +42,12 @@ export const useServices = defineStore("services", {
         this.services.delete(deletedId);
       }
     },
+    async fetchServices() {
+      const services = await this.client.fetchServices();
+      for (const service of services) {
+        this.services.set(service.id, createService(service));
+      }
+    },
     onMessage(message: Message) {
       console.debug("on message in services store: ", message);
       if (this.logMessages) {

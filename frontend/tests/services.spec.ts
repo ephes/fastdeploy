@@ -1,9 +1,10 @@
 import "pinia";
 import { createApp, markRaw } from "vue";
 import { setActivePinia, createPinia } from "pinia";
-import { useServices, createService } from "../src/stores/service";
-import { Client } from "../src/typings";
+
+import { Client, Service } from "../src/typings";
 import { createClient } from "../src/client";
+import { useServices, createService } from "../src/stores/service";
 
 declare module "pinia" {
   export interface PiniaCustomProperties {
@@ -103,6 +104,7 @@ describe("Services Store Websocket", () => {
   });
 });
 
+let servicesToFetch: Service[] = [];
 
 function createStubClient() {
   // replace addService, deleteService functions from original
@@ -115,13 +117,16 @@ function createStubClient() {
   client.deleteService = async (id: number) => {
     return id;
   };
+  client.fetchServices = async () => {
+    return servicesToFetch;
+  }
   return client;
 }
 
 describe("Services Store Actions", () => {
   beforeEach(() => {
     const app = createApp({});
-    client = createStubClient()
+    client = createStubClient();
     const pinia = createPinia().use(({ store }) => {
       store.client = markRaw(client);
     });
@@ -152,4 +157,17 @@ describe("Services Store Actions", () => {
     await serviceStore.deleteService(service.id);
     expect(serviceStore.services.size).toBe(0);
   });
+
+  it("fetches the list of services", async () => {
+    const service = createService({
+      id: 1,
+      name: "fastdeploy",
+      collect: "collect.py",
+      deploy: "deploy.sh",
+    });
+    servicesToFetch = [service];
+    await serviceStore.fetchServices();
+    expect(serviceStore.services.get(1)).toStrictEqual(service);
+  });
+
 });

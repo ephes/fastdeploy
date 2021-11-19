@@ -1,6 +1,7 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, Message } from "../typings";
 import { useSettings } from "./config";
+import { useServices } from "./service";
 
 export const useAuth = defineStore("auth", {
   state: () => {
@@ -25,6 +26,8 @@ export const useAuth = defineStore("auth", {
     async onLogin() {
       const settings = useSettings();
       this.client.initWebsocketConnection(settings);
+      const serviceStore = useServices();
+      serviceStore.fetchServices();
 
     },
     async login() {
