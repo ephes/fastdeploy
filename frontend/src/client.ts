@@ -137,12 +137,13 @@ export function createClient(): Client {
       return String(json.service_token);
     },
     async startDeployment(serviceName: string) {
-      if (!this.accessToken) {
+      const authStore = useAuth();
+      if (!authStore.accessToken) {
         throw new Error("No access token");
       }
       const serviceToken = await this.fetchServiceToken(
         serviceName,
-        this.accessToken,
+        authStore.accessToken,
         "frontend"
       );
       const headers = {
@@ -177,8 +178,9 @@ export function createClient(): Client {
       }
     },
     async fetchServices() {
+      const authStore = useAuth();
       const headers = {
-        authorization: `Bearer ${this.accessToken}`,
+        authorization: `Bearer ${authStore.accessToken}`,
         "content-type": "application/json",
       };
       const response = await fetch(this.getUrl("services"), {
@@ -186,16 +188,12 @@ export function createClient(): Client {
       });
       const services = await response.json();
       console.log("fetchServices: ", services);
-      for (const item of services) {
-        const message = { ...item, type: "service" };
-        console.log("notify with message: ", message);
-        this.notifyStores(message);
-      }
       return services;
     },
     async addService(service) {
+      const authStore = useAuth();
       const headers = {
-        authorization: `Bearer ${this.accessToken}`,
+        authorization: `Bearer ${authStore.accessToken}`,
         "content-type": "application/json",
       };
       const response = await fetch(this.getUrl("services"), {
@@ -206,8 +204,9 @@ export function createClient(): Client {
       return await response.json();
     },
     async deleteService(serviceId: number) {
+      const authStore = useAuth();
       const headers = {
-        authorization: `Bearer ${this.accessToken}`,
+        authorization: `Bearer ${authStore.accessToken}`,
         "content-type": "application/json",
       };
       const response = await fetch(this.getUrl(`services/${serviceId}`), {
@@ -222,8 +221,9 @@ export function createClient(): Client {
       }
     },
     async fetchDeployments() {
+      const authStore = useAuth();
       const headers = {
-        authorization: `Bearer ${this.accessToken}`,
+        authorization: `Bearer ${authStore.accessToken}`,
         "content-type": "application/json",
       };
       const response = await fetch(this.getUrl("deployments"), {
@@ -240,8 +240,9 @@ export function createClient(): Client {
       return deployments;
     },
     async fetchStepsFromDeployment(deploymentId: number) {
+      const authStore = useAuth();
       const headers = {
-        authorization: `Bearer ${this.accessToken}`,
+        authorization: `Bearer ${authStore.accessToken}`,
         "content-type": "application/json",
       };
       console.log("fetchStepsFromDeployment: ", deploymentId);
