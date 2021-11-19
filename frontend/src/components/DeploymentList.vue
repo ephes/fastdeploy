@@ -1,13 +1,9 @@
 <script setup lang="ts">
-import { inject, onMounted } from 'vue';
-import { Client } from '../typings';
+import { onMounted } from 'vue';
 
-const client: Client = inject('client') as Client;
-const deployments = client.deployments;
-
-onMounted(async () => {
-   await client.fetchDeployments();
-});
+import { useDeployments } from '../stores/deployment';
+const deploymentStore = useDeployments();
+deploymentStore.fetchDeployments();
 </script>
 
 <template>
@@ -21,7 +17,7 @@ onMounted(async () => {
         <th>user</th>
         <th>link</th>
       </tr>
-      <tr v-for="[id, deployment] in deployments" :key="id">
+      <tr v-for="[id, deployment] in deploymentStore.deployments" :key="id">
         <td>{{ deployment.id }}</td>
         <td>{{ deployment.service_id }}</td>
         <td>{{ deployment.origin }}</td>

@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { inject } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useServices } from '../stores/service';
-import { Client, Deployment } from '../typings';
+import { useDeployments } from '../stores/deployment';
+import { Deployment } from '../typings';
 
 const serviceStore = useServices();
-
-const client: Client = inject('client') as Client;
+const deploymentStore = useDeployments();
 const router = useRouter();
 
 async function startDeployment(serviceName: string) {
-  const deployment: Deployment = await client.startDeployment(serviceName);
+  const deployment: Deployment = await deploymentStore.startDeployment(serviceName);
   router.push({ name: 'deployment-detail', params: { id: deployment.id } });
 }
 </script>
