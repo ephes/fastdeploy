@@ -25,16 +25,6 @@ const newService = reactive(
   })
 );
 
-async function fetchServices() {
-  await client.fetchServices();
-}
-
-onMounted(async () => {
-  // using onMounted to be able to define an async function
-  // rather belongs to create lifecycle hook, but cannot await in setup
-  await fetchServices();
-});
-
 async function addService() {
   serviceStore.addService(newService);
 }
