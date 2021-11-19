@@ -71,7 +71,7 @@ interface Client {
     origin: string
   ): Promise<string>;
   fetchServices(): Promise<Service[]>;
-  addService(service: Service): void;
+  addService(service: Service): Promise<any>;
   deleteService(serviceId: number): Promise<void>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;

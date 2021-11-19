@@ -1,7 +1,6 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, Message } from "../typings";
 
-
 export function createService(message: any): Service {
   const service: Service = {
     id: message.id,
@@ -12,7 +11,6 @@ export function createService(message: any): Service {
   };
   return service;
 }
-
 
 export const useServices = defineStore("services", {
   state: () => {
@@ -28,13 +26,15 @@ export const useServices = defineStore("services", {
     },
   },
   actions: {
-    useHMRUpdate(meta: any){
+    useHMRUpdate(meta: any) {
       if (meta.hot) {
         meta.hot.accept(acceptHMRUpdate(useServices, meta.hot));
       }
     },
-    addService(service: Service) {
-      console.log("add service: ", service);
+    async addService(service: Service) {
+      const serviceWithId = await this.client.addService(service)
+      const newService = createService(serviceWithId);
+      this.services.set(newService.id, newService);
     },
     onMessage(message: Message) {
       console.debug("on message in services store: ", message);

@@ -37,7 +37,7 @@ onMounted(async () => {
 });
 
 async function addService() {
-  await client.addService(newService);
+  serviceStore.addService(newService);
 }
 
 async function deleteService(serviceId: number | undefined) {

@@ -206,8 +206,7 @@ export function createClient(): Client {
         headers: headers,
         body: JSON.stringify(service),
       });
-      const message = {...await response.json(), type: "service"};
-      this.notifyStores(message)
+      return await response.json()
     },
     async deleteService(serviceId: number) {
       const headers = {
