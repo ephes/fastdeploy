@@ -8,7 +8,8 @@ jobs:
         id: deployRequest
         uses: fjogeleit/http-request-action@master
         with:
-          url: 'https://deploy.staging.wersdoerfer.de/deployments'
+          url: 'https://deploy.staging.wersdoerfer.de/deployments/'
           method: 'POST'
+          bearerToken: 'asdfasdfasdfasdfasdfasdf'
       - name: Show Deploy Request Response
         run: echo ${{ steps.deployRequest.outputs.response }}
