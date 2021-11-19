@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { inject, reactive, onMounted } from 'vue';
+import { inject } from 'vue';
 import { useRouter } from 'vue-router';
-import { createService, useServices } from '../stores/service';
-import { Client, Deployment } from '../typings';
-import { useSettings } from '../stores/config';
 
-const settings = useSettings();
+import { useServices } from '../stores/service';
+import { Client, Deployment } from '../typings';
+
 const serviceStore = useServices();
 
 const client: Client = inject('client') as Client;
