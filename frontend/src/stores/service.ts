@@ -21,11 +21,6 @@ export const useServices = defineStore("services", {
       new: createService({ name: "", collect: "", deploy: "" }),
     };
   },
-  getters: {
-    foo: (state) => {
-      return "bar";
-    },
-  },
   actions: {
     useHMRUpdate(meta: any) {
       if (meta.hot) {
