@@ -1,0 +1,14 @@
+name: Deploy on Push
+on: [push]
+jobs:
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Make Deploy Request
+        id: deployRequest
+        uses: fjogeleit/http-request-action@master
+        with:
+          url: 'https://deploy.staging.wersdoerfer.de/deployments'
+          method: 'POST'
+      - name: Show Deploy Request Response
+        run: echo ${{ steps.deployRequest.outputs.response }}
