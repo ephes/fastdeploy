@@ -119,7 +119,7 @@ function createStubClient() {
   };
   client.fetchServices = async () => {
     return servicesToFetch;
-  }
+  };
   return client;
 }
 
@@ -141,7 +141,8 @@ describe("Services Store Actions", () => {
       collect: "collect.py",
       deploy: "deploy.sh",
     });
-    await serviceStore.addService(service);
+    serviceStore.new = service;
+    await serviceStore.addService();
     expect(serviceStore.services.get(1)).toStrictEqual({ ...service, id: 1 });
   });
 
@@ -169,5 +170,4 @@ describe("Services Store Actions", () => {
     await serviceStore.fetchServices();
     expect(serviceStore.services.get(1)).toStrictEqual(service);
   });
-
 });

@@ -1,5 +1,4 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
-import { Service, Message } from "../typings";
 import { useSettings } from "./config";
 import { useServices } from "./service";
 
