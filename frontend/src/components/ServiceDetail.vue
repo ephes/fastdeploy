@@ -2,10 +2,12 @@
 import { inject, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Client, Service } from '../typings'
+import { useServices } from '../stores/service';
 
 const client: Client = inject("client") as Client
 const route = useRoute()
-const service: Service | undefined = client.services.get(Number(route.params.id))
+const serviceStore = useServices()
+const service: Service | undefined = serviceStore.services.get(Number(route.params.id))
 
 const origin = ref('');
 const serviceToken = ref('');
@@ -14,7 +16,8 @@ async function getServiceToken() {
     if (service) {
         if (client.accessToken) {
             serviceToken.value = await client.fetchServiceToken(service.name, client.accessToken, origin.value);
-    }}
+        }
+    }
 }
 </script>
 
