@@ -10,6 +10,6 @@ jobs:
         with:
           url: 'https://deploy.staging.wersdoerfer.de/deployments/'
           method: 'POST'
-          bearerToken: 'asdfasdfasdfasdfasdfasdf'
+          bearerToken: ${{ secrets.SERVICE_TOKEN }}
       - name: Show Deploy Request Response
         run: echo ${{ steps.deployRequest.outputs.response }}
