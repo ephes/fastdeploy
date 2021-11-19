@@ -39,10 +39,8 @@ function createDeployment(message: any): Deployment {
 export function createClient(): Client {
   const client: Client = {
     uuid: uuidv4(),
-    errorMessage: ref(false),
     connection: null,
     accessToken: null,
-    isAuthenticated: ref(false),
     stores: [],
     steps: reactive(new Map<number, Step>()),
     deployments: reactive(new Map<number, Deployment>()),
@@ -169,14 +167,12 @@ export function createClient(): Client {
       if (!response.ok) {
         // error
         console.log("login error: ", result);
-        client.isAuthenticated.value = false;
-        client.errorMessage.value = result.detail;
+        return {accessToken: null, errorMessage: result.detail};
       } else {
         console.log("login success: ", result);
-        client.errorMessage.value = false;
-        client.isAuthenticated.value = true;
         client.accessToken = result.access_token;
         client.initWebsocketConnection();
+        return {accessToken: result.access_token, errorMessage: null};
       }
     },
     async fetchServices() {

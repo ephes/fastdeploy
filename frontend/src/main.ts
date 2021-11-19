@@ -10,6 +10,7 @@ import {
   API_BASE_DEFAULT,
 } from "./stores/config";
 import { useServices } from "./stores/service";
+import { useAuth } from "./stores/auth";
 import { createPinia } from "pinia";
 import Login from "./components/Login.vue";
 import ServiceList from "./components/ServiceList.vue";
@@ -37,8 +38,9 @@ const router = createRouter({
 });
 
 router.beforeEach((to, from) => {
-  console.log("beforeEach: ", client.isAuthenticated.value, to, from);
-  if (!client.isAuthenticated.value && to.name !== "login") {
+  const auth = useAuth();
+  console.log("beforeEach: ", auth.isAuthenticated, to, from);
+  if (!auth.isAuthenticated && to.name !== "login") {
     // redirect to login if not authenticated
     return { name: "login" };
   } else {
@@ -94,5 +96,7 @@ settings.useHMRUpdate(import.meta);
 const services = useServices();
 services.useHMRUpdate(import.meta);
 client.registerStore(services);
+const auth = useAuth();
+auth.useHMRUpdate(import.meta);
 
 app.mount("#app");

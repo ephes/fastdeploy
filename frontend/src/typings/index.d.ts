@@ -45,8 +45,6 @@ interface Deployment {
 
 interface Client {
   uuid: any;
-  errorMessage: Ref;
-  isAuthenticated: Ref;
   accessToken: string | null;
   connection: any;
   steps: Map<number, Step>;
@@ -61,7 +59,7 @@ interface Client {
    */
   install(app: App, options: any): void;
   getUrl(path: string): string;
-  login(username: string, password: string): void;
+  login(username: string, password: string): Promise<any>;
   initWebsocketConnection(): void;
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
   startDeployment(serviceName: string): Promise<Deployment>;
