@@ -72,7 +72,7 @@ interface Client {
   ): Promise<string>;
   fetchServices(): Promise<Service[]>;
   addService(service: Service): Promise<any>;
-  deleteService(serviceId: number): Promise<void>;
+  deleteService(serviceId: number): Promise<number | null>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
   registerStore(store: any): void;

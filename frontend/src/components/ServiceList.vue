@@ -14,7 +14,6 @@ console.log('store client: ', settings.client);
 
 const client: Client = inject('client') as Client;
 const router = useRouter();
-// const services = client.services;
 const services = serviceStore.services;
 const newService = reactive(
   createService({
@@ -42,7 +41,7 @@ async function addService() {
 
 async function deleteService(serviceId: number | undefined) {
   if (serviceId) {
-    await client.deleteService(serviceId);
+    serviceStore.deleteService(serviceId);
   }
 }
 

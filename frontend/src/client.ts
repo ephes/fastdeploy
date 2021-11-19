@@ -218,6 +218,11 @@ export function createClient(): Client {
         headers: headers,
       });
       console.log("delete service: ", await response.json());
+      if (response.ok) {
+        return serviceId;
+      } else {
+        return null;
+      }
     },
     async fetchDeployments() {
       const headers = {

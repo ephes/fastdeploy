@@ -104,13 +104,16 @@ describe("Services Store Websocket", () => {
 });
 
 
-function createAddServiceClient() {
-  // replace one addService function from original client
-  // with dummy one
+function createStubClient() {
+  // replace addService, deleteService functions from original
+  // client with stubs
   const client = createClient();
   client.addService = async (service: any) => {
     console.log("add service in dummy client: ", service);
     return { ...service, id: 1 };
+  };
+  client.deleteService = async (id: number) => {
+    return id;
   };
   return client;
 }
@@ -118,7 +121,7 @@ function createAddServiceClient() {
 describe("Services Store Actions", () => {
   beforeEach(() => {
     const app = createApp({});
-    client = createAddServiceClient()
+    client = createStubClient()
     const pinia = createPinia().use(({ store }) => {
       store.client = markRaw(client);
     });
@@ -135,5 +138,18 @@ describe("Services Store Actions", () => {
     });
     await serviceStore.addService(service);
     expect(serviceStore.services.get(1)).toStrictEqual({ ...service, id: 1 });
+  });
+
+  it("deletes a service from the store", async () => {
+    const service = createService({
+      id: 1,
+      name: "fastdeploy",
+      collect: "collect.py",
+      deploy: "deploy.sh",
+    });
+    serviceStore.services.set(1, service);
+    expect(serviceStore.services.get(1)).toStrictEqual(service);
+    await serviceStore.deleteService(service.id);
+    expect(serviceStore.services.size).toBe(0);
   });
 });
