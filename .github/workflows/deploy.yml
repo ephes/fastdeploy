@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Show Service Token
-        run: echo ${{ staging.SERVICE_TOKEN }}
+        run: echo ${{ secrets.SERVICE_TOKEN }}
       - name: Make Deploy Request
         id: deployRequest
         uses: fjogeleit/http-request-action@master
