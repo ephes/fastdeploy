@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-
 import { useDeployments } from '../stores/deployment';
+
 const deploymentStore = useDeployments();
 deploymentStore.fetchDeployments();
 </script>
