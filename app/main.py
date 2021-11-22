@@ -4,6 +4,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from . import database
 from .config import settings
@@ -34,6 +35,10 @@ async def redirect_typer():
     return RedirectResponse("/static/index.html")
 
 
+class Message(BaseModel):
+    message: str
+
+
 # This only works with fastapi app not with api router
 # see: https://github.com/tiangolo/fastapi/issues/98
 @app.websocket("/deployments/ws/{client_id}")
@@ -48,7 +53,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID):
                 await connection_manager.authenticate(client_id, data["access_token"])
                 print("client authenticated..")
             else:
-                await connection_manager.broadcast({"message": "message from backend!"})
+                message = Message(message="message from backend!")
+                await connection_manager.broadcast(message)
     except WebSocketDisconnect:
         connection_manager.disconnect(client_id)
-        await connection_manager.broadcast(f"Client #{client_id} left the chat")
+        message = Message(message=f"Client #{client_id} left")
+        await connection_manager.broadcast(message)
