@@ -14,8 +14,21 @@ def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
 
 
-class InMemoryRepository:
+class BaseRepository:
     def __init__(self):
+        self.event_handlers = []
+
+    def register_event_handler(self, handler):
+        self.event_handlers.append(handler)
+
+    async def dispatch_event(self, event):
+        for handler in self.event_handlers:
+            await handler.handle_event(event)
+
+
+class InMemoryRepository(BaseRepository):
+    def __init__(self):
+        super().__init__()
         self.reset()
 
     def reset(self):
@@ -44,7 +57,7 @@ class InMemoryRepository:
         self.services.append(service)
         if service.id is None:
             service.id = len(self.services)
-        await connection_manager.broadcast(ServiceOut.parse_obj(service))
+        await self.dispatch_event(ServiceOut.parse_obj(service))
         return service
 
     async def get_service_by_name(self, name: str) -> Service | None:
@@ -66,7 +79,7 @@ class InMemoryRepository:
                 self.services.remove(service)
                 service_out = ServiceOut.parse_obj(service)
                 service_out.deleted = True
-                await connection_manager.broadcast(service_out)
+                await self.dispatch_event(service_out)
                 break
 
     # Step
@@ -80,14 +93,14 @@ class InMemoryRepository:
     async def add_step(self, step: Step) -> Step:
         self.steps.append(step)
         step.id = len(self.steps)
-        await connection_manager.broadcast(StepOut.parse_obj(step))
+        await self.dispatch_event(StepOut.parse_obj(step))
         return step
 
     async def update_step(self, step: Step) -> Step:
         for index, step in enumerate(self.steps):
             if step.id == step.id:
                 self.steps[index] = step
-        await connection_manager.broadcast(StepOut.parse_obj(step))
+        await self.dispatch_event(StepOut.parse_obj(step))
         return step
 
     async def get_step_by_id(self, step_id: int) -> Step | None:
@@ -109,7 +122,7 @@ class InMemoryRepository:
                 self.steps.remove(step)
                 step_out = StepOut.parse_obj(step)
                 step_out.deleted = True
-                await connection_manager.broadcast(step_out)
+                await self.dispatch_event(step_out)
 
     # Deployment
     async def get_deployments(self) -> list[Deployment]:
@@ -141,11 +154,12 @@ class InMemoryRepository:
                 self.deployments.remove(deployment)
                 deployment_out = DeploymentOut.parse_obj(deployment)
                 deployment_out.deleted = True
-                await connection_manager.broadcast(deployment_out)
+                await self.dispatch_event(deployment_out)
 
 
-class SQLiteRepository:
+class SQLiteRepository(BaseRepository):
     def __init__(self):
+        super().__init__()
         self.engine = engine
 
     def reset(self):
@@ -176,7 +190,7 @@ class SQLiteRepository:
             session.add(service)
             session.commit()
             session.refresh(service)
-        await connection_manager.broadcast(ServiceOut.parse_obj(service))
+        await self.dispatch_event(ServiceOut.parse_obj(service))
         return service
 
     async def get_service_by_name(self, name: str) -> Service | None:
@@ -196,7 +210,7 @@ class SQLiteRepository:
             session.delete(service)
             service_out = ServiceOut.parse_obj(service)
             service_out.deleted = True
-            await connection_manager.broadcast(service_out)
+            await self.dispatch_event(service_out)
             session.commit()
 
     # Step
@@ -210,12 +224,12 @@ class SQLiteRepository:
             session.add(step)
             session.commit()
             session.refresh(step)
-        await connection_manager.broadcast(StepOut.parse_obj(step))
+        await self.dispatch_event(StepOut.parse_obj(step))
         return step
 
     async def update_step(self, step: Step) -> Step:
         step = await self.add_step(step)
-        await connection_manager.broadcast(StepOut.parse_obj(step))
+        await self.dispatch_event(StepOut.parse_obj(step))
         return step
 
     async def get_step_by_id(self, step_id: int) -> Step | None:
@@ -235,7 +249,7 @@ class SQLiteRepository:
                 session.delete(step)
                 step_out = StepOut.parse_obj(step)
                 step_out.deleted = True
-                await connection_manager.broadcast(step_out)
+                await self.dispatch_event(step_out)
             session.commit()
 
     # Deployment
@@ -254,7 +268,7 @@ class SQLiteRepository:
             session.add(deployment)
             session.commit()
             session.refresh(deployment)
-        await connection_manager.broadcast(DeploymentOut.parse_obj(deployment))
+        await self.dispatch_event(DeploymentOut.parse_obj(deployment))
         return deployment
 
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
@@ -270,7 +284,7 @@ class SQLiteRepository:
                 session.delete(deployment)
                 deployment_out = DeploymentOut.parse_obj(deployment)
                 deployment_out.deleted = True
-                await connection_manager.broadcast(deployment_out)
+                await self.dispatch_event(deployment_out)
             session.commit()
 
 

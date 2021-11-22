@@ -173,3 +173,15 @@ def test_message():
         test: str = "message"
 
     return Message()
+
+
+@pytest.fixture
+def handler(repository):
+    class Handler:
+        async def handle_event(self, event):
+            self.last_event = event
+
+    handler = Handler()
+    repository.register_event_handler(handler)
+
+    return handler
