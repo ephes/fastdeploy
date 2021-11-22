@@ -46,7 +46,7 @@ function snakeToCamelStr(str: string): string {
     .replace(/[-_][a-z0-9]/g, (group) => group.slice(-1).toUpperCase());
 };
 
-function snakeToCamel(obj: any): any {
+export function snakeToCamel(obj: any): any {
   const newObj: any = {};
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
