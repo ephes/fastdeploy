@@ -3,7 +3,6 @@ from sqlmodel import Session, SQLModel, create_engine
 from .config import settings
 from .filesystem import working_directory
 from .models import Deployment, DeploymentOut, Service, ServiceOut, Step, StepOut, User
-from .websocket import connection_manager
 
 
 with working_directory(settings.project_root):
@@ -137,7 +136,7 @@ class InMemoryRepository(BaseRepository):
     async def add_deployment(self, deployment: Deployment) -> Deployment:
         self.deployments.append(deployment)
         deployment.id = len(self.deployments)
-        await connection_manager.broadcast(DeploymentOut.parse_obj(deployment))
+        await self.dispatch_event(DeploymentOut.parse_obj(deployment))
         return deployment
 
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
