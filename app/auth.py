@@ -61,9 +61,15 @@ class TokenBase(BaseModel):
     async def fetch_item_from_db(self):
         raise NotImplementedError()
 
+    async def on_validation_success(self):
+        ...
+
     async def validate(self):
         self.item_from_db = await self.fetch_item_from_db()
-        return self.item_exists_in_database(self.item_from_db)
+        is_valid = self.item_exists_in_database(self.item_from_db)
+        if is_valid:
+            await self.on_validation_success()
+        return is_valid
 
     @property
     def expires_at(self):
@@ -72,6 +78,10 @@ class TokenBase(BaseModel):
 
 class UserToken(TokenBase):
     user: str
+    user_model: Optional[User]
+
+    async def on_validation_success(self):
+        self.user_model = cast(User, self.item_from_db)
 
     async def fetch_item_from_db(self) -> Optional[User]:
         return await database.repository.get_user_by_name(self.user)
@@ -93,7 +103,7 @@ class DeploymentToken(TokenBase):
         return await database.repository.get_deployment_by_id(self.deployment)
 
 
-def payload_to_token(payload):
+def payload_to_token(payload) -> UserToken | ServiceToken | DeploymentToken:
     type_to_token = {
         "user": UserToken,
         "service": ServiceToken,
@@ -101,7 +111,15 @@ def payload_to_token(payload):
     }
     if (token_type := type_to_token.get(payload.get("type"))) is None:
         raise ValueError("unknown token type")
-    return token_type.parse_obj(payload)
+    # butt ugly FIXME
+    if token_type is UserToken:
+        return UserToken(**payload)
+    elif token_type is ServiceToken:
+        return ServiceToken(**payload)
+    elif token_type is DeploymentToken:
+        return DeploymentToken(**payload)
+    else:
+        raise ValueError("unknown token type")
 
 
 async def verify_access_token(access_token: str) -> UserToken | ServiceToken | DeploymentToken:
@@ -117,8 +135,9 @@ async def verify_access_token(access_token: str) -> UserToken | ServiceToken | D
 
 async def get_user_from_access_token(token: str) -> User:
     user_token = await verify_access_token(token)
-    assert isinstance(user_token.item_from_db, User)
-    return cast(User, user_token.item_from_db)
+    assert isinstance(user_token, UserToken)
+    assert isinstance(user_token.user_model, User)
+    return user_token.user_model
 
 
 async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
