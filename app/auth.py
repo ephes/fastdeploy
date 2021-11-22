@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, cast
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -118,7 +118,8 @@ async def verify_access_token(access_token: str) -> UserToken | ServiceToken | D
 async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     try:
         verified_token = await verify_access_token(token)
-        return verified_token.item_from_db
+        assert isinstance(verified_token.item_from_db, User)
+        return cast(User, verified_token.item_from_db)
     except Exception:
         raise CREDENTIALS_EXCEPTION
 
@@ -134,6 +135,7 @@ async def get_current_service_token(token: str = Depends(OAUTH2_SCHEME)) -> Serv
 async def get_current_deployment(token: str = Depends(OAUTH2_SCHEME)) -> Deployment:
     try:
         deployment_token = await verify_access_token(token)
-        return deployment_token.item_from_db
+        assert isinstance(deployment_token.item_from_db, Deployment)
+        return cast(Deployment, deployment_token.item_from_db)
     except Exception:
         raise CREDENTIALS_EXCEPTION
