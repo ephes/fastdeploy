@@ -17,9 +17,6 @@ export const useSettings = defineStore("settings", {
     return {
       env: { ...ENV_DEFAULT },
       developmentApi: API_BASE_DEFAULT,
-      // websocket url
-      // productionWebsocketVite: String(import.meta.env.VITE_WEBSOCKET_URL_PROD),
-      // developmentWebsocketVite: String(import.meta.env.VITE_WEBSOCKET_URL_DEV),
       developmentWebsocket: WEBSOCKET_URL_DEFAULT,
     };
   },
@@ -54,6 +51,6 @@ export const useSettings = defineStore("settings", {
       if (meta.hot) {
         meta.hot.accept(acceptHMRUpdate(useSettings, meta.hot));
       }
-    }
+    },
   },
 });
