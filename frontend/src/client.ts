@@ -82,14 +82,6 @@ export function createClient(): Client {
         } else {
           this.steps.set(step.id, step);
         }
-      } else if (message.type === "service") {
-        // const service = createService(message) as Service;
-        // console.log("service: ", service);
-        // if (service.deleted) {
-        //   this.services.delete(service.id);
-        // } else {
-        //   this.services.set(service.id, service);
-        // }
       } else if (message.type === "deployment") {
         const deployment = createDeployment(message) as Deployment;
         console.log("deployment: ", deployment);
