@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CREDENTIALS_EXCEPTION
 from ..database import repository
-from ..dependencies import get_current_active_user, get_current_deployment
+from ..dependencies import get_current_active_deployment, get_current_active_user
 from ..models import Deployment, Step, StepBase, StepOut, User
 
 
@@ -16,7 +16,7 @@ router = APIRouter(
 
 
 @router.post("/")
-async def create_step(step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)) -> StepOut:
+async def create_step(step_in: StepBase, deployment: Deployment = Depends(get_current_active_deployment)) -> StepOut:
     step = Step(**step_in.dict(), deployment_id=deployment.id)
     step.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
     step = await repository.add_step(step)
@@ -33,7 +33,7 @@ async def get_steps_by_deployment(
 
 @router.put("/{step_id}")
 async def step_update(
-    step_id: int, step_in: StepBase, deployment: Deployment = Depends(get_current_deployment)
+    step_id: int, step_in: StepBase, deployment: Deployment = Depends(get_current_active_deployment)
 ) -> StepOut:
     step = await repository.get_step_by_id(step_id)
     if step.deployment_id != deployment.id:

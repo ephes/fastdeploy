@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 
 from ..auth import ServiceToken
 from ..database import repository
-from ..dependencies import get_current_active_user, get_current_service_token
+from ..dependencies import get_current_active_service_token, get_current_active_user
 from ..models import Deployment, Service, User
 from ..tasks import get_deploy_environment, run_deploy
 
@@ -24,7 +24,7 @@ async def get_deployments(current_user: User = Depends(get_current_active_user))
 
 @router.post("/")
 async def create_deployment(
-    background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_service_token)
+    background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_active_service_token)
 ):
     assert isinstance(service_token.item_from_db, Service)
     service = cast(Service, service_token.item_from_db)

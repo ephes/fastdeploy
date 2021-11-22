@@ -13,11 +13,11 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     return current_user
 
 
-async def get_current_service_token(
+async def get_current_active_service_token(
     service_token: ServiceToken = Depends(get_current_service_token),
 ):
     return service_token
 
 
-async def get_current_deployment(deployment: Deployment = Depends(get_current_deployment)):
+async def get_current_active_deployment(deployment: Deployment = Depends(get_current_deployment)):
     return deployment
