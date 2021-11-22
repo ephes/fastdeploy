@@ -115,11 +115,15 @@ async def verify_access_token(access_token: str) -> UserToken | ServiceToken | D
     return token
 
 
+async def get_user_from_access_token(token: str) -> User:
+    user_token = await verify_access_token(token)
+    assert isinstance(user_token.item_from_db, User)
+    return cast(User, user_token.item_from_db)
+
+
 async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     try:
-        verified_token = await verify_access_token(token)
-        assert isinstance(verified_token.item_from_db, User)
-        return cast(User, verified_token.item_from_db)
+        return await get_user_from_access_token(token)
     except Exception:
         raise CREDENTIALS_EXCEPTION
 

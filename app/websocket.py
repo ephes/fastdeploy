@@ -15,13 +15,13 @@ class ConnectionManager:
         self.all_connections[client_id] = websocket
 
     async def authenticate(self, client_id: UUID, access_token: str):
-        from .auth import verify_access_token
+        from .auth import get_user_from_access_token
 
         try:
-            token = await verify_access_token(access_token)
+            user = await get_user_from_access_token(access_token)
             message = {
                 "type": "authentication",
-                "detail": f"access token verification successful for user {token.user}",
+                "detail": f"access token verification successful for user {user.name}",
             }
             self.active_connections[client_id] = self.all_connections[client_id]
         except JWTError:
