@@ -5,6 +5,7 @@ describe("Test snakeToCamel function", () => {
     const testCases = [
       [{ testCase: "foobar" }, { testCase: "foobar" }],
       [{ test_case: "foobar" }, { testCase: "foobar" }],
+      [{ test_23case: "foobar" }, { test23case: "foobar" }],
     ];
     testCases.forEach(([input, expected]) => {
       expect(snakeToCamel(input)).toStrictEqual(expected);
