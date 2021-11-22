@@ -124,6 +124,7 @@ class InMemoryRepository:
     async def add_deployment(self, deployment: Deployment) -> Deployment:
         self.deployments.append(deployment)
         deployment.id = len(self.deployments)
+        await connection_manager.broadcast(DeploymentOut.parse_obj(deployment))
         return deployment
 
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
@@ -253,6 +254,7 @@ class SQLiteRepository:
             session.add(deployment)
             session.commit()
             session.refresh(deployment)
+        await connection_manager.broadcast(DeploymentOut.parse_obj(deployment))
         return deployment
 
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
