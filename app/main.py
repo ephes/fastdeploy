@@ -13,6 +13,7 @@ from .websocket import connection_manager
 
 
 database.create_db_and_tables()
+database.repository.register_event_handler(connection_manager)
 app = FastAPI()
 app.include_router(users.router)
 app.include_router(deployments.router)

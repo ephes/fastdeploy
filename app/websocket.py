@@ -40,5 +40,8 @@ class ConnectionManager:
         for connection in self.active_connections.values():
             await connection.send_text(message.json())
 
+    async def handle_event(self, event):
+        await self.broadcast(event)
+
 
 connection_manager = ConnectionManager()
