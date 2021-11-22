@@ -274,6 +274,7 @@ class SQLiteRepository:
             session.commit()
 
 
+repository: SQLiteRepository | InMemoryRepository
 if settings.repository == "sqlite":
     repository = SQLiteRepository()
 elif settings.repository == "in_memory":
