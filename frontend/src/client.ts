@@ -37,6 +37,26 @@ function createDeployment(message: any): Deployment {
   return deployment;
 }
 
+function snakeToCamelStr(str: string): string {
+  if (!/[_-]/.test(str)) {
+    return str;
+  }
+  return str
+    .toLowerCase()
+    .replace(/[-_][a-z0-9]/g, (group) => group.slice(-1).toUpperCase());
+};
+
+function snakeToCamel(obj: any): any {
+  const newObj: any = {};
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const newKey = snakeToCamelStr(key);
+      newObj[newKey] = obj[key];
+    }
+  }
+  return newObj;
+};
+
 export function createClient(): Client {
   const client: Client = {
     uuid: uuidv4(),
@@ -65,8 +85,9 @@ export function createClient(): Client {
       );
     },
     notifyStores(message: Message) {
+      const newMessage = snakeToCamel(message);
       for (const store of this.stores) {
-        store.onMessage(message);
+        store.onMessage(newMessage);
       }
     },
     onMessage(event: any) {
