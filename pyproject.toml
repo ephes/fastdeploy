@@ -1,2 +1,5 @@
 [tool.black]
 line-length = 119
+
+[tool.bandit]
+skips = ["B101"]
