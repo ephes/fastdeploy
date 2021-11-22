@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from . import database
 from .config import settings
-from .models import Deployment, User
+from .models import Deployment, Service, User
 
 
 PWD_CONTEXT = CryptContext(schemes=[settings.password_hash_algorithm], deprecated="auto")
@@ -91,6 +91,10 @@ class ServiceToken(TokenBase):
     service: str
     origin: str
     user: str
+    service_model: Optional[Service]
+
+    async def on_validation_success(self):
+        self.service_model = cast(Service, self.item_from_db)
 
     async def fetch_item_from_db(self):
         return await database.repository.get_service_by_name(self.service)
