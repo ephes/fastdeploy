@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router';
 
 import { useServices } from '../stores/service';
 import { useDeployments } from '../stores/deployment';
-import { Deployment, ServiceWithId } from '../typings';
+import { Deployment } from '../typings';
 
 const serviceStore = useServices();
 const deploymentStore = useDeployments();
@@ -23,7 +23,7 @@ async function startDeployment(serviceName: string) {
     <input v-model="serviceStore.new.deploy" placeholder="deploy script" />
     <button @click="serviceStore.addService()">add</button>
     <br />
-    <table align="center">
+    <table>
       <tr>
         <th>name</th>
         <th>collect script</th>
