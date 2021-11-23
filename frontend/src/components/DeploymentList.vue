@@ -8,7 +8,7 @@ deploymentStore.fetchDeployments();
 <template>
   <div>
     <h1>Deployments</h1>
-    <table align="center">
+    <table>
       <tr>
         <th>id</th>
         <th>service_id</th>
@@ -16,7 +16,7 @@ deploymentStore.fetchDeployments();
         <th>user</th>
         <th>link</th>
       </tr>
-      <tr v-for="[id, deployment] in deploymentStore.deployments" :key="id">
+      <tr v-for="deployment of deploymentStore.deployments" :key="deployment.id">
         <td>{{ deployment.id }}</td>
         <td>{{ deployment.service_id }}</td>
         <td>{{ deployment.origin }}</td>

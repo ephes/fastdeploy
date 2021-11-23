@@ -1,6 +1,6 @@
 import { App, ref, Ref, reactive } from "vue";
 import { v4 as uuidv4 } from "uuid";
-import { Step, Client, Service, Deployment, Message } from "./typings";
+import { Step, Client, Deployment, Message } from "./typings";
 import { useSettings } from "./stores/config";
 import { useAuth } from "./stores/auth";
 
@@ -23,18 +23,6 @@ function createStep(message: any): Step {
     deleted: message.deleted,
   };
   return step;
-}
-
-function createDeployment(message: any): Deployment {
-  const deployment: Deployment = {
-    id: message.id,
-    service_id: message.service_id,
-    origin: message.origin,
-    user: message.user,
-    created: toUtcDate(new Date(message.created)),
-    deleted: message.deleted,
-  };
-  return deployment;
 }
 
 function snakeToCamelStr(str: string): string {
@@ -63,7 +51,6 @@ export function createClient(): Client {
     connection: null,
     stores: [],
     steps: reactive(new Map<number, Step>()),
-    deployments: reactive(new Map<number, Deployment>()),
     install(app: App, options: any) {
       app.provide("client", this);
     },
@@ -102,14 +89,6 @@ export function createClient(): Client {
           this.steps.delete(step.id);
         } else {
           this.steps.set(step.id, step);
-        }
-      } else if (message.type === "deployment") {
-        const deployment = createDeployment(message) as Deployment;
-        console.log("deployment: ", deployment);
-        if (deployment.deleted) {
-          this.deployments.delete(deployment.id);
-        } else {
-          this.deployments.set(deployment.id, deployment);
         }
       }
     },
@@ -167,9 +146,8 @@ export function createClient(): Client {
         method: "POST",
         headers: headers,
       });
-      const deployment = createDeployment(await response.json());
+      const deployment: Deployment = await response.json();
       console.log("start deployment response: ", deployment);
-      this.deployments.set(deployment.id, deployment);
       return deployment;
     },
     async login(username: string, password: string) {
@@ -242,14 +220,8 @@ export function createClient(): Client {
       const response = await fetch(this.getUrl("deployments"), {
         headers: headers,
       });
-      const deployments = (await response.json()).map(createDeployment);
-      for (const deployment of deployments) {
-        client.deployments.set(deployment.id, deployment);
-      }
+      const deployments: Deployment[] = await response.json();
       console.log("fetchDeployments: ", deployments);
-      for (const deployment of deployments) {
-        client.deployments.set(deployment.id, deployment);
-      }
       return deployments;
     },
     async fetchStepsFromDeployment(deploymentId: number) {

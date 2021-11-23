@@ -3,8 +3,8 @@ import { createApp, markRaw } from "vue";
 import { setActivePinia, createPinia } from "pinia";
 
 import { Client, Deployment } from "../src/typings";
-import { createClient } from "../src/client";
-import { useDeployments, createDeployment } from "../src/stores/deployment";
+import { createClient, snakeToCamel } from "../src/client";
+import { useDeployments } from "../src/stores/deployment";
 
 declare module "pinia" {
   export interface PiniaCustomProperties {
@@ -27,6 +27,15 @@ let client: Client;
 let connection: Connection;
 let deploymentStore: any;
 
+const deployment: Deployment = {
+  id: 1,
+  service_id: 1,
+  origin: "GitHub",
+  user: "deploy",
+  created: "2021-11-23T10:03:01.276Z",
+  type: "deployment",
+};
+
 describe("Deployment Store Websocket", () => {
   beforeEach(() => {
     const app = createApp({});
@@ -36,8 +45,6 @@ describe("Deployment Store Websocket", () => {
     client.registerWebsocketConnectionCallbacks(client.connection);
     const pinia = createPinia().use(({ store }) => {
       store.client = markRaw(client);
-      store.logMessages = true;
-      store.messages = [];
     });
     app.use(pinia);
     setActivePinia(pinia);
@@ -45,40 +52,27 @@ describe("Deployment Store Websocket", () => {
   });
 
   it("has no deployment store registered", () => {
-    const deployment = createDeployment({
-      id: 1,
-      service_id: 1,
-      origin: "GitHub",
-      user: "deploy",
-      created: new Date(),
-    });
     connection.send(createEvent({ ...deployment, type: "deployment" }));
-    expect(deploymentStore.deployments.size).toEqual(0);
+    expect(deploymentStore.deployments).toStrictEqual({});
   });
 
   it("has a deployment store registered", () => {
     client.registerStore(deploymentStore);
-    const deployment = createDeployment({
-      id: 1,
-      service_id: 1,
-      origin: "GitHub",
-      user: "deploy",
-      created: new Date(),
-    });
     connection.send(createEvent({ ...deployment, type: "deployment" }));
-    expect(deploymentStore.deployments.get(1).id).toBe(deployment.id);
+    expect(deploymentStore.deployments[deployment.id]).toStrictEqual(
+      snakeToCamel(deployment)
+    );
   });
 });
 
 let deploymentsToFetch: Deployment[] = [];
-let startedDeployment: Deployment;
 
 function createStubClient() {
   // replace addService, deleteService functions from original
   // client with stubs
   const client = createClient();
   client.startDeployment = async (serviceName: string) => {
-    return startedDeployment;
+    return deployment;
   };
   client.fetchDeployments = async () => {
     return deploymentsToFetch;
@@ -99,27 +93,17 @@ describe("Deployment Store Actions", () => {
   });
 
   it("starts a deployment", async () => {
-    const deployment = createDeployment({
-      id: 1,
-      service_id: 1,
-      origin: "GitHub",
-      user: "deploy",
-      created: new Date(),
-    });
-    startedDeployment = deployment;
     await deploymentStore.startDeployment("fastdeploy");
-    expect(deploymentStore.deployments.get(1)).toStrictEqual(deployment);
+    expect(deploymentStore.deployments[deployment.id]).toStrictEqual(
+      deployment
+    );
   });
+
   it("fetches the list of deployments", async () => {
-    const deployment = createDeployment({
-      id: 1,
-      service_id: 1,
-      origin: "GitHub",
-      user: "deploy",
-      created: new Date(),
-    });
     deploymentsToFetch = [deployment];
     await deploymentStore.fetchDeployments();
-    expect(deploymentStore.deployments.get(1).id).toBe(deployment.id);
+    expect(deploymentStore.deployments[deployment.id]).toStrictEqual(
+      deployment
+    );
   });
 });

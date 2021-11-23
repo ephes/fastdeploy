@@ -1,24 +1,12 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 
 import { toUtcDate } from "./datetime";
-import { Deployment, Message } from "../typings";
-
-export function createDeployment(message: any): Deployment {
-  const deployment: Deployment = {
-    id: message.id,
-    service_id: message.service_id,
-    origin: message.origin,
-    user: message.user,
-    created: toUtcDate(new Date(message.created)),
-    deleted: message.deleted,
-  };
-  return deployment;
-}
+import { Deployment, Message, DeploymentById } from "../typings";
 
 export const useDeployments = defineStore("deployments", {
   state: () => {
     return {
-      deployments: new Map<number | undefined, Deployment>(),
+      deployments: {} as DeploymentById,
     };
   },
   actions: {
@@ -30,23 +18,23 @@ export const useDeployments = defineStore("deployments", {
     async startDeployment(serviceName: string) {
       const deployment = await this.client.startDeployment(serviceName);
       console.log("started deployment: ", deployment);
-      this.deployments.set(deployment.id, deployment);
+      this.deployments[deployment.id] = deployment;
       return deployment;
     },
     async fetchDeployments() {
         const deployments = await this.client.fetchDeployments();
         for (const deployment of deployments) {
-          this.deployments.set(deployment.id, deployment);
+          this.deployments[deployment.id] = deployment;
         }
     },
     onMessage(message: Message) {
       console.debug("on message in deployments store: ", message);
       if (message.type === "deployment") {
-        const deployment = createDeployment(message);
+        const deployment = message as Deployment;
         if (deployment.deleted) {
-          this.deployments.delete(deployment.id);
+          delete this.deployments[deployment.id];
         } else {
-          this.deployments.set(deployment.id, deployment);
+          this.deployments[deployment.id] = deployment;
         }
       }
     },

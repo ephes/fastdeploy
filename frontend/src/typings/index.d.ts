@@ -28,6 +28,19 @@ type ServiceById = {
   [id: number]: ServiceWithId;
 }
 
+type Deployment = Message & {
+  id: number;
+  service_id: number;
+  origin: string;
+  user: string;
+  created: string;
+  deleted?: boolean;
+};
+
+type DeploymentById = {
+  [id: number]: Deployment;
+}
+
 type Step = Message & {
   id: number;
   name: string;
@@ -42,20 +55,10 @@ type Step = Message & {
   deleted: boolean;
 };
 
-type Deployment = Message & {
-  id: number;
-  service_id: number;
-  origin: string;
-  user: string;
-  created: Date;
-  deleted: boolean;
-};
-
 interface Client {
   uuid: any;
   connection: any;
   steps: Map<number, Step>;
-  deployments: Map<number, Deployment>;
   stores: any[];
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
