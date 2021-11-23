@@ -1,24 +1,12 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
-import { Service, Message } from "../typings";
-
-export function createService(message: any): Service {
-  const service: Service = {
-    id: message.id,
-    name: message.name,
-    collect: message.collect,
-    deploy: message.deploy,
-    deleted: message.deleted,
-  };
-  return service;
-}
+import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
 export const useServices = defineStore("services", {
   state: () => {
+    const newService: Service = { name: "", collect: "", deploy: "" };
     return {
-      services: new Map<number | undefined, Service>(),
-      logMessages: false as boolean,
-      messages: [] as any[],
-      new: createService({ name: "", collect: "", deploy: "" }),
+      services: {} as ServiceById,
+      new: newService,
     };
   },
   actions: {
@@ -28,35 +16,29 @@ export const useServices = defineStore("services", {
       }
     },
     async addService() {
-      const serviceWithId = await this.client.addService(this.new);
-      const newService = createService(serviceWithId);
-      this.services.set(newService.id, newService);
+      const service = await this.client.addService(this.new);
+      this.services[service.id] = service;
     },
-    async deleteService(id: number | undefined) {
-      if (id) {
-        const deletedId = await this.client.deleteService(id);
-        if (deletedId) {
-          this.services.delete(deletedId);
-        }
+    async deleteService(service_id: number) {
+      const deletedId = await this.client.deleteService(service_id);
+      if (deletedId) {
+        delete this.services[deletedId];
       }
     },
     async fetchServices() {
       const services = await this.client.fetchServices();
       for (const service of services) {
-        this.services.set(service.id, createService(service));
+        this.services[service.id] = service;
       }
     },
     onMessage(message: Message) {
       console.debug("on message in services store: ", message);
-      if (this.logMessages) {
-        this.messages.push(message);
-      }
       if (message.type === "service") {
-        const service = createService(message);
+        const service = message as ServiceWithId;
         if (service.deleted) {
-          this.services.delete(service.id);
+          delete this.services[service.id];
         } else {
-          this.services.set(service.id, service);
+          this.services[service.id] = service;
         }
       }
     },

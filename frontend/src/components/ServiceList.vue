@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router';
 
 import { useServices } from '../stores/service';
 import { useDeployments } from '../stores/deployment';
-import { Deployment } from '../typings';
+import { Deployment, ServiceWithId } from '../typings';
 
 const serviceStore = useServices();
 const deploymentStore = useDeployments();
@@ -32,7 +32,7 @@ async function startDeployment(serviceName: string) {
         <th>deploy</th>
         <th>delete</th>
       </tr>
-      <tr v-for="[id, service] in serviceStore.services" :key="id" class="list-service">
+      <tr v-for="service of serviceStore.services" :key="service.id" class="list-service">
         <td>{{ service.name }}</td>
         <td>{{ service.collect }}</td>
         <td>{{ service.deploy }}</td>

@@ -8,11 +8,27 @@ interface Environment {
   VITE_WEBSOCKET_URL_PROD: string;
 }
 
-interface Message {
-  type: string;
+type Message = {
+  type?: "service" | "deployment" | "step";
+};
+
+type Service = Message & {
+  id?: number;
+  name: string;
+  collect: string;
+  deploy: string;
+  deleted?: boolean;
+};
+
+type ServiceWithId = Service & {
+  id: number;
 }
 
-interface Step {
+type ServiceById = {
+  [id: number]: ServiceWithId;
+}
+
+type Step = Message & {
   id: number;
   name: string;
   state: string;
@@ -24,24 +40,16 @@ interface Step {
   started: Date | null;
   finished: Date | null;
   deleted: boolean;
-}
+};
 
-interface Service {
-  id: number | undefined;
-  name: string;
-  collect: string;
-  deploy: string;
-  deleted: boolean;
-}
-
-interface Deployment {
+type Deployment = Message & {
   id: number;
   service_id: number;
   origin: string;
   user: string;
   created: Date;
   deleted: boolean;
-}
+};
 
 interface Client {
   uuid: any;
@@ -67,8 +75,8 @@ interface Client {
     accessToken: string,
     origin: string
   ): Promise<string>;
-  fetchServices(): Promise<Service[]>;
-  addService(service: Service): Promise<any>;
+  fetchServices(): Promise<ServiceWithId[]>;
+  addService(service: Service): Promise<ServiceWithId>;
   deleteService(serviceId: number): Promise<number | null>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
