@@ -11,6 +11,8 @@ import {
 } from "./stores/config";
 import { useServices } from "./stores/service";
 import { useAuth } from "./stores/auth";
+import { useDeployments } from "./stores/deployment";
+import { useSteps } from "./stores/step";
 import { createPinia } from "pinia";
 import Login from "./components/Login.vue";
 import ServiceList from "./components/ServiceList.vue";
@@ -98,5 +100,11 @@ services.useHMRUpdate(import.meta);
 client.registerStore(services);
 const auth = useAuth();
 auth.useHMRUpdate(import.meta);
+const deployments = useDeployments();
+deployments.useHMRUpdate(import.meta);
+client.registerStore(deployments);
+const steps = useSteps();
+steps.useHMRUpdate(import.meta);
+client.registerStore(steps);
 
 app.mount("#app");

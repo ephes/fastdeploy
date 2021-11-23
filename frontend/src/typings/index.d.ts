@@ -46,14 +46,18 @@ type Step = Message & {
   name: string;
   state: string;
   changed: boolean;
-  in_progress: boolean;
-  deployment_id: number;
+  inProgress: boolean;
+  deploymentId: number;
   done: boolean;
-  created: Date;
-  started: Date | null;
-  finished: Date | null;
-  deleted: boolean;
+  created: string;
+  started: string | null;
+  finished: string | null;
+  deleted?: boolean;
 };
+
+type StepById = {
+  [id: number]: Step;
+}
 
 interface Client {
   uuid: any;

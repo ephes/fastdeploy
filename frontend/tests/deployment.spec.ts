@@ -25,7 +25,7 @@ function createEvent(data: any): MessageEvent {
 
 let client: Client;
 let connection: Connection;
-let deploymentStore: any;
+let deploymentsStore: any;
 
 const deployment: Deployment = {
   id: 1,
@@ -48,18 +48,18 @@ describe("Deployment Store Websocket", () => {
     });
     app.use(pinia);
     setActivePinia(pinia);
-    deploymentStore = useDeployments();
+    deploymentsStore = useDeployments();
   });
 
-  it("has no deployment store registered", () => {
+  it("has no deployments store registered", () => {
     connection.send(createEvent({ ...deployment, type: "deployment" }));
-    expect(deploymentStore.deployments).toStrictEqual({});
+    expect(deploymentsStore.deployments).toStrictEqual({});
   });
 
-  it("has a deployment store registered", () => {
-    client.registerStore(deploymentStore);
+  it("has a deployments store registered", () => {
+    client.registerStore(deploymentsStore);
     connection.send(createEvent({ ...deployment, type: "deployment" }));
-    expect(deploymentStore.deployments[deployment.id]).toStrictEqual(
+    expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       snakeToCamel(deployment)
     );
   });
@@ -68,7 +68,7 @@ describe("Deployment Store Websocket", () => {
 let deploymentsToFetch: Deployment[] = [];
 
 function createStubClient() {
-  // replace addService, deleteService functions from original
+  // replace startDeployment, fetchDeployments functions from original
   // client with stubs
   const client = createClient();
   client.startDeployment = async (serviceName: string) => {
@@ -89,20 +89,20 @@ describe("Deployment Store Actions", () => {
     });
     app.use(pinia);
     setActivePinia(pinia);
-    deploymentStore = useDeployments();
+    deploymentsStore = useDeployments();
   });
 
   it("starts a deployment", async () => {
-    await deploymentStore.startDeployment("fastdeploy");
-    expect(deploymentStore.deployments[deployment.id]).toStrictEqual(
+    await deploymentsStore.startDeployment("fastdeploy");
+    expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       deployment
     );
   });
 
   it("fetches the list of deployments", async () => {
     deploymentsToFetch = [deployment];
-    await deploymentStore.fetchDeployments();
-    expect(deploymentStore.deployments[deployment.id]).toStrictEqual(
+    await deploymentsStore.fetchDeployments();
+    expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       deployment
     );
   });

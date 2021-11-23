@@ -20,7 +20,7 @@ async function startDeployment(serviceName: string) {
     <h1>Services</h1>
     <input v-model="serviceStore.new.name" placeholder="service name" />
     <input v-model="serviceStore.new.collect" placeholder="collect script" />
-    <input v-model="serviceStore.new.deploy" placeholder="deploy script" />
+    <iuseDeploymentsserviceStore.new.deploy" placeholder="deploy script" />
     <button @click="serviceStore.addService()">add</button>
     <br />
     <table>
