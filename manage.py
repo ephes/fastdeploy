@@ -74,6 +74,8 @@ def update():
     """
     subprocess.call(
         [
+            sys.executable,
+            "-m",
             "pip-compile",
             "--generate-hashes",
             "app/requirements/production.in",
@@ -82,7 +84,7 @@ def update():
             "app/requirements/develop.txt",
         ]
     )
-    subprocess.call(["pip-sync", "app/requirements/develop.txt"])
+    subprocess.call([sys.executable, "-m", "pip-sync", "app/requirements/develop.txt"])
     with working_directory(settings.project_root / "frontend"):
         subprocess.call(["npm", "update"])
 
