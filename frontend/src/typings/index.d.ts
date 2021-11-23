@@ -1,6 +1,6 @@
 import { App, Ref } from "vue";
 
-interface Environment {
+type Environment = {
   MODE: string;
   VITE_API_BASE_DEV: string;
   VITE_API_BASE_PROD: string;
