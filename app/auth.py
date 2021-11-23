@@ -3,8 +3,8 @@ from typing import Optional, cast
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt
-from passlib.context import CryptContext
+from jose import jwt  # type: ignore
+from passlib.context import CryptContext  # type: ignore
 from pydantic import BaseModel
 
 from . import database

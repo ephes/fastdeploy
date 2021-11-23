@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import WebSocket
-from jose import JWTError
+from jose import JWTError  # type: ignore
 from pydantic import BaseModel
 
 
