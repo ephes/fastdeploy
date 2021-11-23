@@ -104,7 +104,7 @@ def test():
     - run backend tests via pytest
     - fun frontend tests via jest
     """
-    subprocess.call(["pytest"])
+    subprocess.call([sys.executable, "-m", "pytest"])
     with working_directory(settings.project_root / "frontend"):
         subprocess.call(["npm", "run", "test"])
 
