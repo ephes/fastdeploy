@@ -14,7 +14,8 @@ deploymentStore.fetchDeployments();
         <th>service_id</th>
         <th>origin</th>
         <th>user</th>
-        <th>linuseDeployments/tr>
+        <th>deployments</th>
+      </tr>
       <tr v-for="deployment of deploymentStore.deployments" :key="deployment.id">
         <td>{{ deployment.id }}</td>
         <td>{{ deployment.service_id }}</td>
