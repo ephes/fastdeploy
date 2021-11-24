@@ -32,7 +32,6 @@ export const useServices = defineStore("services", {
       }
     },
     onMessage(message: Message) {
-      console.debug("on message in services store: ", message);
       if (message.type === "service") {
         const service = message as ServiceWithId;
         if (service.deleted) {

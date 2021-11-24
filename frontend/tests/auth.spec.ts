@@ -14,7 +14,6 @@ function createStubClient() {
   // replace login function from original client with stub
   const client = createClient();
   client.login = async (username: string, password: string) => {
-    console.log("login in stub client: ", username, password);
     return loginResponse;
   };
   client.initWebsocketConnection = (settings: any) => {
