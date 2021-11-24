@@ -9,7 +9,7 @@ import { useAuth } from '../stores/auth';
 const client: Client = inject("client") as Client
 const route = useRoute()
 const serviceStore = useServices()
-const service: Service | undefined = serviceStore.services.get(Number(route.params.id))
+const service: Service | undefined = serviceStore.services[Number(route.params.id)]
 
 const authStore = useAuth();
 
