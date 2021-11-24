@@ -1,12 +1,8 @@
-import { App, ref, Ref, reactive } from "vue";
+import { App } from "vue";
 import { v4 as uuidv4 } from "uuid";
-import { Step, Client, Deployment, Message } from "./typings";
+import { Client, Deployment, Message } from "./typings";
 import { useSettings } from "./stores/config";
 import { useAuth } from "./stores/auth";
-
-function toUtcDate(date: Date): Date {
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-}
 
 function snakeToCamelStr(str: string): string {
   if (!/[_-]/.test(str)) {
@@ -33,7 +29,7 @@ export function createClient(): Client {
     uuid: uuidv4(),
     connection: null,
     stores: [],
-    install(app: App, options: any) {
+    install(app: App) {
       app.provide("client", this);
     },
     registerStore(store: any) {
