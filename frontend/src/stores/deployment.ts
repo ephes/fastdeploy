@@ -28,7 +28,6 @@ export const useDeployments = defineStore("deployments", {
         }
     },
     onMessage(message: Message) {
-      console.debug("on message in deployments store: ", message);
       if (message.type === "deployment") {
         const deployment = message as Deployment;
         if (deployment.deleted) {
