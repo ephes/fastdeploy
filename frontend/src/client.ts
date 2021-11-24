@@ -33,7 +33,6 @@ export function createClient(): Client {
     uuid: uuidv4(),
     connection: null,
     stores: [],
-    steps: reactive(new Map<number, Step>()),
     install(app: App, options: any) {
       app.provide("client", this);
     },

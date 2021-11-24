@@ -62,7 +62,6 @@ type StepById = {
 interface Client {
   uuid: any;
   connection: any;
-  steps: Map<number, Step>;
   stores: any[];
   /**
    * Called automatically by `app.use(client)`. Should not be called manually by
