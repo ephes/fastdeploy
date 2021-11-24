@@ -1,6 +1,6 @@
 import { App } from "vue";
 import { v4 as uuidv4 } from "uuid";
-import { Client, Deployment, Message } from "./typings";
+import { Client, WebsocketConnection, Deployment, Message } from "./typings";
 import { useSettings } from "./stores/config";
 import { useAuth } from "./stores/auth";
 
@@ -24,21 +24,13 @@ export function snakeToCamel(obj: any): any {
   return newObj;
 };
 
-export function createClient(): Client {
-  const client: Client = {
+export function createWebsocketConnection(): WebsocketConnection {
+  const connection: WebsocketConnection = {
     uuid: uuidv4(),
-    connection: null,
     stores: [],
-    install(app: App) {
-      app.provide("client", this);
-    },
+    connection: null,
     registerStore(store: any) {
       this.stores.push(store);
-    },
-    getUrl(path: string): string {
-      const settings = useSettings();
-      console.log("base api: ", settings.api);
-      return new URL(settings.api) + path;
     },
     onConnectionOpen(event: MessageEvent) {
       console.log(event);
@@ -71,6 +63,21 @@ export function createClient(): Client {
     authenticateWebsocketConnection(connection: any, accessToken: string) {
       const credentials = JSON.stringify({ access_token: accessToken });
       connection.send(credentials);
+    },
+  };
+  return connection;
+};
+
+export function createClient(): Client {
+  const client: Client = {
+    websocket: createWebsocketConnection(),
+    install(app: App) {
+      app.provide("client", this);
+    },
+    getUrl(path: string): string {
+      const settings = useSettings();
+      console.log("base api: ", settings.api);
+      return new URL(settings.api) + path;
     },
     async fetchServiceToken(
       serviceName: string,

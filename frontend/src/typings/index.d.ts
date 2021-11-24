@@ -59,22 +59,27 @@ type StepById = {
   [id: number]: Step;
 }
 
-interface Client {
+type WebsocketConnection = {
   uuid: any;
-  connection: any;
   stores: any[];
-  /**
-   * Called automatically by `app.use(client)`. Should not be called manually by
-   * the user.
-   *
-   * @internal
-   * @param app - Application that uses the client
-   */
-  install(app: App, options: any): void;
-  getUrl(path: string): string;
-  login(username: string, password: string): Promise<any>;
+  connection: any;
   initWebsocketConnection(settings: any): void;
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
+  onMessage(event: any): void;
+  onMessage(event: any): void;
+  onConnectionOpen(event: MessageEvent): void;
+  registerStore(store: any): void;
+  registerWebsocketConnectionCallbacks(connection: any): void;
+  notifyStores(message: Message): void;
+}
+
+interface Client {
+  websocket: WebsocketConnection;
+  install(app: App, options: any): void;  // vue plugin
+  getUrl(path: string): string;
+  login(username: string, password: string): Promise<any>;
+  // initWebsocketConnection(settings: any): void;
+  // authenticateWebsocketConnection(connection: any, accessToken: string): void;
   startDeployment(serviceName: string): Promise<Deployment>;
   fetchServiceToken(
     serviceName: string,
@@ -86,9 +91,9 @@ interface Client {
   deleteService(serviceId: number): Promise<number | null>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
-  registerStore(store: any): void;
-  onMessage(event: any): void;
-  onConnectionOpen(event: MessageEvent): void;
-  registerWebsocketConnectionCallbacks(connection: any): void;
-  notifyStores(message: Message): void;
+  // registerStore(store: any): void;
+  // onMessage(event: any): void;
+  // onConnectionOpen(event: MessageEvent): void;
+  // registerWebsocketConnectionCallbacks(connection: any): void;
+  // notifyStores(message: Message): void;
 }
