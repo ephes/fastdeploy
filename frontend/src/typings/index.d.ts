@@ -44,7 +44,7 @@ type DeploymentById = {
 type Step = Message & {
   id: number;
   name: string;
-  state: string;
+  state: string | null;
   changed: boolean;
   inProgress: boolean;
   deploymentId: number;

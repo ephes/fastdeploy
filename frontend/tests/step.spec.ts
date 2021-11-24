@@ -27,7 +27,7 @@ let client: Client;
 let connection: Connection;
 let stepsStore: any;
 
-const step: Step = {
+const apiStep: object = {
   id: 1,
   name: "Create unix user deploy",
   state: null,
@@ -39,7 +39,10 @@ const step: Step = {
   started: "2021-11-23T10:04:01.276Z",
   finished: null,
   deleted: false,
+  type: "step",
 };
+
+const step: Step = snakeToCamel(apiStep);
 
 describe("Steps Store Websocket", () => {
   beforeEach(() => {
@@ -57,27 +60,25 @@ describe("Steps Store Websocket", () => {
   });
 
   it("has no steps store registered", () => {
-    connection.send(createEvent({ ...step, type: "step" }));
+    connection.send(createEvent(apiStep));
     expect(stepsStore.steps).toStrictEqual({});
   });
 
   it("has a steps store registered", () => {
     client.registerStore(stepsStore);
-    connection.send(createEvent({ ...step, type: "step" }));
-    expect(stepsStore.steps[step.id]).toStrictEqual(
-      snakeToCamel(step)
-    );
+    connection.send(createEvent(apiStep));
+    expect(stepsStore.steps[step.id]).toStrictEqual(step);
   });
 });
 
-let stepsToFetch: Step[] = [];
+let stepsToFetch: Object[] = [];
 
 function createStubClient() {
   // replace  functions from original
   // client with stub
   const client = createClient();
   client.fetchStepsFromDeployment = async (deploymentId: number) => {
-    return stepsToFetch;
+    return stepsToFetch.map(step => snakeToCamel(step));
   };
   return client;
 }
@@ -95,10 +96,8 @@ describe("Steps Store Actions", () => {
   });
 
   it("fetches the list of steps for a deployment", async () => {
-    stepsToFetch = [step];
+    stepsToFetch = [apiStep];
     await stepsStore.fetchStepsFromDeployment(step.deploymentId);
-    expect(stepsStore.deployments[step.id]).toStrictEqual(
-      step
-    );
+    expect(stepsStore.steps[step.id]).toStrictEqual(step);
   });
 });

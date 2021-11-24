@@ -8,23 +8,6 @@ function toUtcDate(date: Date): Date {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
 }
 
-function createStep(message: any): Step {
-  const step: Step = {
-    id: message.id,
-    name: message.name,
-    state: message.state,
-    changed: message.changed,
-    in_progress: message.in_progress,
-    deployment_id: message.deployment_id,
-    done: message.done,
-    created: toUtcDate(new Date(message.created)),
-    started: message.started ? toUtcDate(new Date(message.started)) : null,
-    finished: message.finished ? toUtcDate(new Date(message.finished)) : null,
-    deleted: message.deleted,
-  };
-  return step;
-}
-
 function snakeToCamelStr(str: string): string {
   if (!/[_-]/.test(str)) {
     return str;
@@ -78,19 +61,8 @@ export function createClient(): Client {
       }
     },
     onMessage(event: any) {
-      console.log("onMessage: ", event);
       const message = JSON.parse(event.data) as Message;
       this.notifyStores(message);
-      console.log("in client.ts: ", message);
-      if (message.type === "step") {
-        const step = createStep(message) as Step;
-        console.log("step: ", step);
-        if (step.deleted) {
-          this.steps.delete(step.id);
-        } else {
-          this.steps.set(step.id, step);
-        }
-      }
     },
     initWebsocketConnection(settings: any) {
       let websocketUrl = settings.websocket;
@@ -240,11 +212,8 @@ export function createClient(): Client {
           headers: headers,
         }
       );
-      const steps = (await response.json()).map(createStep);
+      const steps = (await response.json() as Object[]).map(step => snakeToCamel(step));
       console.log("fetchSteps by deployment id: ", steps);
-      for (const step of steps) {
-        client.steps.set(step.id, step);
-      }
       return steps;
     },
   };

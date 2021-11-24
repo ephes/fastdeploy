@@ -20,7 +20,6 @@ export const useSteps = defineStore("steps", {
       }
     },
     onMessage(message: Message) {
-      console.debug("on message in steps store: ", message);
       if (message.type === "step") {
         const step = message as Step;
         if (step.deleted) {
