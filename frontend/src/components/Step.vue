@@ -7,7 +7,7 @@ const props = defineProps<{ step: Step }>();
 const el = ref<null | HTMLElement>(null);
 
 watchEffect(() => {
-  if (props.step.in_progress) {
+  if (props.step.inProgress) {
     console.log("scroll to: ", props.step.id, el.value);
     if (el.value) {
       el.value.scrollIntoView({ behavior: "smooth" });
@@ -18,11 +18,11 @@ watchEffect(() => {
 
 <template>
     <p ref="el" id="step">
-        {{ step.deployment_id }} {{ step.id }} {{ step.name }} <br />
+        {{ step.deploymentId }} {{ step.id }} {{ step.name }} <br />
         created: {{ step.created }} <br />
         started: {{ step.started }} <br />
         finished: {{ step.finished }} <br />
-        in progress: {{ step.in_progress }} <br />
+        in progress: {{ step.inProgress }} <br />
         done: {{ step.done }} <br />
         {{ step.state }} <br />
         {{ step.changed }}

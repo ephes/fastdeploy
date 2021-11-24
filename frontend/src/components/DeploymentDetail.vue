@@ -1,29 +1,19 @@
 <script setup lang="ts">
 import { inject, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { useDeployments } from '../stores/deployment';
+import { useSteps } from '../stores/step';
 import Step from './Step.vue';
-import { Client, Deployment } from '../typings';
+import { Client, Deployment, Step as StepType } from '../typings';
 
 const route = useRoute();
 const deploymentIdFromRoute = Number(route.params.id);
 
-const client: Client = inject('client') as Client;
-const deployment: Deployment | undefined = client.deployments.get(
-  deploymentIdFromRoute
-);
+const deploymentStore = useDeployments();
+const deployment: Deployment = deploymentStore.deployments[deploymentIdFromRoute];
 
-const steps = computed(() => {
-  const filteredSteps = [...client.steps].filter(
-    ([id, step]) => step.deployment_id === deploymentIdFromRoute
-  );
-  console.log('called computed..');
-  return filteredSteps;
-});
-
-onMounted(async () => {
-  // top level await does not quite work
-  await client.fetchStepsFromDeployment(deploymentIdFromRoute);
-});
+const stepsStore = useSteps();
+stepsStore.fetchStepsFromDeployment(deploymentIdFromRoute);
 </script>
 
 <template>
@@ -33,7 +23,7 @@ onMounted(async () => {
       <h2>deployment origin: {{ deployment.origin }}</h2>
     </div>
     <transition-group name="list" tag="p">
-      <div v-for="[id, step] in steps" :key="id" class="list-step">
+      <div v-for="step of stepsStore.getStepByDeployment(deploymentIdFromRoute)" :key="step.id" class="list-step">
         <step :step="step" />
       </div>
     </transition-group>
