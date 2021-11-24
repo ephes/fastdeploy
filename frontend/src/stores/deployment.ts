@@ -17,7 +17,6 @@ export const useDeployments = defineStore("deployments", {
     },
     async startDeployment(serviceName: string) {
       const deployment = await this.client.startDeployment(serviceName);
-      console.log("started deployment: ", deployment);
       this.deployments[deployment.id] = deployment;
       return deployment;
     },
