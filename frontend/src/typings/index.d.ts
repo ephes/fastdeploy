@@ -1,4 +1,5 @@
 import { App, Ref } from "vue";
+import { MandeInstance } from "mande";
 
 type Environment = {
   MODE: string;
@@ -74,7 +75,10 @@ type WebsocketConnection = {
 
 interface Client {
   websocket: WebsocketConnection;
+  mande: MandeInstance;
   install(app: App, options: any): void;  // vue plugin
+  setBackendUrl(apiBase: string): void;
+  setAccessToken(accessToken: string): void;
   getUrl(path: string): string;
   login(username: string, password: string): Promise<any>;
   startDeployment(serviceName: string): Promise<Deployment>;

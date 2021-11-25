@@ -1,4 +1,5 @@
 import { App } from "vue";
+import { mande, defaults as mandeDefaults } from 'mande'
 import { v4 as uuidv4 } from "uuid";
 import { Client, WebsocketConnection, Deployment, Message } from "./typings";
 import { useSettings } from "./stores/config";
@@ -70,9 +71,20 @@ export function createWebsocketConnection(): WebsocketConnection {
 
 export function createClient(): Client {
   const client: Client = {
+    mande: mande(""),
     websocket: createWebsocketConnection(),
     install(app: App) {
       app.provide("client", this);
+    },
+    setBackendUrl(apiBase: string) {
+      console.log("set api backend: ", apiBase);
+      this.mande = mande(apiBase);
+      console.log("set mande: ", this.mande);
+    },
+    setAccessToken(accessToken: string) {
+      //mandeDefaults.headers.Authorization = `Bearer ${accessToken}`;
+      //this.mande.options.headers = mandeDefaults.headers;
+      this.mande.options.headers.Authorization = `Bearer ${accessToken}`;
     },
     getUrl(path: string): string {
       const settings = useSettings();
@@ -186,15 +198,23 @@ export function createClient(): Client {
       }
     },
     async fetchDeployments() {
+      // const authStore = useAuth();
+      // const headers = {
+      //   authorization: `Bearer ${authStore.accessToken}`,
+      //   "content-type": "application/json",
+      // };
+      // const response = await fetch(this.getUrl("deployments"), {
+      //   headers: headers,
+      // });
+      // const deployments: Deployment[] = await response.json();
+      // console.log("fetchDeployments: ", deployments);
+      // return deployments;
       const authStore = useAuth();
-      const headers = {
-        authorization: `Bearer ${authStore.accessToken}`,
-        "content-type": "application/json",
-      };
-      const response = await fetch(this.getUrl("deployments"), {
-        headers: headers,
-      });
-      const deployments: Deployment[] = await response.json();
+      const settings = useSettings();
+      const foo = mande(settings.api);
+      foo.options.headers.Authorization = `Bearer ${authStore.accessToken}`;
+      console.log("mande options: ", foo.options);
+      const deployments: Deployment[] = await foo.get("deployments");
       console.log("fetchDeployments: ", deployments);
       return deployments;
     },

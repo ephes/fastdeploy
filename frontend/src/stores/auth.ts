@@ -1,4 +1,5 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
+import { defaults as mandeDefaults} from 'mande'
 import { useSettings } from "./config";
 import { useServices } from "./service";
 

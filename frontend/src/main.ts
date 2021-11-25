@@ -107,4 +107,7 @@ const steps = useSteps();
 steps.useHMRUpdate(import.meta);
 client.websocket.registerStore(steps);
 
+// set api base url
+settings.setClientBaseUrl();
+
 app.mount("#app");

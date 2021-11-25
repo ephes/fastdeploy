@@ -52,5 +52,8 @@ export const useSettings = defineStore("settings", {
         meta.hot.accept(acceptHMRUpdate(useSettings, meta.hot));
       }
     },
+    setClientBaseUrl() {
+      this.client.setBackendUrl(this.api);
+    },
   },
 });
