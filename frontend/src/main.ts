@@ -97,14 +97,14 @@ const settings = useSettings();
 settings.useHMRUpdate(import.meta);
 const services = useServices();
 services.useHMRUpdate(import.meta);
-client.registerStore(services);
+client.websocket.registerStore(services);
 const auth = useAuth();
 auth.useHMRUpdate(import.meta);
 const deployments = useDeployments();
 deployments.useHMRUpdate(import.meta);
-client.registerStore(deployments);
+client.websocket.registerStore(deployments);
 const steps = useSteps();
 steps.useHMRUpdate(import.meta);
-client.registerStore(steps);
+client.websocket.registerStore(steps);
 
 app.mount("#app");

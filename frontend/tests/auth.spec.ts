@@ -5,18 +5,27 @@ import { setActivePinia, createPinia } from "pinia";
 import { Client } from "../src/typings";
 import { useAuth } from "../src/stores/auth";
 import { createClient } from "../src/client";
+import {
+  createStubWebsocketConnection,
+  Connection,
+  createEvent,
+} from "./conftest";
 
 let client: Client;
+let connection: Connection;
 let authStore: any;
 let loginResponse: any;
 
 function createStubClient() {
   // replace login function from original client with stub
   const client = createClient();
+  client.websocket = createStubWebsocketConnection();
+  connection = client.websocket.connection;
+  client.websocket.registerWebsocketConnectionCallbacks(connection);
   client.login = async (username: string, password: string) => {
     return loginResponse;
   };
-  client.initWebsocketConnection = (settings: any) => {
+  client.websocket.initWebsocketConnection = (settings: any) => {
     // initWebsocketConnection is called after login
   };
   client.fetchServices = async () => {

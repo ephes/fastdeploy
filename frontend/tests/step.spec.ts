@@ -5,23 +5,11 @@ import { setActivePinia, createPinia } from "pinia";
 import { Client, Step } from "../src/typings";
 import { createClient, snakeToCamel } from "../src/client";
 import { useSteps } from "../src/stores/step";
-
-declare module "pinia" {
-  export interface PiniaCustomProperties {
-    client: Client;
-  }
-}
-
-class Connection {
-  onmessage = (message: any) => {};
-  send = (message: MessageEvent) => {
-    this.onmessage(message);
-  };
-}
-
-function createEvent(data: any): MessageEvent {
-  return { data: JSON.stringify(data) } as MessageEvent;
-}
+import {
+  createStubWebsocketConnection,
+  Connection,
+  createEvent,
+} from "./conftest";
 
 let client: Client;
 let connection: Connection;
@@ -48,9 +36,9 @@ describe("Steps Store Websocket", () => {
   beforeEach(() => {
     const app = createApp({});
     client = createClient();
-    connection = new Connection();
-    client.connection = connection;
-    client.registerWebsocketConnectionCallbacks(client.connection);
+    client.websocket = createStubWebsocketConnection();
+    connection = client.websocket.connection;
+    client.websocket.registerWebsocketConnectionCallbacks(connection);
     const pinia = createPinia().use(({ store }) => {
       store.client = markRaw(client);
     });
@@ -65,7 +53,7 @@ describe("Steps Store Websocket", () => {
   });
 
   it("has a steps store registered", () => {
-    client.registerStore(stepsStore);
+    client.websocket.registerStore(stepsStore);
     connection.send(createEvent(apiStep));
     expect(stepsStore.steps[step.id]).toStrictEqual(step);
   });
@@ -77,8 +65,11 @@ function createStubClient() {
   // replace  functions from original
   // client with stub
   const client = createClient();
+  client.websocket = createStubWebsocketConnection();
+  connection = client.websocket.connection;
+  client.websocket.registerWebsocketConnectionCallbacks(connection);
   client.fetchStepsFromDeployment = async (deploymentId: number) => {
-    return stepsToFetch.map(step => snakeToCamel(step));
+    return stepsToFetch.map((step) => snakeToCamel(step));
   };
   return client;
 }

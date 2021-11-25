@@ -5,23 +5,11 @@ import { setActivePinia, createPinia } from "pinia";
 import { Client, Service, ServiceWithId } from "../src/typings";
 import { createClient } from "../src/client";
 import { useServices } from "../src/stores/service";
-
-declare module "pinia" {
-  export interface PiniaCustomProperties {
-    client: Client;
-  }
-}
-
-class Connection {
-  onmessage = (message: any) => {};
-  send = (message: MessageEvent) => {
-    this.onmessage(message);
-  };
-}
-
-function createEvent(data: object): MessageEvent {
-  return { data: JSON.stringify(data) } as MessageEvent;
-}
+import {
+  createStubWebsocketConnection,
+  Connection,
+  createEvent,
+} from "./conftest";
 
 let client: Client;
 let connection: Connection;
@@ -33,15 +21,15 @@ const service: ServiceWithId = {
   collect: "collect.py",
   deploy: "deploy.sh",
   type: "service",
-}
+};
 
 describe("Services via Store Websocket", () => {
   beforeEach(() => {
     const app = createApp({});
     client = createClient();
-    connection = new Connection();
-    client.connection = connection;
-    client.registerWebsocketConnectionCallbacks(client.connection);
+    client.websocket = createStubWebsocketConnection();
+    connection = client.websocket.connection;
+    client.websocket.registerWebsocketConnectionCallbacks(connection);
     const pinia = createPinia().use(({ store }) => {
       store.client = markRaw(client);
     });
@@ -56,15 +44,15 @@ describe("Services via Store Websocket", () => {
   });
 
   it("received create or update service", () => {
-    client.registerStore(serviceStore);
+    client.websocket.registerStore(serviceStore);
     connection.send(createEvent(service));
     expect(serviceStore.services[service.id]).toStrictEqual(service);
   });
 
   it("received delete service", () => {
-    client.registerStore(serviceStore);
+    client.websocket.registerStore(serviceStore);
     serviceStore.services[service.id] = service;
-    connection.send(createEvent({...service, deleted: true}));
+    connection.send(createEvent({ ...service, deleted: true }));
     expect(serviceStore.services).toStrictEqual({});
   });
 });
@@ -75,6 +63,9 @@ function createStubClient() {
   // replace addService, deleteService functions from original
   // client with stubs
   const client = createClient();
+  client.websocket = createStubWebsocketConnection();
+  connection = client.websocket.connection;
+  client.websocket.registerWebsocketConnectionCallbacks(connection);
   client.addService = async (service: any) => {
     return { ...service, id: 1 };
   };

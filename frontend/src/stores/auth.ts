@@ -24,7 +24,7 @@ export const useAuth = defineStore("auth", {
     },
     async onLogin() {
       const settings = useSettings();
-      this.client.initWebsocketConnection(settings);
+      this.client.websocket.initWebsocketConnection(settings);
       const serviceStore = useServices();
       serviceStore.fetchServices();
 

@@ -66,7 +66,6 @@ type WebsocketConnection = {
   initWebsocketConnection(settings: any): void;
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
   onMessage(event: any): void;
-  onMessage(event: any): void;
   onConnectionOpen(event: MessageEvent): void;
   registerStore(store: any): void;
   registerWebsocketConnectionCallbacks(connection: any): void;
@@ -78,8 +77,6 @@ interface Client {
   install(app: App, options: any): void;  // vue plugin
   getUrl(path: string): string;
   login(username: string, password: string): Promise<any>;
-  // initWebsocketConnection(settings: any): void;
-  // authenticateWebsocketConnection(connection: any, accessToken: string): void;
   startDeployment(serviceName: string): Promise<Deployment>;
   fetchServiceToken(
     serviceName: string,
@@ -91,9 +88,4 @@ interface Client {
   deleteService(serviceId: number): Promise<number | null>;
   fetchDeployments(): Promise<Deployment[]>;
   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
-  // registerStore(store: any): void;
-  // onMessage(event: any): void;
-  // onConnectionOpen(event: MessageEvent): void;
-  // registerWebsocketConnectionCallbacks(connection: any): void;
-  // notifyStores(message: Message): void;
 }

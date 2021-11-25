@@ -1,27 +1,14 @@
-import "pinia";
 import { createApp, markRaw } from "vue";
 import { setActivePinia, createPinia } from "pinia";
 
 import { Client, Deployment } from "../src/typings";
 import { createClient, snakeToCamel } from "../src/client";
 import { useDeployments } from "../src/stores/deployment";
-
-declare module "pinia" {
-  export interface PiniaCustomProperties {
-    client: Client;
-  }
-}
-
-class Connection {
-  onmessage = (message: any) => {};
-  send = (message: MessageEvent) => {
-    this.onmessage(message);
-  };
-}
-
-function createEvent(data: any): MessageEvent {
-  return { data: JSON.stringify(data) } as MessageEvent;
-}
+import {
+  createStubWebsocketConnection,
+  Connection,
+  createEvent,
+} from "./conftest";
 
 let client: Client;
 let connection: Connection;
@@ -40,9 +27,9 @@ describe("Deployment Store Websocket", () => {
   beforeEach(() => {
     const app = createApp({});
     client = createClient();
-    connection = new Connection();
-    client.connection = connection;
-    client.registerWebsocketConnectionCallbacks(client.connection);
+    client.websocket = createStubWebsocketConnection();
+    connection = client.websocket.connection;
+    client.websocket.registerWebsocketConnectionCallbacks(connection);
     const pinia = createPinia().use(({ store }) => {
       store.client = markRaw(client);
     });
@@ -57,7 +44,7 @@ describe("Deployment Store Websocket", () => {
   });
 
   it("has a deployments store registered", () => {
-    client.registerStore(deploymentsStore);
+    client.websocket.registerStore(deploymentsStore);
     connection.send(createEvent({ ...deployment, type: "deployment" }));
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       snakeToCamel(deployment)
@@ -71,6 +58,9 @@ function createStubClient() {
   // replace startDeployment, fetchDeployments functions from original
   // client with stubs
   const client = createClient();
+  client.websocket = createStubWebsocketConnection();
+  connection = client.websocket.connection;
+  client.websocket.registerWebsocketConnectionCallbacks(connection);
   client.startDeployment = async (serviceName: string) => {
     return deployment;
   };

@@ -1,28 +1,30 @@
 import "pinia";
 import { createApp, markRaw } from "vue";
 import { setActivePinia, createPinia } from "pinia";
-import { useSettings, API_BASE_DEFAULT, WEBSOCKET_URL_DEFAULT, ENV_DEFAULT } from "../src/stores/config";
-import { Environment, Client } from "../src/typings";
+import {
+  useSettings,
+  API_BASE_DEFAULT,
+  WEBSOCKET_URL_DEFAULT,
+  ENV_DEFAULT,
+} from "../src/stores/config";
+import { Client } from "../src/typings";
 import { createClient } from "../src/client";
+import { createStubWebsocketConnection, Connection } from "./conftest";
 
-declare module "pinia" {
-  export interface PiniaCustomProperties {
-    env: Environment;
-    client: Client;
-  }
-}
-
-// const client = createClient();
-const client = {} as Client;
+let client: Client;
+let connection: Connection;
 
 describe("Settings Store", () => {
   beforeEach(() => {
     const app = createApp({});
+    client = createClient();
+    client.websocket = createStubWebsocketConnection();
+    connection = client.websocket.connection;
+    client.websocket.registerWebsocketConnectionCallbacks(connection);
+
     const pinia = createPinia().use(({ store }) => {
-      store.env = {...ENV_DEFAULT};
+      store.env = { ...ENV_DEFAULT };
       store.client = markRaw(client);
-      store.client.connection = {};
-      store.client.connection["registered"] = [store];
     });
     app.use(pinia);
     setActivePinia(pinia);
@@ -48,12 +50,7 @@ describe("Settings Store", () => {
       ],
       ["production", "", "", API_BASE_DEFAULT], // default
       ["", "", "http://production.example.com:9999", API_BASE_DEFAULT],
-      [
-        "production",
-        "http://localhost:9999",
-        "",
-        API_BASE_DEFAULT,
-      ],
+      ["production", "http://localhost:9999", "", API_BASE_DEFAULT],
       [
         // happy path
         "production",
@@ -95,7 +92,12 @@ describe("Settings Store", () => {
         "ws://localhost:9999/deployments/ws",
       ],
       ["production", "", "", WEBSOCKET_URL_DEFAULT], // default
-      ["", "", "ws://production.example.com/deployments/ws", WEBSOCKET_URL_DEFAULT],
+      [
+        "",
+        "",
+        "ws://production.example.com/deployments/ws",
+        WEBSOCKET_URL_DEFAULT,
+      ],
       [
         "production",
         "ws://localhost:9999/deployments/ws",
