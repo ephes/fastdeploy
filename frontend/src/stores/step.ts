@@ -1,4 +1,6 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
+import { getClient } from "./client";
+import { snakeToCamel } from "../client";
 import { Step, StepById, Message } from "../typings";
 
 export const useSteps = defineStore("steps", {
@@ -9,6 +11,7 @@ export const useSteps = defineStore("steps", {
     };
   },
   getters: {
+    getClient: () => getClient,
     getStepByDeployment: (state) => (deploymentId: number) => {
       if (state.stepsByDeployment[deploymentId]) {
         return state.stepsByDeployment[deploymentId];
@@ -25,8 +28,8 @@ export const useSteps = defineStore("steps", {
     },
     addStep(step: Step) {
       this.steps[step.id] = step;
-      if(step.deploymentId) {
-        if(!this.stepsByDeployment[step.deploymentId]) {
+      if (step.deploymentId) {
+        if (!this.stepsByDeployment[step.deploymentId]) {
           this.stepsByDeployment[step.deploymentId] = {};
         }
         this.stepsByDeployment[step.deploymentId][step.id] = step;
@@ -39,9 +42,12 @@ export const useSteps = defineStore("steps", {
       delete this.stepsByDeployment[step.deploymentId][step.id];
     },
     async fetchStepsFromDeployment(deploymentId: number) {
-      const steps = await this.client.fetchStepsFromDeployment(deploymentId);
-      for (const step of steps) {
-        this.addStep(step);
+      const url =
+        "steps/?" +
+        new URLSearchParams({ deployment_id: deploymentId.toString() });
+      const steps = await this.getClient().get<Promise<Object[]>>(url);
+      for (const apiStep of steps) {
+        this.addStep(snakeToCamel(apiStep));
       }
     },
     onMessage(message: Message) {

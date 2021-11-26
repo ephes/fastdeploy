@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router';
 import { useDeployments } from '../stores/deployment';
 import { useSteps } from '../stores/step';
 import Step from './Step.vue';
-import { Client, Deployment, Step as StepType } from '../typings';
+import { Deployment, Step as StepType } from '../typings';
 
 const route = useRoute();
 const deploymentIdFromRoute = Number(route.params.id);
