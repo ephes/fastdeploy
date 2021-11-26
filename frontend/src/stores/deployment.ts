@@ -13,13 +13,11 @@ export const useDeployments = defineStore("deployments", {
     };
   },
   getters: {
-    mande: (state) => () => {
+    getClient: (state) => () => {
       const auth = useAuth();
       const settings = useSettings();
       const client = mande(settings.api);
-      console.log("mande client: ", client);
       client.options.headers.Authorization = `Bearer ${auth.accessToken}`;
-      console.log("mande client options: ", client.options);
       return client;
     },
   },
@@ -35,11 +33,7 @@ export const useDeployments = defineStore("deployments", {
       return deployment;
     },
     async fetchDeployments() {
-      const client = this.mande();
-      console.log("mande options: ", client.options);
-      const deployments: Deployment[] = await client.get("deployments");
-      console.log("fetched deployments asdf: ", deployments);
-      // const deployments = await this.client.fetchDeployments();
+      const deployments: Deployment[] = await this.getClient().get("deployments");
       for (const deployment of deployments) {
         this.deployments[deployment.id] = deployment;
       }
