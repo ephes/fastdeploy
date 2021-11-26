@@ -1,6 +1,6 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
-import { getClient } from "./client";
-import { snakeToCamel } from "../client";
+import { getClient } from "./sharedGetters";
+import { snakeToCamel } from "../converters";
 import { Step, StepById, Message } from "../typings";
 
 export const useSteps = defineStore("steps", {
@@ -12,7 +12,7 @@ export const useSteps = defineStore("steps", {
   },
   getters: {
     getClient: () => getClient,
-    getStepByDeployment: (state) => (deploymentId: number) => {
+    getStepsByDeployment: (state) => (deploymentId: number) => {
       if (state.stepsByDeployment[deploymentId]) {
         return state.stepsByDeployment[deploymentId];
       } else {

@@ -1,4 +1,4 @@
-import { getClient } from "./client";
+import { getClient } from "./sharedGetters";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 

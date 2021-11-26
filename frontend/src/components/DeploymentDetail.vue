@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { inject, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDeployments } from '../stores/deployment';
 import { useSteps } from '../stores/step';
 import Step from './Step.vue';
-import { Deployment, Step as StepType } from '../typings';
+import { Deployment } from '../typings';
 
 const route = useRoute();
 const deploymentIdFromRoute = Number(route.params.id);
@@ -23,7 +22,7 @@ stepsStore.fetchStepsFromDeployment(deploymentIdFromRoute);
       <h2>deployment origin: {{ deployment.origin }}</h2>
     </div>
     <transition-group name="list" tag="p">
-      <div v-for="step of stepsStore.getStepByDeployment(deploymentIdFromRoute)" :key="step.id" class="list-step">
+      <div v-for="step of stepsStore.getStepsByDeployment(deploymentIdFromRoute)" :key="step.id" class="list-step">
         <step :step="step" />
       </div>
     </transition-group>

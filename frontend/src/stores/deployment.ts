@@ -1,8 +1,7 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 
-import { getClient } from "./client";
+import { getClient } from "./sharedGetters";
 import { useServices } from "./service";
-import { toUtcDate } from "./datetime";
 import { Deployment, Message, DeploymentById } from "../typings";
 
 export const useDeployments = defineStore("deployments", {
@@ -22,7 +21,10 @@ export const useDeployments = defineStore("deployments", {
     },
     async startDeployment(serviceName: string) {
       const servicesStore = useServices();
-      const serviceToken = await servicesStore.fetchServiceToken(serviceName, "frontend");
+      const serviceToken = await servicesStore.fetchServiceToken(
+        serviceName,
+        "frontend"
+      );
       const client = this.getClient();
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
       const deployment = await client.post<Promise<Deployment>>("deployments");
@@ -30,7 +32,9 @@ export const useDeployments = defineStore("deployments", {
       return deployment;
     },
     async fetchDeployments() {
-      const deployments: Deployment[] = await this.getClient().get("deployments");
+      const deployments: Deployment[] = await this.getClient().get(
+        "deployments"
+      );
       for (const deployment of deployments) {
         this.deployments[deployment.id] = deployment;
       }
