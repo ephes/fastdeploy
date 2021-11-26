@@ -38,11 +38,22 @@ export const useServices = defineStore("services", {
       }
     },
     async fetchServices() {
-      const services = await <Promise<ServiceWithId[]>>this.getClient().get("services");
+      const services = await (<Promise<ServiceWithId[]>>(
+        this.getClient().get("services")
+      ));
       console.log("got services: ", services);
       for (const service of services) {
         this.services[service.id] = service;
       }
+    },
+    async fetchServiceToken(service: ServiceWithId, origin: string) {
+      const response = await (<Promise<{ service_token: string }>>(
+        this.getClient().post("service-token", {
+          service: service.name,
+          origin: origin,
+        })
+      ));
+      return response.service_token;
     },
     onMessage(message: Message) {
       if (message.type === "service") {
