@@ -20,14 +20,24 @@ export const useServices = defineStore("services", {
       }
     },
     async addService() {
-      const service = await this.client.addService(this.new);
-      this.services[service.id] = service;
+      this.getClient().post<ServiceWithId>(
+        "/services",
+        this.new
+      ).then(service => {
+        this.services[service.id] = service;
+        this.new = { name: "", collect: "", deploy: "" };
+      }).catch(err => {
+        console.log("Error adding service", err);
+      });
     },
     async deleteService(service_id: number) {
-      const deletedId = await this.client.deleteService(service_id);
-      if (deletedId) {
-        delete this.services[deletedId];
-      }
+      this.getClient()
+        .delete<number>(`/services/${service_id}`)
+        .then((deletedId) => {
+          delete this.services[deletedId];
+        }).catch((err) => {
+          console.log("delete service error: ", err);
+        });
     },
     async fetchServices() {
       const services = await (<Promise<ServiceWithId[]>>(
