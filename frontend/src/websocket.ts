@@ -1,4 +1,3 @@
-import { App } from "vue";
 import { v4 as uuidv4 } from "uuid";
 import { snakeToCamel } from "./converters";
 import { WebsocketClient, Message } from "./typings";
@@ -7,9 +6,6 @@ export function createWebsocketClient(): WebsocketClient {
   const client: WebsocketClient = {
     uuid: uuidv4(),
     stores: [],
-    install(app: App) {
-      app.provide("websocketClient", this);
-    },
     registerStore(store: any) {
       this.stores.push(store);
     },

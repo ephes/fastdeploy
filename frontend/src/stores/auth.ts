@@ -68,7 +68,6 @@ export const useAuth = defineStore("auth", {
       await client
         .post<{ access_token: string }>("/token")
         .then((response) => {
-          console.log("response: ", response);
           this.accessToken = response.access_token;
           if (this.isAuthenticated) {
             this.onLoginSuccess();

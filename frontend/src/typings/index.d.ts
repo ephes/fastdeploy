@@ -1,5 +1,4 @@
-import { App, Ref } from "vue";
-import { MandeInstance } from "mande";
+import { App } from "vue";
 
 type Environment = {
   MODE: string;
@@ -64,7 +63,6 @@ type WebsocketClient = {
   uuid: any;
   stores: any[];
   connection?: WebSocket;
-  install(app: App, options: any): void;  // vue plugin
   initWebsocketConnection(websocketUrl: string, accessToken: string): void;
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
   onMessage(event: any): void;
@@ -73,23 +71,3 @@ type WebsocketClient = {
   registerWebsocketConnectionCallbacks(connection: WebSocket, accessToken: string): void;
   notifyStores(message: Message): void;
 }
-
-// interface Client {
-//   websocket: WebsocketClient;
-//   mande: MandeInstance;
-//   setBackendUrl(apiBase: string): void;
-//   setAccessToken(accessToken: string): void;
-//   getUrl(path: string): string;
-//   login(username: string, password: string): Promise<any>;
-//   startDeployment(serviceName: string): Promise<Deployment>;
-//   fetchServiceToken(
-//     serviceName: string,
-//     accessToken: string,
-//     origin: string
-//   ): Promise<string>;
-//   fetchServices(): Promise<ServiceWithId[]>;
-//   addService(service: Service): Promise<ServiceWithId>;
-//   deleteService(serviceId: number): Promise<number | null>;
-//   fetchDeployments(): Promise<Deployment[]>;
-//   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
-// }
