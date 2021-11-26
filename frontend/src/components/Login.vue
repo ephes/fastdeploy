@@ -22,6 +22,6 @@ async function login() {
     <input v-model="authStore.password" type="password" @keyup.enter="login()" />
     <button @click="login()">login</button>
     <br />
-    {{ username }}
+    {{ authStore.username }}
   </div>
 </template>
