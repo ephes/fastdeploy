@@ -1,13 +1,9 @@
 <script setup lang="ts">
-import { inject } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../stores/auth';
 
 const router = useRouter();
 const authStore = useAuth();
-
-const websocketClient = inject('websocketClient');
-console.log("websocketClient from login: ", websocketClient);
 
 async function login() {
   await authStore.login()

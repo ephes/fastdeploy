@@ -65,12 +65,12 @@ type WebsocketClient = {
   stores: any[];
   connection?: WebSocket;
   install(app: App, options: any): void;  // vue plugin
-  initWebsocketConnection(settings: any): void;
+  initWebsocketConnection(websocketUrl: string, accessToken: string): void;
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
   onMessage(event: any): void;
-  onConnectionOpen(event: MessageEvent): void;
+  onConnectionOpen(accessToken: string, event: MessageEvent): void;
   registerStore(store: any): void;
-  registerWebsocketConnectionCallbacks(connection: any): void;
+  registerWebsocketConnectionCallbacks(connection: WebSocket, accessToken: string): void;
   notifyStores(message: Message): void;
 }
 

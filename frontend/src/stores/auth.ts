@@ -1,7 +1,10 @@
-import { inject } from 'vue'
+import { mande } from "mande";
+import { createWebsocketClient } from "../client";
 import { defineStore, acceptHMRUpdate } from "pinia";
+import { useSteps } from "./step";
 import { useSettings } from "./config";
 import { useServices } from "./service";
+import { useDeployments } from "./deployment";
 
 export const useAuth = defineStore("auth", {
   state: () => {
@@ -23,15 +26,24 @@ export const useAuth = defineStore("auth", {
         meta.hot.accept(acceptHMRUpdate(useAuth, meta.hot));
       }
     },
-    async onLoginSuccess() {
+    async initWebsocketClient() {
       const settings = useSettings();
-      const websocketClient = inject("websocketClient");
-      // this.websocketClient.initWebsocketConnection(settings);
+      const websocketClient = createWebsocketClient();
       console.log("websocket client? ", websocketClient);
-      websocketClient.initWebsocketConnection(settings);
+      if (this.accessToken) {
+        websocketClient.initWebsocketConnection(settings.websocket, this.accessToken);
+      }
+
+      // register store hooks for websocket events
+      const stores = [useSteps(), useServices(), useDeployments()];
+      for (const store of stores) {
+        websocketClient.registerStore(store);
+      }
+    },
+    async onLoginSuccess() {
+      await this.initWebsocketClient();
       const serviceStore = useServices();
       serviceStore.fetchServices();
-
     },
     async login() {
       if (!this.username || !this.password) {
@@ -42,24 +54,26 @@ export const useAuth = defineStore("auth", {
       let formData = new FormData();
       formData.append("username", this.username);
       formData.append("password", this.password);
-      const response = await fetch( new URL(settings.api) + "token", {
-        method: "POST",
-        body: formData,
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        // error
-        console.log("login error: ", result);
-        this.accessToken = null;
-        this.errorMessage = result.detail;
-      } else {
-        console.log("login success: ", result);
-        this.accessToken = result.access_token;
-        this.errorMessage = null;
-      }
-      if (this.isAuthenticated) {
-        this.onLoginSuccess();
-      }
+      const body =
+        "grant_type=password&" + new URLSearchParams(formData as any).toString();
+      const client = mande(settings.api);
+      const options = client.options as any;
+      options["body"] = body;
+      client.options.headers["Content-Type"] =
+        "application/x-www-form-urlencoded";
+      await client
+        .post<{ access_token: string }>("/token")
+        .then((response) => {
+          console.log("response: ", response);
+          this.accessToken = response.access_token;
+          if (this.isAuthenticated) {
+            this.onLoginSuccess();
+          }
+        })
+        .catch(() => {
+          // response.json().detail is not included -> use own error message
+          this.errorMessage = "Incorrect username or password";
+        });
     },
   },
 });

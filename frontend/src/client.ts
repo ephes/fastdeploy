@@ -1,9 +1,6 @@
 import { App } from "vue";
-import { mande, defaults as mandeDefaults } from 'mande'
 import { v4 as uuidv4 } from "uuid";
-import { WebsocketClient, Deployment, Message } from "./typings";
-import { useSettings } from "./stores/config";
-import { useAuth } from "./stores/auth";
+import { WebsocketClient, Message } from "./typings";
 
 function snakeToCamelStr(str: string): string {
   if (!/[_-]/.test(str)) {
@@ -35,13 +32,13 @@ export function createWebsocketClient(): WebsocketClient {
     registerStore(store: any) {
       this.stores.push(store);
     },
-    onConnectionOpen(event: MessageEvent) {
+    onConnectionOpen(accessToken: string, event: MessageEvent) {
       console.log(event);
-      console.log("Successfully connected to the echo websocket server...");
-      const authStore = useAuth();
+      console.log("Successfully connected to the echo websocket server..");
+      console.log("using token: ", accessToken);
       this.authenticateWebsocketConnection(
         this.connection,
-        String(authStore.accessToken)
+        String(accessToken)
       );
     },
     notifyStores(message: Message) {
@@ -54,13 +51,12 @@ export function createWebsocketClient(): WebsocketClient {
       const message = JSON.parse(event.data) as Message;
       this.notifyStores(message);
     },
-    initWebsocketConnection(settings: any) {
-      let websocketUrl = settings.websocket;
+    initWebsocketConnection(websocketUrl: string, accessToken: string) {
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
-      this.registerWebsocketConnectionCallbacks(this.connection);
+      this.registerWebsocketConnectionCallbacks(this.connection, accessToken);
     },
-    registerWebsocketConnectionCallbacks(connection: any) {
-      connection.onopen = this.onConnectionOpen.bind(this);
+    registerWebsocketConnectionCallbacks(connection: any, accessToken: string) {
+      connection.onopen = this.onConnectionOpen.bind(this, accessToken);
       connection.onmessage = this.onMessage.bind(this);
     },
     authenticateWebsocketConnection(connection: any, accessToken: string) {
