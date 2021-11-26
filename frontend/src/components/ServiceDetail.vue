@@ -14,7 +14,7 @@ const serviceToken = ref('');
 
 async function getServiceToken() {
     if (service) {
-        serviceToken.value = await serviceStore.fetchServiceToken(service, origin.value)
+        serviceToken.value = await serviceStore.fetchServiceToken(service.name, origin.value)
     }
 }
 </script>

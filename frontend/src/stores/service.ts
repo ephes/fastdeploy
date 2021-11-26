@@ -38,10 +38,10 @@ export const useServices = defineStore("services", {
         this.services[service.id] = service;
       }
     },
-    async fetchServiceToken(service: ServiceWithId, origin: string) {
+    async fetchServiceToken(serviceName: string, origin: string) {
       const response = await (<Promise<{ service_token: string }>>(
         this.getClient().post("service-token", {
-          service: service.name,
+          service: serviceName,
           origin: origin,
         })
       ));
