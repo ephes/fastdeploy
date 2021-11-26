@@ -1,8 +1,8 @@
 import { createApp, markRaw } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
-import { Client, Environment } from "./typings";
-import { createClient } from "./client";
+import { Environment } from "./typings";
+import { createWebsocketClient } from "./client";
 import {
   useSettings,
   ENV_DEFAULT,
@@ -19,8 +19,6 @@ import ServiceList from "./components/ServiceList.vue";
 import ServiceDetail from "./components/ServiceDetail.vue";
 import DeploymentList from "./components/DeploymentList.vue";
 import DeploymentDetail from "./components/DeploymentDetail.vue";
-
-const client = createClient();
 
 const routes = [
   { path: "/", component: ServiceList },
@@ -57,7 +55,6 @@ import "pinia";
 
 declare module "pinia" {
   export interface PiniaCustomProperties {
-    client: Client;
     env: Environment;
   }
 }
@@ -83,31 +80,29 @@ function getEnv(): Environment {
 }
 
 pinia.use(({ store }) => {
-  store.client = markRaw(client);
   store.env = getEnv();
   console.log("store env: ", store.env);
 });
 
+const websocketClient = createWebsocketClient();
 app.use(router);
-app.use(client);
+app.use(websocketClient);
 app.use(pinia);
 
-// activate HMR for stores
+// init settings store, set api base url etc
 const settings = useSettings();
 settings.useHMRUpdate(import.meta);
-const services = useServices();
-services.useHMRUpdate(import.meta);
-client.websocket.registerStore(services);
-const auth = useAuth();
-auth.useHMRUpdate(import.meta);
-const deployments = useDeployments();
-deployments.useHMRUpdate(import.meta);
-client.websocket.registerStore(deployments);
-const steps = useSteps();
-steps.useHMRUpdate(import.meta);
-client.websocket.registerStore(steps);
 
-// set api base url
-settings.setClientBaseUrl();
+// activate HMR for stores and register hooks for websocket client
+const stores = {
+  services: useServices(),
+  auth: useAuth(),
+  deployments: useDeployments(),
+  steps: useSteps(),
+};
+for (const [key, store] of Object.entries(stores)) {
+  store.useHMRUpdate(import.meta);
+  websocketClient.registerStore(store);
+}
 
 app.mount("#app");

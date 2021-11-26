@@ -1,3 +1,6 @@
+import { mande } from "mande";
+import { useAuth } from "./auth";
+import { useSettings } from "./config";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
@@ -8,6 +11,15 @@ export const useServices = defineStore("services", {
       services: {} as ServiceById,
       new: newService,
     };
+  },
+  getters: {
+    getClient: (state) => () => {
+      const settings = useSettings();
+      const auth = useAuth();
+      const client = mande(settings.api);
+      client.options.headers.Authorization = `Bearer ${auth.accessToken}`;
+      return client;
+    },
   },
   actions: {
     useHMRUpdate(meta: any) {
@@ -26,7 +38,8 @@ export const useServices = defineStore("services", {
       }
     },
     async fetchServices() {
-      const services = await this.client.fetchServices();
+      const services = await <Promise<ServiceWithId[]>>this.getClient().get("services");
+      console.log("got services: ", services);
       for (const service of services) {
         this.services[service.id] = service;
       }

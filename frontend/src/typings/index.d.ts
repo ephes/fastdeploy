@@ -60,10 +60,11 @@ type StepById = {
   [id: number]: Step;
 }
 
-type WebsocketConnection = {
+type WebsocketClient = {
   uuid: any;
   stores: any[];
-  connection: any;
+  connection?: WebSocket;
+  install(app: App, options: any): void;  // vue plugin
   initWebsocketConnection(settings: any): void;
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
   onMessage(event: any): void;
@@ -73,23 +74,22 @@ type WebsocketConnection = {
   notifyStores(message: Message): void;
 }
 
-interface Client {
-  websocket: WebsocketConnection;
-  mande: MandeInstance;
-  install(app: App, options: any): void;  // vue plugin
-  setBackendUrl(apiBase: string): void;
-  setAccessToken(accessToken: string): void;
-  getUrl(path: string): string;
-  login(username: string, password: string): Promise<any>;
-  startDeployment(serviceName: string): Promise<Deployment>;
-  fetchServiceToken(
-    serviceName: string,
-    accessToken: string,
-    origin: string
-  ): Promise<string>;
-  fetchServices(): Promise<ServiceWithId[]>;
-  addService(service: Service): Promise<ServiceWithId>;
-  deleteService(serviceId: number): Promise<number | null>;
-  fetchDeployments(): Promise<Deployment[]>;
-  fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
-}
+// interface Client {
+//   websocket: WebsocketClient;
+//   mande: MandeInstance;
+//   setBackendUrl(apiBase: string): void;
+//   setAccessToken(accessToken: string): void;
+//   getUrl(path: string): string;
+//   login(username: string, password: string): Promise<any>;
+//   startDeployment(serviceName: string): Promise<Deployment>;
+//   fetchServiceToken(
+//     serviceName: string,
+//     accessToken: string,
+//     origin: string
+//   ): Promise<string>;
+//   fetchServices(): Promise<ServiceWithId[]>;
+//   addService(service: Service): Promise<ServiceWithId>;
+//   deleteService(serviceId: number): Promise<number | null>;
+//   fetchDeployments(): Promise<Deployment[]>;
+//   fetchStepsFromDeployment(deploymentId: number): Promise<Step[]>;
+// }
