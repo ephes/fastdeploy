@@ -1,6 +1,4 @@
-import { mande } from "mande";
-import { useAuth } from "./auth";
-import { useSettings } from "./config";
+import { getClient } from "./client";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
@@ -13,13 +11,7 @@ export const useServices = defineStore("services", {
     };
   },
   getters: {
-    getClient: (state) => () => {
-      const settings = useSettings();
-      const auth = useAuth();
-      const client = mande(settings.api);
-      client.options.headers.Authorization = `Bearer ${auth.accessToken}`;
-      return client;
-    },
+    getClient: () => getClient,
   },
   actions: {
     useHMRUpdate(meta: any) {

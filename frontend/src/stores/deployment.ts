@@ -1,9 +1,7 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 
-import { mande } from "mande";
+import { getClient } from "./client";
 import { toUtcDate } from "./datetime";
-import { useAuth } from "./auth";
-import { useSettings } from "./config";
 import { Deployment, Message, DeploymentById } from "../typings";
 
 export const useDeployments = defineStore("deployments", {
@@ -13,13 +11,7 @@ export const useDeployments = defineStore("deployments", {
     };
   },
   getters: {
-    getClient: (state) => () => {
-      const auth = useAuth();
-      const settings = useSettings();
-      const client = mande(settings.api);
-      client.options.headers.Authorization = `Bearer ${auth.accessToken}`;
-      return client;
-    },
+    getClient: () => getClient,
   },
   actions: {
     useHMRUpdate(meta: any) {
