@@ -2,8 +2,8 @@ import { createApp, markRaw } from "vue";
 import { setActivePinia, createPinia } from "pinia";
 
 import { Client, Deployment } from "../src/typings";
-import { createClient, snakeToCamel } from "../src/client";
-import { useDeployments } from "../src/stores/deployment";
+import { createClient, snakeToCamel } from "../src/websocket";
+import { useDeployments } from "../src/store../src/websocket;
 import {
   createStubWebsocketConnection,
   Connection,

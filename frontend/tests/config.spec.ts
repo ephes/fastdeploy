@@ -8,7 +8,7 @@ import {
   ENV_DEFAULT,
 } from "../src/stores/config";
 import { Client } from "../src/typings";
-import { createClient } from "../src/client";
+import { createClient } from "../src/websocket";
 import { createStubWebsocketConnection, Connection } from "./conftest";
 
 let client: Client;

@@ -1,5 +1,5 @@
 import { mande } from "mande";
-import { createWebsocketClient } from "../client";
+import { createWebsocketClient } from "../websocket";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { useSteps } from "./step";
 import { useSettings } from "./config";

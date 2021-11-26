@@ -3,7 +3,7 @@ import { createApp, markRaw } from "vue";
 import { setActivePinia, createPinia } from "pinia";
 
 import { Client, Service, ServiceWithId } from "../src/typings";
-import { createClient } from "../src/client";
+import { createClient } from "../src/websocket";
 import { useServices } from "../src/stores/service";
 import {
   createStubWebsocketConnection,

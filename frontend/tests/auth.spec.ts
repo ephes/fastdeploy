@@ -4,7 +4,7 @@ import { setActivePinia, createPinia } from "pinia";
 
 import { Client } from "../src/typings";
 import { useAuth } from "../src/stores/auth";
-import { createClient } from "../src/client";
+import { createClient } from "../src/websocket";
 import {
   createStubWebsocketConnection,
   Connection,

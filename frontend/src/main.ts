@@ -1,8 +1,7 @@
-import { createApp, markRaw } from "vue";
+import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
 import { Environment } from "./typings";
-import { createWebsocketClient } from "./client";
 import {
   useSettings,
   ENV_DEFAULT,
@@ -84,25 +83,19 @@ pinia.use(({ store }) => {
   console.log("store env: ", store.env);
 });
 
-const websocketClient = createWebsocketClient();
 app.use(router);
-app.use(websocketClient);
 app.use(pinia);
 
-// init settings store, set api base url etc
-const settings = useSettings();
-settings.useHMRUpdate(import.meta);
-
-// activate HMR for stores and register hooks for websocket client
-const stores = {
-  services: useServices(),
-  auth: useAuth(),
-  deployments: useDeployments(),
-  steps: useSteps(),
-};
-for (const [key, store] of Object.entries(stores)) {
+// activate HMR for stores
+const stores = [
+  useAuth(),
+  useSteps(),
+  useServices(),
+  useSettings(),
+  useDeployments(),
+];
+for (const store of stores) {
   store.useHMRUpdate(import.meta);
-  websocketClient.registerStore(store);
 }
 
 app.mount("#app");
