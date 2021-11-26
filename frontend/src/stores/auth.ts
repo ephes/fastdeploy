@@ -31,7 +31,10 @@ export const useAuth = defineStore("auth", {
       const websocketClient = createWebsocketClient();
       console.log("websocket client? ", websocketClient);
       if (this.accessToken) {
-        websocketClient.initWebsocketConnection(settings.websocket, this.accessToken);
+        websocketClient.initWebsocketConnection(
+          settings.websocket,
+          this.accessToken
+        );
       }
 
       // register store hooks for websocket events
@@ -55,7 +58,8 @@ export const useAuth = defineStore("auth", {
       formData.append("username", this.username);
       formData.append("password", this.password);
       const body =
-        "grant_type=password&" + new URLSearchParams(formData as any).toString();
+        "grant_type=password&" +
+        new URLSearchParams(formData as any).toString();
       const client = mande(settings.api);
       const options = client.options as any;
       options["body"] = body;
