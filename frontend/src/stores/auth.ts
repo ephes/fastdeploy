@@ -1,6 +1,7 @@
-import { mande } from "mande";
 import { createWebsocketClient } from "../websocket";
 import { defineStore, acceptHMRUpdate } from "pinia";
+
+import { getClientWithoutAuth, HttpClient } from "./httpClient";
 import { useSteps } from "./step";
 import { useSettings } from "./config";
 import { useServices } from "./service";
@@ -13,6 +14,7 @@ export const useAuth = defineStore("auth", {
       username: "" as string,
       password: "" as string,
       errorMessage: null as string | null,
+      client: getClientWithoutAuth(),
     };
   },
   getters: {
@@ -29,7 +31,6 @@ export const useAuth = defineStore("auth", {
     async initWebsocketClient() {
       const settings = useSettings();
       const websocketClient = createWebsocketClient();
-      console.log("websocket client? ", websocketClient);
       if (this.accessToken) {
         websocketClient.initWebsocketConnection(
           settings.websocket,
@@ -53,14 +54,13 @@ export const useAuth = defineStore("auth", {
         this.errorMessage = "Please enter a username and password";
         return;
       }
-      const settings = useSettings();
       let formData = new FormData();
       formData.append("username", this.username);
       formData.append("password", this.password);
       const body =
         "grant_type=password&" +
         new URLSearchParams(formData as any).toString();
-      const client = mande(settings.api);
+      const client = this.client as HttpClient;
       const options = client.options as any;
       options["body"] = body;
       client.options.headers["Content-Type"] =

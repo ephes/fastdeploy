@@ -1,8 +1,5 @@
 import "pinia";
 
-import { Client } from "../src/typings";
-import { createWebsocketConnection } from "../src/websocket";
-
 declare module "pinia" {
   export interface PiniaCustomProperties {
     client: Client;
