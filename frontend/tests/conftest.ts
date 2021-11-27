@@ -1,11 +1,3 @@
-import "pinia";
-
-declare module "pinia" {
-  export interface PiniaCustomProperties {
-    client: Client;
-  }
-}
-
 export class Connection {
   onmessage = (message: any) => {};
   send = (message: MessageEvent) => {

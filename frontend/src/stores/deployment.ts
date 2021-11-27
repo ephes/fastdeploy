@@ -1,6 +1,6 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 
-import { getClient } from "./sharedGetters";
+import { getClient } from "./httpClient";
 import { useServices } from "./service";
 import { Deployment, Message, DeploymentById } from "../typings";
 

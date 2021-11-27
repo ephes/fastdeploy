@@ -1,5 +1,6 @@
+import { MandeInstance } from "mande";
 import { defineStore, acceptHMRUpdate } from "pinia";
-import { getClient } from "./sharedGetters";
+import { getClient } from "./httpClient";
 import { snakeToCamel } from "../converters";
 import { Step, StepById, Message } from "../typings";
 
@@ -8,10 +9,10 @@ export const useSteps = defineStore("steps", {
     return {
       steps: {} as StepById,
       stepsByDeployment: {} as { [deploymentId: number]: StepById },
+      client: getClient(),
     };
   },
   getters: {
-    getClient: () => getClient,
     getStepsByDeployment: (state) => (deploymentId: number) => {
       if (state.stepsByDeployment[deploymentId]) {
         return state.stepsByDeployment[deploymentId];
@@ -45,7 +46,8 @@ export const useSteps = defineStore("steps", {
       const url =
         "steps/?" +
         new URLSearchParams({ deployment_id: deploymentId.toString() });
-      const steps = await this.getClient().get<Promise<Object[]>>(url);
+      const client: MandeInstance = this.client;
+      const steps = await client.get<Promise<Object[]>>(url);
       for (const apiStep of steps) {
         this.addStep(snakeToCamel(apiStep));
       }
