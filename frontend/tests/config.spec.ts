@@ -7,24 +7,12 @@ import {
   WEBSOCKET_URL_DEFAULT,
   ENV_DEFAULT,
 } from "../src/stores/config";
-import { Client } from "../src/typings";
-import { createClient } from "../src/websocket";
-import { createStubWebsocketConnection, Connection } from "./conftest";
-
-let client: Client;
-let connection: Connection;
 
 describe("Settings Store", () => {
   beforeEach(() => {
     const app = createApp({});
-    client = createClient();
-    client.websocket = createStubWebsocketConnection();
-    connection = client.websocket.connection;
-    client.websocket.registerWebsocketConnectionCallbacks(connection);
-
     const pinia = createPinia().use(({ store }) => {
       store.env = { ...ENV_DEFAULT };
-      store.client = markRaw(client);
     });
     app.use(pinia);
     setActivePinia(pinia);
