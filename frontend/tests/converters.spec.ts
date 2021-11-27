@@ -1,4 +1,4 @@
-import { snakeToCamel } from "../src/websocket";
+import { snakeToCamel } from "../src/converters";
 
 describe("Test snakeToCamel function", () => {
   it("converts snake to camel case", () => {
