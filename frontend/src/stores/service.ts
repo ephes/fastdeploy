@@ -11,9 +11,6 @@ export const useServices = defineStore("services", {
       client: getClient(),
     };
   },
-  getters: {
-    getClient: () => getClient,
-  },
   actions: {
     useHMRUpdate(meta: any) {
       if (meta.hot) {
@@ -50,7 +47,7 @@ export const useServices = defineStore("services", {
     },
     async fetchServiceToken(serviceName: string, origin: string) {
       const response = await (<Promise<{ service_token: string }>>(
-        this.getClient().post("service-token", {
+        this.client.post("service-token", {
           service: serviceName,
           origin: origin,
         })
