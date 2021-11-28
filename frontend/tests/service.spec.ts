@@ -1,19 +1,7 @@
-import "pinia";
-import { createApp, markRaw } from "vue";
-import { setActivePinia, createPinia } from "pinia";
-
-import { Client, Service, ServiceWithId } from "../src/typings";
-import { createClient } from "../src/websocket";
+import { ServiceWithId, Service } from "../src/typings";
+import { createWebsocketClient } from "../src/websocket";
 import { useServices } from "../src/stores/service";
-import {
-  createStubWebsocketConnection,
-  Connection,
-  createEvent,
-} from "./conftest";
-
-let client: Client;
-let connection: Connection;
-let serviceStore: any;
+import { createEvent, initPinia } from "./conftest";
 
 const service: ServiceWithId = {
   id: 1,
@@ -25,91 +13,85 @@ const service: ServiceWithId = {
 
 describe("Services via Store Websocket", () => {
   beforeEach(() => {
-    const app = createApp({});
-    client = createClient();
-    client.websocket = createStubWebsocketConnection();
-    connection = client.websocket.connection;
-    client.websocket.registerWebsocketConnectionCallbacks(connection);
-    const pinia = createPinia().use(({ store }) => {
-      store.client = markRaw(client);
-    });
-    app.use(pinia);
-    setActivePinia(pinia);
-    serviceStore = useServices();
+    initPinia();
   });
 
   it("has no service store registered", () => {
-    connection.send(createEvent(service));
-    expect(serviceStore.services).toStrictEqual({});
+    const servicesStore = useServices();
+    const websocketClient = createWebsocketClient();
+    websocketClient.onMessage(createEvent(service));
+    expect(servicesStore.services).toStrictEqual({});
   });
 
   it("received create or update service", () => {
-    client.websocket.registerStore(serviceStore);
-    connection.send(createEvent(service));
-    expect(serviceStore.services[service.id]).toStrictEqual(service);
+    const servicesStore = useServices();
+    const websocketClient = createWebsocketClient();
+    websocketClient.registerStore(servicesStore);
+    websocketClient.onMessage(createEvent(service));
+    expect(servicesStore.services[service.id]).toStrictEqual(service);
   });
 
   it("received delete service", () => {
-    client.websocket.registerStore(serviceStore);
-    serviceStore.services[service.id] = service;
-    connection.send(createEvent({ ...service, deleted: true }));
-    expect(serviceStore.services).toStrictEqual({});
+    const servicesStore = useServices();
+    const websocketClient = createWebsocketClient();
+    websocketClient.registerStore(servicesStore);
+    servicesStore.services[service.id] = service;
+    websocketClient.onMessage(createEvent({ ...service, deleted: true }));
+    expect(servicesStore.services).toStrictEqual({});
   });
 });
 
-let servicesToFetch: ServiceWithId[] = [];
-
-function createStubClient() {
-  // replace addService, deleteService functions from original
-  // client with stubs
-  const client = createClient();
-  client.websocket = createStubWebsocketConnection();
-  connection = client.websocket.connection;
-  client.websocket.registerWebsocketConnectionCallbacks(connection);
-  client.addService = async (service: any) => {
-    return { ...service, id: 1 };
-  };
-  client.deleteService = async (id: number) => {
-    return id;
-  };
-  client.fetchServices = async () => {
-    return servicesToFetch;
-  };
-  return client;
-}
-
 describe("Services Store Actions", () => {
   beforeEach(() => {
-    const app = createApp({});
-    client = createStubClient();
-    const pinia = createPinia().use(({ store }) => {
-      store.client = markRaw(client);
-    });
-    app.use(pinia);
-    setActivePinia(pinia);
-    serviceStore = useServices();
+    initPinia();
   });
 
   it("adds a service to the store", async () => {
+    const servicesStore = useServices();
     const newService: Service = {
       name: "fastdeploy",
       collect: "collect.py",
       deploy: "deploy.sh",
     };
-    serviceStore.new = newService;
-    await serviceStore.addService();
-    expect(serviceStore.services[1]).toStrictEqual({ ...newService, id: 1 });
+    servicesStore.new = newService;
+    servicesStore.client = {
+      async post<T = unknown>(): Promise<T> {
+        return new Promise<any>((resolve) => {
+          resolve({ ...newService, id: 1});
+        });
+      },
+      options: {headers: {}},
+    } as any;
+    await servicesStore.addService();
+    expect(servicesStore.services[1]).toStrictEqual({ ...newService, id: 1 });
   });
 
   it("deletes a service from the store", async () => {
-    serviceStore.services[service.id] = service;
-    await serviceStore.deleteService(service.id);
-    expect(serviceStore.services).toStrictEqual({});
+    const servicesStore = useServices();
+    servicesStore.services[service.id] = service;
+    servicesStore.client = {
+      async delete<T = unknown>(url: string | number): Promise<T> {
+        return new Promise<any>((resolve) => {
+          resolve(service.id);
+        });
+      },
+      options: {headers: {}},
+    } as any;
+    await servicesStore.deleteService(service.id);
+    expect(servicesStore.services).toStrictEqual({});
   });
 
   it("fetches the list of services", async () => {
-    servicesToFetch = [service];
-    await serviceStore.fetchServices();
-    expect(serviceStore.services[service.id]).toStrictEqual(service);
+    const servicesStore = useServices();
+    servicesStore.client = {
+      async  get<T = unknown>(url: string | number): Promise<T> {
+        return new Promise<any>((resolve) => {
+          resolve([service]);
+        });
+      },
+      options: {headers: {}},
+    } as any;
+    await servicesStore.fetchServices();
+    expect(servicesStore.services[service.id]).toStrictEqual(service);
   });
 });

@@ -8,6 +8,7 @@ export const useServices = defineStore("services", {
     return {
       services: {} as ServiceById,
       new: newService,
+      client: getClient(),
     };
   },
   getters: {
@@ -20,7 +21,7 @@ export const useServices = defineStore("services", {
       }
     },
     async addService() {
-      this.getClient().post<ServiceWithId>(
+      this.client.post<ServiceWithId>(
         "/services",
         this.new
       ).then(service => {
@@ -31,7 +32,7 @@ export const useServices = defineStore("services", {
       });
     },
     async deleteService(service_id: number) {
-      this.getClient()
+      this.client
         .delete<number>(`/services/${service_id}`)
         .then((deletedId) => {
           delete this.services[deletedId];
@@ -41,9 +42,8 @@ export const useServices = defineStore("services", {
     },
     async fetchServices() {
       const services = await (<Promise<ServiceWithId[]>>(
-        this.getClient().get("services")
+        this.client.get("services")
       ));
-      console.log("got services: ", services);
       for (const service of services) {
         this.services[service.id] = service;
       }
