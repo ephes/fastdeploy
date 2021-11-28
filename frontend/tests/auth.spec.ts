@@ -1,37 +1,9 @@
-import { createApp } from "vue";
-import { setActivePinia, createPinia } from "pinia";
-
+import { initPinia } from "./conftest";Í
 import { useAuth } from "../src/stores/auth";
-// import {
-//   createStubWebsocketConnection,
-//   Connection,
-//   createEvent,
-// } from "./conftest";
-
-// function createStubClient() {
-//   // replace login function from original client with stub
-//   client.websocket = createStubWebsocketConnection();
-//   connection = client.websocket.connection;
-//   client.websocket.registerWebsocketConnectionCallbacks(connection);
-//   client.login = async (username: string, password: string) => {
-//     return loginResponse;
-//   };
-//   client.websocket.initWebsocketConnection = (settings: any) => {
-//     // initWebsocketConnection is called after login
-//   };
-//   client.fetchServices = async () => {
-//     // fetchServices is called via authStore.onLogin
-//     return []
-//   };
-//   return client;
-// }
 
 describe("Auth Store Actions", () => {
   beforeEach(() => {
-    const app = createApp({});
-    const pinia = createPinia();
-    app.use(pinia);
-    setActivePinia(pinia);
+    initPinia();
   });
 
   it("returns early if username or password are not set", async () => {

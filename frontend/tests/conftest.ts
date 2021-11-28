@@ -1,17 +1,13 @@
-export class Connection {
-  onmessage = (message: any) => {};
-  send = (message: MessageEvent) => {
-    this.onmessage(message);
-  };
-}
-
-export function createStubWebsocketConnection() {
-  const websocket = createWebsocketConnection();
-  // replace actual connection with stub
-  websocket.connection = new Connection();
-  return websocket;
-}
+import { createApp } from "vue";
+import { setActivePinia, createPinia } from "pinia";
 
 export function createEvent(data: any): MessageEvent {
   return { data: JSON.stringify(data) } as MessageEvent;
+}
+
+export function initPinia() {
+  const app = createApp({});
+  const pinia = createPinia();
+  app.use(pinia);
+  setActivePinia(pinia);
 }
