@@ -1,7 +1,7 @@
 import { createWebsocketClient } from "../websocket";
 import { defineStore, acceptHMRUpdate } from "pinia";
 
-import { getClientWithoutAuth } from "./httpClient";
+import { getClientWithoutAuth, getClient } from "./httpClient";
 import { useSteps } from "./step";
 import { useSettings } from "./config";
 import { useServices } from "./service";
@@ -44,8 +44,16 @@ export const useAuth = defineStore("auth", {
         websocketClient.registerStore(store);
       }
     },
+    async initAuthenticatedClients() {
+      const stores = [useSteps(), useServices(), useDeployments()];
+      const authenticatedClient = getClient();
+      for (const store of stores) {
+        store.client = authenticatedClient;
+      }
+    },
     async onLoginSuccess() {
       await this.initWebsocketClient();
+      await this.initAuthenticatedClients();
       const serviceStore = useServices();
       serviceStore.fetchServices();
     },
@@ -63,8 +71,7 @@ export const useAuth = defineStore("auth", {
       const client = this.client;
       const options: any = client.options;
       options["body"] = body;
-      options.headers["Content-Type"] =
-        "application/x-www-form-urlencoded";
+      options.headers["Content-Type"] = "application/x-www-form-urlencoded";
       await client
         .post<{ access_token: string }>("/token")
         .then((response) => {
