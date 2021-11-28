@@ -46,7 +46,7 @@ describe("Deployment Store Actions", () => {
     const servicesStore = useServices();
     const deploymentsStore = useDeployments();
     servicesStore.fetchServiceToken = jest.fn();
-    deploymentsStore.client = {
+    const client = {
       async post<T = unknown>(): Promise<T> {
         return new Promise<any>((resolve, reject) => {
           resolve(deployment);
@@ -54,7 +54,7 @@ describe("Deployment Store Actions", () => {
       },
       options: {headers: {}},
     } as any;
-    await deploymentsStore.startDeployment("fastdeploy");
+    await deploymentsStore.startDeployment("fastdeploy", client);
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       deployment
     );

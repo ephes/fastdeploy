@@ -1,6 +1,6 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 
-import { getClient } from "./httpClient";
+import { getClient, HttpClient } from "./httpClient";
 import { useServices } from "./service";
 import { Deployment, Message, DeploymentById } from "../typings";
 
@@ -17,20 +17,18 @@ export const useDeployments = defineStore("deployments", {
         meta.hot.accept(acceptHMRUpdate(useDeployments, meta.hot));
       }
     },
-    async startDeployment(serviceName: string) {
+    async startDeployment(serviceName: string, client: HttpClient = getClient()) {
       const servicesStore = useServices();
       const serviceToken = await servicesStore.fetchServiceToken(
         serviceName,
         "frontend"
       );
-      const client = getClient();
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
       const deployment = await client.post<Promise<Deployment>>("deployments");
       this.deployments[deployment.id] = deployment;
       return deployment;
     },
     async fetchDeployments() {
-      console.log("fetching deployments with client", this.client);
       const deployments: Deployment[] = await this.client.get(
         "deployments"
       );
