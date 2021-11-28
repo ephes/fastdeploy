@@ -1,7 +1,7 @@
 import { createWebsocketClient } from "../websocket";
 import { defineStore, acceptHMRUpdate } from "pinia";
 
-import { getClientWithoutAuth, HttpClient } from "./httpClient";
+import { getClientWithoutAuth } from "./httpClient";
 import { useSteps } from "./step";
 import { useSettings } from "./config";
 import { useServices } from "./service";
@@ -60,10 +60,10 @@ export const useAuth = defineStore("auth", {
       const body =
         "grant_type=password&" +
         new URLSearchParams(formData as any).toString();
-      const client = this.client as HttpClient;
-      const options = client.options as any;
+      const client = this.client;
+      const options: any = client.options;
       options["body"] = body;
-      client.options.headers["Content-Type"] =
+      options.headers["Content-Type"] =
         "application/x-www-form-urlencoded";
       await client
         .post<{ access_token: string }>("/token")
