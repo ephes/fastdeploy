@@ -23,13 +23,14 @@ export const useDeployments = defineStore("deployments", {
         serviceName,
         "frontend"
       );
-      const client = this.client;
+      const client = getClient();
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
       const deployment = await client.post<Promise<Deployment>>("deployments");
       this.deployments[deployment.id] = deployment;
       return deployment;
     },
     async fetchDeployments() {
+      console.log("fetching deployments with client", this.client);
       const deployments: Deployment[] = await this.client.get(
         "deployments"
       );
