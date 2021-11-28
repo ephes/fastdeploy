@@ -1,18 +1,9 @@
-import { createApp, markRaw } from "vue";
-import { setActivePinia, createPinia } from "pinia";
-
-import { Client, Deployment } from "../src/typings";
-import { createClient, snakeToCamel } from "../src/websocket";
-import { useDeployments } from "../src/store../src/websocket;
-import {
-  createStubWebsocketConnection,
-  Connection,
-  createEvent,
-} from "./conftest";
-
-let client: Client;
-let connection: Connection;
-let deploymentsStore: any;
+import { initPinia, createEvent } from "./conftest";
+import { createWebsocketClient } from "../src/websocket";
+import { snakeToCamel } from "../src/converters";
+import { Deployment } from "../src/typings";
+import { useServices } from "../src/stores/service";
+import { useDeployments } from "../src/stores/deployment";
 
 const deployment: Deployment = {
   id: 1,
@@ -25,64 +16,44 @@ const deployment: Deployment = {
 
 describe("Deployment Store Websocket", () => {
   beforeEach(() => {
-    const app = createApp({});
-    client = createClient();
-    client.websocket = createStubWebsocketConnection();
-    connection = client.websocket.connection;
-    client.websocket.registerWebsocketConnectionCallbacks(connection);
-    const pinia = createPinia().use(({ store }) => {
-      store.client = markRaw(client);
-    });
-    app.use(pinia);
-    setActivePinia(pinia);
-    deploymentsStore = useDeployments();
+    initPinia();
   });
 
   it("has no deployments store registered", () => {
-    connection.send(createEvent({ ...deployment, type: "deployment" }));
+    const deploymentsStore = useDeployments();
+    const websocketClient = createWebsocketClient();
+    websocketClient.onMessage(createEvent({ ...deployment, type: "deployment" }));
     expect(deploymentsStore.deployments).toStrictEqual({});
   });
 
   it("has a deployments store registered", () => {
-    client.websocket.registerStore(deploymentsStore);
-    connection.send(createEvent({ ...deployment, type: "deployment" }));
+    const deploymentsStore = useDeployments();
+    const websocketClient = createWebsocketClient();
+    websocketClient.registerStore(deploymentsStore);
+    websocketClient.onMessage(createEvent({ ...deployment, type: "deployment" }));
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       snakeToCamel(deployment)
     );
   });
 });
 
-let deploymentsToFetch: Deployment[] = [];
-
-function createStubClient() {
-  // replace startDeployment, fetchDeployments functions from original
-  // client with stubs
-  const client = createClient();
-  client.websocket = createStubWebsocketConnection();
-  connection = client.websocket.connection;
-  client.websocket.registerWebsocketConnectionCallbacks(connection);
-  client.startDeployment = async (serviceName: string) => {
-    return deployment;
-  };
-  client.fetchDeployments = async () => {
-    return deploymentsToFetch;
-  };
-  return client;
-}
-
 describe("Deployment Store Actions", () => {
   beforeEach(() => {
-    const app = createApp({});
-    client = createStubClient();
-    const pinia = createPinia().use(({ store }) => {
-      store.client = markRaw(client);
-    });
-    app.use(pinia);
-    setActivePinia(pinia);
-    deploymentsStore = useDeployments();
+    initPinia();
   });
 
   it("starts a deployment", async () => {
+    const servicesStore = useServices();
+    const deploymentsStore = useDeployments();
+    servicesStore.fetchServiceToken = jest.fn();
+    deploymentsStore.client = {
+      async post<T = unknown>(): Promise<T> {
+        return new Promise<any>((resolve, reject) => {
+          resolve(deployment);
+        });
+      },
+      options: {headers: {}},
+    } as any;
     await deploymentsStore.startDeployment("fastdeploy");
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       deployment
@@ -90,7 +61,15 @@ describe("Deployment Store Actions", () => {
   });
 
   it("fetches the list of deployments", async () => {
-    deploymentsToFetch = [deployment];
+    const deploymentsStore = useDeployments();
+    deploymentsStore.client = {
+      async  get<T = unknown>(url: string | number): Promise<T> {
+        return new Promise<any>((resolve) => {
+          resolve([deployment]);
+        });
+      },
+      options: {headers: {}},
+    } as any;
     await deploymentsStore.fetchDeployments();
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
       deployment

@@ -8,10 +8,8 @@ export const useDeployments = defineStore("deployments", {
   state: () => {
     return {
       deployments: {} as DeploymentById,
+      client: getClient(),
     };
-  },
-  getters: {
-    getClient: () => getClient,
   },
   actions: {
     useHMRUpdate(meta: any) {
@@ -25,14 +23,14 @@ export const useDeployments = defineStore("deployments", {
         serviceName,
         "frontend"
       );
-      const client = this.getClient();
+      const client = this.client;
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
       const deployment = await client.post<Promise<Deployment>>("deployments");
       this.deployments[deployment.id] = deployment;
       return deployment;
     },
     async fetchDeployments() {
-      const deployments: Deployment[] = await this.getClient().get(
+      const deployments: Deployment[] = await this.client.get(
         "deployments"
       );
       for (const deployment of deployments) {
