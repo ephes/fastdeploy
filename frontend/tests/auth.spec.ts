@@ -1,4 +1,4 @@
-import { initPinia } from "./conftest";Í
+import { initPinia } from "./conftest";
 import { useAuth } from "../src/stores/auth";
 
 describe("Auth Store Actions", () => {
@@ -25,8 +25,8 @@ describe("Auth Store Actions", () => {
           throw Error("Incorrect username or password")
         });
       },
-      options: {headers: {}, body: ""},
-    };
+      options: {headers: {}},
+    } as any;
     expect(authStore.errorMessage).toBe(null);
     await authStore.login();
     expect(authStore.errorMessage).toBe("Incorrect username or password");
@@ -42,8 +42,8 @@ describe("Auth Store Actions", () => {
           resolve({access_token: "access_token"});
         });
       },
-      options: {headers: {}, body: ""},
-    };
+      options: {headers: {}},
+    } as any;
     authStore.onLoginSuccess = jest.fn();  // mock onLoginSuccess action
     expect(authStore.isAuthenticated).toBe(false);
     await authStore.login();
