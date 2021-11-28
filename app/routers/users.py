@@ -47,16 +47,18 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 class ServiceIn(BaseModel):
     service: str
     origin: str
+    expiration_in_days: int = 30
 
 
 @router.post("/service-token")
 async def service_token(service_in: ServiceIn, user: User = Depends(get_current_active_user)):
-    service_token_expires = timedelta(minutes=30)
     data = {
         "type": "service",
         "service": service_in.service,
         "origin": service_in.origin,
         "user": user.name,
     }
+    service_in.expiration_in_days = max(1, min(service_in.expiration_in_days, 180))
+    service_token_expires = timedelta(days=service_in.expiration_in_days)
     token = auth.create_access_token(data=data, expires_delta=service_token_expires)
     return {"service_token": token, "token_type": "bearer"}

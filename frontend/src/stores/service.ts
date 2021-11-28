@@ -45,11 +45,12 @@ export const useServices = defineStore("services", {
         this.services[service.id] = service;
       }
     },
-    async fetchServiceToken(serviceName: string, origin: string) {
+    async fetchServiceToken(serviceName: string, origin: string, expirationInDays: number) {
       const response = await (<Promise<{ service_token: string }>>(
         this.client.post("service-token", {
           service: serviceName,
           origin: origin,
+          expiration_in_days: expirationInDays,
         })
       ));
       return response.service_token;
