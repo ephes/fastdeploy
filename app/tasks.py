@@ -59,7 +59,7 @@ class DeployTask(BaseSettings):
     async def post_collected_steps(self, steps):
         for step in steps:
             r = await self.client.post(self.steps_url, json=step)
-            self.steps.append(Step.parse_obj(r.json()))
+            self.steps.append(Step(**r.json()))
 
     async def collect_steps(self):
         command = ["sudo", "-u", settings.sudo_user, str(settings.deploy_root / self.collect_script)]
@@ -120,7 +120,7 @@ class DeployTask(BaseSettings):
         if self.current_step is not None:
             await self.start_step(self.current_step)
         while True:
-            data = await proc.stdout.readline()
+            data = await proc.stdout.readline()  # type: ignore
             if len(data) == 0:
                 break
 
