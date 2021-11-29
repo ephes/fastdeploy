@@ -2,6 +2,7 @@ import { App } from "vue";
 
 
 type SnakeToCamel = {
+  // FIXME this has to be better
   [key: string]: any;
 }
 
