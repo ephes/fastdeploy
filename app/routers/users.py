@@ -48,7 +48,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 class ServiceIn(BaseModel):
     service: str
     origin: str
-    expiration_in_days: conint(ge=1, le=180) = 1  # pyright: reportGeneralTypeIssues = false
+    expiration_in_days: conint(ge=1, le=180) = 1  # type: ignore
 
 
 @router.post("/service-token")
