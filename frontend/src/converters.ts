@@ -1,3 +1,5 @@
+import { SnakeToCamel } from "./typings";
+
 function snakeToCamelStr(str: string): string {
   if (!/[_-]/.test(str)) {
     return str;
@@ -7,9 +9,7 @@ function snakeToCamelStr(str: string): string {
     .replace(/[-_][a-z0-9]/g, (group) => group.slice(-1).toUpperCase());
 }
 
-export function snakeToCamel(
-  obj: Record<string, string>
-): Record<string, string | number> {
+export function snakeToCamel(obj: SnakeToCamel) {
   const newObj: any = {};
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {

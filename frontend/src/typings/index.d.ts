@@ -1,5 +1,11 @@
 import { App } from "vue";
 
+
+type SnakeToCamel = {
+  [key: string]: any;
+}
+
+
 type Environment = {
   MODE: string;
   VITE_API_BASE_DEV: string;
