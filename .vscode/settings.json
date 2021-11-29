@@ -15,6 +15,7 @@
         "loadbalancer",
         "pinia",
         "pydantic",
+        "pyright",
         "rprint",
         "traefik",
         "typer",
