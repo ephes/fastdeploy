@@ -8,6 +8,7 @@ export const useServices = defineStore("services", {
     return {
       services: {} as ServiceById,
       new: newService,
+      serviceTokenErrorMessage: "",
       client: getClient(),
     };
   },
@@ -18,22 +19,23 @@ export const useServices = defineStore("services", {
       }
     },
     async addService() {
-      this.client.post<ServiceWithId>(
-        "/services",
-        this.new
-      ).then(service => {
-        this.services[service.id] = service;
-        this.new = { name: "", collect: "", deploy: "" };
-      }).catch(err => {
-        console.log("Error adding service", err);
-      });
+      this.client
+        .post<ServiceWithId>("/services", this.new)
+        .then((service) => {
+          this.services[service.id] = service;
+          this.new = { name: "", collect: "", deploy: "" };
+        })
+        .catch((err) => {
+          console.log("Error adding service", err);
+        });
     },
     async deleteService(service_id: number) {
       this.client
         .delete<number>(`/services/${service_id}`)
         .then((deletedId) => {
           delete this.services[deletedId];
-        }).catch((err) => {
+        })
+        .catch((err) => {
           console.log("delete service error: ", err);
         });
     },
@@ -45,15 +47,25 @@ export const useServices = defineStore("services", {
         this.services[service.id] = service;
       }
     },
-    async fetchServiceToken(serviceName: string, origin: string, expirationInDays: number = 1) {
-      const response = await (<Promise<{ service_token: string }>>(
-        this.client.post("service-token", {
-          service: serviceName,
-          origin: origin,
-          expiration_in_days: expirationInDays,
-        })
-      ));
-      return response.service_token;
+    async fetchServiceToken(
+      serviceName: string,
+      origin: string,
+      expirationInDays: number = 1
+    ) {
+      this.serviceTokenErrorMessage = "";
+      try {
+        const response = await (<Promise<{ service_token: string }>>(
+          this.client.post("service-token", {
+            service: serviceName,
+            origin: origin,
+            expiration_in_days: expirationInDays,
+          })
+        ));
+        return response.service_token;
+      } catch (err: any) {
+        this.serviceTokenErrorMessage = err.message + " " + JSON.stringify(err.body)
+        return null;
+      }
     },
     onMessage(message: Message) {
       if (message.type === "service") {

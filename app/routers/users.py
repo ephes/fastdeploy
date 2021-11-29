@@ -3,6 +3,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
+from pydantic.types import conint
 
 from .. import auth
 from ..config import settings
@@ -47,7 +48,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 class ServiceIn(BaseModel):
     service: str
     origin: str
-    expiration_in_days: int = 30
+    expiration_in_days: conint(ge=1, le=180) = 1  # pyright: reportGeneralTypeIssues = false
 
 
 @router.post("/service-token")
@@ -58,7 +59,6 @@ async def service_token(service_in: ServiceIn, user: User = Depends(get_current_
         "origin": service_in.origin,
         "user": user.name,
     }
-    service_in.expiration_in_days = max(1, min(service_in.expiration_in_days, 180))
     service_token_expires = timedelta(days=service_in.expiration_in_days)
     token = auth.create_access_token(data=data, expires_delta=service_token_expires)
     return {"service_token": token, "token_type": "bearer"}

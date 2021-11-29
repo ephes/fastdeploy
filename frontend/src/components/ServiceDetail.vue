@@ -9,9 +9,10 @@ const route = useRoute()
 const serviceStore = useServices()
 const service: ServiceWithId | undefined = serviceStore.services[Number(route.params.id)]
 
+serviceStore.serviceTokenErrorMessage = "";
 const origin = ref('');
 const expirationInDays = ref(30);
-const serviceToken = ref('');
+const serviceToken = ref('' as string | null);
 
 async function getServiceToken() {
     if (service) {
@@ -25,8 +26,17 @@ async function getServiceToken() {
         <h1>Service {{ $route.params.id }}</h1>
         <div v-if="service">
             <h2>service name: {{ service.name }}</h2>
+            <div v-if="serviceStore.serviceTokenErrorMessage">
+                <p>{{ serviceStore.serviceTokenErrorMessage }}</p>
+            </div>
             <input v-model="origin" placeholder="origin" />
-            <input v-model="expirationInDays" placeholder="expirationInDays" type="number" min="1" max="180"/>
+            <input
+                v-model="expirationInDays"
+                placeholder="expirationInDays"
+                type="number"
+                min="1"
+                max="180"
+            />
             <button @click="getServiceToken()">Get Service Token</button>
             <div v-if="serviceToken">
                 <h3>Service Token</h3>
