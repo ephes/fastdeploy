@@ -52,8 +52,6 @@ async def test_create_service(app, base_url, repository, handler, service, valid
 
     result = response.json()
     service_from_db = await repository.get_service_by_name(result["name"])
-    assert service_from_db.collect == service.collect
-    assert service_from_db.deploy == service.deploy
     assert service_from_db.id != given_id
 
 

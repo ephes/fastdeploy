@@ -34,6 +34,6 @@ async def create_deployment(
     deployment.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
     await repository.add_deployment(deployment)
 
-    environment = get_deploy_environment(service, deployment)
+    environment = get_deploy_environment(deployment)
     background_tasks.add_task(run_deploy, environment)
     return deployment

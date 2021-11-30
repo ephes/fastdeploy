@@ -16,7 +16,7 @@ from pydantic import BaseSettings, Field
 
 from .auth import create_access_token
 from .config import settings
-from .models import Deployment, Service, Step
+from .models import Deployment, Step
 
 
 async def run_deploy(environment):  # pragma no cover
@@ -24,7 +24,7 @@ async def run_deploy(environment):  # pragma no cover
     subprocess.Popen(command, start_new_session=True, env=environment)
 
 
-def get_deploy_environment(service: Service, deployment: Deployment):
+def get_deploy_environment(deployment: Deployment):
     data = {
         "type": "deployment",
         "deployment": deployment.id,
@@ -32,8 +32,6 @@ def get_deploy_environment(service: Service, deployment: Deployment):
     access_token = create_access_token(data=data, expires_delta=timedelta(minutes=30))
     environment = {
         "ACCESS_TOKEN": access_token,
-        "DEPLOY_SCRIPT": service.deploy,
-        "COLLECT_SCRIPT": service.collect,
         "STEPS_URL": settings.steps_url,
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):

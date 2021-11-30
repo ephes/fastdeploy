@@ -31,7 +31,7 @@ def user(password):
 
 @pytest.fixture
 def service():
-    return Service(name="fastdeploy", collect="fastdeploy_collect.py", deploy="fastdeploy_deploy.sh")
+    return Service(name="fastdeploy", data={"foo": "bar"})
 
 
 @pytest.fixture
