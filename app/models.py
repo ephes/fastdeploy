@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import JSON, DateTime, String
 from sqlalchemy.sql.schema import Column
 from sqlmodel import Field, SQLModel
 
@@ -15,8 +15,7 @@ class User(SQLModel, table=True):
 class Service(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column=Column("name", String, unique=True))
-    collect: str
-    deploy: str
+    data: dict = Field(sa_column=Column(JSON), default={})
 
 
 class ServiceOut(Service):
