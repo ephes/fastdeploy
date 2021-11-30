@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..database import repository
 from ..dependencies import get_current_active_user
@@ -28,6 +28,11 @@ async def create_service(
     current_user: User = Depends(get_current_active_user),
 ) -> Service:
     service.id = None  # prevent client from setting the id
+    service_names = await repository.get_service_names()
+    if service.name not in service_names:
+        # make sure the service exists
+        raise HTTPException(status_code=400, detail="Service does not exists")
+    service.data = await repository.get_service_data(service.name)
     return await repository.add_service(service)
 
 

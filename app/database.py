@@ -1,7 +1,7 @@
 from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
-from .filesystem import get_directories, working_directory
+from .filesystem import get_directories, get_service_config, working_directory
 from .models import Deployment, DeploymentOut, Service, ServiceOut, Step, StepOut, User
 
 
@@ -26,6 +26,9 @@ class BaseRepository:
 
     async def get_service_names(self) -> set[str]:
         return set(get_directories(settings.deploy_root))
+
+    async def get_service_data(self, service_name: str) -> dict:
+        return get_service_config(service_name)
 
 
 class InMemoryRepository(BaseRepository):
