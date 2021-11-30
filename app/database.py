@@ -1,7 +1,7 @@
 from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
-from .filesystem import working_directory
+from .filesystem import get_directories, working_directory
 from .models import Deployment, DeploymentOut, Service, ServiceOut, Step, StepOut, User
 
 
@@ -23,6 +23,9 @@ class BaseRepository:
     async def dispatch_event(self, event):
         for handler in self.event_handlers:
             await handler.handle_event(event)
+
+    async def get_service_names(self) -> set[str]:
+        return set(get_directories(settings.deploy_root))
 
 
 class InMemoryRepository(BaseRepository):

@@ -56,6 +56,7 @@ export const useAuth = defineStore("auth", {
       await this.initAuthenticatedClients();
       const serviceStore = useServices();
       serviceStore.fetchServices();
+      serviceStore.fetchServiceNames();
     },
     async login() {
       if (!this.username || !this.password) {

@@ -17,6 +17,11 @@ async def get_services(current_user: User = Depends(get_current_active_user)) ->
     return await repository.get_services()
 
 
+@router.get("/names/")
+async def get_service_names(current_user: User = Depends(get_current_active_user)) -> set[str]:
+    return await repository.get_service_names()
+
+
 @router.post("/")
 async def create_service(
     service: Service,

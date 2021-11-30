@@ -22,8 +22,6 @@ type Message = {
 type Service = Message & {
   id?: number;
   name: string;
-  collect: string;
-  deploy: string;
   deleted?: boolean;
 };
 

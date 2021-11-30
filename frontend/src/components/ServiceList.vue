@@ -18,9 +18,13 @@ async function startDeployment(serviceName: string) {
 <template>
   <div>
     <h1>Services</h1>
-    <input v-model="serviceStore.new.name" placeholder="service name" />
-    <input v-model="serviceStore.new.collect" placeholder="collect script" />
-    <input v-model="serviceStore.new.deploy" placeholder="deploy script" />
+    <select v-model="serviceStore.new.name">
+      <option disabled value="">Please select service to add</option>
+      <option v-for="name in serviceStore.getAvailableServiceNames" :value="name">
+        {{ name }}
+      </option>
+    </select>
+    <span>Selected: {{ serviceStore.new.name }}</span>
     <button @click="serviceStore.addService()">add</button>
     <br />
     <table>
