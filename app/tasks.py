@@ -46,7 +46,6 @@ class DeployTask(BaseSettings):
     steps: list[Step] = Field([], env="STEPS")
     access_token: str = Field(..., env="ACCESS_TOKEN")
     steps_url: str = Field(..., env="STEPS_URL")
-    steps: list[Step] = []
     current_step_index: int = 0
     attempts: int = 3
     sleep_on_fail: float = 3.0
@@ -122,7 +121,6 @@ class DeployTask(BaseSettings):
                 pass
 
     async def run_deploy(self):
-        print("steps: ", self.steps)
         await self.deploy_steps()
 
 
