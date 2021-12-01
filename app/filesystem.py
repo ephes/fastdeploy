@@ -20,9 +20,11 @@ def working_directory(path):
 
 def get_directories(path: Path) -> list[str]:
     """Returns a list of directories in a given path."""
+    directories = []
     for entry_path in path.iterdir():
         if entry_path.is_dir():
-            yield entry_path.name
+            directories.append(entry_path.name)
+    return directories
 
 
 def get_service_config(service_name: str) -> dict:
