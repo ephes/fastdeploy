@@ -19,10 +19,8 @@ async function startDeployment(serviceName: string) {
   <div>
     <h1>Services</h1>
     <select v-model="serviceStore.new.name">
-      <option disabled value="">Please select service to add</option>
-      <option v-for="name in serviceStore.getAvailableServiceNames" :value="name">
-        {{ name }}
-      </option>
+      <option disabled value>Please select service to add</option>
+      <option v-for="name in serviceStore.getAvailableServiceNames" :value="name">{{ name }}</option>
     </select>
     <span>Selected: {{ serviceStore.new.name }}</span>
     <button @click="serviceStore.addService()">add</button>
@@ -30,21 +28,16 @@ async function startDeployment(serviceName: string) {
     <table>
       <tr>
         <th>name</th>
-        <th>collect script</th>
-        <th>deploy script</th>
         <th>link</th>
         <th>deploy</th>
         <th>delete</th>
       </tr>
       <tr v-for="service of serviceStore.services" :key="service.id" class="list-service">
         <td>{{ service.name }}</td>
-        <td>{{ service.collect }}</td>
-        <td>{{ service.deploy }}</td>
         <td>
           <router-link
             :to="{ name: 'service-detail', params: { id: service.id } }"
-            >details for {{ service.name }}</router-link
-          >
+          >details for {{ service.name }}</router-link>
         </td>
         <td>
           <button @click="startDeployment(service.name)">deploy</button>

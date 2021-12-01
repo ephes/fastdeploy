@@ -4,7 +4,7 @@ import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
 export const useServices = defineStore("services", {
   state: () => {
-    const newService: Service = { name: "" };
+    const newService: Service = { name: "", data: {} };
     return {
       services: {} as ServiceById,
       new: newService,
@@ -39,7 +39,7 @@ export const useServices = defineStore("services", {
         .post<ServiceWithId>("/services/", this.new)
         .then((service) => {
           this.services[service.id] = service;
-          this.new = { name: "" };
+          this.new = { name: "", data: {} };
         })
         .catch((err) => {
           console.log("Error adding service", err);

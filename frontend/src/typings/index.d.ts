@@ -22,6 +22,7 @@ type Message = {
 type Service = Message & {
   id?: number;
   name: string;
+  data: object;
   deleted?: boolean;
 };
 

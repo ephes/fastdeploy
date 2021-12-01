@@ -6,8 +6,7 @@ import { createEvent, initPinia } from "./conftest";
 const service: ServiceWithId = {
   id: 1,
   name: "fastdeploy",
-  collect: "collect.py",
-  deploy: "deploy.sh",
+  data: {},
   type: "service",
 };
 
@@ -50,8 +49,7 @@ describe("Services Store Actions", () => {
     const servicesStore = useServices();
     const newService: Service = {
       name: "fastdeploy",
-      collect: "collect.py",
-      deploy: "deploy.sh",
+      data: {},
     };
     servicesStore.new = newService;
     servicesStore.client = {
