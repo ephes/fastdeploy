@@ -5,6 +5,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 
+from ..models import Step
 from ..tasks import DeployTask
 
 
@@ -40,7 +41,7 @@ class Client:
 
 @pytest.fixture
 def task_kwargs():
-    task_attrs = ["deploy_script", "collect_script", "access_token", "steps_url"]
+    task_attrs = ["deploy_script", "access_token", "steps_url"]
     return {attr: attr for attr in task_attrs}
 
 
@@ -61,21 +62,6 @@ class CollectProc:
     @property
     def stdout(self):
         return json.dumps(self._stdout)
-
-
-@pytest.mark.parametrize(
-    "stdout, expected_steps",
-    [
-        ([], []),  # no steps collected -> no steps posted
-        ([{"foo": "bar"}], []),  # step with no name -> not posted
-        ([{"name": "foo"}], [{"name": "foo"}]),  # step with name -> posted
-    ],
-)
-@pytest.mark.asyncio
-async def test_collect_steps(stdout, expected_steps, task):
-    with patch("app.tasks.subprocess", new=CollectProc(stdout)):
-        await task.collect_steps()
-    assert task.client.post_calls == expected_steps
 
 
 class Subprocess:
@@ -134,11 +120,12 @@ async def test_deploy_steps_post(stdout_lines, expected_steps, task):
 @pytest.mark.asyncio
 async def test_deploy_steps_put(task):
     step = {"id": 1, "name": "foo"}
+    task.steps = [Step(**step)]
     stdout_lines = [step, None]
     with patch("app.tasks.asyncio", new=DeployProc(stdout_lines)):
         await task.deploy_steps()
     actual_steps = [{"name": step["name"], "id": step["id"]} for step in task.client.put_calls]
-    assert actual_steps == [step]
+    assert actual_steps == [step, step]
 
 
 def test_task_headers(task):
@@ -157,25 +144,40 @@ async def test_task_sleep_on_connect_error(task):
 
 
 @pytest.mark.parametrize(
-    "collect_stdout, deploy_lines, steps_posted, steps_put",
+    "predefined_steps, deploy_lines, steps_posted, steps_put",
     [
         # None is sentinel for last line
         ([], [None], [], []),  # no steps collected, no steps deployed -> no steps posted or put
         ([{"foo": "bar"}], [{"foo": "bar"}, None], [], []),  # no steps with names -> no steps posted or put
         (
-            [{"name": "bar"}, {"name": "foo"}],  # two steps because of current step is not None coverage
+            [
+                {"name": "bar", "id": 1},
+                {"name": "foo", "id": 2},
+            ],  # two steps because of current step is not None coverage
             [{"name": "bar"}, {"name": "foo"}, None],
-            [{"name": "bar"}, {"name": "foo"}],
+            [],
             [{"id": 1, "name": "bar"}, {"id": 2, "name": "foo"}],
         ),  # happy path
+        (
+            [
+                {"name": "bar", "id": 1},
+            ],
+            [{"name": "bar"}, {"name": "foo"}, None],
+            [{"id": None, "name": "foo", "started": None, "created": None}],
+            [{"id": 1, "name": "bar"}],
+        ),  # step from deploy is not in predefined steps -> step is posted
     ],
 )
 @pytest.mark.asyncio
-async def test_task_run_deploy(collect_stdout, deploy_lines, steps_put, steps_posted, task):
-    with patch("app.tasks.subprocess", new=CollectProc(collect_stdout)):
-        with patch("app.tasks.asyncio", new=DeployProc(deploy_lines)):
-            await task.run_deploy()
-    assert task.client.post_calls == steps_posted
+async def test_task_run_deploy(predefined_steps, deploy_lines, steps_put, steps_posted, task):
+    task.steps = [Step(**predefined) for predefined in predefined_steps if "name" in predefined]
+    with patch("app.tasks.asyncio", new=DeployProc(deploy_lines)):
+        await task.run_deploy()
+    post_calls = []
+    for step in task.client.post_calls:
+        del step["finished"]
+        post_calls.append(step)
+    assert post_calls == steps_posted
 
     actual_put = []
     for step in task.client.put_calls:

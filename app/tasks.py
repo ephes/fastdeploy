@@ -81,19 +81,18 @@ class DeployTask(BaseSettings):
         step.started = datetime.utcnow()
         await self.put_step(step)
 
-    async def finish_step(self, step, step_result):
-        if step is None:
-            step = Step(**step_result)
-            step.finished = datetime.utcnow()
-            await self.send_step(self.client.post, self.steps_url, step)
-        print("step name: ", step.name)
-        print("step result name: ", step_result["name"])
-        assert step.name == step_result["name"]
+    async def finish_step(self, current_step, step_result):
+        step = Step(**step_result)
         step.finished = datetime.utcnow()
-        await self.put_step(step)
-        self.current_step_index += 1
-        if self.current_step is not None:
-            await self.start_step(self.current_step)
+        if current_step is None:
+            await self.send_step(self.client.post, self.steps_url, step)
+        else:
+            step.id = current_step.id  # step from stdout deploy has no id -> take it from current step
+            await self.put_step(step)
+            current_step.finished = datetime.utcnow()
+            self.current_step_index += 1
+            if self.current_step is not None:
+                await self.start_step(self.current_step)
 
     async def deploy_steps(self):
         sudo_command = f"sudo -u {settings.sudo_user}"
@@ -115,8 +114,15 @@ class DeployTask(BaseSettings):
             decoded = data.decode("UTF-8")
             try:
                 step_result = json.loads(decoded)
-                if len(step_result.get("name", "")) > 0:
-                    await self.finish_step(self.current_step, step_result)
+                result_name = step_result.get("name")
+                if result_name is None:
+                    # should not happen
+                    print("step result not put/posted: ", step_result)
+                    continue
+                current_step = None
+                if self.current_step is not None and result_name == self.current_step.name:
+                    current_step = self.current_step
+                await self.finish_step(current_step, step_result)
             except json.decoder.JSONDecodeError:
                 pass
 
