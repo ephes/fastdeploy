@@ -1,6 +1,7 @@
 {
+    "deploy_script": "fastdeploy_deploy_develop.sh",
     "description": "Service to deploy other services.",
-    "tasks": [
+    "steps": [
         {
             "name": "Gathering Facts"
         },

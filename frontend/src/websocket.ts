@@ -20,6 +20,7 @@ export function createWebsocketClient(): WebsocketClient {
     },
     notifyStores(message: Message) {
       const newMessage = snakeToCamel(message);
+      console.log("notifying stores of new message: ", newMessage);
       for (const store of this.stores) {
         store.onMessage(newMessage);
       }

@@ -24,7 +24,7 @@ async def run_deploy(environment):  # pragma no cover
     subprocess.Popen(command, start_new_session=True, env=environment)
 
 
-def get_deploy_environment(deployment: Deployment):
+def get_deploy_environment(deployment: Deployment, steps: list[Step], deploy_script: str) -> dict:
     data = {
         "type": "deployment",
         "deployment": deployment.id,
@@ -32,7 +32,9 @@ def get_deploy_environment(deployment: Deployment):
     access_token = create_access_token(data=data, expires_delta=timedelta(minutes=30))
     environment = {
         "ACCESS_TOKEN": access_token,
+        "DEPLOY_SCRIPT": deploy_script,
         "STEPS_URL": settings.steps_url,
+        "STEPS": json.dumps([json.loads(step.json()) for step in steps]),  # json() to make created serializable
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):
         environment["SSH_AUTH_SOCK"] = ssh_auth_sock
@@ -41,7 +43,7 @@ def get_deploy_environment(deployment: Deployment):
 
 class DeployTask(BaseSettings):
     deploy_script: str = Field(..., env="DEPLOY_SCRIPT")
-    collect_script: str = Field(..., env="COllECT_SCRIPT")
+    steps: list[Step] = Field([], env="STEPS")
     access_token: str = Field(..., env="ACCESS_TOKEN")
     steps_url: str = Field(..., env="STEPS_URL")
     steps: list[Step] = []
@@ -54,19 +56,8 @@ class DeployTask(BaseSettings):
     def headers(self):
         return {"authorization": f"Bearer {self.access_token}"}
 
-    async def post_collected_steps(self, steps):
-        for step in steps:
-            r = await self.client.post(self.steps_url, json=step)
-            self.steps.append(Step(**r.json()))
-
-    async def collect_steps(self):
-        command = ["sudo", "-u", settings.sudo_user, str(settings.deploy_root / self.collect_script)]
-        proc = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE)
-        steps = [step for step in json.loads(proc.stdout) if "name" in step]
-        await self.post_collected_steps(steps)
-
     async def send_step(self, method, step_url, step):
-        for attempt in range(self.attempts):
+        for _ in range(self.attempts):
             try:
                 await method(step_url, json=json.loads(step.json()))
                 break
@@ -131,7 +122,7 @@ class DeployTask(BaseSettings):
                 pass
 
     async def run_deploy(self):
-        await self.collect_steps()
+        print("steps: ", self.steps)
         await self.deploy_steps()
 
 

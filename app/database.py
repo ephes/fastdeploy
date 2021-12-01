@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
@@ -139,11 +141,15 @@ class InMemoryRepository(BaseRepository):
                 return deployment
         return None
 
-    async def add_deployment(self, deployment: Deployment) -> Deployment:
+    async def add_deployment(self, deployment: Deployment, steps: list[Step]) -> tuple[Deployment, list[Step]]:
         self.deployments.append(deployment)
         deployment.id = len(self.deployments)
         await self.dispatch_event(DeploymentOut.parse_obj(deployment))
-        return deployment
+        for step in steps:
+            step.deployment_id = deployment.id
+            step.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
+            await self.add_step(step)
+        return deployment, steps
 
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
         deployments = []
@@ -268,13 +274,18 @@ class SQLiteRepository(BaseRepository):
             deployment = session.query(Deployment).filter(Deployment.id == deployment_id).first()
         return deployment
 
-    async def add_deployment(self, deployment: Deployment) -> Deployment:
+    async def add_deployment(self, deployment: Deployment, steps: list[Step]) -> tuple[Deployment, list[Step]]:
         with Session(self.engine) as session:
             session.add(deployment)
             session.commit()
             session.refresh(deployment)
         await self.dispatch_event(DeploymentOut.parse_obj(deployment))
-        return deployment
+        for step in steps:
+            if deployment.id is not None:
+                step.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
+                step.deployment_id = deployment.id
+                await self.add_step(step)
+        return deployment, steps
 
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
         with Session(self.engine) as session:
