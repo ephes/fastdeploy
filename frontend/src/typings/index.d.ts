@@ -73,6 +73,7 @@ type WebsocketClient = {
   authenticateWebsocketConnection(connection: any, accessToken: string): void;
   onMessage(event: any): void;
   onConnectionOpen(accessToken: string, event: MessageEvent): void;
+  onConnectionClose(event: CloseEvent): void;
   registerStore(store: any): void;
   registerWebsocketConnectionCallbacks(connection: WebSocket, accessToken: string): void;
   notifyStores(message: Message): void;

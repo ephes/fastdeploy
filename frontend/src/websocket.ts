@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from "uuid";
 import { snakeToCamel } from "./converters";
 import { WebsocketClient, Message } from "./typings";
 
+import { useAuth } from "./stores/auth";
+
 export function createWebsocketClient(): WebsocketClient {
   const client: WebsocketClient = {
     uuid: uuidv4(),
@@ -17,6 +19,17 @@ export function createWebsocketClient(): WebsocketClient {
         this.connection,
         String(accessToken)
       );
+    },
+    onConnectionClose(event: CloseEvent) {
+      console.log("Connection closed: ", event);
+      // retry connection for n times
+      const authStore = useAuth();
+      for (const attempt of [1, 2, 3]) {
+        const sleep = new Promise((resolve) => setTimeout(resolve, 1000));
+        sleep.then(() => {
+          authStore.initWebsocketClient();
+        });
+      }
     },
     notifyStores(message: Message) {
       const newMessage = snakeToCamel(message);
@@ -34,6 +47,7 @@ export function createWebsocketClient(): WebsocketClient {
     },
     registerWebsocketConnectionCallbacks(connection: any, accessToken: string) {
       connection.onopen = this.onConnectionOpen.bind(this, accessToken);
+      connection.onclose = this.onConnectionClose.bind(this);
       connection.onmessage = this.onMessage.bind(this);
     },
     authenticateWebsocketConnection(connection: any, accessToken: string) {
