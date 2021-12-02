@@ -169,20 +169,20 @@
       environment:
         PATH: "{{ default_path }}"
 
-    - name: Create task collect file for fastdeploy
+    - name: Create task deploy file for fastdeploy
       template:
-        src: fastdeploy_staging_collect.py.template.j2
-        dest: "{{ site_path }}/deployments/fastdeploy_staging_collect.py"
+        src: fastdeploy_staging_deploy.sh.template.j2
+        dest: "{{ site_path }}/deployments/fastdeploy/deploy.sh"
         mode: '0755'
       become: true
       become_user: "{{ username }}"
       environment:
         PATH: "{{ default_path }}"
 
-    - name: Create task deploy file for fastdeploy
+    - name: Create service config for fastdeploy
       template:
-        src: fastdeploy_staging_deploy.sh.template.j2
-        dest: "{{ site_path }}/deployments/fastdeploy_staging_deploy.sh"
+        src: fastdeploy_staging_config.json.template.j2
+        dest: "{{ site_path }}/deployments/fastdeploy/config.json"
         mode: '0755'
       become: true
       become_user: "{{ username }}"
