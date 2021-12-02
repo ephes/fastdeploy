@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from httpx import AsyncClient
@@ -36,14 +38,35 @@ async def test_create_service_without_authentication(app, base_url, service):
 
 
 @pytest.mark.asyncio
-async def test_create_service(app, base_url, repository, handler, service, valid_access_token_in_db):
-    service.id = given_id = -1
+async def test_create_non_existing_service(app, base_url, service, valid_access_token_in_db):
     async with AsyncClient(app=app, base_url=base_url) as client:
         response = await client.post(
             app.url_path_for("create_service"),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
             json=service.dict(),
         )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Service does not exists"}
+
+
+@pytest.mark.asyncio
+async def test_create_service(app, base_url, repository, handler, service, valid_access_token_in_db):
+    service.id = given_id = -1
+    print("service: ", service.dict())
+    with (
+        patch("app.database.get_directories", return_value=["fastdeploy"]),
+        patch("app.database.get_service_config", return_value={"steps": []}),
+    ):
+        async with AsyncClient(app=app, base_url=base_url) as client:
+            response = await client.post(
+                app.url_path_for("create_service"),
+                headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+                json=service.dict(),
+            )
+
+    result = response.json()
+    print("result: ", result)
 
     assert response.status_code == 200
 
