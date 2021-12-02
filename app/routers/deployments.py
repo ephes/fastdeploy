@@ -22,7 +22,7 @@ async def get_deployments(current_user: User = Depends(get_current_active_user))
 
 
 @router.post("/")
-async def create_deployment(
+async def start_deployment(
     background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_active_service_token)
 ):
     service = service_token.service_model
