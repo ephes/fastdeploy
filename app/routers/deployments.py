@@ -17,7 +17,11 @@ router = APIRouter(
 
 
 @router.get("/")
-async def get_deployments(current_user: User = Depends(get_current_active_user)) -> list[Deployment]:
+async def get_deployments(_: User = Depends(get_current_active_user)) -> list[Deployment]:
+    """
+    Get all deployments from database. Needs to be authenticated with a user
+    access token.
+    """
     return await repository.get_deployments()
 
 
@@ -25,6 +29,13 @@ async def get_deployments(current_user: User = Depends(get_current_active_user))
 async def start_deployment(
     background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_active_service_token)
 ):
+    """
+    Start a new deployment. Needs to be authenticated with a service token. Invoked
+    by frontend or github action. The service token is used to get the current
+    service from the database. The list of steps is fetched from service and added
+    to the deployment. The deployment is started a background task (forking a new
+    process later on).
+    """
     service = service_token.service_model
     assert service is not None
     service_id = service.id
