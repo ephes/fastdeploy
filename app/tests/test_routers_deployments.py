@@ -75,7 +75,6 @@ async def test_deploy_service(app, base_url, repository, handler, valid_service_
     assert "id" in deployment_from_api
 
     # make sure added deployment was dispatched to event handlers
-    print("last event: ", handler.last_event)
     assert handler.last_event.type == "deployment"
 
     # make sure deployment was added to service in database
