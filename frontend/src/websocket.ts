@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { snakeToCamel } from "./converters";
 import { WebsocketClient, Message } from "./typings";
 
-import { useAuth } from "./stores/auth";
+// import { useAuth } from "./stores/auth";
 
 export function createWebsocketClient(): WebsocketClient {
   /*
@@ -24,25 +24,25 @@ export function createWebsocketClient(): WebsocketClient {
         String(accessToken)
       );
     },
-    onConnectionClose(event: CloseEvent) {
-      console.log("Connection closed: ", event);
-      // FIXME - dont reconnect if already connected
-      // retry connection for n times
-      let doBreak = false;
-      const authStore = useAuth();
-      for (const attempt of [1, 2, 3]) {
-        const sleep = new Promise((resolve) => setTimeout(resolve, 1000));
-        sleep.then(() => {
-          if (authStore.initWebsocketClient()) {
-            console.log("reconnected");
-            doBreak = true;
-          }
-        });
-        if (doBreak) {
-          break;
-        }
-      }
-    },
+    // onConnectionClose(event: CloseEvent) {
+    //   console.log("Connection closed: ", event);
+    //   // FIXME - dont reconnect if already connected
+    //   // retry connection for n times
+    //   let doBreak = false;
+    //   const authStore = useAuth();
+    //   for (const attempt of [1, 2, 3]) {
+    //     const sleep = new Promise((resolve) => setTimeout(resolve, 1000));
+    //     sleep.then(() => {
+    //       if (authStore.initWebsocketClient()) {
+    //         console.log("reconnected");
+    //         doBreak = true;
+    //       }
+    //     });
+    //     if (doBreak) {
+    //       break;
+    //     }
+    //   }
+    // },
     notifyStores(message: Message) {
       const newMessage = snakeToCamel(message);
       for (const store of this.stores) {
