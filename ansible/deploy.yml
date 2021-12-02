@@ -150,6 +150,8 @@
         src: fastdeploy_sudoers.template.j2
         dest: /etc/sudoers.d/fastdeploy_as_root
         mode: '0440'
+      become: true
+      become_user: root
       environment:
         PATH: "{{ default_path }}"
 
