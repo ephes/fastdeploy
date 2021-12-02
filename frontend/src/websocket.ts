@@ -22,13 +22,21 @@ export function createWebsocketClient(): WebsocketClient {
     },
     onConnectionClose(event: CloseEvent) {
       console.log("Connection closed: ", event);
+      // FIXME - dont reconnect if already connected
       // retry connection for n times
+      let doBreak = false;
       const authStore = useAuth();
       for (const attempt of [1, 2, 3]) {
         const sleep = new Promise((resolve) => setTimeout(resolve, 1000));
         sleep.then(() => {
-          authStore.initWebsocketClient();
+          if (authStore.initWebsocketClient()) {
+            console.log("reconnected");
+            doBreak = true;
+          }
         });
+        if (doBreak) {
+          break;
+        }
       }
     },
     notifyStores(message: Message) {
@@ -42,12 +50,17 @@ export function createWebsocketClient(): WebsocketClient {
       this.notifyStores(message);
     },
     initWebsocketConnection(websocketUrl: string, accessToken: string) {
+      if (this.connection) {
+        if (this.connection.readyState === WebSocket.OPEN) {
+          console.log("Websocket connection already open");
+        }
+      }
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
       this.registerWebsocketConnectionCallbacks(this.connection, accessToken);
     },
     registerWebsocketConnectionCallbacks(connection: any, accessToken: string) {
       connection.onopen = this.onConnectionOpen.bind(this, accessToken);
-      connection.onclose = this.onConnectionClose.bind(this);
+      // connection.onclose = this.onConnectionClose.bind(this); // FIXME
       connection.onmessage = this.onMessage.bind(this);
     },
     authenticateWebsocketConnection(connection: any, accessToken: string) {
