@@ -169,6 +169,12 @@
       environment:
         PATH: "{{ default_path }}"
 
+    - name: Create directory for fastdeploy service
+      file:
+        path: "{{ site_path }}/deployments/fastdeploy"
+        state: directory
+        owner: "{{ username }}"
+
     - name: Create task deploy file for fastdeploy
       template:
         src: fastdeploy_staging_deploy.sh.template.j2
