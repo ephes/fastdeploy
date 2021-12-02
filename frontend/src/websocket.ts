@@ -5,6 +5,10 @@ import { WebsocketClient, Message } from "./typings";
 import { useAuth } from "./stores/auth";
 
 export function createWebsocketClient(): WebsocketClient {
+  /*
+    * Create a websocket client
+
+  */
   const client: WebsocketClient = {
     uuid: uuidv4(),
     stores: [],
