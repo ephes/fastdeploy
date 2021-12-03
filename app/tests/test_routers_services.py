@@ -55,7 +55,7 @@ async def test_create_service(app, base_url, repository, handler, service, valid
     service.id = given_id = -1
     print("service: ", service.dict())
     with (
-        patch("app.database.get_directories", return_value=["fastdeploy"]),
+        patch("app.database.get_directories", return_value=["fastdeploytest"]),
         patch("app.database.get_service_config", return_value={"steps": []}),
     ):
         async with AsyncClient(app=app, base_url=base_url) as client:
