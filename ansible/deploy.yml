@@ -233,7 +233,7 @@
       environment:
         PATH: "{{ default_path }}"
 
-    - name: Make sure deploy uvicorn service is running
+    - name: Make sure deploy uvicorn service is restarted
       systemd:
         state: restarted
         name: "{{ username }}"
