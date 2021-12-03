@@ -112,6 +112,9 @@ class DeployTask(BaseSettings):
                 break
 
             decoded = data.decode("UTF-8")
+            with open("/tmp/deploy_task.log", "a") as f:
+                f.write(decoded)
+                f.flush()
             try:
                 step_result = json.loads(decoded)
                 result_name = step_result.get("name")
