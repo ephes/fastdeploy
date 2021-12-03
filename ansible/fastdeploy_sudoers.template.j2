@@ -1,1 +1,4 @@
 deploy	ALL = (root) NOPASSWD:{{ services_path }}/fastdeploy/deploy.sh
+
+Cmnd_Alias RESTART_CMDS = /usr/bin/systemctl start deploy, /usr/bin/systemctl stop deploy
+deploy ALL=(ALL) NOPASSWD: RESTART_CMDS
