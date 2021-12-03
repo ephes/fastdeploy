@@ -96,7 +96,7 @@ class DeployTask(BaseSettings):
 
     async def deploy_steps(self):
         sudo_command = f"sudo -u {settings.sudo_user}"
-        deploy_command = str(settings.deploy_root / self.deploy_script)
+        deploy_command = str(settings.services_root / self.deploy_script)
         command = f"{sudo_command} {deploy_command}"
         print("command: ", command)
         proc = await asyncio.create_subprocess_shell(

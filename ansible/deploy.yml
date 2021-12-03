@@ -14,235 +14,244 @@
   tasks:
     - include_vars: secrets.yml
 
-    - name: Add nodejs signing key - do not download if present
-      apt_key:
-        id: 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280
-        url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
-        state: present
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Show facts available on the system
+    #   ansible.builtin.debug:
+    #     var: ansible_facts
 
-    - name: Add nodejs repository
-      apt_repository:
-        repo: deb https://deb.nodesource.com/node_17.x buster main
-        state: present
-      environment:
-        PATH: "{{ default_path }}"
+    - name: Conditionals test
+      ansible.builtin.debug:
+        msg: "foobar"
+      when: foo == "bar"
 
-    - name: Add yarn signing key - do not download if present
-      apt_key:
-        id: 72ECF46A56B4AD39C907BBB71646B01B86E50310
-        url: https://dl.yarnpkg.com/debian/pubkey.gpg
-        state: present
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Add nodejs signing key - do not download if present
+    #   apt_key:
+    #     id: 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280
+    #     url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+    #     state: present
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Add yarn repository
-      apt_repository:
-        repo: deb https://dl.yarnpkg.com/debian/ stable main
-        state: present
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Add nodejs repository
+    #   apt_repository:
+    #     repo: deb https://deb.nodesource.com/node_17.x buster main
+    #     state: present
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Install required build packages
-      apt:
-        name: ["git", "yarn", "nodejs"]
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Add yarn signing key - do not download if present
+    #   apt_key:
+    #     id: 72ECF46A56B4AD39C907BBB71646B01B86E50310
+    #     url: https://dl.yarnpkg.com/debian/pubkey.gpg
+    #     state: present
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Install required build packages (git,)
-      apt:
-        name: ["git"]
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Add yarn repository
+    #   apt_repository:
+    #     repo: deb https://dl.yarnpkg.com/debian/ stable main
+    #     state: present
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Add a unix user with a bash shell
-      user:
-        name: "{{ username }}"
-        shell: /bin/bash
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Install required build packages
+    #   apt:
+    #     name: ["git", "yarn", "nodejs"]
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Git checkout repository
-      git:
-        repo: "https://github.com/ephes/fastdeploy"
-        dest: "{{ site_path }}"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Install required build packages (git,)
+    #   apt:
+    #     name: ["git"]
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create .env file
-      template:
-        src: env.template.j2
-        dest: "{{ site_path }}/.env"
-        mode: '0600'
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Add a unix user with a bash shell
+    #   user:
+    #     name: "{{ username }}"
+    #     shell: /bin/bash
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Install fastdeploy frontend vue app dependencies
-      shell: npm install
-      args:
-        chdir: "{{ site_path }}/frontend"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Git checkout repository
+    #   git:
+    #     repo: "https://github.com/ephes/fastdeploy"
+    #     dest: "{{ site_path }}"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Build fastdeploy frontend vue app
-      shell: npm run build
-      args:
-        chdir: "{{ site_path }}/frontend"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create .env file
+    #   template:
+    #     src: env.template.j2
+    #     dest: "{{ site_path }}/.env"
+    #     mode: '0600'
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create virtualenv for python
-      shell: "{{ global_python }} -m venv {{ site_path }}/venv"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Install fastdeploy frontend vue app dependencies
+    #   shell: npm install
+    #   args:
+    #     chdir: "{{ site_path }}/frontend"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Upgrade pip prod venv
-      shell: "{{ python }} -m pip install --upgrade pip"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Build fastdeploy frontend vue app
+    #   shell: npm run build
+    #   args:
+    #     chdir: "{{ site_path }}/frontend"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create virtualenv for ansible
-      shell: "{{ global_python }} -m venv {{ home_path }}/ansible_venv"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create virtualenv for python
+    #   shell: "{{ global_python }} -m venv {{ site_path }}/venv"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Upgrade pip ansible venv
-      shell: "{{ ansible_python }} -m pip install --upgrade pip"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Upgrade pip prod venv
+    #   shell: "{{ python }} -m pip install --upgrade pip"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Install ansible
-      shell: "{{ ansible_python }} -m pip install ansible"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create virtualenv for ansible
+    #   shell: "{{ global_python }} -m venv {{ home_path }}/ansible_venv"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create .vault_password file
-      template:
-        src: vault_password.template.j2
-        dest: "{{ site_path }}/ansible/.vault_password"
-        mode: '0600'
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Upgrade pip ansible venv
+    #   shell: "{{ ansible_python }} -m pip install --upgrade pip"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create sudoers file for deploy scripts
-      template:
-        src: fastdeploy_sudoers.template.j2
-        dest: /etc/sudoers.d/fastdeploy_as_root
-        mode: '0440'
-      become: true
-      become_user: root
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Install ansible
+    #   shell: "{{ ansible_python }} -m pip install ansible"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create directory for ansible inventory
-      file:
-        path: "{{ site_path }}/ansible/inventory/"
-        state: directory
-        owner: "{{ username }}"
+    # - name: Create .vault_password file
+    #   template:
+    #     src: vault_password.template.j2
+    #     dest: "{{ site_path }}/ansible/.vault_password"
+    #     mode: '0600'
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create local inventory
-      template:
-        src: hosts.yml.template.j2
-        dest: "{{ site_path }}/ansible/inventory/hosts.yml"
-        mode: '0600'
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create sudoers file for deploy scripts
+    #   template:
+    #     src: fastdeploy_sudoers.template.j2
+    #     dest: /etc/sudoers.d/fastdeploy_as_root
+    #     mode: '0440'
+    #   become: true
+    #   become_user: root
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create directory for fastdeploy service
-      file:
-        path: "{{ site_path }}/deployments/fastdeploy"
-        state: directory
-        owner: "{{ username }}"
+    # - name: Create directory for ansible inventory
+    #   file:
+    #     path: "{{ site_path }}/ansible/inventory/"
+    #     state: directory
+    #     owner: "{{ username }}"
 
-    - name: Create task deploy file for fastdeploy
-      template:
-        src: fastdeploy_staging_deploy.sh.template.j2
-        dest: "{{ site_path }}/deployments/fastdeploy/deploy.sh"
-        mode: '0755'
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create local inventory
+    #   template:
+    #     src: hosts.yml.template.j2
+    #     dest: "{{ site_path }}/ansible/inventory/hosts.yml"
+    #     mode: '0600'
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create service config for fastdeploy
-      template:
-        src: fastdeploy_staging_config.json.template.j2
-        dest: "{{ site_path }}/deployments/fastdeploy/config.json"
-        mode: '0755'
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create directory for fastdeploy service
+    #   file:
+    #     path: "{{ site_path }}/deployments/fastdeploy"
+    #     state: directory
+    #     owner: "{{ username }}"
 
-    - name: Install pip-tools
-      shell: "{{ python }} -m pip install pip-tools"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create task deploy file for fastdeploy
+    #   template:
+    #     src: fastdeploy_staging_deploy.sh.template.j2
+    #     dest: "{{ site_path }}/deployments/fastdeploy/deploy.sh"
+    #     mode: '0755'
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Install app production requirements
-      shell: "{{ pip_sync }} app/requirements/production.txt"
-      args:
-        chdir: "{{ site_path }}"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create service config for fastdeploy
+    #   template:
+    #     src: fastdeploy_staging_config.json.template.j2
+    #     dest: "{{ site_path }}/deployments/fastdeploy/config.json"
+    #     mode: '0755'
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create initial user
-      shell: "{{ python }} manage.py create-initial-user"
-      args:
-        chdir: "{{ site_path }}"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        INITIAL_PASSWORD_HASH: "{{ initial_user_password_hash }}"
-        INITIAL_USER_NAME: jochen
-        PATH: "{{ default_path }}"
+    # - name: Install pip-tools
+    #   shell: "{{ python }} -m pip install pip-tools"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Create a symbolic link for uvicorn systemd service
-      file:
-        src: "{{ site_path }}/ansible/deploy.service"
-        dest: /etc/systemd/system/deploy.service
-        state: link
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Install app production requirements
+    #   shell: "{{ pip_sync }} app/requirements/production.txt"
+    #   args:
+    #     chdir: "{{ site_path }}"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
 
-    - name: Make sure deploy uvicorn service is running
-      systemd:
-        state: restarted
-        name: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create initial user
+    #   shell: "{{ python }} manage.py create-initial-user"
+    #   args:
+    #     chdir: "{{ site_path }}"
+    #   become: true
+    #   become_user: "{{ username }}"
+    #   environment:
+    #     INITIAL_PASSWORD_HASH: "{{ initial_user_password_hash }}"
+    #     INITIAL_USER_NAME: jochen
+    #     PATH: "{{ default_path }}"
 
-    - name: Create a symbolic link for traefik loadbalancer
-      file:
-        src: "{{ site_path }}/ansible/deploy.traefik.yml"
-        dest: /etc/traefik/dynamic/deploy.traefik.yml
-        state: link
-      environment:
-        PATH: "{{ default_path }}"
+    # - name: Create a symbolic link for uvicorn systemd service
+    #   file:
+    #     src: "{{ site_path }}/ansible/deploy.service"
+    #     dest: /etc/systemd/system/deploy.service
+    #     state: link
+    #   environment:
+    #     PATH: "{{ default_path }}"
+
+    # - name: Make sure deploy uvicorn service is running
+    #   systemd:
+    #     state: restarted
+    #     name: "{{ username }}"
+    #   environment:
+    #     PATH: "{{ default_path }}"
+
+    # - name: Create a symbolic link for traefik loadbalancer
+    #   file:
+    #     src: "{{ site_path }}/ansible/deploy.traefik.yml"
+    #     dest: /etc/traefik/dynamic/deploy.traefik.yml
+    #     state: link
+    #   environment:
+    #     PATH: "{{ default_path }}"

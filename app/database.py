@@ -27,7 +27,7 @@ class BaseRepository:
             await handler.handle_event(event)
 
     async def get_service_names(self) -> set[str]:
-        return set(get_directories(settings.deploy_root))
+        return set(get_directories(settings.services_root))
 
     async def get_service_data(self, service_name: str) -> dict:
         return get_service_config(service_name)

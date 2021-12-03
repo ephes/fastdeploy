@@ -29,7 +29,7 @@ def get_directories(path: Path) -> list[str]:
 
 def get_service_config(service_name: str) -> dict:
     """Returns a dictionary with the service configuration."""
-    config_path = settings.deploy_root / service_name / "config.json"
+    config_path = settings.services_root / service_name / "config.json"
     data_dict = {}
     with config_path.open() as config_file:
         data_dict = json.load(config_file)

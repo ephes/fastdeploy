@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         "https://deploy.staging.wersdoerfer.de",
     ]
     project_root: Path = ROOT_DIR
-    deploy_root: Path = project_root / "deployments"
+    services_root: Path = project_root / Field("services", env="SERVICES_ROOT")
     default_expire_minutes: int = 15
     steps_url: str = Field("http://localhost:8000/steps/", env="STEPS_URL")
     repository: str = Field("sqlite", env="REPOSITORY")

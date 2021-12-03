@@ -1,0 +1,96 @@
+{
+    "deploy_script": "deploy.sh",
+    "description": "Service to deploy other services.",
+    "steps": [
+        {
+            "name": "Gathering Facts"
+        },
+        {
+            "name": "Add nodejs signing key - do not download if present"
+        },
+        {
+            "name": "Add nodejs repository"
+        },
+        {
+            "name": "Add yarn signing key - do not download if present"
+        },
+        {
+            "name": "Add yarn repository"
+        },
+        {
+            "name": "Install required build packages"
+        },
+        {
+            "name": "Install required build packages (git,)"
+        },
+        {
+            "name": "Add a unix user with a bash shell"
+        },
+        {
+            "name": "Git checkout repository"
+        },
+        {
+            "name": "Create .env file"
+        },
+        {
+            "name": "Install fastdeploy frontend vue app dependencies"
+        },
+        {
+            "name": "Build fastdeploy frontend vue app"
+        },
+        {
+            "name": "Create virtualenv for python"
+        },
+        {
+            "name": "Upgrade pip prod venv"
+        },
+        {
+            "name": "Create virtualenv for ansible"
+        },
+        {
+            "name": "Upgrade pip ansible venv"
+        },
+        {
+            "name": "Install ansible"
+        },
+        {
+            "name": "Create .vault_password file"
+        },
+        {
+            "name": "Create sudoers file for deploy scripts"
+        },
+        {
+            "name": "Create directory for ansible inventory"
+        },
+        {
+            "name": "Create local inventory"
+        },
+        {
+            "name": "Create directory for fastdeploy service"
+        },
+        {
+            "name": "Create task deploy file for fastdeploy"
+        },
+        {
+            "name": "Create service config for fastdeploy"
+        },
+        {
+            "name": "Install pip-tools"
+        },
+        {
+            "name": "Install app production requirements"
+        },
+        {
+            "name": "Create initial user"
+        },
+        {
+            "name": "Create a symbolic link for uvicorn systemd service"
+        },
+        {
+            "name": "Make sure deploy uvicorn service is running"
+        },
+        {
+            "name": "Create a symbolic link for traefik loadbalancer"
+        }
+    ]
+}
