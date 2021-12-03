@@ -9,7 +9,7 @@ Restart=always
 WorkingDirectory=/home/deploy/site
 User=deploy
 ExecStart=/home/deploy/site/uvicorn.sh
-KillMode=process
+KillMode=none
 
 [Install]
 WantedBy=multi-user.target
