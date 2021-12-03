@@ -11,7 +11,7 @@
     - ansible_python: "{{ ansible_venv_bin }}/python"
     - pip_sync: "{{ venv_bin }}/pip-sync"
     - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-    - remote: false
+    - remote: true
 
   tasks:
     - include_vars: secrets.yml
