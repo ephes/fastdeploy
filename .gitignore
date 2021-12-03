@@ -26,7 +26,3 @@ htmlcov
 
 # deploy with remote staging for development
 ansible/inventory/hosts.yml
-
-# deploy scripts
-deployments/fastdeploy/config.json
-deployments/fastdeploy/fastdeploy_deploy_develop.sh
