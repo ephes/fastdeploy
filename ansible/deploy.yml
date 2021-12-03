@@ -3,6 +3,7 @@
     - username: deploy
     - home_path: "/home/{{ username }}"
     - site_path: "{{ home_path }}/site"
+    - services_path: "{{ site_path }}/services"
     - global_python: python3.10
     - venv_bin: "{{ site_path }}/venv/bin"
     - ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
@@ -173,14 +174,14 @@
 
     - name: Create directory for fastdeploy service
       file:
-        path: "{{ site_path }}/deployments/fastdeploy"
+        path: "{{ services_path }}/fastdeploy"
         state: directory
         owner: "{{ username }}"
 
     - name: Create task deploy file for fastdeploy
       template:
         src: fastdeploy_staging_deploy.sh.template.j2
-        dest: "{{ site_path }}/deployments/fastdeploy/deploy.sh"
+        dest: "{{ services_path }}/fastdeploy/deploy.sh"
         mode: '0755'
       become: true
       become_user: "{{ username }}"
@@ -190,7 +191,7 @@
     - name: Create service config for fastdeploy
       template:
         src: fastdeploy_staging_config.json.template.j2
-        dest: "{{ site_path }}/deployments/fastdeploy/config.json"
+        dest: "{{ services_path }}/fastdeploy/config.json"
         mode: '0755'
       become: true
       become_user: "{{ username }}"
