@@ -24,6 +24,7 @@
         "uuidv",
         "uvicorn",
         "venv",
+        "virtualenv",
         "vite",
         "vitejs",
         "wersdoerfer"
