@@ -14,7 +14,8 @@
     - remote: true
 
   tasks:
-    - include_vars: secrets.yml
+    - name: "Include secret vars"
+      include_vars: secrets.yml
 
     - name: Add nodejs signing key - do not download if present
       apt_key:
