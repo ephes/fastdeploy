@@ -182,7 +182,7 @@
     - name: Create uvicorn start script
       template:
         src: uvicorn.py.template.j2
-        dest: "{{ site_path }}/bin/uvicorn.py"
+        dest: "{{ site_path }}/bin/start.py"  # don't use uvicorn.py -> import error
         mode: '0755'
       become: true
       become_user: "{{ username }}"
