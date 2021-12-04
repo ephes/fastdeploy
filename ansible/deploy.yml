@@ -173,6 +173,23 @@
       environment:
         PATH: "{{ default_path }}"
 
+    - name: Create directory for server start script
+      file:
+        path: "{{ site_path }}/bin"
+        state: directory
+        owner: "{{ username }}"
+
+    - name: Create uvicorn start script
+      template:
+        src: uvicorn.py.template.j2
+        dest: "{{ site_path }}/bin/uvicorn.py"
+        mode: '0755'
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
+
     - name: Create directory for fastdeploy service
       file:
         path: "{{ services_path }}/fastdeploy"

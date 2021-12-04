@@ -8,7 +8,7 @@ Type=simple
 Restart=always
 WorkingDirectory=/home/deploy/site
 User=deploy
-ExecStart=/home/deploy/site/uvicorn.sh
+ExecStart=/home/deploy/site/bin/uvicorn.py
 KillMode=process
 
 [Install]
