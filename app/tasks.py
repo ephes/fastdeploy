@@ -58,9 +58,10 @@ class DeployTask(BaseSettings):
     async def send_step(self, method, step_url, step):
         for _ in range(self.attempts):
             try:
-                await method(step_url, json=json.loads(step.json()))
+                r = await method(step_url, json=json.loads(step.json()))
+                r.raise_for_status()
                 break
-            except httpx.ConnectError:
+            except httpx.HTTPStatusError:
                 await asyncio.sleep(self.sleep_on_fail)
 
     async def put_step(self, step):
@@ -112,9 +113,6 @@ class DeployTask(BaseSettings):
                 break
 
             decoded = data.decode("UTF-8")
-            with open("/tmp/deploy_task.log", "a") as f:
-                f.write(decoded)
-                f.flush()
             try:
                 step_result = json.loads(decoded)
                 result_name = step_result.get("name")
