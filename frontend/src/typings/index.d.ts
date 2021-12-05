@@ -75,6 +75,5 @@ type WebsocketClient = {
   onConnectionOpen(accessToken: string, event: Event): void;
   onConnectionClose(accessToken: string, websocketUrl: string, event: CloseEvent): void;
   registerStore(store: any): void;
-  registerWebsocketConnectionCallbacks(connection: WebSocket, accessToken: string): void;
   notifyStores(message: Message): void;
 }
