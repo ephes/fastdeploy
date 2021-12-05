@@ -116,11 +116,16 @@ class DeployTask(BaseSettings):
             decoded = data.decode("UTF-8")
             try:
                 step_result = json.loads(decoded)
+                # if name is None there's no way to find the
+                # corresponding step in the database -> skip
                 result_name = step_result.get("name")
                 if result_name is None:
                     # should not happen
                     print("step result not put/posted: ", step_result)
                     continue
+                # On the happy path, the if condition below will be true
+                # and the current step will be marked as finished. Post a
+                # new step in all other cases.
                 current_step = None
                 if self.current_step is not None and result_name == self.current_step.name:
                     current_step = self.current_step
