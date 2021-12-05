@@ -89,8 +89,9 @@ class DeployTask(BaseSettings):
             await self.send_step(self.client.post, self.steps_url, step)
         else:
             step.id = current_step.id  # step from stdout deploy has no id -> take it from current step
+            step.created = current_step.created
+            step.started = current_step.started
             await self.put_step(step)
-            current_step.finished = datetime.utcnow()
             self.current_step_index += 1
             if self.current_step is not None:
                 await self.start_step(self.current_step)
