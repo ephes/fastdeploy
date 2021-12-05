@@ -16,6 +16,9 @@ class Response:
     def json(self):
         return self.content
 
+    def raise_for_status(self):
+        pass
+
 
 class Client:
     def __init__(self):
@@ -28,11 +31,15 @@ class Client:
         if self.raise_connect_error:
             raise httpx.ConnectError("no connection")
         self.put_calls.append(json)
-        return self
+        return Response(json)
 
     async def post(self, url, json=None):
         if self.raise_connect_error:
-            raise httpx.ConnectError("no connection")
+            raise httpx.HTTPStatusError(
+                "connection error",
+                response=httpx.Response(status_code=502),
+                request=httpx.Request(method="post", url=url),
+            )
         self.post_calls.append(json)
         content = dict(json)
         self.current_id += 1
