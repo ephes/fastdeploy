@@ -28,6 +28,7 @@ class Client:
         if self.raise_connect_error:
             raise httpx.ConnectError("no connection")
         self.put_calls.append(json)
+        return self
 
     async def post(self, url, json=None):
         if self.raise_connect_error:
@@ -48,20 +49,6 @@ def task_kwargs():
 @pytest.fixture
 def task(task_kwargs):
     return DeployTask(**task_kwargs, client=Client())
-
-
-class CollectProc:
-    PIPE = None
-
-    def __init__(self, stdout):
-        self._stdout = stdout
-
-    def run(self, *args, **kwargs):
-        return self
-
-    @property
-    def stdout(self):
-        return json.dumps(self._stdout)
 
 
 class Subprocess:
