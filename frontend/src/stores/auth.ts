@@ -81,10 +81,19 @@ export const useAuth = defineStore("auth", {
             this.onLoginSuccess();
           }
         })
-        .catch(() => {
-          // response.json().detail is not included -> use own error message
-          this.errorMessage = "Incorrect username or password";
+        .catch((err) => {
+          if (err.response === undefined) {
+            this.errorMessage = err;
+          } else if (err.response.status === 401) {
+            this.errorMessage = "Invalid username or password";
+          } else {
+            this.errorMessage = "Unknown error";
+          }
         });
+    },
+    logout() {
+      this.accessToken = null;
+      this.errorMessage = null;
     },
   },
 });
