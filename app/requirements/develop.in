@@ -10,3 +10,4 @@ pytest-xdist
 mypy
 flake8
 bandit
+pre-commit

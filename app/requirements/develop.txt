@@ -43,6 +43,10 @@ backcall==0.2.0 \
     --hash=sha256:5cbdbf27be5e7cfadb448baf0aa95508f91f2bbc6c6437cd9cd06e2a4c215e1e \
     --hash=sha256:fbbce6a29f263178a1f7915c1940bde0ec2b2a967566fe1c65c1dfb7422bd255
     # via ipython
+backports.entry-points-selectable==1.1.1 \
+    --hash=sha256:7fceed9532a7aa2bd888654a7314f864a3c16a4e710b34a58cfc0f08114c663b \
+    --hash=sha256:914b21a479fde881635f7af5adc7f6e38d6b274be32269070c53b698c60d5386
+    # via virtualenv
 bandit==1.7.1 \
     --hash=sha256:a81b00b5436e6880fa8ad6799bc830e02032047713cbb143a12939ac67eb756c \
     --hash=sha256:f5acd838e59c038a159b5c621cf0f8270b279e884eadd7b782d7491c02add0d4
@@ -122,6 +126,10 @@ cffi==1.14.6 \
     #   argon2-cffi
     #   bcrypt
     #   cryptography
+cfgv==3.3.1 \
+    --hash=sha256:c6a0883f3917a037485059700b9e75da2464e6c27051014ad85ba6aaa5884426 \
+    --hash=sha256:f5a830efb9ce7a445376bb66ec94c638a9787422f96264c98edc6bdeed8ab736
+    # via pre-commit
 charset-normalizer==2.0.7 \
     --hash=sha256:e019de665e2bcf9c2b64e2e5aa025fa991da8720daa3c1138cadd2fd1856aed0 \
     --hash=sha256:f7af805c321bfa1ce6714c51f254e0d5bb5e5834039bc17db7ebe3a4cec9492b
@@ -232,6 +240,10 @@ defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
     # via nbconvert
+distlib==0.3.3 \
+    --hash=sha256:c8b54e8454e5bf6237cc84c20e8264c3e991e824ef27e8f1e81049867d861e31 \
+    --hash=sha256:d982d0751ff6eaaab5e2ec8e691d949ee80eddf01a62eaa96ddb11531fe16b05
+    # via virtualenv
 dnspython==2.1.0 \
     --hash=sha256:95d12f6ef0317118d2a1a6fc49aac65ffec7eb8087474158f42f26a639135216 \
     --hash=sha256:e4a87f0b573201a0f3727fa18a516b055fd1107e0e5477cded4a2de497df1dd4
@@ -258,6 +270,10 @@ fastapi[all]==0.70.0 \
     --hash=sha256:66da43cfe5185ea1df99552acffd201f1832c6b364e0f4136c0a99f933466ced \
     --hash=sha256:a36d5f2fad931aa3575c07a3472c784e81f3e664e3bb5c8b9c88d0ec1104f59c
     # via -r app/requirements/production.in
+filelock==3.4.0 \
+    --hash=sha256:2e139a228bcf56dd8b2274a65174d005c4a6b68540ee0bdbb92c76f43f29f7e8 \
+    --hash=sha256:93d512b32a23baf4cac44ffd72ccf70732aeff7b8050fcaf6d3ec406d954baf4
+    # via virtualenv
 flake8==4.0.1 \
     --hash=sha256:479b1304f72536a55948cb40a32dce8bb0ffe3501e26eaf292c7e60eb5e0428d \
     --hash=sha256:806e034dda44114815e23c16ef92f95c91e4c71100ff52813adf7132a6ad870d
@@ -353,6 +369,10 @@ httpx==0.20.0 \
     --hash=sha256:09606d630f070d07f9ff28104fbcea429ea0014c1e89ac90b4d8de8286c40e7b \
     --hash=sha256:33af5aad9bdc82ef1fc89219c1e36f5693bf9cd0ebe330884df563445682c0f8
     # via -r app/requirements/production.in
+identify==2.4.0 \
+    --hash=sha256:a33ae873287e81651c7800ca309dc1f84679b763c9c8b30680e16fbfa82f0107 \
+    --hash=sha256:eba31ca80258de6bb51453084bff4a923187cd2193b9c13710f2516ab30732cc
+    # via pre-commit
 idna==3.3 \
     --hash=sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff \
     --hash=sha256:9d643ff0a55b762d5cdb124b8eaa99c66322e2157b69160bc32796e824360e6d
@@ -545,6 +565,10 @@ nest-asyncio==1.5.1 \
     # via
     #   jupyter-client
     #   nbclient
+nodeenv==1.6.0 \
+    --hash=sha256:3ef13ff90291ba2a4a7a4ff9a979b63ffdd00a464dbe04acf0ea6471517a4c2b \
+    --hash=sha256:621e6b7076565ddcacd2db0294c0381e01fd28945ab36bcf00f41c5daf63bef7
+    # via pre-commit
 notebook==6.4.4 \
     --hash=sha256:26b0095c568e307a310fd78818ad8ebade4f00462dada4c0e34cbad632b9085d \
     --hash=sha256:33488bdcc5cbef23c3cfa12cd51b0b5459a211945b5053d17405980611818149
@@ -619,11 +643,17 @@ pip-tools==6.4.0 \
 platformdirs==2.4.0 \
     --hash=sha256:367a5e80b3d04d2428ffa76d33f124cf11e8fff2acdaa9b43d545f5c7d661ef2 \
     --hash=sha256:8868bbe3c3c80d42f20156f22e7131d2fb321f5bc86a2a345375c6481a67021d
-    # via black
+    # via
+    #   black
+    #   virtualenv
 pluggy==1.0.0 \
     --hash=sha256:4224373bacce55f955a878bf9cfa763c1e360858e330072059e10bad68531159 \
     --hash=sha256:74134bbf457f031a36d68416e1509f34bd5ccc019f0bcc952c7b909d06b37bd3
     # via pytest
+pre-commit==2.16.0 \
+    --hash=sha256:758d1dc9b62c2ed8881585c254976d66eae0889919ab9b859064fc2fe3c7743e \
+    --hash=sha256:fe9897cac830aa7164dbd02a4e7b90cae49630451ce88464bca73db486ba9f65
+    # via -r app/requirements/develop.in
 prometheus-client==0.11.0 \
     --hash=sha256:3a8baade6cb80bcfe43297e33e7623f3118d660d41387593758e2fb1ea173a86 \
     --hash=sha256:b014bc76815eb1399da8ce5fc84b7717a3e63652b0c0f8804092c9363acab1b2
@@ -795,6 +825,7 @@ pyyaml==5.4.1 \
     # via
     #   bandit
     #   fastapi
+    #   pre-commit
     #   uvicorn
 pyzmq==22.3.0 \
     --hash=sha256:08c4e315a76ef26eb833511ebf3fa87d182152adf43dedee8d79f998a2162a0b \
@@ -925,6 +956,7 @@ six==1.16.0 \
     #   ecdsa
     #   python-dateutil
     #   python-multipart
+    #   virtualenv
 smmap==5.0.0 \
     --hash=sha256:2aba19d6a040e78d8b09de5c57e96207b09ed71d8e55ce0959eeee6c8e190d94 \
     --hash=sha256:c840e62059cd3be204b0c9c9f74be2c09d5648eddd4580d9314c3ecde0b30936
@@ -997,6 +1029,7 @@ toml==0.10.2 \
     --hash=sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f
     # via
     #   mypy
+    #   pre-commit
     #   pytest
 tomli==1.2.1 \
     --hash=sha256:8dd0e9524d6f386271a36b41dbf6c57d8e32fd96fd22b6584679dc569d20899f \
@@ -1149,6 +1182,10 @@ uvloop==0.16.0 \
     --hash=sha256:e814ac2c6f9daf4c36eb8e85266859f42174a4ff0d71b99405ed559257750382 \
     --hash=sha256:f74bc20c7b67d1c27c72601c78cf95be99d5c2cdd4514502b4f3eb0933ff1228
     # via uvicorn
+virtualenv==20.10.0 \
+    --hash=sha256:4b02e52a624336eece99c96e3ab7111f469c24ba226a53ec474e8e787b365814 \
+    --hash=sha256:576d05b46eace16a9c348085f7d0dc8ef28713a2cabaa1cf0aea41e8f12c9218
+    # via pre-commit
 watchgod==0.7 \
     --hash=sha256:48140d62b0ebe9dd9cf8381337f06351e1f2e70b2203fa9c6eff4e572ca84f29 \
     --hash=sha256:d6c1ea21df37847ac0537ca0d6c2f4cdf513562e95f77bb93abbcf05573407b7
