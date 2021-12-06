@@ -1,11 +1,11 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 
+/**
+ *
+ * This store holds status information about the websocket connection.
+ * Users should be able to see whether the websocket is connected or not.
+ */
 export const useWebsocketStore = defineStore("websocket", {
-  /**
-   *
-   * This store holds status information about the websocket connection.
-   * Users should be able to see whether the websocket is connected or not.
-   */
   state: () => {
     return {
       /**
