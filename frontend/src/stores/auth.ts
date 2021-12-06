@@ -111,7 +111,7 @@ export const useAuth = defineStore("auth", {
         })
         .catch((err) => {
           if (err.response === undefined) {
-            this.errorMessage = err;
+            this.errorMessage = err.message;
           } else if (err.response.status === 401) {
             this.errorMessage = "Invalid username or password";
           } else {
