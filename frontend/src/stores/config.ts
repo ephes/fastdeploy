@@ -12,6 +12,10 @@ export const ENV_DEFAULT: Environment = {
   VITE_WEBSOCKET_URL_PROD: "",
 };
 
+/**
+ * Config store holding values defined by environment variables
+ * or .env.development.ts/.env.production.ts files.
+ */
 export const useSettings = defineStore("settings", {
   state: () => {
     return {
@@ -21,6 +25,13 @@ export const useSettings = defineStore("settings", {
     };
   },
   getters: {
+    /**
+     * Uses the MODE from environment to determine which API base to use.
+     * If MODE is not set, returns the default API base.
+     *
+     * @param state
+     * @returns baseApiUrl {string} for the current environment
+     */
     api: (state) => {
       if (state.env.MODE == "production" && state.env.VITE_API_BASE_PROD) {
         return state.env.VITE_API_BASE_PROD;
@@ -33,6 +44,12 @@ export const useSettings = defineStore("settings", {
         return state.developmentApi;
       }
     },
+    /**
+     * Uses the MODE from environment to determine which websocket url to use.
+     *
+     * @param state
+     * @returns websocketUrl {string} for the current environment
+     */
     websocket: (state) => {
       if (state.env.MODE == "production" && state.env.VITE_WEBSOCKET_URL_PROD) {
         return state.env.VITE_WEBSOCKET_URL_PROD;
@@ -47,6 +64,10 @@ export const useSettings = defineStore("settings", {
     },
   },
   actions: {
+    /**
+     * Support for hot module reloading.
+     * @param meta
+     */
     useHMRUpdate: (meta: any) => {
       if (meta.hot) {
         meta.hot.accept(acceptHMRUpdate(useSettings, meta.hot));
