@@ -3,15 +3,33 @@ import { getClient } from "./httpClient";
 import { snakeToCamel } from "../converters";
 import { Step, StepById, Message } from "../typings";
 
+/**
+ * This store is used to store deployment steps. They are stored
+ * by deployment and by step id.
+ */
 export const useSteps = defineStore("steps", {
   state: () => {
     return {
+      /**
+       * Stores all steps by step id.
+       */
       steps: {} as StepById,
+      /**
+       * Stores all steps by deployment id.
+       */
       stepsByDeployment: {} as { [deploymentId: number]: StepById },
       client: getClient(),
     };
   },
   getters: {
+    /**
+     * Used in component to show all steps for a deployment after
+     * a deployment has been selected. Shows also steps that are
+     * arriving during a deployment.
+     *
+     * @param deploymentId {number} The deployment id
+     * @returns steps {StepById} The steps for the deployment
+     */
     getStepsByDeployment: (state) => (deploymentId: number) => {
       if (state.stepsByDeployment[deploymentId]) {
         return state.stepsByDeployment[deploymentId];
@@ -21,11 +39,20 @@ export const useSteps = defineStore("steps", {
     },
   },
   actions: {
+    /**
+     * Support for HMR
+     * @param {any} meta
+     */
     useHMRUpdate(meta: any) {
       if (meta.hot) {
         meta.hot.accept(acceptHMRUpdate(useSteps, meta.hot));
       }
     },
+    /**
+     * Add/update a step. If the step already exists, it will be updated.
+     *
+     * @param step {Step} The step to add/update
+     */
     addStep(step: Step) {
       this.steps[step.id] = step;
       if (step.deploymentId) {
@@ -37,10 +64,23 @@ export const useSteps = defineStore("steps", {
         console.log("step without deploymentId", step);
       }
     },
+    /**
+     * Delete step from store. Deleted steps are just normal steps
+     * with an attribute "deleted" set to true.
+     *
+     * @param step {Step} The step to delete
+     */
     deleteStep(step: Step) {
       delete this.steps[step.id];
       delete this.stepsByDeployment[step.deploymentId][step.id];
     },
+    /**
+     * Fetch all steps for a deployment. This is used to fetch
+     * all steps for a deployment after a deployment has been finished
+     * and all steps are stored in the backend database.
+     *
+     * @param deploymentId {number} The deployment id
+     */
     async fetchStepsFromDeployment(deploymentId: number) {
       const url =
         "steps/?" +
@@ -50,6 +90,12 @@ export const useSteps = defineStore("steps", {
         this.addStep(snakeToCamel(apiStep));
       }
     },
+    /**
+     * Event handler which is triggered by a message from the backend
+     * which has the type "step". Steps can be added, updated or deleted.
+     *
+     * @param message {Message} the message which is received from the backend
+     */
     onMessage(message: Message) {
       if (message.type === "step") {
         const step = message as Step;
