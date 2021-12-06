@@ -2,6 +2,8 @@
 import { useRouter } from 'vue-router';
 import { useAuth } from './stores/auth';
 
+import WebsocketStatus from './components/WebsocketStatus.vue';
+
 const router = useRouter();
 const authStore = useAuth();
 </script>
@@ -9,6 +11,7 @@ const authStore = useAuth();
 <template>
   <div>
     <h1>FastDeploy</h1>
+    <WebsocketStatus />
     <p v-if="authStore.isAuthenticated">
       <router-link to="/">Services</router-link>|
       <router-link to="/deployments">Deployments</router-link>

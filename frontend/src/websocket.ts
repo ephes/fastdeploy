@@ -1,21 +1,57 @@
 import { v4 as uuidv4 } from "uuid";
 import { snakeToCamel } from "./converters";
-import { WebsocketClient, Message } from "./typings";
+import { WebsocketClient, Message, AuthenticationMessage } from "./typings";
+import { useWebsocketStore } from "./stores/websocket";
+import { read } from "fs";
+
+const readyState: { [key: number]: string } = {
+  0: "CONNECTING",
+  1: "OPEN",
+  2: "CLOSING",
+  3: "CLOSED",
+};
 
 export function createWebsocketClient(): WebsocketClient {
   /**
    * Create a websocket client
    */
   const client: WebsocketClient = {
+    /**
+     * The websocket client id which is used to identify the websocket client
+     * by the server.
+     *
+     */
     uuid: uuidv4(),
+    /**
+     * List of all stores which should be notified when messages are received.
+     */
     stores: [],
+    /**
+     * Register a store to be notified when a message is received.
+     *
+     * @param store
+     */
     registerStore(store: any) {
       this.stores.push(store);
     },
+    /**
+     * Callback for when the websocket is opened. Passes information
+     * about connection state to websocketStore and calls a method
+     * to authenticate the websocket connection.
+     *
+     * @param accessToken {string}
+     * @param event {Event}
+     */
     onConnectionOpen(accessToken: string, event: Event) {
       console.log(event);
       console.log("Successfully connected to the echo websocket server..");
-      this.authenticateWebsocketConnection(this.connection, accessToken);
+      const websocketStore = useWebsocketStore();
+      websocketStore.handling = "on open";
+      const connection: WebSocket = event.target as WebSocket;
+      if (connection !== undefined) {
+        websocketStore.connection = readyState[connection.readyState];
+        this.authenticateWebsocketConnection(connection, accessToken);
+      }
     },
     /**
      * React to the websocket connection being closed. This
@@ -29,38 +65,93 @@ export function createWebsocketClient(): WebsocketClient {
       websocketUrl: string,
       event: CloseEvent
     ) {
-      console.log("Connection closed: ", event);
-      console.log("access token: ", accessToken);
-      console.log("websocket url: ", websocketUrl);
+      if (this.connection === undefined) {
+        // This should never happen. It's just a type guard to make
+        // typescript happy.
+        return
+      }
+      const websocketStore = useWebsocketStore();
+      websocketStore.handling = "on close";
+      websocketStore.connection = readyState[this.connection.readyState];
+      websocketStore.authentication = "not authenticated";
       for (const attempt of [1, 2, 3]) {
         const sleep = new Promise((resolve) => setTimeout(resolve, 1000));
         sleep.then(() => {
           console.log("Attempting to reconnect to websocket server..");
-          if (this.connection !== undefined) {
-            if (this.connection.readyState === WebSocket.CLOSED) {
-              // only try to reconnect if the connection is closed
-              // skip on OPEN, CONNECTING and CLOSING
-              this.initWebsocketConnection(websocketUrl, accessToken);
-            } else {
-              console.log("Skipping reconnection attempt..");
-            }
+          if (this.connection === undefined) {
+            // This should never happen. It's just a type guard to make
+            // typescript happy. It's not possible to reach this point
+            // because the first type guard above should have catched this.
+            return
+          }
+          if (this.connection.readyState === WebSocket.CLOSED) {
+            // only try to reconnect if the connection is closed
+            // skip on OPEN, CONNECTING and CLOSING
+            this.initWebsocketConnection(websocketUrl, accessToken);
+          } else {
+            console.log("Skipping reconnection attempt..");
           }
         });
       }
     },
+    /**
+     * Pass message to the different stores.
+     *
+     * @param message {Message} The message to pass to the stores
+     */
     notifyStores(message: Message) {
       const newMessage = snakeToCamel(message);
       for (const store of this.stores) {
         store.onMessage(newMessage);
       }
     },
-    onMessage(event: any) {
-      const message = JSON.parse(event.data) as Message;
-      this.notifyStores(message);
+    /**
+     * Handle received authentication message from the server.
+     * It's either a success or failure response.
+     *
+     * @param authenticationMessage: {AuthenticationMessage} The authentication message received from the server
+     */
+    onAuthenticationMessage(authenticationMessage: AuthenticationMessage) {
+      const websocketStore = useWebsocketStore();
+      if (authenticationMessage.status === "success") {
+        websocketStore.handling = "on authentication message";
+        websocketStore.authentication = "authenticated";
+      } else {
+        websocketStore.handling = "on authentication message";
+        websocketStore.authentication = "authentication failure";
+      }
     },
+    /**
+     * All messages received from the websocket server are passed to this
+     * method and eventually dispatched to the stores.
+     *
+     * @param event {MessageEvent} The url of the websocket server
+     */
+    onMessage(event: MessageEvent) {
+      const message = JSON.parse(event.data) as Message;
+      if (message.type === "authentication") {
+        // special handling for authentication response
+        this.onAuthenticationMessage(message as AuthenticationMessage);
+      } else {
+        this.notifyStores(message);
+      }
+    },
+    /**
+     * Initialize the websocket connection. This is called when a websocket
+     * connection should be established.
+     *
+     * @param websocketUrl {string} The url of the websocket server
+     * @param accessToken {string} The access token to use for authentication
+     */
     initWebsocketConnection(websocketUrl: string, accessToken: string) {
+      // create the websocket connection
+      const websocketStore = useWebsocketStore();
+      websocketStore.handling = "init connection";
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
+      websocketStore.connection = readyState[this.connection.readyState];
       console.log("connecting to websocket: ", this.connection);
+
+      // register event listeners for the websocket connection
       this.connection.onclose = this.onConnectionClose.bind(
         this,
         accessToken,
@@ -69,9 +160,18 @@ export function createWebsocketClient(): WebsocketClient {
       this.connection.onopen = this.onConnectionOpen.bind(this, accessToken);
       this.connection.onmessage = this.onMessage.bind(this);
     },
+    /**
+     * Send access token as message (json string) to the websocket server.
+     *
+     * @param connection {WebSocket} The websocket connection
+     * @param accessToken {string} The access token to use for authentication
+     */
     authenticateWebsocketConnection(connection: any, accessToken: string) {
       const credentials = JSON.stringify({ access_token: accessToken });
       connection.send(credentials);
+      const websocketStore = useWebsocketStore();
+      websocketStore.handling = "send credentials";
+      websocketStore.authentication = "authenticating...";
     },
   };
   return client;

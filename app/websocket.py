@@ -22,10 +22,11 @@ class ConnectionManager:
             message = {
                 "type": "authentication",
                 "detail": f"access token verification successful for user {user.name}",
+                "status": "success",
             }
             self.active_connections[client_id] = self.all_connections[client_id]
         except JWTError:
-            message = {"type": "authentication", "detail": "access token verification failed"}
+            message = {"type": "authentication", "detail": "access token verification failed", "status": "failure"}
         await self.send(client_id, message)
 
     def disconnect(self, client_id: UUID):

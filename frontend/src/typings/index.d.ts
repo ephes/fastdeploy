@@ -16,7 +16,13 @@ type Environment = {
 }
 
 type Message = {
-  type?: "service" | "deployment" | "step";
+  type?: "service" | "deployment" | "step" | "authentication";
+};
+
+type AuthenticationMessage = Message & {
+  type: "authentication";
+  status: "success" | "failure";
+  detail?: string;
 };
 
 type Service = Message & {
@@ -70,7 +76,8 @@ type WebsocketClient = {
   stores: any[];
   connection?: WebSocket;
   initWebsocketConnection(websocketUrl: string, accessToken: string): void;
-  authenticateWebsocketConnection(connection: any, accessToken: string): void;
+  onAuthenticationMessage(message: AuthenticationMessage): void;
+  authenticateWebsocketConnection(connection: WebSocket, accessToken: string): void;
   onMessage(event: any): void;
   onConnectionOpen(accessToken: string, event: Event): void;
   onConnectionClose(accessToken: string, websocketUrl: string, event: CloseEvent): void;
