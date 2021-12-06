@@ -6,6 +6,7 @@ const websocketStore = useWebsocketStore();
 
 <template>
     <div class="websocket">
+        Websocket status:
         <p>Handling: {{ websocketStore.handling }}</p>
         <p>Connection: {{ websocketStore.connection }}</p>
         <p>Authentication: {{ websocketStore.authentication }}</p>
