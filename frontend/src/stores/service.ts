@@ -34,7 +34,6 @@ export const useServices = defineStore("services", {
       }
     },
     async addService() {
-      console.log("add service breakpoint");
       this.client
         .post<ServiceWithId>("/services/", this.new)
         .then((service) => {
