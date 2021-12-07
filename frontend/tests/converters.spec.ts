@@ -1,5 +1,5 @@
 import { snakeToCamel } from "../src/converters";
-import { utcStringToLocalDate } from "../src/converters";
+import { utcStringToLocalDate, utcStringObjToLocalDateObj } from "../src/converters";
 
 describe("Test snakeToCamel function", () => {
   it("converts snake to camel case", () => {
@@ -24,7 +24,18 @@ describe("Test utc string to local date", () => {
     testCases.forEach(([input, expected]) => {
       if (typeof input === "string") {
         const actual = utcStringToLocalDate(input);
-        expect(utcStringToLocalDate(input)).toEqual(expected);
+        expect(actual).toEqual(expected);
+      }
+    });
+  });
+  it("converts an object having utc strings to an object with local dates", () => {
+    const testCases = [
+      [{foo: "2021-12-07T09:14:26.636703"}, {foo: new Date(2021, 11, 7, 10, 14, 26, 636)}],
+    ];
+    testCases.forEach(([input, expected]) => {
+      if (typeof input === "string") {
+        const actual = utcStringObjToLocalDateObj(input, ["foo"]);
+        expect(actual).toEqual(expected);
       }
     });
   });

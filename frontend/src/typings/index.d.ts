@@ -1,11 +1,8 @@
 import { App } from "vue";
 
-
-type SnakeToCamel = {
-  // FIXME this has to be better
+type HasStringKeys = {
   [key: string]: any;
 }
-
 
 type Environment = {
   MODE: string;

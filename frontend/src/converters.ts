@@ -1,4 +1,4 @@
-import { SnakeToCamel } from "./typings";
+import { HasStringKeys } from "./typings";
 
 /**
  * This module is used to convert different data representations.
@@ -27,7 +27,7 @@ function snakeToCamelStr(str: string): string {
  * @param obj {object} The object to convert
  * @returns newObj {object} The converted object
  */
-export function snakeToCamel(obj: SnakeToCamel) {
+export function snakeToCamel(obj: HasStringKeys) {
   const newObj: any = {};
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
@@ -50,4 +50,22 @@ export function snakeToCamel(obj: SnakeToCamel) {
  */
 export function utcStringToLocalDate(utcString: string): Date {
   return new Date(`${utcString}Z`);
+}
+
+/**
+ * This function converts an object with utc date strings
+ * to an object with local date objects. Taking the object
+ * and a list of keys to convert as parameters.
+ *
+ * @param obj {object} The object to convert
+ * @returns newObj {object} The converted object
+ */
+export function utcStringObjToLocalDateObj(obj: HasStringKeys, keys: string[]): HasStringKeys {
+  const newObj: HasStringKeys = {};
+  for (const key of keys) {
+    if (obj.hasOwnProperty(key)) {
+      newObj[key] = utcStringToLocalDate(obj[key]);
+    }
+  }
+  return newObj;
 }
