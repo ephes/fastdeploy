@@ -42,6 +42,13 @@ def get_deploy_environment(deployment: Deployment, steps: list[Step], deploy_scr
 
 
 class DeployTask(BaseSettings):
+    """
+    Run a complete deployment for a service:
+      - get deploy token and steps via environment variables
+      - run deploy script in a new process reading json from stdout
+      - update/post steps in the database
+    """
+
     deploy_script: str = Field(..., env="DEPLOY_SCRIPT")
     steps: list[Step] = Field([], env="STEPS")
     access_token: str = Field(..., env="ACCESS_TOKEN")
