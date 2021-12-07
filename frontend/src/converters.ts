@@ -41,6 +41,10 @@ export function snakeToCamel(obj: SnakeToCamel) {
 /**
  * This function converts a utc string to a local date.
  *
+ * The utc strings from backend are using microsecond precision,
+ * but javascript uses millisecond precision. This is converted
+ * automatically when creating the date object from a string.
+ *
  * @param utcString {string} The utc string to convert
  * @returns newDate {Date} The converted date
  */
