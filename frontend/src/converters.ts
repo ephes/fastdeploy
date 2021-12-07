@@ -64,8 +64,11 @@ export function utcStringToLocalDate(utcString: string | null): Date | null {
  * @param obj {object} The object to convert
  * @returns newObj {object} The converted object
  */
-export function utcStringObjToLocalDateObj(obj: HasStringKeys, keys: string[]): HasStringKeys {
-  const newObj: HasStringKeys = {};
+export function utcStringObjToLocalDateObj(
+  obj: HasStringKeys,
+  keys: string[] = ["created", "started", "finished"]
+): HasStringKeys {
+  const newObj: HasStringKeys = { ...obj };
   for (const key of keys) {
     if (obj.hasOwnProperty(key)) {
       newObj[key] = utcStringToLocalDate(obj[key]);

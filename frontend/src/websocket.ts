@@ -68,7 +68,7 @@ export function createWebsocketClient(): WebsocketClient {
       if (this.connection === undefined) {
         // This should never happen. It's just a type guard to make
         // typescript happy.
-        return
+        return;
       }
       const websocketStore = useWebsocketStore();
       websocketStore.handling = "on close";
@@ -82,7 +82,7 @@ export function createWebsocketClient(): WebsocketClient {
             // This should never happen. It's just a type guard to make
             // typescript happy. It's not possible to reach this point
             // because the first type guard above should have catched this.
-            return
+            return;
           }
           if (this.connection.readyState === WebSocket.CLOSED) {
             // only try to reconnect if the connection is closed
@@ -100,7 +100,7 @@ export function createWebsocketClient(): WebsocketClient {
      * @param message {Message} The message to pass to the stores
      */
     notifyStores(message: Message) {
-      const newMessage = utcStringObjToLocalDateObj(snakeToCamel(message), ["created", "started", "finished"]);
+      const newMessage = utcStringObjToLocalDateObj(snakeToCamel(message));
       for (const store of this.stores) {
         store.onMessage(newMessage);
       }

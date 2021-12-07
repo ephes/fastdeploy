@@ -43,14 +43,18 @@ describe("Test utc string to local date", () => {
       [
         { foo: "2021-12-07T09:14:26.636703", bar: "" },
         ["foo", "baz"],
-        { foo: new Date(2021, 11, 7, 10, 14, 26, 636) },
+        { foo: new Date(2021, 11, 7, 10, 14, 26, 636), bar: "" },
+      ],
+      // copy all keys
+      [
+        { foo: "2021-12-07T09:14:26.636703", bar: "asdf" },
+        ["foo"],
+        { foo: new Date(2021, 11, 7, 10, 14, 26, 636), bar: "asdf" },
       ],
     ];
     testCases.forEach(([input, keys, expected]) => {
-      if (typeof input === "string") {
-        const actual = utcStringObjToLocalDateObj(input, keys as any);
-        expect(actual).toEqual(expected);
-      }
+      const actual = utcStringObjToLocalDateObj(input, keys as any);
+      expect(actual).toEqual(expected);
     });
   });
 });

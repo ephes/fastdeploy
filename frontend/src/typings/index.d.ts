@@ -39,7 +39,7 @@ type ServiceById = {
 
 type Deployment = Message & {
   id: number;
-  service_id: number;
+  serviceId: number;
   origin: string;
   user: string;
   created: Date;

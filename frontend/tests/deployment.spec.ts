@@ -1,16 +1,16 @@
 import { initPinia, createEvent } from "./conftest";
 import { createWebsocketClient } from "../src/websocket";
-import { snakeToCamel } from "../src/converters";
+import { snakeToCamel, utcStringObjToLocalDateObj } from "../src/converters";
 import { Deployment } from "../src/typings";
 import { useServices } from "../src/stores/service";
 import { useDeployments } from "../src/stores/deployment";
 
-const deployment: Deployment = {
+const deployment = {
   id: 1,
   service_id: 1,
   origin: "GitHub",
   user: "deploy",
-  created: "2021-11-23T10:03:01.276Z",
+  created: "2021-11-23T10:03:01.276234",
   type: "deployment",
 };
 
@@ -22,7 +22,9 @@ describe("Deployment Store Websocket", () => {
   it("has no deployments store registered", () => {
     const deploymentsStore = useDeployments();
     const websocketClient = createWebsocketClient();
-    websocketClient.onMessage(createEvent({ ...deployment, type: "deployment" }));
+    websocketClient.onMessage(
+      createEvent({ ...deployment, type: "deployment" })
+    );
     expect(deploymentsStore.deployments).toStrictEqual({});
   });
 
@@ -30,9 +32,11 @@ describe("Deployment Store Websocket", () => {
     const deploymentsStore = useDeployments();
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(deploymentsStore);
-    websocketClient.onMessage(createEvent({ ...deployment, type: "deployment" }));
+    websocketClient.onMessage(
+      createEvent({ ...deployment, type: "deployment" })
+    );
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
-      snakeToCamel(deployment)
+      utcStringObjToLocalDateObj(snakeToCamel(deployment))
     );
   });
 });
@@ -52,7 +56,7 @@ describe("Deployment Store Actions", () => {
           resolve(deployment);
         });
       },
-      options: {headers: {}},
+      options: { headers: {} },
     } as any;
     await deploymentsStore.startDeployment("fastdeploy", client);
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
@@ -63,12 +67,12 @@ describe("Deployment Store Actions", () => {
   it("fetches the list of deployments", async () => {
     const deploymentsStore = useDeployments();
     deploymentsStore.client = {
-      async  get<T = unknown>(url: string | number): Promise<T> {
+      async get<T = unknown>(url: string | number): Promise<T> {
         return new Promise<any>((resolve) => {
           resolve([deployment]);
         });
       },
-      options: {headers: {}},
+      options: { headers: {} },
     } as any;
     await deploymentsStore.fetchDeployments();
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(

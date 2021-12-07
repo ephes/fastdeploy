@@ -1,6 +1,6 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
-import { snakeToCamel } from "../converters";
+import { snakeToCamel, utcStringObjToLocalDateObj } from "../converters";
 import { Step, StepById, Message } from "../typings";
 
 /**
@@ -87,7 +87,7 @@ export const useSteps = defineStore("steps", {
         new URLSearchParams({ deployment_id: deploymentId.toString() });
       const steps = await this.client.get<Promise<Object[]>>(url);
       for (const apiStep of steps) {
-        this.addStep(snakeToCamel(apiStep));
+        this.addStep(utcStringObjToLocalDateObj(snakeToCamel(apiStep)) as Step);
       }
     },
     /**

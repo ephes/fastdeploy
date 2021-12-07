@@ -1,5 +1,5 @@
 import { Step } from "../src/typings";
-import { snakeToCamel } from "../src/converters";
+import { snakeToCamel, utcStringObjToLocalDateObj } from "../src/converters";
 import { createWebsocketClient } from "../src/websocket";
 import { useSteps } from "../src/stores/step";
 import { createEvent, initPinia } from "./conftest";
@@ -12,14 +12,14 @@ const apiStep: object = {
   in_progress: true,
   deployment_id: 1,
   done: false,
-  created: "2021-11-23T10:03:01.276Z",
-  started: "2021-11-23T10:04:01.276Z",
+  created: "2021-11-23T10:03:01.276123",
+  started: "2021-11-23T10:04:01.276123",
   finished: null,
   deleted: false,
   type: "step",
 };
 
-const step: Step = snakeToCamel(apiStep);
+const step: Step = utcStringObjToLocalDateObj(snakeToCamel(apiStep)) as Step;
 
 describe("Steps Store Websocket", () => {
   beforeEach(() => {
@@ -50,12 +50,12 @@ describe("Steps Store Actions", () => {
   it("fetches the list of steps for a deployment", async () => {
     const stepsStore = useSteps();
     stepsStore.client = {
-      async  get<T = unknown>(url: string | number): Promise<T> {
+      async get<T = unknown>(url: string | number): Promise<T> {
         return new Promise<any>((resolve) => {
           resolve([apiStep]);
         });
       },
-      options: {headers: {}},
+      options: { headers: {} },
     } as any;
     await stepsStore.fetchStepsFromDeployment(step.deploymentId);
     expect(stepsStore.steps[step.id]).toStrictEqual(step);
