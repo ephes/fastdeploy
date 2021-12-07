@@ -11,7 +11,6 @@
     - ansible_python: "{{ ansible_venv_bin }}/python"
     - pip_sync: "{{ venv_bin }}/pip-sync"
     - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-    - remote: true
 
   tasks:
     - name: "Include secret vars"
@@ -134,7 +133,6 @@
         mode: '0440'
       environment:
         PATH: "{{ default_path }}"
-      when: remote
 
     - name: Create directory for ansible inventory
       file:

@@ -6,22 +6,16 @@
             "name": "Gathering Facts"
         },
         {
+            "name": "Include secret vars"
+        },
+        {
             "name": "Add nodejs signing key - do not download if present"
         },
         {
             "name": "Add nodejs repository"
         },
         {
-            "name": "Add yarn signing key - do not download if present"
-        },
-        {
-            "name": "Add yarn repository"
-        },
-        {
             "name": "Install required build packages"
-        },
-        {
-            "name": "Install required build packages (git,)"
         },
         {
             "name": "Add a unix user with a bash shell"
@@ -66,6 +60,12 @@
             "name": "Create local inventory"
         },
         {
+            "name": "Create directory for server start script"
+        },
+        {
+            "name": "Create uvicorn start script"
+        },
+        {
             "name": "Create directory for fastdeploy service"
         },
         {
@@ -87,7 +87,7 @@
             "name": "Create a symbolic link for uvicorn systemd service"
         },
         {
-            "name": "Make sure deploy uvicorn service is running"
+            "name": "Make sure deploy uvicorn service is restarted"
         },
         {
             "name": "Create a symbolic link for traefik loadbalancer"
