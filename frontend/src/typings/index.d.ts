@@ -42,7 +42,7 @@ type Deployment = Message & {
   service_id: number;
   origin: string;
   user: string;
-  created: string;
+  created: Date;
   deleted?: boolean;
 };
 
@@ -58,9 +58,9 @@ type Step = Message & {
   inProgress: boolean;
   deploymentId: number;
   done: boolean;
-  created: string;
-  started: string | null;
-  finished: string | null;
+  created: Date;
+  started: Date | null;
+  finished: Date | null;
   deleted?: boolean;
 };
 

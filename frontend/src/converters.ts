@@ -48,8 +48,12 @@ export function snakeToCamel(obj: HasStringKeys) {
  * @param utcString {string} The utc string to convert
  * @returns newDate {Date} The converted date
  */
-export function utcStringToLocalDate(utcString: string): Date {
-  return new Date(`${utcString}Z`);
+export function utcStringToLocalDate(utcString: string | null): Date | null {
+  if (!utcString) {
+    return null;
+  } else {
+    return new Date(`${utcString}Z`);
+  }
 }
 
 /**
