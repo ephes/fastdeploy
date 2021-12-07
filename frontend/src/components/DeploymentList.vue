@@ -18,7 +18,7 @@ deploymentStore.fetchDeployments();
       </tr>
       <tr v-for="deployment of deploymentStore.deployments" :key="deployment.id">
         <td>{{ deployment.id }}</td>
-        <td>{{ deployment.service_id }}</td>
+        <td>{{ deployment.serviceId }}</td>
         <td>{{ deployment.origin }}</td>
         <td>{{ deployment.user }}</td>
         <td>
