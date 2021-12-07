@@ -39,11 +39,11 @@ export function snakeToCamel(obj: SnakeToCamel) {
 }
 
 /**
- * This function converts a utc date to a local date.
+ * This function converts a utc string to a local date.
  *
- * @param date {Date} The date to convert
+ * @param utcString {string} The utc string to convert
  * @returns newDate {Date} The converted date
  */
-export function toUtcDate(date: Date): Date {
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+export function utcStringToLocalDate(utcString: string): Date {
+  return new Date(`${utcString}Z`);
 }
