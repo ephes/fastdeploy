@@ -27,35 +27,14 @@
 
     - name: Add nodejs repository
       apt_repository:
-        repo: deb https://deb.nodesource.com/node_17.x buster main
-        state: present
-      environment:
-        PATH: "{{ default_path }}"
-
-    - name: Add yarn signing key - do not download if present
-      apt_key:
-        id: 72ECF46A56B4AD39C907BBB71646B01B86E50310
-        url: https://dl.yarnpkg.com/debian/pubkey.gpg
-        state: present
-      environment:
-        PATH: "{{ default_path }}"
-
-    - name: Add yarn repository
-      apt_repository:
-        repo: deb https://dl.yarnpkg.com/debian/ stable main
+        repo: deb https://deb.nodesource.com/node_17.x bullseye main
         state: present
       environment:
         PATH: "{{ default_path }}"
 
     - name: Install required build packages
       apt:
-        name: ["git", "yarn", "nodejs"]
-      environment:
-        PATH: "{{ default_path }}"
-
-    - name: Install required build packages (git,)
-      apt:
-        name: ["git"]
+        name: ["git", "nodejs"]
       environment:
         PATH: "{{ default_path }}"
 
@@ -181,14 +160,13 @@
 
     - name: Create uvicorn start script
       template:
-        src: uvicorn.py.template.j2
-        dest: "{{ site_path }}/bin/start.py"  # don't use uvicorn.py -> import error
+        src: deploy.py.template.j2
+        dest: "{{ site_path }}/bin/deploy.py"  # don't use uvicorn.py -> import error
         mode: '0755'
       become: true
       become_user: "{{ username }}"
       environment:
         PATH: "{{ default_path }}"
-
 
     - name: Create directory for fastdeploy service
       file:
