@@ -151,6 +151,13 @@ class InMemoryRepository(BaseRepository):
             await self.add_step(step)
         return deployment, steps
 
+    async def update_deployment(self, deployment: Deployment) -> Deployment:
+        for index, deployment in enumerate(self.deployments):
+            if deployment.id == deployment.id:
+                self.deployments[index] = deployment
+        await self.dispatch_event(DeploymentOut.parse_obj(deployment))
+        return deployment
+
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
         deployments = []
         for deployment in self.deployments:
@@ -286,6 +293,14 @@ class SQLiteRepository(BaseRepository):
                 step.deployment_id = deployment.id
                 await self.add_step(step)
         return deployment, steps
+
+    async def update_deployment(self, deployment: Deployment) -> Deployment:
+        with Session(self.engine) as session:
+            session.add(deployment)
+            session.commit()
+            session.refresh(deployment)
+        await self.dispatch_event(DeploymentOut.parse_obj(deployment))
+        return deployment
 
     async def get_deployments_by_service_id(self, service_id: int) -> list[Deployment]:
         with Session(self.engine) as session:

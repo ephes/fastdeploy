@@ -112,6 +112,10 @@ class Deployment(SQLModel, table=True):
         default=None,
         sa_column=Column("created", DateTime),
     )
+    finished: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column("finished", DateTime),
+    )
 
 
 class DeploymentOut(Deployment):

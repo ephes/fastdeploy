@@ -81,3 +81,28 @@ async def test_deploy_service(app, base_url, repository, handler, valid_service_
     deployments_by_service = await repository.get_deployments_by_service_id(service_in_db.id)
     assert len(deployments_by_service) == 1
     assert deployment_from_api["id"] == deployments_by_service[0].id
+
+
+@pytest.mark.asyncio
+async def test_finish_deploy_invalid_access_token(app, base_url, valid_service_token_in_db):
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url=base_url) as client:
+        test_url = app.url_path_for("finish_deployment")
+        response = await client.put(test_url, headers=headers)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Could not validate credentials"}
+
+
+@pytest.mark.asyncio
+async def test_finish_deploy(app, base_url, valid_deploy_token_in_db):
+    headers = {"authorization": f"Bearer {valid_deploy_token_in_db}"}
+    async with AsyncClient(app=app, base_url=base_url) as client:
+        test_url = app.url_path_for("finish_deployment")
+        response = await client.put(test_url, headers=headers)
+
+    assert response.status_code == 200
+    deployment_from_api = response.json()
+    assert "id" in deployment_from_api
+
+    assert "T" in deployment_from_api["finished"]
