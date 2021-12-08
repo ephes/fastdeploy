@@ -20,7 +20,7 @@ watchEffect(() => {
   <p ref="el" id="step">
     {{ step.deploymentId }} {{ step.id }} {{ step.name }}
     <br />
-    created: {{ step.created }}
+    created: {{ step.created.toLocaleString() }}
     <br />
     started: {{ step.started }}
     <br />
