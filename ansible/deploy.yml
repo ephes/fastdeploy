@@ -13,6 +13,16 @@
     - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
   tasks:
+    - name: Create .vault_password file
+      template:
+        src: vault_password.template.j2
+        dest: "{{ site_path }}/ansible/.vault_password"
+        mode: '0600'
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
     - name: "Include secret vars"
       include_vars: secrets.yml
 
@@ -111,16 +121,6 @@
 
     - name: Install ansible
       shell: "{{ ansible_python }} -m pip install ansible"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
-
-    - name: Create .vault_password file
-      template:
-        src: vault_password.template.j2
-        dest: "{{ site_path }}/ansible/.vault_password"
-        mode: '0600'
       become: true
       become_user: "{{ username }}"
       environment:
