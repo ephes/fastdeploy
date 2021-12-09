@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ComputedRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDeployments } from '../stores/deployment';
 import { useSteps } from '../stores/step';
@@ -6,25 +7,27 @@ import Step from './Step.vue';
 import { Deployment } from '../typings';
 
 const route = useRoute();
-const deploymentIdFromRoute = Number(route.params.id);
+const deploymentId = Number(route.params.id);
 
 const deploymentStore = useDeployments();
-const deployment: Deployment = deploymentStore.deployments[deploymentIdFromRoute];
+const deployment: ComputedRef<Deployment> = computed(() => {
+  return deploymentStore.deployments[deploymentId];
+});
 
 const stepsStore = useSteps();
-stepsStore.fetchStepsFromDeployment(deploymentIdFromRoute);
+stepsStore.fetchStepsFromDeployment(deploymentId);
 </script>
 
 <template>
   <div>
-    <h1>Deployment ID: {{ deploymentIdFromRoute }}</h1>
+    <h1>Deployment ID: {{ deploymentId }}</h1>
     <div v-if="deployment">
       <h2>deployment origin: {{ deployment.origin }}</h2>
       <h2>deployment created: {{ deployment.created }}</h2>
       <h2>deployment finished: {{ deployment.finished }}</h2>
-    </div>
+    </div>deploymentId
     <transition-group name="list" tag="p">
-      <div v-for="step of stepsStore.getStepsByDeployment(deploymentIdFromRoute)" :key="step.id" class="list-step">
+      <div v-for="step of stepsStore.getStepsByDeployment(deploymentId)" :key="step.id" class="list-step">
         <step :step="step" />
       </div>
     </transition-group>

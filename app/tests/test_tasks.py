@@ -49,7 +49,7 @@ class Client:
 
 @pytest.fixture
 def task_kwargs():
-    task_attrs = ["deploy_script", "access_token", "steps_url"]
+    task_attrs = ["deploy_script", "access_token", "steps_url", "deployment_finish_url"]
     return {attr: attr for attr in task_attrs}
 
 
@@ -175,6 +175,9 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_put, steps_
 
     actual_put = []
     for step in task.client.put_calls:
+        if step is None:
+            # ignore last finish deployment put
+            continue
         for field in ["created", "finished", "started"]:
             del step[field]  # make sure field exists
         # append twice, once for started, once for finished

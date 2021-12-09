@@ -35,6 +35,7 @@ def get_deploy_environment(deployment: Deployment, steps: list[Step], deploy_scr
         "DEPLOY_SCRIPT": deploy_script,
         "STEPS_URL": settings.steps_url,
         "STEPS": json.dumps([json.loads(step.json()) for step in steps]),  # json() to make created serializable
+        "DEPLOYMENT_FINISH_URL": settings.deployment_finish_url,
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):
         environment["SSH_AUTH_SOCK"] = ssh_auth_sock
@@ -53,6 +54,7 @@ class DeployTask(BaseSettings):
     steps: list[Step] = Field([], env="STEPS")
     access_token: str = Field(..., env="ACCESS_TOKEN")
     steps_url: str = Field(..., env="STEPS_URL")
+    deployment_finish_url: str = Field(..., env="DEPLOYMENT_FINISH_URL")
     current_step_index: int = 0
     attempts: int = 3
     sleep_on_fail: float = 3.0
@@ -74,6 +76,10 @@ class DeployTask(BaseSettings):
     async def put_step(self, step):
         step_url = urljoin(self.steps_url, str(step.id))
         await self.send_step(self.client.put, step_url, step)
+
+    async def finish_deployment(self) -> None:
+        r = await self.client.put(self.deployment_finish_url)
+        r.raise_for_status()
 
     @property
     def has_more_steps(self):
@@ -144,8 +150,7 @@ class DeployTask(BaseSettings):
         try:
             await self.deploy_steps()
         finally:
-            await self.finish
-            await self.client.close()
+            await self.finish_deployment()
 
 
 async def run_deploy_task():  # pragma: no cover

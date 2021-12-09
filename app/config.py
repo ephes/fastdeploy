@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     services_dir_name = Field("services", env="SERVICES_ROOT")
     default_expire_minutes: int = 15
     steps_url: str = Field("http://localhost:8000/steps/", env="STEPS_URL")
+    deployment_finish_url: str = Field("http://localhost:8000/deployments/finish/", env="DEPLOYMENT_FINISH_URL")
     repository: str = Field("sqlite", env="REPOSITORY")
     sudo_user: str = Field("jochen", env="SUDO_USER")
 

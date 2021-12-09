@@ -53,7 +53,7 @@ async def start_deployment(
     return DeploymentOut(**deployment.dict())
 
 
-@router.put("/finish/}")
+@router.put("/finish/")
 async def finish_deployment(deployment: Deployment = Depends(get_current_active_deployment)) -> DeploymentOut:
     """
     Finish a deployment. Need to be authenticated with a deployment access token.
