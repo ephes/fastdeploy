@@ -73,6 +73,7 @@ type WebsocketClient = {
   uuid: any;
   stores: any[];
   connection?: WebSocket;
+  retryCount: number;
   initWebsocketConnection(websocketUrl: string, accessToken: string): void;
   onAuthenticationMessage(message: AuthenticationMessage): void;
   authenticateWebsocketConnection(connection: WebSocket, accessToken: string): void;

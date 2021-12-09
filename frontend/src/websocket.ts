@@ -3,6 +3,7 @@ import { snakeToCamel, utcStringObjToLocalDateObj } from "./converters";
 import { WebsocketClient, Message, AuthenticationMessage } from "./typings";
 import { useWebsocketStore } from "./stores/websocket";
 import { read } from "fs";
+import { createSimpleExpression } from "@vue/compiler-core";
 
 const readyState: { [key: number]: string } = {
   0: "CONNECTING",
@@ -26,6 +27,10 @@ export function createWebsocketClient(): WebsocketClient {
      * List of all stores which should be notified when messages are received.
      */
     stores: [],
+    /**
+     * Count the number of connection attempts since last successful connection.
+     */
+    retryCount: 0,
     /**
      * Register a store to be notified when a message is received.
      *
@@ -60,7 +65,7 @@ export function createWebsocketClient(): WebsocketClient {
      * @param accessToken {string} The access token to use for authentication
      * @param event {CloseEvent} The close event
      */
-    onConnectionClose(
+    async onConnectionClose(
       accessToken: string,
       websocketUrl: string,
       event: CloseEvent
@@ -74,24 +79,27 @@ export function createWebsocketClient(): WebsocketClient {
       websocketStore.handling = "on close";
       websocketStore.connection = readyState[this.connection.readyState];
       websocketStore.authentication = "not authenticated";
-      for (const attempt of [1, 2, 3]) {
-        const sleep = new Promise((resolve) => setTimeout(resolve, 1000));
-        sleep.then(() => {
-          console.log("Attempting to reconnect to websocket server..");
-          if (this.connection === undefined) {
-            // This should never happen. It's just a type guard to make
-            // typescript happy. It's not possible to reach this point
-            // because the first type guard above should have catched this.
-            return;
-          }
-          if (this.connection.readyState === WebSocket.CLOSED) {
-            // only try to reconnect if the connection is closed
-            // skip on OPEN, CONNECTING and CLOSING
-            this.initWebsocketConnection(websocketUrl, accessToken);
-          } else {
-            console.log("Skipping reconnection attempt..");
-          }
-        });
+      while (this.retryCount < 3) {
+        this.retryCount++;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        console.log(
+          "Attempting to reconnect to websocket server: ",
+          this.retryCount
+        );
+        if (this.connection.readyState === WebSocket.CLOSED) {
+          // only try to reconnect if the connection is closed
+          // skip on OPEN, CONNECTING and CLOSING
+          this.initWebsocketConnection(websocketUrl, accessToken);
+          // stop retrying after initWebsocketConnection is called
+          // because if it fails, it will call onConnectionClose again
+          // and we are using a global retryCount
+          break;
+        } else {
+          console.log(
+            "Skipping reconnection attempt because of readyState: ",
+            readyState[this.connection.readyState]
+          );
+        }
       }
     },
     /**
@@ -116,6 +124,7 @@ export function createWebsocketClient(): WebsocketClient {
       if (authenticationMessage.status === "success") {
         websocketStore.handling = "on authentication message";
         websocketStore.authentication = "authenticated";
+        this.retryCount = 0; // reset retry count for next onConnectionClose event
       } else {
         websocketStore.handling = "on authentication message";
         websocketStore.authentication = "authentication failure";
