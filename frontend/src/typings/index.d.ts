@@ -43,6 +43,7 @@ type Deployment = Message & {
   origin: string;
   user: string;
   created: Date;
+  finished: Date | null;
   deleted?: boolean;
 };
 

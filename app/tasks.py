@@ -141,7 +141,11 @@ class DeployTask(BaseSettings):
                 pass
 
     async def run_deploy(self):
-        await self.deploy_steps()
+        try:
+            await self.deploy_steps()
+        finally:
+            await self.finish
+            await self.client.close()
 
 
 async def run_deploy_task():  # pragma: no cover
