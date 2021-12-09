@@ -12,6 +12,7 @@
         "conftest",
         "datetime",
         "fastdeploy",
+        "frontends",
         "httpx",
         "jochen",
         "loadbalancer",
