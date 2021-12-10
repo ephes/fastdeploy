@@ -1,8 +1,10 @@
 <script setup lang="ts">
 
 import { Step } from "../typings";
+import { useSteps } from "../stores/step";
 import { ref, watchEffect, computed } from "vue";
 
+const stepsStore = useSteps();
 const props = defineProps<{ step: Step }>();
 const el = ref<null | HTMLElement>(null);
 
@@ -19,7 +21,8 @@ const duration = computed(() => {
  * Scroll to step if it's in progress
  */
 watchEffect(() => {
-  if (props.step.inProgress) {
+  //if (props.step.inProgress) {
+  if (stepsStore.shouldScrollToStep(props.step)) {
     console.log("scroll to: ", props.step.id, el.value);
     if (el.value) {
       el.value.scrollIntoView({ behavior: "smooth" });

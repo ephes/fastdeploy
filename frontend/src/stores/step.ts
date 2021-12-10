@@ -37,6 +37,32 @@ export const useSteps = defineStore("steps", {
         return {};
       }
     },
+    /**
+     * Given a step return whether the view should scroll to the step.
+     * This is true when the next step in line is inProgress. We don't
+     * use inProgress directly because it would scroll to far.
+     *
+     * @param step {Step} The step to check
+     * @returns {boolean} Whether the view should scroll to the step
+     */
+    shouldScrollToStep: (state) => (step: Step) => {
+      const stepsByDeployment = state.stepsByDeployment[step.deploymentId];
+      let previousId:number | null = null;
+      stepsByDeployment.keys().sort().forEach((key) => {
+        if (key === step.id) {
+          break;
+        }
+        previousId = key;
+      }
+      if (previousId !== null) {
+        const previousStep = stepsByDeployment[previousId];
+        if (previousStep.status === "inProgress") {
+          return true;
+        }
+      }
+      for (const item of stepsByDeployment) {
+      }
+    }
   },
   actions: {
     /**
