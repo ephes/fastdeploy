@@ -50,6 +50,7 @@ class ConnectionManager:
         try:
             user_token = await get_user_token_from_access_token(access_token)
             connection = self.all_connections[client_id]
+            # after successful authentication, add connection close callback on token expiration
             await self.close_on_expire(client_id, user_token.expires_at)
             if user_token.user_model is not None:
                 print("authenticated: ", user_token.user_model.name)
