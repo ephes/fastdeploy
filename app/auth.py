@@ -126,27 +126,33 @@ def payload_to_token(payload) -> UserToken | ServiceToken | DeploymentToken:
         raise ValueError("unknown token type")
 
 
-async def verify_access_token(access_token: str) -> UserToken | ServiceToken | DeploymentToken:
-    payload = jwt.decode(
-        access_token,
+async def token_to_payload(token: str):
+    return jwt.decode(
+        token,
         settings.secret_key,
         algorithms=[settings.token_sign_algorithm],
     )
+
+
+async def verify_access_token(access_token: str) -> UserToken | ServiceToken | DeploymentToken:
+    payload = await token_to_payload(access_token)
     token = payload_to_token(payload)
     assert await token.validate()
     return token
 
 
-async def get_user_from_access_token(token: str) -> User:
+async def get_user_token_from_access_token(token: str) -> UserToken:
     user_token = await verify_access_token(token)
     assert isinstance(user_token, UserToken)
     assert isinstance(user_token.user_model, User)
-    return user_token.user_model
+    return user_token
 
 
 async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
     try:
-        return await get_user_from_access_token(token)
+        user_token = await get_user_token_from_access_token(token)
+        assert isinstance(user_token.user_model, User)
+        return user_token.user_model
     except Exception:
         raise CREDENTIALS_EXCEPTION
 

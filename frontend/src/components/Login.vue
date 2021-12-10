@@ -5,6 +5,10 @@ import { useAuth } from '../stores/auth';
 const router = useRouter();
 const authStore = useAuth();
 
+// pass router to authStore to be able to redirect to
+// login when user is logged out via websocket close
+authStore.router = router;
+
 async function login() {
   await authStore.login()
   if (authStore.isAuthenticated) {

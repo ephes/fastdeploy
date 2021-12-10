@@ -2,8 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { snakeToCamel, utcStringObjToLocalDateObj } from "./converters";
 import { WebsocketClient, Message, AuthenticationMessage } from "./typings";
 import { useWebsocketStore } from "./stores/websocket";
-import { read } from "fs";
-import { createSimpleExpression } from "@vue/compiler-core";
+import { useAuth } from "./stores/auth";
 
 const readyState: { [key: number]: string } = {
   0: "CONNECTING",
@@ -128,6 +127,8 @@ export function createWebsocketClient(): WebsocketClient {
       } else {
         websocketStore.handling = "on authentication message";
         websocketStore.authentication = "authentication failure";
+        const auth = useAuth();
+        auth.logout();
       }
     },
     /**

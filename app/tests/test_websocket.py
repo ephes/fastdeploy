@@ -1,6 +1,9 @@
+from datetime import datetime
 from uuid import uuid4
 
 import pytest
+
+from fastapi import WebSocket
 
 from app.websocket import ConnectionManager
 
@@ -56,6 +59,12 @@ async def test_websocket_authenticate_valid_token(valid_access_token_in_db, stub
     client_id = uuid4()
     cm.all_connections[client_id] = stub_websocket
 
+    # mock close on expire to avoid cm.close was never awaited warning
+    async def do_nothing(*args, **kwargs):
+        ...
+
+    cm.close_on_expire = do_nothing
+
     # make sure connection was not authenticated already
     assert client_id not in cm.active_connections
 
@@ -78,3 +87,26 @@ async def test_broadcast_only_to_active_connections(stub_websocket, test_message
     cm.active_connections[client_id] = stub_websocket
     await cm.broadcast(test_message)
     assert test_message.json() in stub_websocket.sent
+
+
+@pytest.mark.asyncio
+async def test_close_websocket_on_expire():
+    class StubWebsocket(WebSocket):
+        def __init__(self):
+            self.closed = False
+            self.sent = []
+
+        async def send_json(self, message):
+            self.sent.append(message)
+
+        async def close(self):
+            self.closed = True
+
+    websocket = StubWebsocket()
+    client_id = uuid4()
+    cm = ConnectionManager()
+    cm.all_connections[client_id] = websocket
+
+    await cm.close_on_expire(client_id, datetime.utcnow())
+    assert websocket.closed
+    assert "expired" in websocket.sent[0]["detail"]

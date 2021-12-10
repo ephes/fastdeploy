@@ -15,6 +15,7 @@ export const useAuth = defineStore("auth", {
       password: "" as string,
       errorMessage: null as string | null,
       client: getClientWithoutAuth(),
+      router: null as any,
     };
   },
   getters: {
@@ -125,6 +126,9 @@ export const useAuth = defineStore("auth", {
     logout() {
       this.accessToken = null;
       this.errorMessage = null;
+      if (this.router) {
+        this.router.push("/login")
+      }
     },
   },
 });
