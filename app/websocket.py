@@ -23,10 +23,11 @@ class ConnectionManager:
         """
         Close the websocket with a message.
         """
-        websocket = self.all_connections[client_id]
-        print("closing websocket: ", datetime.utcnow())
-        await websocket.send_json({"type": "warning", "detail": message})
-        await websocket.close()
+        websocket = self.all_connections.get(client_id)  # get, because client may have disconnected
+        if websocket is not None:
+            print("closing websocket: ", datetime.utcnow())
+            await websocket.send_json({"type": "warning", "detail": message})
+            await websocket.close()
 
     async def close_on_expire(self, client_id: UUID, expires_at: datetime):
         """
