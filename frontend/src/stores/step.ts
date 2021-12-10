@@ -18,6 +18,14 @@ export const useSteps = defineStore("steps", {
        * Stores all steps by deployment id.
        */
       stepsByDeployment: {} as { [deploymentId: number]: StepById },
+      /**
+       * Stores steps that were in progress per deployment id.
+       * To be able to scroll to the step before last step in progress.
+       */
+      stepsInProgressByDeployment: {} as { [deploymentId: number]: Step[] },
+      /**
+       * The http client.
+       */
       client: getClient(),
     };
   },
@@ -46,22 +54,16 @@ export const useSteps = defineStore("steps", {
      * @returns {boolean} Whether the view should scroll to the step
      */
     shouldScrollToStep: (state) => (step: Step) => {
-      const stepsByDeployment = state.stepsByDeployment[step.deploymentId];
-      let previousId:number | null = null;
-      stepsByDeployment.keys().sort().forEach((key) => {
-        if (key === step.id) {
-          break;
-        }
-        previousId = key;
-      }
-      if (previousId !== null) {
-        const previousStep = stepsByDeployment[previousId];
-        if (previousStep.status === "inProgress") {
-          return true;
+      const byDeploymentId = state.stepsInProgressByDeployment[step.deploymentId];
+      if (byDeploymentId) {
+        const scrollToStep = byDeploymentId[2];
+        if (scrollToStep) {
+          if (scrollToStep.id === step.id) {
+            return true;
+          }
         }
       }
-      for (const item of stepsByDeployment) {
-      }
+      return false;
     }
   },
   actions: {
@@ -86,6 +88,13 @@ export const useSteps = defineStore("steps", {
           this.stepsByDeployment[step.deploymentId] = {};
         }
         this.stepsByDeployment[step.deploymentId][step.id] = step;
+        if (step.inProgress) {
+          if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
+            this.stepsInProgressByDeployment[step.deploymentId] = [step];
+          } else {
+            this.stepsInProgressByDeployment[step.deploymentId] = [step, ...this.stepsInProgressByDeployment[step.deploymentId]];
+          }
+        }
       } else {
         console.log("step without deploymentId", step);
       }
@@ -97,8 +106,14 @@ export const useSteps = defineStore("steps", {
      * @param step {Step} The step to delete
      */
     deleteStep(step: Step) {
-      delete this.steps[step.id];
-      delete this.stepsByDeployment[step.deploymentId][step.id];
+      if (step.id in this.steps) {
+        delete this.steps[step.id];
+      }
+      if (step.deploymentId && step.deploymentId in this.stepsByDeployment) {
+        if (step.id in this.stepsByDeployment[step.deploymentId]) {
+          delete this.stepsByDeployment[step.deploymentId][step.id];
+        }
+      }
     },
     /**
      * Fetch all steps for a deployment. This is used to fetch
