@@ -139,6 +139,7 @@ export function createWebsocketClient(): WebsocketClient {
      */
     onMessage(event: MessageEvent) {
       const message = JSON.parse(event.data) as Message;
+      useWebsocketStore().receivedMessage();
       if (message.type === "authentication") {
         // special handling for authentication response
         this.onAuthenticationMessage(message as AuthenticationMessage);
