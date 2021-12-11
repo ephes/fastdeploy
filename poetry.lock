@@ -949,6 +949,17 @@ optional = false
 python-versions = ">=2.6"
 
 [[package]]
+name = "pep517"
+version = "0.12.0"
+description = "Wrappers to build Python packages using PEP 517 hooks"
+category = "dev"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+tomli = {version = ">=1.1.0", markers = "python_version >= \"3.6\""}
+
+[[package]]
 name = "pexpect"
 version = "4.8.0"
 description = "Pexpect allows easy control of interactive console applications."
@@ -966,6 +977,22 @@ description = "Tiny 'shelve'-like database with concurrency support"
 category = "dev"
 optional = false
 python-versions = "*"
+
+[[package]]
+name = "pip-tools"
+version = "6.4.0"
+description = "pip-tools keeps your pinned dependencies fresh."
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+click = ">=7"
+pep517 = "*"
+
+[package.extras]
+coverage = ["pytest-cov"]
+testing = ["pytest", "pytest-rerunfailures", "pytest-xdist"]
 
 [[package]]
 name = "platformdirs"
@@ -1680,7 +1707,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "fbb778cbaa578c73eeec3387565562e9ae26802b906b1df977729d0b645116e6"
+content-hash = "d31d2146692adf6be5d58d88fb4633b55afc11b1d9f1f08a33b857d229a59328"
 
 [metadata.files]
 anyio = [
@@ -2304,6 +2331,10 @@ pbr = [
     {file = "pbr-5.8.0-py2.py3-none-any.whl", hash = "sha256:176e8560eaf61e127817ef93d8a844803abb27a4d4637f0ff3bb783129be2e0a"},
     {file = "pbr-5.8.0.tar.gz", hash = "sha256:672d8ebee84921862110f23fcec2acea191ef58543d34dfe9ef3d9f13c31cddf"},
 ]
+pep517 = [
+    {file = "pep517-0.12.0-py2.py3-none-any.whl", hash = "sha256:dd884c326898e2c6e11f9e0b64940606a93eb10ea022a2e067959f3a110cf161"},
+    {file = "pep517-0.12.0.tar.gz", hash = "sha256:931378d93d11b298cf511dd634cf5ea4cb249a28ef84160b3247ee9afb4e8ab0"},
+]
 pexpect = [
     {file = "pexpect-4.8.0-py2.py3-none-any.whl", hash = "sha256:0b48a55dcb3c05f3329815901ea4fc1537514d6ba867a152b581d69ae3710937"},
     {file = "pexpect-4.8.0.tar.gz", hash = "sha256:fc65a43959d153d0114afe13997d439c22823a27cefceb5ff35c2178c6784c0c"},
@@ -2311,6 +2342,10 @@ pexpect = [
 pickleshare = [
     {file = "pickleshare-0.7.5-py2.py3-none-any.whl", hash = "sha256:9649af414d74d4df115d5d718f82acb59c9d418196b7b4290ed47a12ce62df56"},
     {file = "pickleshare-0.7.5.tar.gz", hash = "sha256:87683d47965c1da65cdacaf31c8441d12b8044cdec9aca500cd78fc2c683afca"},
+]
+pip-tools = [
+    {file = "pip-tools-6.4.0.tar.gz", hash = "sha256:65553a15b1ba34be5e43889345062e38fb9b219ffa23b084ca0d4c4039b6f53b"},
+    {file = "pip_tools-6.4.0-py3-none-any.whl", hash = "sha256:bb2c3272bc229b4a6d25230ebe255823aba1aa466a0d698c48ab7eb5ab7efdc9"},
 ]
 platformdirs = [
     {file = "platformdirs-2.4.0-py3-none-any.whl", hash = "sha256:8868bbe3c3c80d42f20156f22e7131d2fb321f5bc86a2a345375c6481a67021d"},
