@@ -4,8 +4,9 @@
 
 1. Create a venv & activate it.
 
-2. Install dev requirements via `pip-tools`
+2. Install dev requirements via `pip-tools`.
 
+    ```
     python -m pip install pip-tools
 
     # Add/Remove dependencies to develop.in/production.in
@@ -14,6 +15,8 @@
 
     # Sync (install) prod|dev to the activated venv.
     pip-sync .\app\requirements\develop|production.txt
+    ```
+
 
 
 ## Documentation
