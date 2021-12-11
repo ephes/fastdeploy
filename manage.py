@@ -2,6 +2,7 @@ import asyncio
 import os
 import subprocess
 import sys
+import platform
 
 from datetime import timedelta
 
@@ -109,7 +110,8 @@ def test():
     """
     subprocess.call([sys.executable, "-m", "pytest"])
     with working_directory(settings.project_root / "frontend"):
-        subprocess.call(["npm", "run", "test"])
+        npm = "npm" if not platform.system() == "Windows" else "npm.cmd"
+        subprocess.call([npm, "run", "test"])
 
 
 if __name__ == "__main__":
