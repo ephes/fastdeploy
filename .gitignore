@@ -26,3 +26,6 @@ htmlcov
 
 # deploy with remote staging for development
 ansible/inventory/hosts.yml
+
+# openapi.json gets generated locally
+docs/openapi.json

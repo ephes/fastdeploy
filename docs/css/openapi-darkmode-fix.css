@@ -1,0 +1,13 @@
+/* OpenAPI Dark Mode Theme Overrides */
+
+[data-md-color-scheme="slate"] .swagger-ui .wrapper {
+  filter: invert(88%) hue-rotate(180deg);
+}
+
+[data-md-color-scheme="slate"] .swagger-ui .highlight-code {
+  filter: invert(100%) hue-rotate(180deg);
+}
+
+[data-md-color-scheme="slate"] .swagger-ui .scheme-container {
+  background-color: #2e303e !important;
+}

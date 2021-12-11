@@ -57,6 +57,9 @@ python-jose = {extras = ["cryptography"], version = "^3.3.0"}
 httpx = "^0.21.1"
 typer = "^0.4.0"
 rich = "^10.15.2"
+mkdocs = "^1.2.3"
+mkdocs-material = "^8.1.0"
+mkdocs-render-swagger-plugin = "^0.0.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
