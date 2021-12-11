@@ -1,5 +1,78 @@
+[tool.poetry]
+name = "fastDeploy"
+description = ""
+version = "0.0.1"
+authors = []
+
 [tool.black]
 line-length = 119
 
 [tool.bandit]
 skips = ["B101"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+env = [
+    "DATABASE_URL = sqlite:///:memory:?cache=shared",
+    "REPOSITORY = in_memory",
+    "PASSWORD_HASH_ALGORITHM = ldap_md5",
+]
+testpaths = "app/tests"
+
+[tool.flake8]
+statistics = "True"
+ignore = ["D203" , "W503"]
+max-line-length = 119
+exclude = '''
+    frontend,
+    .git,
+'''
+
+
+[tool.isort]
+skip = [".git", "__pycache__", "LC_MESSAGES", "locale", "build", "dist", ".github", "frontend"]
+blocked_extensions = ["rst", "html", "js", "svg", "txt", "css", "scss", "png", "snap", "tsx", "sh"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+default_section = "THIRDPARTY"
+lines_between_types = 1
+lines_after_imports = 2
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+line_length = 88
+known_fastapi = "fastapi"
+known_pydantic = "pydantic"
+known_sqlalchemy = "sqlalchemy"
+known_sqlmodel = "sqlmodel"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = {extras = ["all"], version = "^0.70.0"}
+orjson = "3.6.4"
+sqlmodel = "^0.0.4"
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+httpx = "^0.21.1"
+typer = "^0.4.0"
+rich = "^10.15.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+notebook = "^6.4.6"
+black = "^21.12b0"
+nb-black = "^1.0.7"
+pytest-asyncio = "^0.16.0"
+coverage = "^6.2"
+pytest-env = "^0.6.2"
+pytest-xdist = "^2.5.0"
+mypy = "^0.910"
+flake8 = "^4.0.1"
+bandit = "^1.7.1"
+pre-commit = "^2.16.0"
+pydocstyle = "^6.1.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
