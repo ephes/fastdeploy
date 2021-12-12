@@ -1,6 +1,6 @@
 http:
   routers:
-    web-router:
+    deploy-router:
       rule: "Host(`deploy.staging.wersdoerfer.de`)"
 
       entryPoints:
@@ -10,7 +10,7 @@ http:
         - csrf
       service: fastdeploy
 
-    web-secure-router:
+    deploy-secure-router:
       rule: "Host(`deploy.staging.wersdoerfer.de`)"
 
       entryPoints:
