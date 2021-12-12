@@ -209,7 +209,7 @@
         PATH: "{{ default_path }}"
 
     - name: Create initial user
-      shell: "{{ python }} manage.py create-initial-user"
+      shell: "{{ python }} commands.py create-initial-user"
       args:
         chdir: "{{ site_path }}"
       become: true
