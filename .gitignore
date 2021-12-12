@@ -29,3 +29,6 @@ ansible/inventory/hosts.yml
 
 # openapi.json gets generated locally
 docs/openapi.json
+
+# yarn lockfile breaks deployment
+yarn.lock
