@@ -29,10 +29,26 @@ watchEffect(() => {
     }
   }
 });
+
+/**
+ * Get the css class for the step.
+ *
+ * @param step {Step}
+ * @returns cssClass {string}
+ */
+function getStepClass(step: Step): string {
+  if (step.inProgress) {
+    return "in-progress";
+  }
+  if (step.finished) {
+    return "finished";
+  }
+  return "not-started";
+}
 </script>
 
 <template>
-  <p ref="el" id="step">
+  <p :class="getStepClass(step)" ref="el" id="step">
     {{ step.deploymentId }} {{ step.id }} {{ step.name }}
     <br />
     duration: {{ duration }}
@@ -46,3 +62,14 @@ watchEffect(() => {
     {{ step.changed }}
   </p>
 </template>
+<style scoped>
+.not-started {
+  background-color: #a8b313;
+}
+.in-progress {
+  background-color: #ffd700;
+}
+.finished {
+  background-color: #00ff00;
+}
+</style>
