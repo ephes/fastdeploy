@@ -26,7 +26,7 @@ async function startDeployment(serviceName: string) {
       <button @click="serviceStore.addService()">add</button>
     </div>
     <br />
-    <table class="service_list">
+    <table class="service-list">
       <tr>
         <th>name</th>
         <th>generate service token</th>
@@ -51,7 +51,7 @@ async function startDeployment(serviceName: string) {
   </div>
 </template>
 <style scoped>
-.service_list {
+.service-list {
   padding-top: 2em;
   margin: auto;
 }
