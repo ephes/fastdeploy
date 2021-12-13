@@ -92,6 +92,8 @@ export const useSteps = defineStore("steps", {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
             this.stepsInProgressByDeployment[step.deploymentId] = [step];
           } else {
+            // Add step to the list of steps in progress
+            // to be able to scroll to the step before last step in progress.
             this.stepsInProgressByDeployment[step.deploymentId] = [step, ...this.stepsInProgressByDeployment[step.deploymentId]];
           }
         }
