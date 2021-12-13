@@ -76,3 +76,15 @@ export function utcStringObjToLocalDateObj(
   }
   return newObj;
 }
+
+/**
+ * Convert an object from server and convert it to a local object
+ * where all keys are camel case and all date values are converted to
+ * local utc dates.
+ *
+ * @param obj {object} The object to convert
+ * @returns newObj {object} The converted object
+ */
+ export function pythonToJavascript(obj: HasStringKeys): HasStringKeys {
+  return utcStringObjToLocalDateObj(snakeToCamel(obj));
+ }

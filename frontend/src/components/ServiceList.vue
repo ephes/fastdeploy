@@ -30,6 +30,8 @@ async function startDeployment(serviceName: string) {
       <tr>
         <th>name</th>
         <th>generate service token</th>
+        <th>is running</th>
+        <th>deployments</th>
         <th>deploy</th>
         <th>delete</th>
       </tr>
@@ -38,6 +40,12 @@ async function startDeployment(serviceName: string) {
         <td>
           <router-link
             :to="{ name: 'service-detail', params: { id: service.id } }"
+          >{{ service.name }}</router-link>
+        </td>
+        <td></td>
+        <td>
+          <router-link
+            :to="{ name: 'deployment-list-filtered', params: { serviceId: service.id } }"
           >{{ service.name }}</router-link>
         </td>
         <td>

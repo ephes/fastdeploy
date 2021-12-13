@@ -14,7 +14,7 @@ const authStore = useAuth();
     <WebsocketStatus />
     <p v-if="authStore.isAuthenticated">
       <router-link to="/">Services</router-link>|
-      <router-link to="/deployments">Deployments</router-link>
+      <router-link :to="{name: 'deployment-list'}">Deployments</router-link>
     </p>
     <router-view></router-view>
   </div>
