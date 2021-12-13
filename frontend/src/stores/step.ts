@@ -1,7 +1,7 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
 import { snakeToCamel, utcStringObjToLocalDateObj } from "../converters";
-import { Step, StepById, Message } from "../typings";
+import { Step, StepById, Message, Deployment } from "../typings";
 
 /**
  * This store is used to store deployment steps. They are stored
@@ -146,6 +146,13 @@ export const useSteps = defineStore("steps", {
           this.deleteStep(step);
         } else {
           this.addStep(step);
+        }
+      }
+      if (message.type === "deployment") {
+        const deployment = message as Deployment;
+        if (deployment.finished) {
+          // Deployment has finished -> remove scroll to metadata
+          delete(this.stepsInProgressByDeployment[deployment.id]);
         }
       }
     },
