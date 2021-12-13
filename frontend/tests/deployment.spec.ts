@@ -37,7 +37,7 @@ describe("Deployment Store Websocket", () => {
       createEvent({ ...apiDeployment, type: "deployment" })
     );
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
-      pythonToJavascript({...deployment, created: new Date("2021-11-23T09:03:01.000000Z")})
+      pythonToJavascript(apiDeployment)
     );
   });
 });
