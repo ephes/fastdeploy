@@ -18,12 +18,13 @@ async function startDeployment(serviceName: string) {
 <template>
   <div>
     <h1>Services</h1>
-    <select v-model="serviceStore.new.name">
-      <option disabled value>Please select service to add</option>
-      <option v-for="name in serviceStore.getAvailableServiceNames" :value="name">{{ name }}</option>
-    </select>
-    <span>Selected: {{ serviceStore.new.name }}</span>
-    <button @click="serviceStore.addService()">add</button>
+    <div v-if="serviceStore.getAvailableServiceNames.length">
+      <select v-model="serviceStore.new.name">
+        <option disabled value>Please select service to add</option>
+        <option v-for="name in serviceStore.getAvailableServiceNames" :value="name">{{ name }}</option>
+      </select>
+      <button @click="serviceStore.addService()">add</button>
+    </div>
     <br />
     <table class="service_list">
       <tr>
@@ -53,5 +54,11 @@ async function startDeployment(serviceName: string) {
 .service_list {
   padding-top: 2em;
   margin: auto;
+}
+button {
+  margin-left: 1em;
+}
+th,td {
+  padding: 0.5em;
 }
 </style>
