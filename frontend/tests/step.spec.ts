@@ -1,5 +1,5 @@
 import { Step } from "../src/typings";
-import { snakeToCamel, utcStringObjToLocalDateObj } from "../src/converters";
+import { pythonToJavascript } from "../src/converters";
 import { createWebsocketClient } from "../src/websocket";
 import { useSteps } from "../src/stores/step";
 import { createEvent, initPinia } from "./conftest";
@@ -19,7 +19,7 @@ const apiStep: object = {
   type: "step",
 };
 
-const step: Step = utcStringObjToLocalDateObj(snakeToCamel(apiStep)) as Step;
+const step: Step = pythonToJavascript(apiStep) as Step;
 
 describe("Steps Store Websocket", () => {
   beforeEach(() => {
