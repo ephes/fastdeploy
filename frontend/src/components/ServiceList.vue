@@ -25,7 +25,7 @@ async function startDeployment(serviceName: string) {
     <span>Selected: {{ serviceStore.new.name }}</span>
     <button @click="serviceStore.addService()">add</button>
     <br />
-    <table>
+    <table class="service_list">
       <tr>
         <th>name</th>
         <th>link</th>
@@ -49,3 +49,9 @@ async function startDeployment(serviceName: string) {
     </table>
   </div>
 </template>
+<style scoped>
+.service_list {
+  padding-top: 2em;
+  margin: auto;
+}
+</style>
