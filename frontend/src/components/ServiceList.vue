@@ -29,7 +29,7 @@ async function startDeployment(serviceName: string) {
     <table class="service_list">
       <tr>
         <th>name</th>
-        <th>link</th>
+        <th>generate service token</th>
         <th>deploy</th>
         <th>delete</th>
       </tr>
@@ -38,7 +38,7 @@ async function startDeployment(serviceName: string) {
         <td>
           <router-link
             :to="{ name: 'service-detail', params: { id: service.id } }"
-          >details for {{ service.name }}</router-link>
+          >{{ service.name }}</router-link>
         </td>
         <td>
           <button @click="startDeployment(service.name)">deploy</button>
