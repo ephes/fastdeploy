@@ -2,6 +2,7 @@ import { defineStore, acceptHMRUpdate } from "pinia";
 
 import { getClient, HttpClient } from "./httpClient";
 import { useServices } from "./service";
+import { pythonToJavascript } from "../converters";
 import { Deployment, Message, DeploymentById } from "../typings";
 
 /**
@@ -17,6 +18,28 @@ export const useDeployments = defineStore("deployments", {
       deployments: {} as DeploymentById,
       client: getClient(),
     };
+  },
+  getters: {
+    /**
+     * Get deployments optionally filtered by service id.
+     *
+     * @param serviceId {number}
+     * @returns {DeploymentById}
+     */
+    getDeploymentsByService:
+      (state) =>
+      (serviceId?: number): DeploymentById => {
+        console.log("deployments: ", state.deployments);
+        if (serviceId) {
+          return Object.fromEntries(
+            Object.entries(state.deployments).filter(
+              ([deploymentId, deployment]) => deployment.serviceId === serviceId
+            )
+          );
+        } else {
+          return state.deployments;
+        }
+      },
   },
   actions: {
     /**
@@ -38,7 +61,10 @@ export const useDeployments = defineStore("deployments", {
      * @param client {HttpClient} the http client to use - settable for testing
      * @returns deployment {Deployment} the started deployment
      */
-    async startDeployment(serviceName: string, client: HttpClient = getClient()) {
+    async startDeployment(
+      serviceName: string,
+      client: HttpClient = getClient()
+    ) {
       const servicesStore = useServices();
       const serviceToken = await servicesStore.fetchServiceToken(
         serviceName,
@@ -54,11 +80,9 @@ export const useDeployments = defineStore("deployments", {
      * store by id.
      */
     async fetchDeployments() {
-      const deployments: Deployment[] = await this.client.get(
-        "deployments"
-      );
+      const deployments: Deployment[] = await this.client.get("deployments/");
       for (const deployment of deployments) {
-        this.deployments[deployment.id] = deployment;
+        this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
       }
     },
     /**

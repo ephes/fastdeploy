@@ -22,7 +22,16 @@ import DeploymentDetail from "./components/DeploymentDetail.vue";
 const routes = [
   { path: "/", component: ServiceList },
   { path: "/services/:id", name: "service-detail", component: ServiceDetail },
-  { path: "/deployments", component: DeploymentList },
+  {
+    path: "/deployments",
+    name: "deployment-list",
+    component: DeploymentList,
+  },
+  {
+    path: "/deployments?serviceId=:serviceId",
+    name: "deployment-list-filtered",
+    component: DeploymentList,
+  },
   {
     path: "/deployments/:id",
     name: "deployment-detail",

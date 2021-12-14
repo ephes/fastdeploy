@@ -1,7 +1,7 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
-import { snakeToCamel, utcStringObjToLocalDateObj } from "../converters";
-import { Step, StepById, Message } from "../typings";
+import { pythonToJavascript } from "../converters";
+import { Step, StepById, Message, Deployment } from "../typings";
 
 /**
  * This store is used to store deployment steps. They are stored
@@ -92,6 +92,8 @@ export const useSteps = defineStore("steps", {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
             this.stepsInProgressByDeployment[step.deploymentId] = [step];
           } else {
+            // Add step to the list of steps in progress
+            // to be able to scroll to the step before last step in progress.
             this.stepsInProgressByDeployment[step.deploymentId] = [step, ...this.stepsInProgressByDeployment[step.deploymentId]];
           }
         }
@@ -128,7 +130,7 @@ export const useSteps = defineStore("steps", {
         new URLSearchParams({ deployment_id: deploymentId.toString() });
       const steps = await this.client.get<Promise<Object[]>>(url);
       for (const apiStep of steps) {
-        this.addStep(utcStringObjToLocalDateObj(snakeToCamel(apiStep)) as Step);
+        this.addStep(pythonToJavascript(apiStep) as Step);
       }
     },
     /**
@@ -144,6 +146,13 @@ export const useSteps = defineStore("steps", {
           this.deleteStep(step);
         } else {
           this.addStep(step);
+        }
+      }
+      if (message.type === "deployment") {
+        const deployment = message as Deployment;
+        if (deployment.finished) {
+          // Deployment has finished -> remove scroll to metadata
+          delete(this.stepsInProgressByDeployment[deployment.id]);
         }
       }
     },

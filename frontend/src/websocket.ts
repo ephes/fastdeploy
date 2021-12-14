@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { snakeToCamel, utcStringObjToLocalDateObj } from "./converters";
+import { pythonToJavascript } from "./converters";
 import { WebsocketClient, Message, AuthenticationMessage } from "./typings";
 import { useWebsocketStore } from "./stores/websocket";
 import { useAuth } from "./stores/auth";
@@ -107,7 +107,7 @@ export function createWebsocketClient(): WebsocketClient {
      * @param message {Message} The message to pass to the stores
      */
     notifyStores(message: Message) {
-      const newMessage = utcStringObjToLocalDateObj(snakeToCamel(message));
+      const newMessage = pythonToJavascript(message);
       for (const store of this.stores) {
         store.onMessage(newMessage);
       }

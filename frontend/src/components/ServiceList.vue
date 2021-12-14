@@ -18,17 +18,20 @@ async function startDeployment(serviceName: string) {
 <template>
   <div>
     <h1>Services</h1>
-    <select v-model="serviceStore.new.name">
-      <option disabled value>Please select service to add</option>
-      <option v-for="name in serviceStore.getAvailableServiceNames" :value="name">{{ name }}</option>
-    </select>
-    <span>Selected: {{ serviceStore.new.name }}</span>
-    <button @click="serviceStore.addService()">add</button>
+    <div v-if="serviceStore.getAvailableServiceNames.length">
+      <select v-model="serviceStore.new.name">
+        <option disabled value>Please select service to add</option>
+        <option v-for="name in serviceStore.getAvailableServiceNames" :value="name">{{ name }}</option>
+      </select>
+      <button @click="serviceStore.addService()">add</button>
+    </div>
     <br />
-    <table>
+    <table class="service-list">
       <tr>
         <th>name</th>
-        <th>link</th>
+        <th>generate service token</th>
+        <th>is running</th>
+        <th>deployments</th>
         <th>deploy</th>
         <th>delete</th>
       </tr>
@@ -37,7 +40,13 @@ async function startDeployment(serviceName: string) {
         <td>
           <router-link
             :to="{ name: 'service-detail', params: { id: service.id } }"
-          >details for {{ service.name }}</router-link>
+          >{{ service.name }}</router-link>
+        </td>
+        <td></td>
+        <td>
+          <router-link
+            :to="{ name: 'deployment-list-filtered', params: { serviceId: service.id } }"
+          >{{ service.name }}</router-link>
         </td>
         <td>
           <button @click="startDeployment(service.name)">deploy</button>
@@ -49,3 +58,15 @@ async function startDeployment(serviceName: string) {
     </table>
   </div>
 </template>
+<style scoped>
+.service-list {
+  padding-top: 2em;
+  margin: auto;
+}
+button {
+  margin-left: 1em;
+}
+th,td {
+  padding: 0.5em;
+}
+</style>

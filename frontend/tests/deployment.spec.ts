@@ -1,18 +1,19 @@
 import { initPinia, createEvent } from "./conftest";
 import { createWebsocketClient } from "../src/websocket";
-import { snakeToCamel, utcStringObjToLocalDateObj } from "../src/converters";
-import { Deployment } from "../src/typings";
+import { pythonToJavascript } from "../src/converters";
 import { useServices } from "../src/stores/service";
 import { useDeployments } from "../src/stores/deployment";
 
-const deployment = {
+const apiDeployment = {
   id: 1,
   service_id: 1,
   origin: "GitHub",
   user: "deploy",
-  created: "2021-11-23T10:03:01.276234",
+  created: "2021-11-23T10:03:01.000000",
   type: "deployment",
 };
+
+const deployment = pythonToJavascript(apiDeployment);
 
 describe("Deployment Store Websocket", () => {
   beforeEach(() => {
@@ -23,7 +24,7 @@ describe("Deployment Store Websocket", () => {
     const deploymentsStore = useDeployments();
     const websocketClient = createWebsocketClient();
     websocketClient.onMessage(
-      createEvent({ ...deployment, type: "deployment" })
+      createEvent({ ...apiDeployment, type: "deployment" })
     );
     expect(deploymentsStore.deployments).toStrictEqual({});
   });
@@ -33,10 +34,10 @@ describe("Deployment Store Websocket", () => {
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(deploymentsStore);
     websocketClient.onMessage(
-      createEvent({ ...deployment, type: "deployment" })
+      createEvent({ ...apiDeployment, type: "deployment" })
     );
     expect(deploymentsStore.deployments[deployment.id]).toStrictEqual(
-      utcStringObjToLocalDateObj(snakeToCamel(deployment))
+      pythonToJavascript(apiDeployment)
     );
   });
 });
@@ -69,7 +70,7 @@ describe("Deployment Store Actions", () => {
     deploymentsStore.client = {
       async get<T = unknown>(url: string | number): Promise<T> {
         return new Promise<any>((resolve) => {
-          resolve([deployment]);
+          resolve([apiDeployment]);
         });
       },
       options: { headers: {} },

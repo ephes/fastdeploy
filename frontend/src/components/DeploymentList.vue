@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router';
+
 import { useDeployments } from '../stores/deployment';
 
 const deploymentStore = useDeployments();
 deploymentStore.fetchDeployments();
+
+const route = useRoute();
 </script>
 
 <template>
@@ -16,7 +20,7 @@ deploymentStore.fetchDeployments();
         <th>user</th>
         <th>deployments</th>
       </tr>
-      <tr v-for="deployment of deploymentStore.deployments" :key="deployment.id">
+      <tr v-for="deployment of deploymentStore.getDeploymentsByService(Number(route.params.serviceId))" :key="deployment.id">
         <td>{{ deployment.id }}</td>
         <td>{{ deployment.serviceId }}</td>
         <td>{{ deployment.origin }}</td>

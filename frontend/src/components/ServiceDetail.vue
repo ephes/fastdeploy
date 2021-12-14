@@ -45,3 +45,8 @@ async function getServiceToken() {
         </div>
     </div>
 </template>
+<style scoped>
+input,button {
+    margin: 10px;
+}
+</style>

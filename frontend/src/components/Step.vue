@@ -18,7 +18,7 @@ const duration = computed(() => {
 });
 
 /**
- * Scroll to step if it's in progress
+ * Scroll to step if it's the one before in progress.
  */
 watchEffect(() => {
   //if (props.step.inProgress) {
