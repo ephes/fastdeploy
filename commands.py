@@ -73,11 +73,12 @@ def createservice(username: str, name: str, collect: str, deploy: str):
 def update():
     """
     Update the development environment by calling:
-    - pip-compile
-    - pip-sync
+    - pip-compile production.in develop.in -> develop.txt
+    - pip-compile production.in -> production.txt
+    - pip-sync develop.txt
     - npm update
     """
-    subprocess.call(
+    subprocess.call(  # develop + production
         [
             sys.executable,
             "-m",
@@ -90,6 +91,20 @@ def update():
             "app/requirements/develop.in",
             "--output-file",
             "app/requirements/develop.txt",
+        ]
+    )
+    subprocess.call(  # production only
+        [
+            sys.executable,
+            "-m",
+            "piptools",
+            "compile",
+            "--upgrade",
+            "--allow-unsafe",
+            "--generate-hashes",
+            "app/requirements/production.in",
+            "--output-file",
+            "app/requirements/production.txt",
         ]
     )
     subprocess.call([sys.executable, "-m", "piptools", "sync", "app/requirements/develop.txt"])
