@@ -61,9 +61,13 @@ class InMemoryRepository(BaseRepository):
         return self.services
 
     async def add_service(self, service: Service) -> Service:
-        self.services.append(service)
         if service.id is None:
+            # insert
+            self.services.append(service)
             service.id = len(self.services)
+        else:
+            # update
+            self.services[service.id - 1] = service
         await self.dispatch_event(ServiceOut.parse_obj(service))
         return service
 
