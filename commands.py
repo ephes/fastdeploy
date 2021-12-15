@@ -9,6 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import typer
+import uvicorn
 
 from httpx import Client
 from rich import print as rprint
@@ -189,6 +190,48 @@ def docs_clean(site_path: Path = Path(CWD) / 'site'):
     rprint(f"Deletes .site/")
     if site_path.exists():
         rm_tree(site_path)
+
+
+# ---------- MANAGE THE SERVER ------------------------------------------------
+@cli.command()
+def up(port: int = 8000, host: str = "127.0.0.1", log_level: str = "info", reload: bool = True, docs: bool = False):
+    """= run (start the devserver)"""
+    run(port=port, host=host, log_level=log_level, reload=reload, docs=docs)
+
+@cli.command()
+def serve(port: int = 8000, host: str = "127.0.0.1", log_level: str = "info", reload: bool = True, docs: bool = False):
+    """= run (start the devserver)"""
+    run(port=port, host=host, log_level=log_level, reload=reload, docs=docs)
+
+@cli.command()
+def run(
+    port: int = 8000,
+    host: str = "127.0.0.1",
+    log_level: str = "info",
+    reload: bool = True,
+    docs: bool = False,
+):  # pragma: no cover
+    """
+    Run the API server.
+    if --docs: run the mkdocs server instead.
+
+    You may run uvicorn over gunicorn to allow multiple workers.
+    (on windows fcntl is not available, -> ModuleNotFoundError: No module named 'fcntl')
+    https://www.uvicorn.org/#running-with-gunicorn
+    
+    gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker
+    """
+    if docs:
+        docs_serve()
+        return
+
+    uvicorn.run(
+        "app.main:app",
+        host=host,
+        port=port,
+        log_level=log_level,
+        reload=reload,
+    )
 
 
 if __name__ == "__main__":
