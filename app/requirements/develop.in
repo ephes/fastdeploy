@@ -11,3 +11,6 @@ mypy
 flake8
 bandit
 pre-commit
+mkdocs
+mkdocs-material
+mkdocs-render-swagger-plugin
