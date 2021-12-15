@@ -34,4 +34,6 @@ repos:
     rev: 3.9.2
     hooks:
       - id: flake8
+        entry: pflake8
         language_version: python3
+        additional_dependencies: [pyproject-flake8]

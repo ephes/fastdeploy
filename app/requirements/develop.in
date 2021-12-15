@@ -9,5 +9,9 @@ pytest-env
 pytest-xdist
 mypy
 flake8
+pyproject-flake8
 bandit
 pre-commit
+mkdocs
+mkdocs-material
+mkdocs-render-swagger-plugin

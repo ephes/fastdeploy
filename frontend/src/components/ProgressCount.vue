@@ -1,0 +1,20 @@
+<script setup lang="ts">
+import { computed, ComputedRef } from 'vue';
+import { useDeployments } from '../stores/deployment';
+import { useSteps } from '../stores/step';
+import Step from './Step.vue';
+import { ServiceWithId, DeploymentById } from '../typings';
+
+const props = defineProps<{ service: ServiceWithId }>();
+
+const deploymentStore = useDeployments();
+const activeDeployments: ComputedRef<DeploymentById> = computed(() => {
+  return deploymentStore.getActiveDeploymentsByService(props.service.id);
+});
+</script>
+
+<template>
+  <div v-for="(deployment, deploymentId) of activeDeployments" :key="deploymentId">
+    id: {{ deployment.id }} progress: {{ deploymentStore.getFinishedVsAllSteps(deployment.id) }}
+  </div>
+</template>

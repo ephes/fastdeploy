@@ -1,9 +1,9 @@
 import asyncio
+import json
 import os
+import platform
 import subprocess
 import sys
-import platform
-import json
 
 from datetime import timedelta
 from pathlib import Path
@@ -23,7 +23,7 @@ from app.main import app as fastapi_app
 from app.models import Service, User
 
 
-CWD = '.'
+CWD = "."
 
 database.create_db_and_tables()
 cli = app = typer.Typer()
@@ -74,21 +74,38 @@ def createservice(username: str, name: str, collect: str, deploy: str):
 def update():
     """
     Update the development environment by calling:
-    - pip-compile
-    - pip-sync
+    - pip-compile production.in develop.in -> develop.txt
+    - pip-compile production.in -> production.txt
+    - pip-sync develop.txt
     - npm update
     """
-    subprocess.call(
+    subprocess.call(  # develop + production
         [
             sys.executable,
             "-m",
             "piptools",
             "compile",
+            "--upgrade",
+            "--allow-unsafe",
             "--generate-hashes",
             "app/requirements/production.in",
             "app/requirements/develop.in",
             "--output-file",
             "app/requirements/develop.txt",
+        ]
+    )
+    subprocess.call(  # production only
+        [
+            sys.executable,
+            "-m",
+            "piptools",
+            "compile",
+            "--upgrade",
+            "--allow-unsafe",
+            "--generate-hashes",
+            "app/requirements/production.in",
+            "--output-file",
+            "app/requirements/production.txt",
         ]
     )
     subprocess.call([sys.executable, "-m", "piptools", "sync", "app/requirements/develop.txt"])
@@ -119,7 +136,6 @@ def test():
         subprocess.call([npm, "run", "test"])
 
 
-
 # ---------- DOCUMENTATION mkdocs ---------------------------------------------
 @cli.command()
 def docs(
@@ -127,8 +143,8 @@ def docs(
     build: bool = False,
     clean: bool = False,
     openapi: bool = False,
-    doc_path: Path = Path(CWD) / 'docs',
-    site_path: Path = Path(CWD) / 'site',
+    doc_path: Path = Path(CWD) / "docs",
+    site_path: Path = Path(CWD) / "site",
 ):
     """
     default: mkdocs serve
@@ -147,8 +163,9 @@ def docs(
             docs_openapi(doc_path=doc_path)
         docs_serve()
 
+
 @cli.command()
-def docs_build(site_path: Path = Path(CWD) / 'site'):
+def docs_build(site_path: Path = Path(CWD) / "site"):
     """
     build mkdocs
 
@@ -161,14 +178,17 @@ def docs_build(site_path: Path = Path(CWD) / 'site'):
     command = "mkdocs build"
     subprocess.run(command.split(), cwd=CWD, env=None, shell=False)
 
+
 @cli.command()
-def docs_openapi(doc_path: Path = Path(CWD) / 'docs'):
+def docs_openapi(doc_path: Path = Path(CWD) / "docs"):
     """load new openapi.json into mkdocs"""
     from app.main import app
+
     open_api_schema = app.openapi()
     with open(doc_path / "openapi.json", "w") as file:
         json.dump(open_api_schema, file, indent=4)
     rprint(f"Updated {doc_path / 'openapi.json'}.")
+
 
 @cli.command()
 def docs_serve():
@@ -176,9 +196,11 @@ def docs_serve():
     command = "mkdocs serve"
     subprocess.run(command.split(), cwd=CWD, env=None, shell=False)
 
+
 @cli.command()
-def docs_clean(site_path: Path = Path(CWD) / 'site'):
+def docs_clean(site_path: Path = Path(CWD) / "site"):
     """Delete the site_path directory recursively."""
+
     def rm_tree(path: Path):
         """Recursively delete the directory tree."""
         for child in path.iterdir():
@@ -187,7 +209,8 @@ def docs_clean(site_path: Path = Path(CWD) / 'site'):
             elif child.is_dir():
                 rm_tree(child)
         path.rmdir()
-    rprint(f"Deletes .site/")
+
+    rprint("Deletes .site/")
     if site_path.exists():
         rm_tree(site_path)
 
