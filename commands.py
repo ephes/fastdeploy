@@ -84,6 +84,7 @@ def update():
             "piptools",
             "compile",
             "--upgrade",
+            "--allow-unsafe",
             "--generate-hashes",
             "app/requirements/production.in",
             "app/requirements/develop.in",
