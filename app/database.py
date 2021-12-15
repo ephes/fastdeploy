@@ -32,6 +32,35 @@ class BaseRepository:
     async def get_service_data(self, service_name: str) -> dict:
         return get_service_config(service_name)
 
+    @staticmethod
+    def sync_services(
+        source_services: list[Service], target_services: list[Service]
+    ) -> tuple[list[Service], list[Service]]:
+        # compare source and target services and add/update accordingly
+        updated_services = []
+        target_name_lookup = {service.name: service for service in target_services}
+        for service in source_services:
+            if service.name in target_name_lookup:
+                # service exists in target, check if it needs to be updated
+                target_service = target_name_lookup[service.name]
+                if target_service.data != service.data:
+                    # it's sufficient to check if the data is different, because
+                    # if name differs, it's a new/deleted service
+                    target_service.data = service.data
+                    # use target_service to keep the id
+                    updated_services.append(target_service)
+            else:
+                # service does not exist in target, add it
+                updated_services.append(service)
+
+        # check if any services in target are not in source
+        deleted_services = []
+        source_name_lookup = {service.name: service for service in source_services}
+        for service in target_services:
+            if service.name not in source_name_lookup:
+                deleted_services.append(service)
+        return updated_services, deleted_services
+
 
 class InMemoryRepository(BaseRepository):
     def __init__(self):
