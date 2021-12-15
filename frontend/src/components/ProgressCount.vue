@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, ComputedRef } from 'vue';
 import { useDeployments } from '../stores/deployment';
-import { useSteps } from '../stores/step';
-import Step from './Step.vue';
 import { ServiceWithId, DeploymentById } from '../typings';
 
 const props = defineProps<{ service: ServiceWithId }>();
