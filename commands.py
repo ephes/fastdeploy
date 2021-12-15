@@ -182,9 +182,9 @@ def docs_build(site_path: Path = Path(CWD) / "site"):
 @cli.command()
 def docs_openapi(doc_path: Path = Path(CWD) / "docs"):
     """load new openapi.json into mkdocs"""
-    from app.main import app
+    from app.main import app as fastapi_app
 
-    open_api_schema = app.openapi()
+    open_api_schema = fastapi_app.openapi()
     with open(doc_path / "openapi.json", "w") as file:
         json.dump(open_api_schema, file, indent=4)
     rprint(f"Updated {doc_path / 'openapi.json'}.")
