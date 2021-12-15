@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useServices } from '../stores/service';
 import { useDeployments } from '../stores/deployment';
 import { Deployment } from '../typings';
+import ProgressCount from './ProgressCount.vue';
 
 const serviceStore = useServices();
 const deploymentStore = useDeployments();
@@ -30,7 +31,7 @@ async function startDeployment(serviceName: string) {
       <tr>
         <th>name</th>
         <th>generate service token</th>
-        <th>is running</th>
+        <th>progress - finished vs all</th>
         <th>deployments</th>
         <th>deploy</th>
         <th>delete</th>
@@ -42,7 +43,9 @@ async function startDeployment(serviceName: string) {
             :to="{ name: 'service-detail', params: { id: service.id } }"
           >{{ service.name }}</router-link>
         </td>
-        <td></td>
+        <td>
+          <progress-count :service="service"/>
+        </td>
         <td>
           <router-link
             :to="{ name: 'deployment-list-filtered', params: { serviceId: service.id } }"

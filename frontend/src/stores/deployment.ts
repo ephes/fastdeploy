@@ -2,6 +2,7 @@ import { defineStore, acceptHMRUpdate } from "pinia";
 
 import { getClient, HttpClient } from "./httpClient";
 import { useServices } from "./service";
+import { useSteps } from "./step";
 import { pythonToJavascript } from "../converters";
 import { Deployment, Message, DeploymentById } from "../typings";
 
@@ -40,6 +41,38 @@ export const useDeployments = defineStore("deployments", {
           return state.deployments;
         }
       },
+  /**
+   * Get currently active deployments by service id.
+   *
+   * @param serviceId {number}
+   * @returns {DeploymentById}
+   */
+  getActiveDeploymentsByService:
+    (state) => (serviceId: number): DeploymentById => {
+      return Object.fromEntries(
+        Object.entries(state.deployments).filter(
+          ([deploymentId, deployment]) => deployment.serviceId === serviceId && !deployment.finished
+        )
+      );
+    },
+    /**
+     * Get finished vs all step count by deployment id.
+     *
+     * @param deploymentId {number}
+     * @returns [number, number]
+     */
+    getFinishedVsAllSteps: (state) => (deploymentId: number): [number, number] => {
+      const stepsStore = useSteps();
+      let [finishedSteps, allSteps] = [0, 0];
+      const steps = stepsStore.getStepsByDeployment(deploymentId);
+      for (const [stepId, step] of Object.entries(steps)) {
+        if (step.finished) {
+          finishedSteps++;
+        }
+        allSteps++;
+      }
+      return [finishedSteps, allSteps];
+    }
   },
   actions: {
     /**
