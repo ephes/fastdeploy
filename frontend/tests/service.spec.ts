@@ -51,16 +51,17 @@ describe("Services Store Actions", () => {
       name: "fastdeploy",
       data: {},
     };
-    servicesStore.new = newService;
     servicesStore.client = {
       async post<T = unknown>(): Promise<T> {
         return new Promise<any>((resolve) => {
-          resolve({ ...newService, id: 1});
+          resolve({ detail: "Services synced"});
         });
       },
       options: {headers: {}},
     } as any;
-    await servicesStore.addService();
+    await servicesStore.syncServices();
+    const serviceViaWebsocket = {...newService, id: 1}
+    servicesStore.services[serviceViaWebsocket.id] = serviceViaWebsocket;
     expect(servicesStore.services[1]).toStrictEqual({ ...newService, id: 1 });
   });
 
