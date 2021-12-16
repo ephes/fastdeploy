@@ -57,7 +57,7 @@ async def delete_service(
     return {"detail": f"Service {service_id} deleted"}
 
 
-@router.post("/sync/")
+@router.post("/sync")
 async def sync_services(_: User = Depends(get_current_active_user)) -> dict:
     """
     Sync services from filesytem to database. Need to be authenticated with

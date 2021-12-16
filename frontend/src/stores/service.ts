@@ -13,17 +13,11 @@ import { Service, ServiceById, ServiceWithId, Message } from "../typings";
  */
 export const useServices = defineStore("services", {
   state: () => {
-    const newService: Service = { name: "", data: {} };
     return {
       /**
        * Services are retrievable by id from this object.
        */
       services: {} as ServiceById,
-      /**
-       * This is a placeholder service that is used by a user
-       * facing component to create a new service.
-       */
-      new: newService,
       /**
        * Error message received from backend when trying to fetch
        * a service token.
@@ -69,19 +63,16 @@ export const useServices = defineStore("services", {
       }
     },
     /**
-     * Add a service from the list of available services and add
-     * it to the backend. After that, the placeholder service is
-     * reset.
+     * Sync services between filesystem and database on the backend.
      */
-    async addService() {
+    async syncServices() {
       this.client
-        .post<ServiceWithId>("/services/", this.new)
-        .then((service) => {
-          this.services[service.id] = service;
-          this.new = { name: "", data: {} };
+        .post("/services/sync")
+        .then(() => {
+          console.log("Services synced");
         })
         .catch((err) => {
-          console.log("Error adding service", err);
+          console.log("Error syncing services", err)
         });
     },
     /**
