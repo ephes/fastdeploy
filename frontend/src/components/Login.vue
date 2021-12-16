@@ -22,10 +22,14 @@ async function login() {
   <div>
     <h1>Login</h1>
     <p v-if="authStore.errorMessage">Login-Error: {{ authStore.errorMessage }}</p>
-    <input v-model="authStore.username" placeholder="foobar" />
-    <input v-model="authStore.password" type="password" @keyup.enter="login()" />
+    <input v-model="authStore.username" placeholder="username" />
+    <input v-model="authStore.password" type="password" placeholder="password" @keyup.enter="login()" />
     <button @click="login()">login</button>
     <br />
-    {{ authStore.username }}
   </div>
 </template>
+<style scoped>
+input {
+  margin-left: 1em;
+}
+</style>
