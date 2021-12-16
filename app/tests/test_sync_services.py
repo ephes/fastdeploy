@@ -1,3 +1,5 @@
+import pytest
+
 from ..models import Service
 
 
@@ -31,3 +33,17 @@ def test_sync_services_delete(repository):
     updated_services, deleted_services = repository.sync_services(services_from_fs, services_from_db)
     assert updated_services == []
     assert deleted_services == services_from_db
+
+
+@pytest.mark.asyncio
+async def test_sync_services_integration(repository, service_in_db):
+    services_from_db = [service_in_db]
+    services_from_fs = [
+        Service(name="bar", data={"description": "bar baz foo", "steps": []}),
+    ]
+    updated_services, deleted_services = repository.sync_services(services_from_fs, services_from_db)
+    await repository.persist_synced_services(updated_services, deleted_services)
+    assert (
+        await repository.get_service_by_name(service_in_db.name) is None
+    )  # name, because updated service has id 1, too
+    assert await repository.get_service_by_name("bar") == services_from_fs[0]
