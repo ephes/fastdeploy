@@ -21,7 +21,7 @@ def test_sync_services_update(repository):
         Service(name="bar", data={"description": "foobar", "steps": [1]}),
     ]
     updated_services, deleted_services = repository.sync_services(services_from_fs, services_from_db)
-    assert updated_services == [Service(id=1, **services_from_fs[0].dict())]
+    assert updated_services == [Service(**{**services_from_fs[0].dict(), "id": 1})]
     assert deleted_services == []
 
 
