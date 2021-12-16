@@ -11,6 +11,7 @@
     - ansible_python: "{{ ansible_venv_bin }}/python"
     - pip_sync: "{{ venv_bin }}/pip-sync"
     - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    - initial_user_name: jochen
 
   tasks:
     - name: "Include secret vars"
@@ -216,7 +217,16 @@
       become_user: "{{ username }}"
       environment:
         INITIAL_PASSWORD_HASH: "{{ initial_user_password_hash }}"
-        INITIAL_USER_NAME: jochen
+        INITIAL_USER_NAME: "{{ initial_user_name }}"
+        PATH: "{{ default_path }}"
+
+    - name: Sync services from filesystem with database
+      shell: "{{ python }} commands.py syncservices {{ initial_user_name }}"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+      environment:
         PATH: "{{ default_path }}"
 
     - name: Create a symbolic link for uvicorn systemd service

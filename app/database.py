@@ -32,6 +32,24 @@ class BaseRepository:
     async def get_service_data(self, service_name: str) -> dict:
         return get_service_config(service_name)
 
+    async def get_source_services(self) -> list[Service]:
+        """Return all source services from filesystem."""
+        names = await self.get_service_names()
+        services = []
+        for name in names:
+            services.append(Service(name=name, data=await self.get_service_data(name)))
+        return services
+
+    async def get_services(self) -> list[Service]:
+        raise NotImplementedError
+
+    async def get_all_services(self) -> tuple[list[Service], list[Service]]:
+        """Return all source services from filesystem and all services
+        already in database."""
+        fs_services = await self.get_source_services()
+        db_services = await self.get_services()
+        return fs_services, db_services
+
     @staticmethod
     def sync_services(
         source_services: list[Service], target_services: list[Service]

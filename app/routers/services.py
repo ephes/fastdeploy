@@ -55,3 +55,15 @@ async def delete_service(
 ) -> dict:
     await repository.delete_service_by_id(service_id)
     return {"detail": f"Service {service_id} deleted"}
+
+
+@router.post("/sync/")
+async def sync_services(_: User = Depends(get_current_active_user)) -> dict:
+    """
+    Sync services from filesytem to database. Need to be authenticated with
+    an user access token.
+    """
+    source_services, target_services = await repository.get_all_services()
+    updated_services, deleted_services = repository.sync_services(source_services, target_services)
+    await repository.persist_synced_services(updated_services, deleted_services)
+    return {"detail": "Services synced"}
