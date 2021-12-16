@@ -84,6 +84,9 @@
             "name": "Create initial user"
         },
         {
+            "name": "Sync services from filesystem with database"
+        },
+        {
             "name": "Create a symbolic link for uvicorn systemd service"
         },
         {
