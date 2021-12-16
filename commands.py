@@ -63,7 +63,7 @@ def syncservices(username: str):
     rprint(f"syncing services as user: {username}")
     access_token = create_access_token({"type": "user", "user": username}, timedelta(minutes=5))
     with Client(headers={"authorization": f"Bearer {access_token}"}) as client:
-        response = client.post(settings.sync_services_url)
+        response = client.post(settings.sync_services_url, follow_redirects=True)
         response.raise_for_status()
         rprint("services synced")
 
