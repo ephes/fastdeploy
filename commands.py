@@ -79,16 +79,19 @@ def update():
     - pip-sync develop.txt
     - npm update
     """
+    base_command = [
+        sys.executable,
+        "-m",
+        "piptools",
+        "compile",
+        "--upgrade",
+        "--allow-unsafe",
+        "--generate-hashes",
+        "app/requirements/production.in",
+    ]
     subprocess.call(  # develop + production
         [
-            sys.executable,
-            "-m",
-            "piptools",
-            "compile",
-            "--upgrade",
-            "--allow-unsafe",
-            "--generate-hashes",
-            "app/requirements/production.in",
+            *base_command,
             "app/requirements/develop.in",
             "--output-file",
             "app/requirements/develop.txt",
@@ -96,14 +99,7 @@ def update():
     )
     subprocess.call(  # production only
         [
-            sys.executable,
-            "-m",
-            "piptools",
-            "compile",
-            "--upgrade",
-            "--allow-unsafe",
-            "--generate-hashes",
-            "app/requirements/production.in",
+            *base_command,
             "--output-file",
             "app/requirements/production.txt",
         ]
@@ -221,10 +217,12 @@ def up(port: int = 8000, host: str = "127.0.0.1", log_level: str = "info", reloa
     """= run (start the devserver)"""
     run(port=port, host=host, log_level=log_level, reload=reload, docs=docs)
 
+
 @cli.command()
 def serve(port: int = 8000, host: str = "127.0.0.1", log_level: str = "info", reload: bool = True, docs: bool = False):
     """= run (start the devserver)"""
     run(port=port, host=host, log_level=log_level, reload=reload, docs=docs)
+
 
 @cli.command()
 def run(
@@ -241,7 +239,7 @@ def run(
     You may run uvicorn over gunicorn to allow multiple workers.
     (on windows fcntl is not available, -> ModuleNotFoundError: No module named 'fcntl')
     https://www.uvicorn.org/#running-with-gunicorn
-    
+
     gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker
     """
     if docs:
