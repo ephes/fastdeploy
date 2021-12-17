@@ -129,6 +129,7 @@ class DeployTask(BaseSettings):
             decoded = data.decode("UTF-8")
             try:
                 step_result = json.loads(decoded)
+                print("step result: ", step_result)
                 # if name is None there's no way to find the
                 # corresponding step in the database -> skip
                 result_name = step_result.get("name")
