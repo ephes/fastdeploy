@@ -56,7 +56,7 @@ export const useServices = defineStore("services", {
      *
      * @returns services {Service[]} - An array of services
      */
-    getServices: (state): Service[] => {
+    getServices: (state): ServiceWithId[] => {
       return Object.values(state.services).sort((a, b) => {
         return a.name.localeCompare(b.name);
       })
