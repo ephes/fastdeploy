@@ -32,7 +32,7 @@ async function startDeployment(serviceName: string) {
         <th>deploy</th>
         <th>delete</th>
       </tr>
-      <tr v-for="service of serviceStore.services" :key="service.id" class="list-service">
+      <tr v-for="service of serviceStore.getServices" :key="service.id" class="list-service">
         <td>{{ service.name }}</td>
         <td>
           <router-link
