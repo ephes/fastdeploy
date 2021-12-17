@@ -32,4 +32,7 @@ async function login() {
 input {
   margin-left: 1em;
 }
+button {
+  margin-left: 1em;
+}
 </style>
