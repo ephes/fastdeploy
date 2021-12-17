@@ -23,19 +23,26 @@ class CallbackModule(CallbackBase):
             "start": self.start.isoformat(),
             "end": self.end.isoformat(),
             "name": self.tasks[result._task._uuid],
-            "changed": result._result.get("changed", False),
             "state": result._result.get("state"),
             "misc": result._result,
+            "failed": result.is_failed(),
+            "changed": result.is_changed(),
+            "skipped": result.is_skipped(),
         }
+        # if result.task_name == "Add nodejs signing key - do not download if present":
+        #     breakpoint()
         self.start = self.end
         self.position += 1
         return output
 
     def dump_result(self, result, **kwargs):
-        print(json.dumps(self.build_task_output(result)))
+        print(json.dumps(self.build_task_output(result), sort_keys=True, indent=4))
 
     def v2_playbook_on_task_start(self, task, is_conditional):
         self.tasks[task._uuid] = task.name
 
+    def v2_runner_on_failed(self, result, ignore_errors=False):
+        print("task failed!")
+        self.dump_result(result, ignore_errors=ignore_errors)
+
     v2_runner_on_ok = dump_result
-    v2_runner_on_failed = dump_result
