@@ -169,8 +169,8 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_put, steps_
         await task.run_deploy()
     post_calls = []
     for step in task.client.post_calls:
-        del step["finished"]
-        post_calls.append(step)
+        base_step = {field: step[field] for field in ["id", "name", "started", "created"]}
+        post_calls.append(base_step)
     assert post_calls == steps_posted
 
     actual_put = []
@@ -178,10 +178,9 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_put, steps_
         if step is None:
             # ignore last finish deployment put
             continue
-        for field in ["created", "finished", "started"]:
-            del step[field]  # make sure field exists
-        # append twice, once for started, once for finished
-        actual_put.append(step)
+        base_step = {field: step[field] for field in ["id", "name"]}
+        # each step is append twice, once for started, once for finished
+        actual_put.append(base_step)
     expected_steps_put = []
     for step in steps_put:
         # append twice, once for started, once for finished

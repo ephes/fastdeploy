@@ -32,6 +32,8 @@ class StepBase(SQLModel):
         default=None,
         sa_column=Column("finished", DateTime),
     )
+    state: str = Field(default="pending", sa_column=Column("state", String))
+    message: str = Field(default="", sa_column=Column("message", String))
 
 
 class Step(StepBase, table=True):

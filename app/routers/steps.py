@@ -40,8 +40,8 @@ async def step_update(
     assert step is not None
     if step.deployment_id != deployment.id:
         raise CREDENTIALS_EXCEPTION
-    step.name = step_in.name
-    step.started = step_in.started
-    step.finished = step_in.finished
+    # copy selected attributes from step_in to step
+    for attr in ["name", "started", "finished", "state", "message"]:
+        setattr(step, attr, getattr(step_in, attr))
     step = await repository.update_step(step)
     return StepOut(**step.dict())

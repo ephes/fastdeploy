@@ -88,7 +88,7 @@ export const useSteps = defineStore("steps", {
           this.stepsByDeployment[step.deploymentId] = {};
         }
         this.stepsByDeployment[step.deploymentId][step.id] = step;
-        if (step.inProgress) {
+        if (step.state == "running") {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
             this.stepsInProgressByDeployment[step.deploymentId] = [step];
           } else {

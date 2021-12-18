@@ -93,11 +93,14 @@ class DeployTask(BaseSettings):
 
     async def start_step(self, step):
         step.started = datetime.utcnow()
+        step.state = "running"
         await self.put_step(step)
 
     async def finish_step(self, current_step, step_result):
         step = Step(**step_result)
         step.finished = datetime.utcnow()
+        if len(step_result.get("error_message", "")) > 0:
+            step.message = step_result["error_message"]
         if current_step is None:
             await self.send_step(self.client.post, self.steps_url, step)
         else:
@@ -106,7 +109,7 @@ class DeployTask(BaseSettings):
             step.started = current_step.started
             await self.put_step(step)
             self.current_step_index += 1
-            if self.current_step is not None:
+            if self.current_step is not None and step.state == "success":
                 await self.start_step(self.current_step)
 
     async def deploy_steps(self):
@@ -129,22 +132,22 @@ class DeployTask(BaseSettings):
             decoded = data.decode("UTF-8")
             try:
                 step_result = json.loads(decoded)
-                # if name is None there's no way to find the
-                # corresponding step in the database -> skip
-                result_name = step_result.get("name")
-                if result_name is None:
-                    # should not happen
-                    print("step result not put/posted: ", step_result)
-                    continue
-                # On the happy path, the if condition below will be true
-                # and the current step will be marked as finished. Post a
-                # new step in all other cases.
-                current_step = None
-                if self.current_step is not None and result_name == self.current_step.name:
-                    current_step = self.current_step
-                await self.finish_step(current_step, step_result)
             except json.decoder.JSONDecodeError:
-                pass
+                continue
+            # if name is None there's no way to find the
+            # corresponding step in the database -> skip
+            result_name = step_result.get("name")
+            if result_name is None:
+                # should not happen
+                print("step result not put/posted: ", step_result)
+                continue
+            # On the happy path, the if condition below will be true
+            # and the current step will be marked as finished. Post a
+            # new step in all other cases.
+            current_step = None
+            if self.current_step is not None and result_name == self.current_step.name:
+                current_step = self.current_step
+            await self.finish_step(current_step, step_result)
 
     async def run_deploy(self):
         try:

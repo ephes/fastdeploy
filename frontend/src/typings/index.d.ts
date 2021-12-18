@@ -54,11 +54,10 @@ type DeploymentById = {
 type Step = Message & {
   id: number;
   name: string;
-  state: string | null;
+  state: "pending" | "running" | "success" | "failure";
   changed: boolean;
-  inProgress: boolean;
   deploymentId: number;
-  done: boolean;
+  message: string;
   created: Date;
   started: Date | null;
   finished: Date | null;

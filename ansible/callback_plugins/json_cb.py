@@ -16,33 +16,37 @@ class CallbackModule(CallbackBase):
         self.start = datetime.now()
         self.end = None
 
-    def build_task_output(self, result):
+    def get_error_message(self, result):
+        if "msg" in result:
+            return result["msg"]
+        return ""
+
+    def build_task_output(self, result, state="unkown", ignore_errors=False):
         self.end = datetime.now()
+        error_message = self.get_error_message(result._result)
         output = {
             "position": self.position,
             "start": self.start.isoformat(),
             "end": self.end.isoformat(),
             "name": self.tasks[result._task._uuid],
-            "state": result._result.get("state"),
+            "state": state,
+            "error_message": error_message,
             "misc": result._result,
-            "failed": result.is_failed(),
-            "changed": result.is_changed(),
-            "skipped": result.is_skipped(),
         }
-        # if result.task_name == "Add nodejs signing key - do not download if present":
-        #     breakpoint()
         self.start = self.end
         self.position += 1
         return output
 
     def dump_result(self, result, **kwargs):
-        print(json.dumps(self.build_task_output(result), sort_keys=True, indent=4))
+        # print(json.dumps(self.build_task_output(result, **kwargs), sort_keys=True, indent=4))
+        # Dont pretty print if running from tasks.py, because it will break the json
+        print(json.dumps(self.build_task_output(result, **kwargs)))
 
     def v2_playbook_on_task_start(self, task, is_conditional):
         self.tasks[task._uuid] = task.name
 
     def v2_runner_on_failed(self, result, ignore_errors=False):
-        print("task failed!")
-        self.dump_result(result, ignore_errors=ignore_errors)
+        self.dump_result(result, ignore_errors=ignore_errors, state="failure")
 
-    v2_runner_on_ok = dump_result
+    def v2_runner_on_ok(self, result, ignore_errors=False):
+        self.dump_result(result, ignore_errors=ignore_errors, state="success")

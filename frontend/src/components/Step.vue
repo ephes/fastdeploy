@@ -37,39 +37,37 @@ watchEffect(() => {
  * @returns cssClass {string}
  */
 function getStepClass(step: Step): string {
-  if (step.inProgress) {
-    return "in-progress";
-  }
-  if (step.finished) {
-    return "finished";
-  }
-  return "not-started";
+  return step.state
 }
 </script>
 
 <template>
-  <p :class="getStepClass(step)" ref="el" id="step">
-    {{ step.deploymentId }} {{ step.id }} {{ step.name }}
+  <p :class="step.state" ref="el" id="step">
+    {{ step.name }}
     <br />
     duration: {{ duration }}
-    <br />
-    in progress: {{ step.inProgress }}
-    <br />
-    done: {{ step.done }}
     <br />
     {{ step.state }}
     <br />
     {{ step.changed }}
+    <div v-if="step.message">
+      <br />
+      {{ step.message }}
+    </div>
   </p>
 </template>
 <style scoped>
-.not-started {
-  background-color: #a8b313;
+.pending {
+  background-color: #d9dbbc;
 }
-.in-progress {
-  background-color: #ffd700;
+.running {
+  background-color: #f7e604;
 }
-.finished {
+.success {
   background-color: #00ff00;
 }
+.failure {
+  background-color: #ff1326a6;
+}
+
 </style>
