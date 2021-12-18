@@ -6,7 +6,7 @@
       "reAttach": true,
       "name": "Launch via Firefox",
       "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}"
+      "webRoot": "${workspaceFolder}/frontend"
     },
     {
       "name": "Vite Devserver",
