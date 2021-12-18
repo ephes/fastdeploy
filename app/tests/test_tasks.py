@@ -148,7 +148,8 @@ async def test_task_sleep_on_connect_error(task):
                 {"name": "bar", "id": 1},
                 {"name": "foo", "id": 2},
             ],  # two steps because of current step is not None coverage
-            [{"name": "bar"}, {"name": "foo"}, None],
+            # set state to make finish_step start next step
+            [{"name": "bar", "state": "success"}, {"name": "foo"}, None],
             [],
             [{"id": 1, "name": "bar"}, {"id": 2, "name": "foo"}],
         ),  # happy path
@@ -186,4 +187,6 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_put, steps_
         # append twice, once for started, once for finished
         expected_steps_put.append(step)
         expected_steps_put.append(step)
+    print("actual put: ", actual_put)
+    print("expected put: ", expected_steps_put)
     assert actual_put == expected_steps_put
