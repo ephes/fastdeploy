@@ -1,28 +1,29 @@
 {
-    "configurations": [
-      {
-        "name": "Vite Devserver",
-        "request": "launch",
-        "runtimeArgs": [
-          "run",
-          "dev"
-        ],
-        "runtimeExecutable": "npm",
-        "skipFiles": [
-          "<node_internals>/**"
-        ],
-        "type": "pwa-node",
-        "cwd": "${workspaceFolder}/frontend",
-      },
-      {
-        "name": "Python: FastAPI",
-        "type": "python",
-        "request": "launch",
-        "module": "uvicorn",
-        "cwd": "${workspaceFolder}",
-        "args": [
-            "app.main:app"
-        ],
-      }
-    ]
-  }
+  "configurations": [
+    {
+      "type": "firefox",
+      "request": "launch",
+      "reAttach": true,
+      "name": "Launch via Firefox",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Vite Devserver",
+      "request": "launch",
+      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "npm",
+      "skipFiles": ["<node_internals>/**"],
+      "type": "pwa-node",
+      "cwd": "${workspaceFolder}/frontend"
+    },
+    {
+      "name": "Python: FastAPI",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "cwd": "${workspaceFolder}",
+      "args": ["app.main:app"]
+    }
+  ]
+}
