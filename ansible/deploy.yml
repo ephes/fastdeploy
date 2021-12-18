@@ -7,7 +7,7 @@
     - global_python: python3.10
     - venv_bin: "{{ site_path }}/venv/bin"
     - ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
-    - ansible_plugin_dir: "{{ home_path }}/.ansible/plugins/modules/"
+    - ansible_plugin_dir: "/root/.ansible/plugins/callback"
     - python: "{{ venv_bin }}/python"
     - ansible_python: "{{ ansible_venv_bin }}/python"
     - pip_sync: "{{ venv_bin }}/pip-sync"
