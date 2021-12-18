@@ -137,7 +137,7 @@
     - name: Copy json stdout callback into default plugin directory
       ansible.builtin.copy:
         src: callback_plugins/json_cb.py
-        dest: "{{ home_path }}/.ansible/plugins/modules/json_cb.py"
+        dest: "{{ ansible_plugin_dir }}/json_cb.py"
         owner: "{{ username }}"
         mode: "0644"
 
