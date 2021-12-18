@@ -6,6 +6,10 @@ from ansible.plugins.callback import CallbackBase  # type: ignore
 
 
 class CallbackModule(CallbackBase):
+    """
+    Ouput the result of a task in json format.
+    """
+
     CALLBACK_VERSION = 2.0
     CALLBACK_TYPE = "stdout"
     CALLBACK_NAME = "json_cb"
