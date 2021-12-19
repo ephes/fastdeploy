@@ -158,7 +158,7 @@ async def test_task_sleep_on_connect_error(task):
                 {"name": "bar", "id": 1},
             ],
             [{"name": "bar"}, {"name": "foo"}, None],
-            [{"id": None, "name": "foo", "started": None, "created": None}],
+            [{"id": None, "name": "foo", "started": None}],
             [{"id": 1, "name": "bar"}],
         ),  # step from deploy is not in predefined steps -> step is posted
     ],
@@ -170,7 +170,7 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_put, steps_
         await task.run_deploy()
     post_calls = []
     for step in task.client.post_calls:
-        base_step = {field: step[field] for field in ["id", "name", "started", "created"]}
+        base_step = {field: step[field] for field in ["id", "name", "started"]}
         post_calls.append(base_step)
     assert post_calls == steps_posted
 
@@ -187,6 +187,4 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_put, steps_
         # append twice, once for started, once for finished
         expected_steps_put.append(step)
         expected_steps_put.append(step)
-    print("actual put: ", actual_put)
-    print("expected put: ", expected_steps_put)
     assert actual_put == expected_steps_put

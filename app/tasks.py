@@ -105,7 +105,6 @@ class DeployTask(BaseSettings):
             await self.send_step(self.client.post, self.steps_url, step)
         else:
             step.id = current_step.id  # step from stdout deploy has no id -> take it from current step
-            step.created = current_step.created
             step.started = current_step.started
             await self.put_step(step)
             self.current_step_index += 1
@@ -116,7 +115,6 @@ class DeployTask(BaseSettings):
         sudo_command = f"sudo -u {settings.sudo_user}"
         deploy_command = str(settings.services_root / self.deploy_script)
         command = f"{sudo_command} {deploy_command}"
-        print("command: ", command)
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,

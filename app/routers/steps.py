@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends
 
 from ..auth import CREDENTIALS_EXCEPTION
@@ -19,7 +17,6 @@ router = APIRouter(
 async def create_step(step_in: StepBase, deployment: Deployment = Depends(get_current_active_deployment)) -> StepOut:
     assert isinstance(deployment.id, int)
     step = Step(**step_in.dict(), deployment_id=deployment.id)
-    step.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
     step = await repository.add_step(step)
     return StepOut(**step.dict())
 

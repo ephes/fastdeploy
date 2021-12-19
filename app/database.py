@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
@@ -211,7 +209,6 @@ class InMemoryRepository(BaseRepository):
         await self.dispatch_event(DeploymentOut.parse_obj(deployment))
         for step in steps:
             step.deployment_id = deployment.id
-            step.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
             await self.add_step(step)
         return deployment, steps
 
@@ -353,7 +350,6 @@ class SQLiteRepository(BaseRepository):
         await self.dispatch_event(DeploymentOut.parse_obj(deployment))
         for step in steps:
             if deployment.id is not None:
-                step.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
                 step.deployment_id = deployment.id
                 await self.add_step(step)
         return deployment, steps

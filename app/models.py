@@ -40,15 +40,11 @@ class Step(StepBase, table=True):
     """
     A step in a deployment process. This is used to store steps in the
     database. If a step is stored in the database, it has to have an
-    id, a created timestamp and a reference to the deployment it is part of.
+    id and a reference to the deployment it is part of.
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
     deployment_id: int = Field(foreign_key="deployment.id")
-    created: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column("created", DateTime),
-    )
 
 
 class StepOut(Step):
@@ -63,8 +59,6 @@ class StepOut(Step):
 
     def dict(self, *args, **kwargs):
         serialized = super().dict(*args, **kwargs)
-        serialized["in_progress"] = self.started is not None and self.finished is None
-        serialized["done"] = self.finished is not None
         return serialized
 
 
