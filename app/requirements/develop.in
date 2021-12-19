@@ -1,6 +1,7 @@
 pip-tools
 pytest
 notebook
+jupyterlab
 black
 nb-black
 pytest-asyncio
