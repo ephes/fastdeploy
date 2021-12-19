@@ -79,7 +79,7 @@ class BaseRepository:
                 deleted_services.append(service)
         return updated_services, deleted_services
 
-    async def delete_service_by_id(self, service_id: int | None) -> None:
+    async def delete_service_by_id(self, service_id: int) -> None:
         raise NotImplementedError
 
     async def add_service(self, service: Service) -> Service:
@@ -87,7 +87,8 @@ class BaseRepository:
 
     async def persist_synced_services(self, updated_services: list[Service], deleted_services: list[Service]) -> None:
         for to_delete in deleted_services:
-            await self.delete_service_by_id(to_delete.id)
+            if to_delete.id is not None:
+                await self.delete_service_by_id(to_delete.id)
         for to_update in updated_services:
             await self.add_service(to_update)
 
