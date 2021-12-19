@@ -58,7 +58,6 @@ type Step = Message & {
   changed: boolean;
   deploymentId: number;
   message: string;
-  created: Date;
   started: Date | null;
   finished: Date | null;
   deleted?: boolean;

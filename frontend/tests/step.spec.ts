@@ -10,7 +10,6 @@ const apiStep: object = {
   state: "pending",
   changed: true,
   deployment_id: 1,
-  created: "2021-11-23T10:03:01.276123",
   started: "2021-11-23T10:04:01.276123",
   finished: null,
   deleted: false,
@@ -80,7 +79,7 @@ describe("Steps Store Getters", () => {
     const withFinished = {
       ...withoutFinished,
       id: 2,
-      finished: withoutFinished.created,
+      finished: withoutFinished.started,
     };
     stepsStore.addStep(withFinished);
     const expected = [withFinished, withoutFinished];
