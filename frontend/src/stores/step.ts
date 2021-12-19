@@ -35,12 +35,32 @@ export const useSteps = defineStore("steps", {
      * a deployment has been selected. Shows also steps that are
      * arriving during a deployment.
      *
+     * The array of steps is sorted first by finished, then by started.
+     * If neither finished nor started is set, insertion order is used.
+     *
      * @param deploymentId {number} The deployment id
      * @returns steps {Step[]} The steps for the deployment
      */
     getStepsByDeployment: (state) => (deploymentId: number) => {
       if (state.stepsByDeployment[deploymentId]) {
-        return Object.values(state.stepsByDeployment[deploymentId]);
+        return Object.values(state.stepsByDeployment[deploymentId]).sort(
+          (a, b) => {
+            for (const key of ["finished" as keyof Step, "started" as keyof Step]) {
+              if (a[key]) {
+                if (b[key]) {
+                  return (a[key] as Date).getTime() - (b[key] as Date).getTime();
+                } else {
+                  return -1;
+                }
+              } else {
+                if (b[key]) {
+                  return 1;
+                }
+              }
+            }
+            return 0;
+          }
+        );
       } else {
         return [];
       }

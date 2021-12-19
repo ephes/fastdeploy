@@ -68,6 +68,49 @@ describe("Steps Store Getters", () => {
   it("Steps by deployment returns a list of steps", () => {
     const stepsStore = useSteps();
     stepsStore.addStep(step);
-    expect(stepsStore.getStepsByDeployment(step.deploymentId)).toStrictEqual([step]);
+    expect(stepsStore.getStepsByDeployment(step.deploymentId)).toStrictEqual([
+      step,
+    ]);
+  });
+
+  it("Steps by deployment sorts finished above not finished", async () => {
+    const stepsStore = useSteps();
+    const withoutFinished = step;
+    stepsStore.addStep(withoutFinished);
+    const withFinished = {
+      ...withoutFinished,
+      id: 2,
+      finished: withoutFinished.created,
+    };
+    stepsStore.addStep(withFinished);
+    const expected = [withFinished, withoutFinished];
+    expect(stepsStore.getStepsByDeployment(step.deploymentId)).toStrictEqual(
+      expected
+    );
+  });
+
+  it("Steps by deployment sorts earlier finished above later", async () => {
+    const stepsStore = useSteps();
+    const earlier = {...step, finished: step.started};
+    const laterDate = new Date((earlier.finished as Date).getTime() + 1000);
+    const later = {...earlier, id: 2, finished: laterDate};
+    stepsStore.addStep(later);
+    stepsStore.addStep(earlier);
+    const expected = [earlier, later];
+    expect(stepsStore.getStepsByDeployment(step.deploymentId)).toStrictEqual(
+      expected
+    );
+  });
+
+  it("Steps by deployment sorts started above not started", async () => {
+    const stepsStore = useSteps();
+    const withStarted = step;
+    const withoutStarted = {...withStarted, id: 2, started: null};
+    stepsStore.addStep(withoutStarted);
+    stepsStore.addStep(withStarted);
+    const expected = [withStarted, withoutStarted];
+    expect(stepsStore.getStepsByDeployment(step.deploymentId)).toStrictEqual(
+      expected
+    );
   });
 });
