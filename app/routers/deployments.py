@@ -36,9 +36,17 @@ async def start_deployment(
     """
     Start a new deployment. Needs to be authenticated with a service token. Invoked
     by frontend or github action. The service token is used to get the current
-    service from the database. The list of steps is fetched from service and added
-    to the deployment. The deployment is started a background task (forking a new
+    service from the database. The list of steps is fetched from service or last
+    successful deployment. The deployment is started a background task (forking a new
     process later on).
+
+    What should start deployment do?
+
+    * Create a deployment model with created = now() and finished = None timestamps
+    * Look up the steps from last deployment and recreate them as "pending" with new deployment id
+    * If there are no last steps, create one new dummy step
+    * Start deployment task
+    * Mark the first step as "running"
     """
     service = service_token.service_model
     assert service is not None
