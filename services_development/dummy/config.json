@@ -3,9 +3,6 @@
     "description": "Just a dummy service to debug deployments",
     "steps": [
         {
-            "name": "message 0"
-        },
-        {
             "name": "message 1"
         },
         {
