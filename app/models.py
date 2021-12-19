@@ -104,9 +104,9 @@ class Deployment(SQLModel, table=True):
     service_id: int = Field(foreign_key="service.id")
     origin: str = Field(sa_column=Column("origin", String))
     user: str = Field(sa_column=Column("user", String))
-    created: Optional[datetime] = Field(
+    started: Optional[datetime] = Field(
         default=None,
-        sa_column=Column("created", DateTime),
+        sa_column=Column("started", DateTime),
     )
     finished: Optional[datetime] = Field(
         default=None,

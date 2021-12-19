@@ -42,7 +42,7 @@ type Deployment = Message & {
   serviceId: number;
   origin: string;
   user: string;
-  created: Date;
+  started: Date;
   finished: Date | null;
   deleted?: boolean;
 };

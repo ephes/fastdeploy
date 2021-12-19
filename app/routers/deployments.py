@@ -54,7 +54,7 @@ async def start_deployment(
     assert service_id is not None
 
     deployment = Deployment(service_id=service_id, origin=service_token.origin, user=service_token.user)
-    deployment.created = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
+    deployment.started = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
     deployment, steps = await repository.add_deployment(deployment, service.get_steps())
     environment = get_deploy_environment(deployment, steps, service.get_deploy_script())
     background_tasks.add_task(run_deploy, environment)
