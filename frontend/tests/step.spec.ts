@@ -7,11 +7,9 @@ import { createEvent, initPinia } from "./conftest";
 const apiStep: object = {
   id: 1,
   name: "Create unix user deploy",
-  state: null,
+  state: "pending",
   changed: true,
-  in_progress: true,
   deployment_id: 1,
-  done: false,
   created: "2021-11-23T10:03:01.276123",
   started: "2021-11-23T10:04:01.276123",
   finished: null,
@@ -59,5 +57,17 @@ describe("Steps Store Actions", () => {
     } as any;
     await stepsStore.fetchStepsFromDeployment(step.deploymentId);
     expect(stepsStore.steps[step.id]).toStrictEqual(step);
+  });
+});
+
+describe("Steps Store Getters", () => {
+  beforeEach(() => {
+    initPinia();
+  });
+
+  it("Steps by deployment returns a list of steps", () => {
+    const stepsStore = useSteps();
+    stepsStore.addStep(step);
+    expect(stepsStore.getStepsByDeployment(step.deploymentId)).toStrictEqual([step]);
   });
 });

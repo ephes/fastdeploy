@@ -36,13 +36,13 @@ export const useSteps = defineStore("steps", {
      * arriving during a deployment.
      *
      * @param deploymentId {number} The deployment id
-     * @returns steps {StepById} The steps for the deployment
+     * @returns steps {Step[]} The steps for the deployment
      */
     getStepsByDeployment: (state) => (deploymentId: number) => {
       if (state.stepsByDeployment[deploymentId]) {
-        return state.stepsByDeployment[deploymentId];
+        return Object.values(state.stepsByDeployment[deploymentId]);
       } else {
-        return {};
+        return [];
       }
     },
     /**
