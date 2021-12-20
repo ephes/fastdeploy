@@ -45,7 +45,7 @@ export const useSteps = defineStore("steps", {
       if (state.stepsByDeployment[deploymentId]) {
         return Object.values(state.stepsByDeployment[deploymentId]).sort(
           (a, b) => {
-            for (const key of ["finished" as keyof Step, "started" as keyof Step]) {
+            for (const key of ["finished" as const, "started" as const]) {
               if (a[key]) {
                 if (b[key]) {
                   return (a[key] as Date).getTime() - (b[key] as Date).getTime();
