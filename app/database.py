@@ -235,6 +235,20 @@ class InMemoryRepository(BaseRepository):
                 deployment_out.deleted = True
                 await self.dispatch_event(deployment_out)
 
+    async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
+        failed_deployments = set()
+        for step in self.steps:
+            if step.state != "success":
+                failed_deployments.add(step.deployment_id)
+        last_successful = None
+        for deployment in self.deployments:
+            is_for_service = deployment.service_id == service_id
+            is_successful = deployment.id not in failed_deployments and deployment.finished is not None
+            if is_successful and is_for_service:
+                if last_successful is None or deployment.finished > last_successful.finished:
+                    last_successful = deployment.id
+        return last_successful
+
 
 class SQLiteRepository(BaseRepository):
     def __init__(self):
@@ -379,8 +393,38 @@ class SQLiteRepository(BaseRepository):
             session.commit()
 
     async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
-        with Session(self.engine):
-            ...
+        """
+        Returns the id of the last successful deployment for a service.
+        """
+        statement = """
+            select step.deployment_id
+            from deployment, step
+            where step.deployment_id=deployment.id
+            and step.state == "success"
+            and deployment.service_id = :service_id
+            and deployment.finished is not null
+            and step.deployment_id not in (
+                select distinct(step.deployment_id)
+                from step, deployment
+                    on step.deployment_id=deployment.id
+                where deployment.service_id = :service_id
+                and step.state != 'success'
+                group by step.deployment_id
+                having count(step.id) > 1
+            )
+            group by step.deployment_id
+            having count(step.id) > 0
+            order by deployment.started desc
+        """
+        last_successful = None
+        with Session(self.engine) as session:
+            try:
+                last_successful = session.exec(statement, params={"service_id": service_id}).all()[0][  # type: ignore
+                    0
+                ]
+            except IndexError:
+                last_successful = None
+        return last_successful
 
 
 repository: SQLiteRepository | InMemoryRepository
