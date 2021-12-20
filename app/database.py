@@ -378,6 +378,10 @@ class SQLiteRepository(BaseRepository):
                 await self.dispatch_event(deployment_out)
             session.commit()
 
+    async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
+        with Session(self.engine):
+            ...
+
 
 repository: SQLiteRepository | InMemoryRepository
 if settings.repository == "sqlite":
