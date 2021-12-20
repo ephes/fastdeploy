@@ -118,6 +118,16 @@ def notebook():
 
 
 @cli.command()
+def jupyterlab():
+    """
+    Start a jupyterlab server.
+    """
+    env = os.environ.copy()
+    env["PYTHONPATH"] = ".."
+    subprocess.call(["jupyter-lab"], env=env)
+
+
+@cli.command()
 def test():
     """
     Run the tests:
