@@ -55,7 +55,8 @@ async def start_deployment(
 
     deployment = Deployment(service_id=service_id, origin=service_token.origin, user=service_token.user)
     deployment.started = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
-    deployment, steps = await repository.add_deployment(deployment, service.get_steps())
+    pending_steps = await service.get_steps()
+    deployment, steps = await repository.add_deployment(deployment, pending_steps)
     environment = get_deploy_environment(deployment, steps, service.get_deploy_script())
     background_tasks.add_task(run_deploy, environment)
     return DeploymentOut(**deployment.dict())

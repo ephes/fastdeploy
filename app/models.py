@@ -73,8 +73,27 @@ class Service(SQLModel, table=True):
     name: str = Field(sa_column=Column("name", String, unique=True))
     data: dict = Field(sa_column=Column(JSON), default={})
 
-    def get_steps(self) -> list[Step]:
-        return [Step(**step) for step in self.data.get("steps", [])]
+    async def get_steps(self) -> list[StepBase]:
+        """
+        Get all deployment steps for this service that probably have to
+        to be executed. It's not really critical to be 100% right here,
+        because it's only used for visualization.
+        """
+        from .database import repository
+
+        assert self.id is not None
+        last_successful_deployment_id = await repository.get_last_successful_deployment_id(self.id)
+        if last_successful_deployment_id is not None:
+            # try to get steps from last successful deployment
+            past_steps = await repository.get_steps_by_deployment_id(last_successful_deployment_id)
+            steps = [StepBase(name=step.name) for step in past_steps]
+        else:
+            # try to get steps from config
+            steps = [StepBase(**step) for step in self.data.get("steps", [])]
+        if len(steps) == 0:
+            # if no steps are found, create a default placeholder step
+            steps = [StepBase(name="Unknown step")]
+        return steps
 
     def get_deploy_script(self) -> str:
         deploy_script = self.data.get("deploy_script", "deploy.sh")

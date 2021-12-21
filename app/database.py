@@ -2,7 +2,16 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 from .filesystem import get_directories, get_service_config, working_directory
-from .models import Deployment, DeploymentOut, Service, ServiceOut, Step, StepOut, User
+from .models import (
+    Deployment,
+    DeploymentOut,
+    Service,
+    ServiceOut,
+    Step,
+    StepBase,
+    StepOut,
+    User,
+)
 
 
 with working_directory(settings.project_root):
@@ -203,14 +212,15 @@ class InMemoryRepository(BaseRepository):
                 return deployment
         return None
 
-    async def add_deployment(self, deployment: Deployment, steps: list[Step]) -> tuple[Deployment, list[Step]]:
+    async def add_deployment(self, deployment: Deployment, steps: list[StepBase]) -> tuple[Deployment, list[Step]]:
         self.deployments.append(deployment)
         deployment.id = len(self.deployments)
         await self.dispatch_event(DeploymentOut.parse_obj(deployment))
-        for step in steps:
-            step.deployment_id = deployment.id
-            await self.add_step(step)
-        return deployment, steps
+        added_steps = []
+        for base_step in steps:
+            step = Step(**base_step.dict(), deployment_id=deployment.id)
+            added_steps.append(await self.add_step(step))
+        return deployment, added_steps
 
     async def update_deployment(self, deployment: Deployment) -> Deployment:
         for index, deployment in enumerate(self.deployments):
@@ -356,17 +366,18 @@ class SQLiteRepository(BaseRepository):
             deployment = session.query(Deployment).filter(Deployment.id == deployment_id).first()
         return deployment
 
-    async def add_deployment(self, deployment: Deployment, steps: list[Step]) -> tuple[Deployment, list[Step]]:
+    async def add_deployment(self, deployment: Deployment, steps: list[StepBase]) -> tuple[Deployment, list[Step]]:
         with Session(self.engine) as session:
             session.add(deployment)
             session.commit()
             session.refresh(deployment)
         await self.dispatch_event(DeploymentOut.parse_obj(deployment))
-        for step in steps:
+        added_steps = []
+        for base_step in steps:
             if deployment.id is not None:
-                step.deployment_id = deployment.id
-                await self.add_step(step)
-        return deployment, steps
+                step = Step(**base_step.dict(), deployment_id=deployment.id)
+                added_steps.append(await self.add_step(step))
+        return deployment, added_steps
 
     async def update_deployment(self, deployment: Deployment) -> Deployment:
         with Session(self.engine) as session:
