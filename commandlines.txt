@@ -22,3 +22,6 @@ coverage run -m pytest && coverage html
 # run individual frontend test
 cd frontend
 node_modules/jest/bin/jest.js -t "fetches the list of services"
+
+# debug with ipdb
+PYTHONBREAKPOINT=pdb.set_trace pytest -s app/tests/test_models.py::test_service_get_steps_returns_steps_from_deployment
