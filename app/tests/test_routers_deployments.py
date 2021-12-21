@@ -75,7 +75,8 @@ async def test_deploy_service(app, base_url, repository, handler, valid_service_
     assert "id" in deployment_from_api
 
     # make sure added deployment was dispatched to event handlers
-    assert handler.last_event.type == "deployment"
+    assert handler.events[-2].type == "deployment"
+    assert handler.last_event.type == "step"  # there's at least a default step added after deployment
 
     # make sure deployment was added to service in database
     deployments_by_service = await repository.get_deployments_by_service_id(service_in_db.id)

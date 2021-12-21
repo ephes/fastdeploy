@@ -180,7 +180,12 @@ def test_message():
 @pytest.fixture
 def handler(repository):
     class Handler:
+        def __init__(self):
+            self.events = []
+            self.last_event = None
+
         async def handle_event(self, event):
+            self.events.append(event)
             self.last_event = event
 
     handler = Handler()
