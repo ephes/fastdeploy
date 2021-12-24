@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import JSON, DateTime, String
@@ -131,6 +131,47 @@ class Deployment(SQLModel, table=True):
         default=None,
         sa_column=Column("finished", DateTime),
     )
+
+    async def process_step(self, step: Step) -> Step:
+        """
+        After a deployment step has finished, the result has to be processed.
+
+        * Find out whether the step is already known
+        * If it's a known pending step, update the step
+        * If it's unknown, create a new step
+        * Determine which step is now running
+        """
+        if self.started is None:
+            raise ValueError("deployment has not started yet")
+
+        if self.finished is not None:
+            raise ValueError("deployment has already finished")
+
+        from .database import repository
+
+        assert self.id is not None
+        steps = await repository.get_steps_by_deployment_id(self.id)
+
+        # find out whether the step is already known
+        known_step = None
+        running_steps = [step for step in steps if step.state == "running"]
+        pending_steps = running_steps + [step for step in steps if step.state == "pending"]
+        for pending_step in pending_steps:
+            if pending_step.name == step.name:
+                known_step = pending_step
+                break
+
+        if known_step is None:
+            # if it's an unknown step, create a new step
+            step.finished = datetime.now(timezone.utc)
+            step.deployment_id = self.id
+            return await repository.add_step(step)
+        else:
+            # if it's a known step, update it
+            known_step.finished = datetime.now(timezone.utc)
+            known_step.state = step.state
+            known_step.message = step.message
+            return await repository.update_step(known_step)
 
 
 class DeploymentOut(Deployment):

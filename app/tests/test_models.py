@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -54,3 +54,48 @@ async def test_service_get_steps_returns_steps_from_deployment(repository, servi
     steps = await service_in_db.get_steps()
     assert len(steps) == 1
     assert steps[0].name == step.name  # steps[0] is StepBase
+
+
+@pytest.mark.asyncio
+async def test_not_started_deployment_cannot_process_steps(deployment, step):
+    deployment.started = None
+    with pytest.raises(ValueError):
+        await deployment.process_step(step)
+
+
+@pytest.mark.asyncio
+async def test_finished_deployment_cannot_process_steps(deployment, step):
+    deployment.started = datetime.now(timezone.utc) - timedelta(minutes=2)
+    deployment.finished = datetime.now(timezone.utc)
+    with pytest.raises(ValueError):
+        await deployment.process_step(step)
+
+
+@pytest.fixture
+def started_deployment(deployment_in_db):
+    deployment = deployment_in_db
+    deployment.started = datetime.now(timezone.utc) - timedelta(minutes=2)
+    deployment.finished = None
+    return deployment
+
+
+@pytest.mark.asyncio
+async def test_deployment_process_unknown_step(repository, started_deployment):
+    deployment = started_deployment
+    unknown_step = Step(name="Unknown step", deployment_id=deployment.id, state="success")
+    await deployment.process_step(unknown_step)
+    deployment_steps = await repository.get_steps_by_deployment_id(deployment.id)
+    assert unknown_step in deployment_steps
+
+
+@pytest.mark.asyncio
+async def test_deployment_process_known_running_step(repository, started_deployment):
+    deployment = started_deployment
+    known_step = Step(
+        name="known step", started=datetime.now(timezone.utc), deployment_id=deployment.id, state="running"
+    )
+    known_step = await repository.add_step(known_step)
+    finished_step = Step(**(known_step.dict() | {"state": "success"}))
+    finished_step = await deployment.process_step(finished_step)
+    deployment_steps = await repository.get_steps_by_deployment_id(deployment.id)
+    assert [finished_step] == deployment_steps
