@@ -34,7 +34,6 @@ def get_deploy_environment(deployment: Deployment, steps: list[Step], deploy_scr
         "ACCESS_TOKEN": access_token,
         "DEPLOY_SCRIPT": deploy_script,
         "STEPS_URL": settings.steps_url,
-        "STEPS": json.dumps([json.loads(step.json()) for step in steps]),  # json() to make created serializable
         "DEPLOYMENT_FINISH_URL": settings.deployment_finish_url,
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):

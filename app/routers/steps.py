@@ -14,7 +14,13 @@ router = APIRouter(
 
 
 @router.post("/")
-async def create_step(step_in: StepBase, deployment: Deployment = Depends(get_current_active_deployment)) -> StepOut:
+async def process_step_result(
+    step_in: StepBase, deployment: Deployment = Depends(get_current_active_deployment)
+) -> StepOut:
+    """
+    When a step is finished, the deployment process sends a result back to this endpoint.
+    Needs to be authenticated with a deployment token.
+    """
     assert isinstance(deployment.id, int)
     step = Step(**step_in.dict(), deployment_id=deployment.id)
     step = await repository.add_step(step)

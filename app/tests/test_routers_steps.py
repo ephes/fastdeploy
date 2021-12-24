@@ -8,7 +8,7 @@ from ..models import Step
 @pytest.mark.asyncio
 async def test_add_step_no_access_token(app, base_url, step):
     async with AsyncClient(app=app, base_url=base_url) as client:
-        response = await client.post(app.url_path_for("create_step"), json=step.dict())
+        response = await client.post(app.url_path_for("process_step_result"), json=step.dict())
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Not authenticated"}
@@ -18,7 +18,7 @@ async def test_add_step_no_access_token(app, base_url, step):
 async def test_add_step_invalid_access_token(app, base_url, step, invalid_deploy_token):
     async with AsyncClient(app=app, base_url=base_url) as client:
         response = await client.post(
-            app.url_path_for("create_step"),
+            app.url_path_for("process_step_result"),
             json=step.dict(),
             headers={"authorization": f"Bearer {invalid_deploy_token}"},
         )
@@ -31,7 +31,7 @@ async def test_add_step_invalid_access_token(app, base_url, step, invalid_deploy
 async def test_add_step_deployment_not_found(app, base_url, step, valid_deploy_token):
     async with AsyncClient(app=app, base_url=base_url) as client:
         response = await client.post(
-            app.url_path_for("create_step"),
+            app.url_path_for("process_step_result"),
             json=step.dict(),
             headers={"authorization": f"Bearer {valid_deploy_token}"},
         )
@@ -44,7 +44,7 @@ async def test_add_step_deployment_not_found(app, base_url, step, valid_deploy_t
 async def test_add_step(app, base_url, repository, handler, step, valid_deploy_token_in_db, deployment_in_db):
     async with AsyncClient(app=app, base_url=base_url) as client:
         response = await client.post(
-            app.url_path_for("create_step"),
+            app.url_path_for("process_step_result"),
             json=step.dict(),
             headers={"authorization": f"Bearer {valid_deploy_token_in_db}"},
         )

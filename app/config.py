@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     @property
     def steps_url(self) -> str:
-        steps_path = self.fastapi_app.url_path_for("create_step")
+        steps_path = self.fastapi_app.url_path_for("process_step_result")
         return f"{self.api_url}{steps_path}"
 
     @property
