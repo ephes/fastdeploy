@@ -107,9 +107,7 @@ export const useServices = defineStore("services", {
      * of services.
      */
     async fetchServices() {
-      const services = await (<Promise<ServiceWithId[]>>(
-        this.client.get("services/")
-      ));
+      const services = await this.client.get<Promise<ServiceWithId[]>>("services/")
       for (const service of services) {
         this.services[service.id] = service;
       }
