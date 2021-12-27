@@ -8,7 +8,6 @@ import sys
 
 from datetime import datetime, timedelta
 from typing import Any
-from urllib.parse import urljoin
 
 import httpx
 
@@ -46,11 +45,10 @@ class DeployTask(BaseSettings):
     Run a complete deployment for a service:
       - get deploy token and steps via environment variables
       - run deploy script in a new process reading json from stdout
-      - update/post steps in the database
+      - post finished steps back to application server
     """
 
     deploy_script: str = Field(..., env="DEPLOY_SCRIPT")
-    steps: list[Step] = Field([], env="STEPS")
     access_token: str = Field(..., env="ACCESS_TOKEN")
     steps_url: str = Field(..., env="STEPS_URL")
     deployment_finish_url: str = Field(..., env="DEPLOYMENT_FINISH_URL")
@@ -63,52 +61,25 @@ class DeployTask(BaseSettings):
     def headers(self):
         return {"authorization": f"Bearer {self.access_token}"}
 
-    async def send_step(self, method, step_url, step):
+    async def send_step(self, step_url, step):
         for _ in range(self.attempts):
             try:
-                r = await method(step_url, json=json.loads(step.json()))
+                r = await self.client.post(step_url, json=json.loads(step.json()))
                 r.raise_for_status()
                 break
             except httpx.HTTPStatusError:
                 await asyncio.sleep(self.sleep_on_fail)
 
-    async def put_step(self, step):
-        step_url = urljoin(self.steps_url, str(step.id))
-        await self.send_step(self.client.put, step_url, step)
-
     async def finish_deployment(self) -> None:
         r = await self.client.put(self.deployment_finish_url)
         r.raise_for_status()
 
-    @property
-    def has_more_steps(self):
-        # True if there are still unprocessed steps
-        return self.current_step_index < len(self.steps)
-
-    @property
-    def current_step(self):
-        if self.has_more_steps:
-            return self.steps[self.current_step_index]
-
-    async def start_step(self, step):
-        step.started = datetime.utcnow()
-        step.state = "running"
-        await self.put_step(step)
-
-    async def finish_step(self, current_step, step_result):
+    async def finish_step(self, step_result):
         step = Step(**step_result)
         step.finished = datetime.utcnow()
         if len(step_result.get("error_message", "")) > 0:
             step.message = step_result["error_message"]
-        if current_step is None:
-            await self.send_step(self.client.post, self.steps_url, step)
-        else:
-            step.id = current_step.id  # step from stdout deploy has no id -> take it from current step
-            step.started = current_step.started
-            await self.put_step(step)
-            self.current_step_index += 1
-            if self.current_step is not None and step.state == "success":
-                await self.start_step(self.current_step)
+        await self.send_step(self.steps_url, step)
 
     async def deploy_steps(self):
         sudo_command = f"sudo -u {settings.sudo_user}"
@@ -119,9 +90,8 @@ class DeployTask(BaseSettings):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
         )
-        if self.current_step is not None:
-            await self.start_step(self.current_step)
         while True:
+            started = datetime.utcnow()
             data = await proc.stdout.readline()  # type: ignore
             if len(data) == 0:
                 break
@@ -131,20 +101,14 @@ class DeployTask(BaseSettings):
                 step_result = json.loads(decoded)
             except json.decoder.JSONDecodeError:
                 continue
-            # if name is None there's no way to find the
-            # corresponding step in the database -> skip
+            # if name is None there's something wrong -> skip
             result_name = step_result.get("name")
             if result_name is None:
                 # should not happen
-                print("step result not put/posted: ", step_result)
+                print("step result not posted: ", step_result)
                 continue
-            # On the happy path, the if condition below will be true
-            # and the current step will be marked as finished. Post a
-            # new step in all other cases.
-            current_step = None
-            if self.current_step is not None and result_name == self.current_step.name:
-                current_step = self.current_step
-            await self.finish_step(current_step, step_result)
+            step_result["started"] = started
+            await self.finish_step(step_result)
 
     async def run_deploy(self):
         try:
