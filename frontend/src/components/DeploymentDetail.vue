@@ -23,7 +23,7 @@ stepsStore.fetchStepsFromDeployment(deploymentId);
     <h1>Deployment ID: {{ deploymentId }}</h1>
     <div v-if="deployment">
       <h2>deployment origin: {{ deployment.origin }}</h2>
-      <h2>deployment created: {{ deployment.created }}</h2>
+      <h2>deployment started: {{ deployment.started }}</h2>
       <h2>deployment finished: {{ deployment.finished }}</h2>
     </div>
     <transition-group name="list" tag="p">
