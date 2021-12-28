@@ -155,11 +155,25 @@ class Deployment(SQLModel, table=True):
         # find out whether the step is already known
         known_step = None
         running_steps = [step for step in steps if step.state == "running"]
-        pending_steps = running_steps + [step for step in steps if step.state == "pending"]
-        for pending_step in pending_steps:
-            if pending_step.name == step.name:
-                known_step = pending_step
+        for running_step in running_steps:
+            if running_step.name == step.name:
+                known_step = running_step
                 break
+
+        pending_steps = [step for step in steps if step.state == "pending"]
+        if known_step is None:
+            # finished step was not already running -> maybe it was pending?
+            for pending_step in pending_steps:
+                if pending_step.name == step.name:
+                    known_step = pending_step
+                    break
+        else:
+            # finished step was already running -> change state of next pending
+            # step to running unless currently finished step has failed
+            if len(pending_steps) > 0 and step.state != "failure":
+                next_pending_step = pending_steps[0]
+                next_pending_step.state = "running"
+                await repository.update_step(next_pending_step)
 
         if known_step is None:
             # if it's an unknown step, create a new step
@@ -168,6 +182,7 @@ class Deployment(SQLModel, table=True):
             return await repository.add_step(step)
         else:
             # if it's a known step, update it
+            known_step.started = step.started
             known_step.finished = datetime.now(timezone.utc)
             known_step.state = step.state
             known_step.message = step.message

@@ -77,6 +77,7 @@ class DeployTask(BaseSettings):
     async def finish_step(self, step_result):
         step = Step(**step_result)
         step.finished = datetime.utcnow()
+        print("finish step: ", step)
         if len(step_result.get("error_message", "")) > 0:
             step.message = step_result["error_message"]
         await self.send_step(self.steps_url, step)

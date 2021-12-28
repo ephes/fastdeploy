@@ -1,0 +1,21 @@
+{
+    "deploy_script": "deploy.sh",
+    "description": "Just a dummy service to debug deployments with a failure",
+    "steps": [
+        {
+            "name": "message 0"
+        },
+        {
+            "name": "message 1"
+        },
+        {
+            "name": "message 2"
+        },
+        {
+            "name": "message 3"
+        },
+        {
+            "name": "message 4"
+        }
+    ]
+}
