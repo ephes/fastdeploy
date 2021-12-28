@@ -76,7 +76,7 @@ export const useSteps = defineStore("steps", {
     shouldScrollToStep: (state) => (step: Step) => {
       const byDeploymentId = state.stepsInProgressByDeployment[step.deploymentId];
       if (byDeploymentId) {
-        const scrollToStep = byDeploymentId[2];
+        const scrollToStep = byDeploymentId[4];
         if (scrollToStep) {
           if (scrollToStep.id === step.id) {
             return true;
