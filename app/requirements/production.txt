@@ -448,9 +448,9 @@ sqlalchemy2-stubs==0.0.2a19 \
     --hash=sha256:2117c48ce5acfe33bf9c9bfce2a981632d931949e68fa313aa5c2a3bc980ca7a \
     --hash=sha256:aac7dca77a2c49e5f0934976421d5e25ae4dc5e27db48c01e055f81caa1e3ead
     # via sqlmodel
-sqlmodel==0.0.5 \
-    --hash=sha256:72c7ca0f0bbabcba9d03eb707b70761684f8f68e693ea58a89e4238f4d4faf0f \
-    --hash=sha256:bcf083c53b2a94d044ae09d62322401bde5d5b669e8173a0e2a43932b03d99d6
+sqlmodel==0.0.6 \
+    --hash=sha256:3b4f966b9671b24d85529d274e6c4dbc7753b468e35d2d6a40bd75cad1f66813 \
+    --hash=sha256:c5fd8719e09da348cd32ce2a5b6a44f289d3029fa8f1c9818229b6f34f1201b4
     # via -r app/requirements/production.in
 starlette==0.16.0 \
     --hash=sha256:38eb24bf705a2c317e15868e384c1b8a12ca396e5a3c3a003db7e667c43f939f \
