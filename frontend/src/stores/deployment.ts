@@ -113,7 +113,7 @@ export const useDeployments = defineStore("deployments", {
      * store by id.
      */
     async fetchDeployments() {
-      const deployments: Deployment[] = await this.client.get("deployments/");
+      const deployments: Deployment[] = await this.client.get<Promise<Deployment[]>>("deployments/");
       for (const deployment of deployments) {
         this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
       }
