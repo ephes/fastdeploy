@@ -194,6 +194,12 @@ class InMemoryRepository(BaseRepository):
                 steps.append(step)
         return steps
 
+    async def delete_step(self, step: Step) -> None:
+        self.steps.remove(step)
+        step_out = StepOut.parse_obj(step)
+        step_out.deleted = True
+        await self.dispatch_event(step_out)
+
     async def delete_steps_by_deployment_id(self, deployment_id: int) -> None:
         for step in self.steps:
             if step.deployment_id == deployment_id:
@@ -344,6 +350,14 @@ class SQLiteRepository(BaseRepository):
         with Session(self.engine) as session:
             steps = session.query(Step).filter(Step.name == name).all()
         return steps
+
+    async def delete_step(self, step: Step) -> None:
+        with Session(self.engine) as session:
+            session.delete(step)
+            step_out = StepOut.parse_obj(step)
+            step_out.deleted = True
+            await self.dispatch_event(step_out)
+            session.commit()
 
     async def delete_steps_by_deployment_id(self, deployment_id: int) -> None:
         with Session(self.engine) as session:

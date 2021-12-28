@@ -70,7 +70,15 @@ async def finish_deployment(deployment: Deployment = Depends(get_current_active_
     Finish a deployment. Need to be authenticated with a deployment access token.
     We set the finished timestamp on the server side because it should not be
     possible to update any deployment attributes.
+
+    * Set the finished timestamp
+    * Remove all steps with state "running" or "pending"
     """
     deployment.finished = datetime.now(timezone.utc)
     deployment = await repository.update_deployment(deployment)
+    assert deployment.id is not None
+    steps = await repository.get_steps_by_deployment_id(deployment.id)
+    for step in steps:
+        if step.state in ("running", "pending"):
+            await repository.delete_step(step)
     return DeploymentOut(**deployment.dict())

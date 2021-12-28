@@ -1,0 +1,4 @@
+{
+    "deploy_script": "deploy.sh",
+    "description": "Just a dummy service with no predefined steps"
+}
