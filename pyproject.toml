@@ -47,6 +47,12 @@ known_pydantic = "pydantic"
 known_sqlalchemy = "sqlalchemy"
 known_sqlmodel = "sqlmodel"
 
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/tests/*"]
+command_line = "-m pytest"
+
 [tool.poetry.dependencies]
 python = "^3.10"
 fastapi = {extras = ["all"], version = "^0.70.0"}

@@ -6,7 +6,7 @@ jupyterlab
 black
 nb-black
 pytest-asyncio
-coverage
+coverage[toml]
 pytest-env
 pytest-xdist
 mypy

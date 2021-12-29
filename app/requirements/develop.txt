@@ -176,7 +176,7 @@ commonmark==0.9.1 \
     --hash=sha256:452f9dc859be7f06631ddcb328b6919c67984aca654e5fefb3914d54691aed60 \
     --hash=sha256:da2f38c92590f83de410ba1a3cbceafbc74fee9def35f9251ba9a971d6d66fd9
     # via rich
-coverage==6.2 \
+coverage[toml]==6.2 \
     --hash=sha256:01774a2c2c729619760320270e42cd9e797427ecfddd32c2a7b639cdc481f3c0 \
     --hash=sha256:03b20e52b7d31be571c9c06b74746746d4eb82fc260e594dc662ed48145e9efd \
     --hash=sha256:0a7726f74ff63f41e95ed3a89fef002916c828bb5fcae83b505b49d81a066884 \
@@ -1115,6 +1115,7 @@ tomli==1.2.3 \
     --hash=sha256:e3069e4be3ead9668e21cb9b074cd948f7b3113fd9c8bba083f48247aab8b11c
     # via
     #   black
+    #   coverage
     #   mypy
     #   pep517
 tornado==6.1 \
