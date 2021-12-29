@@ -14,5 +14,8 @@ const activeDeployments: ComputedRef<DeploymentById> = computed(() => {
 <template>
   <div v-for="(deployment, deploymentId) of activeDeployments" :key="deploymentId">
     id: {{ deployment.id }} progress: {{ deploymentStore.getFinishedVsAllSteps(deployment.id) }}
+    <router-link
+      :to="{ name: 'deployment-detail', params: { id: deployment.id } }"
+    >live</router-link>
   </div>
 </template>
