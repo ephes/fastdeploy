@@ -30,6 +30,9 @@ cli = typer.Typer()
 
 @cli.command()
 def createuser():
+    """
+    Create a new user.
+    """
     username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
     password = Prompt.ask("Enter password", password=True)
     rprint(f"creating user {username}")
@@ -40,6 +43,9 @@ def createuser():
 
 @cli.command()
 def create_initial_user():
+    """
+    Pass username and password hash as environment variables.
+    """
     database.create_db_and_tables()
     username = os.environ["INITIAL_USER_NAME"]
     # Use environment instead of prompt to avoid leaking passwords
