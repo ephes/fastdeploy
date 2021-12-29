@@ -215,7 +215,10 @@
         PATH: "{{ default_path }}"
 
     - name: Install app production requirements
-      shell: "{{ pip_sync }} app/requirements/production.txt"
+      # added --pip-args --no-deps because sqlalchemy depends on greenlet!=0.4.17
+      # which is incompatible with --require-hashes mode requiring all dependencies
+      # to be pinned with '==' *sigh*
+      shell: "{{ pip_sync }} --pip-args --no-deps app/requirements/production.txt"
       args:
         chdir: "{{ site_path }}"
       become: true
