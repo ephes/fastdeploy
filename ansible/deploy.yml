@@ -191,7 +191,7 @@
       template:
         src: fastdeploy_staging_deploy.sh.template.j2
         dest: "{{ services_path }}/fastdeploy/deploy.sh"
-        mode: '0755'
+        mode: '0500'
       become: true
       become_user: "{{ username }}"
       environment:
@@ -201,7 +201,7 @@
       template:
         src: fastdeploy_staging_config.json.template.j2
         dest: "{{ services_path }}/fastdeploy/config.json"
-        mode: '0755'
+        mode: '0400'
       become: true
       become_user: "{{ username }}"
       environment:
