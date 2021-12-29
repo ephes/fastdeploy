@@ -45,11 +45,14 @@ function getStepClass(step: Step): string {
   <p :class="step.state" ref="el" id="step">
     {{ step.name }}
     <br />
-    duration: {{ duration }}
-    <br />
-    {{ step.state }}
-    <br />
-    {{ step.changed }}
+    <div v-if="duration">
+      duration: {{ duration }}
+      <br />
+    </div>
+    <div v-if="false">
+      {{ step.state }}
+      <br />
+    </div>
     <div v-if="step.message">
       <br />
       {{ step.message }}
