@@ -104,7 +104,7 @@ export const useDeployments = defineStore("deployments", {
         "frontend"
       );
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
-      const deployment = await client.post<Promise<Deployment>>("deployments");
+      const deployment = await client.post<Promise<Deployment>>("deployments/");
       this.deployments[deployment.id] = deployment;
       return deployment;
     },

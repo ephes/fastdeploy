@@ -140,7 +140,7 @@ export const useServices = defineStore("services", {
       this.serviceTokenErrorMessage = "";
       try {
         const response = await (<Promise<{ service_token: string }>>(
-          this.client.post("service-token/", {
+          this.client.post("service-token", {
             service: serviceName,
             origin: origin,
             expiration_in_days: expirationInDays,
