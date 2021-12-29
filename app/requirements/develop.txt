@@ -469,9 +469,9 @@ jupyterlab-pygments==0.1.2 \
     --hash=sha256:abfb880fd1561987efaefcb2d2ac75145d2a5d0139b1876d5be806e32f630008 \
     --hash=sha256:cfcda0873626150932f438eccf0f8bf22bfa92345b814890ab360d666b254146
     # via nbconvert
-jupyterlab-server==2.10.1 \
-    --hash=sha256:377ff516930e2379bb2f194fa671317f0911fbe772ed9015fd6099ce5f29d44c \
-    --hash=sha256:9683d661fc059ae4e2039b582d0d80cec96778dad581bd27b5941a06191397ba
+jupyterlab-server==2.10.2 \
+    --hash=sha256:007dd2a1e27052a785bb06e38a8e6d5f7b04598125fbc46ce190a622a49551b2 \
+    --hash=sha256:bf1ec9e49d4e26f14d70055cc293b3f8ec8410f95a4d5b4bd55c442d9b8b266c
     # via jupyterlab
 markdown==3.3.6 \
     --hash=sha256:76df8ae32294ec39dcf89340382882dfa12975f87f45c3ed1ecdb1e8cefc7006 \
@@ -1264,9 +1264,9 @@ uvloop==0.16.0 \
     --hash=sha256:e814ac2c6f9daf4c36eb8e85266859f42174a4ff0d71b99405ed559257750382 \
     --hash=sha256:f74bc20c7b67d1c27c72601c78cf95be99d5c2cdd4514502b4f3eb0933ff1228
     # via uvicorn
-virtualenv==20.11.0 \
-    --hash=sha256:2f15b9226cb74b59c21e8236dd791c395bee08cdd33b99cddd18e1f866cdb098 \
-    --hash=sha256:eb0cb34160f32c6596405308ee6a8a4abbf3247b2b9794ae655a156d43abf48e
+virtualenv==20.11.1 \
+    --hash=sha256:17f26e9d0c4350d9df713d41077b2b3344cba59e104306e4105c8c75deeddcf7 \
+    --hash=sha256:43973fb93cf1d04ec00a190f5e062919798a0fec94daaafcb4db1eda1aa8f340
     # via pre-commit
 watchdog==2.1.6 \
     --hash=sha256:25fb5240b195d17de949588628fdf93032ebf163524ef08933db0ea1f99bd685 \
@@ -1373,9 +1373,9 @@ pip==21.3.1 \
     --hash=sha256:deaf32dcd9ab821e359cd8330786bcd077604b5c5730c0b096eda46f95c24a2d \
     --hash=sha256:fd11ba3d0fdb4c07fbc5ecbba0b1b719809420f25038f8ee3cd913d3faa3033a
     # via pip-tools
-setuptools==60.1.0 \
-    --hash=sha256:a4377723c53721515f72a3dfc1bfacdcd61edfa19a4cccf82e72e4f50d9cecbd \
-    --hash=sha256:ad0ea3d172404abb14d8f7bd7f54f2ccd4ed9dd00c9da0b1398862e69eb22c03
+setuptools==60.1.1 \
+    --hash=sha256:10d6eff7fc27ada30cc87e21abf324713b7169b97af1f81f8744d66260e91d10 \
+    --hash=sha256:89e8cb2d5ade19e9885e56cd110f2f1e80697f7cffa048886c585fe559ebbe32
     # via
     #   ipdb
     #   ipython
