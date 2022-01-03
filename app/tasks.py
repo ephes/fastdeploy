@@ -118,7 +118,7 @@ class DeployTask(BaseSettings):
 
 
 async def run_deploy_task():  # pragma: no cover
-    deploy_task = DeployTask()
+    deploy_task = DeployTask()  # type: ignore
     async with httpx.AsyncClient(headers=deploy_task.headers) as client:
         deploy_task.client = client
         await deploy_task.run_deploy()
