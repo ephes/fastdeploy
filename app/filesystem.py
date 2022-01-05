@@ -37,8 +37,11 @@ def get_steps_from_playbook(path_from_config: str) -> list[dict]:
     playbook_path = settings.project_root / path_from_config
     with playbook_path.open("r") as playbook_file:
         parsed = yaml.safe_load(playbook_file)
-    steps = [{"name": task["name"]} for task in parsed[0]["tasks"] if "name" in task]
-    steps.insert(0, {"name": "Gathering Facts"})
+    steps = []
+    if "tasks" in parsed[0]:
+        # workaround for ansible-galaxy (just roles, no tasks)
+        steps = [{"name": task["name"]} for task in parsed[0]["tasks"] if "name" in task]
+        steps.insert(0, {"name": "Gathering Facts"})
     return steps
 
 
