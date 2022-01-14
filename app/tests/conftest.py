@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+import pytest_asyncio
 
 from sqlmodel import SQLModel
 
@@ -11,7 +12,7 @@ from ..models import Deployment, Service, Step, StepBase, User
 from ..routers.users import ServiceIn
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def repository():
     yield database.repository
     # after test ran, drop all tables and recreate them
@@ -34,7 +35,7 @@ def service():
     return Service(name="fastdeploytest", data={"foo": "bar"})
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def service_in_db(repository, service):
     return await repository.add_service(service)
 
@@ -44,7 +45,7 @@ def deployment(service_in_db):
     return Deployment(service_id=service_in_db.id, origin="github", user="fastdeploy")
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def deployment_in_db(repository, deployment):
     deployment, _ = await repository.add_deployment(deployment, [])
     return deployment
@@ -57,7 +58,7 @@ async def different_deployment_in_db(repository, deployment):
     return different_deployment
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def user_in_db(repository, user):
     return await repository.add_user(user)
 
@@ -130,7 +131,7 @@ def step():
     return StepBase(name="foo bar baz")
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def step_in_db(repository, step, deployment_in_db):
     step = Step(name=step.name, deployment_id=deployment_in_db.id)
     return await repository.add_step(step)

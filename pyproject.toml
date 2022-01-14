@@ -18,6 +18,7 @@ env = [
     "PASSWORD_HASH_ALGORITHM = ldap_md5",
 ]
 testpaths = "app/tests"
+asyncio_mode = "strict"
 
 [tool.flake8]
 statistics = "True"
