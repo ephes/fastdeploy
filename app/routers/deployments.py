@@ -113,7 +113,9 @@ async def finish_deployment(deployment: Deployment = Depends(get_current_active_
     """
     deployment.finished = datetime.now(timezone.utc)
     deployment = await repository.update_deployment(deployment)
-    assert deployment.id is not None
+    if deployment.id is None:
+        raise HTTPException(status_code=404, detail="Deployment does not exist")
+
     steps = await repository.get_steps_by_deployment_id(deployment.id)
     for step in steps:
         if step.state in ("running", "pending"):
