@@ -319,9 +319,9 @@ executing==0.8.2 \
     --hash=sha256:32fc6077b103bd19e6494a72682d66d5763cf20a106d5aa7c5ccbea4e47b0df7 \
     --hash=sha256:c23bf42e9a7b9b212f185b1b2c3c91feb895963378887bb10e64a2e612ec0023
     # via stack-data
-fastapi[all]==0.71.0 \
-    --hash=sha256:2b5ac0ae89c80b40d1dd4b2ea0bb1f78d7c4affd3644d080bf050f084759fff2 \
-    --hash=sha256:a78eca6b084de9667f2d5f37e2ae297270e5a119cd01c2f04815795da92fc87f
+fastapi[all]==0.72.0 \
+    --hash=sha256:019ec52c00581bc055e6dfb621aaa9c2a56007c283839305412e1073a777eaf1 \
+    --hash=sha256:7421a2f30e9ed1866874cff089733d4f9a0cd4f49b6ea3995c0de75e32bbb52f
     # via -r app/requirements/production.in
 filelock==3.4.2 \
     --hash=sha256:38b4f4c989f9d06d44524df1b24bd19e167d851f19b50bf3e3559952dddc5b80 \
@@ -588,9 +588,9 @@ mkdocs==1.2.3 \
     #   -r app/requirements/develop.in
     #   mkdocs-material
     #   mkdocs-render-swagger-plugin
-mkdocs-material==8.1.6 \
-    --hash=sha256:12eb74faf018950f51261a773f9bea12cc296ec4bdbb2c8cf74102ee35b6df79 \
-    --hash=sha256:b2303413e3154502759f90ee2720b451be8855f769c385d8fb06a93ce54aafe2
+mkdocs-material==8.1.7 \
+    --hash=sha256:16a50e3f08f1e41bdc3115a00045d174e7fd8219c26917d0d0b48b2cc9d5a18f \
+    --hash=sha256:71bcac6795b22dcf8bab8b9ad3fe462242c4cd05d28398281902425401f23462
     # via -r app/requirements/develop.in
 mkdocs-material-extensions==1.0.3 \
     --hash=sha256:a82b70e533ce060b2a5d9eb2bc2e1be201cf61f901f93704b4acf6e3d5983a44 \
@@ -895,9 +895,9 @@ pytest==6.2.5 \
     #   pytest-env
     #   pytest-forked
     #   pytest-xdist
-pytest-asyncio==0.17.0 \
-    --hash=sha256:b41c3ff0ec5b5b144459aa1c53a866f67278177f6d4f3ef6874bd864fc82834d \
-    --hash=sha256:c98e0e04ae5910bbcc219f52bdf871bd1d392f624ef77c49c236613c0b6d8ee1
+pytest-asyncio==0.17.1 \
+    --hash=sha256:4b3f94b558a035edc5e14d66500ed9fbcc387ea7c3d561a0492006b9f938389e \
+    --hash=sha256:f97d63cbe7b7a9eec30d1e289688201bd8e91cd1a854f6be4937b0bc4d2dff61
     # via -r app/requirements/develop.in
 pytest-env==0.6.2 \
     --hash=sha256:7e94956aef7f2764f3c147d216ce066bf6c42948bb9e293169b1b1c880a580c2
@@ -1227,6 +1227,7 @@ typing-extensions==4.0.1 \
     #   black
     #   mypy
     #   pydantic
+    #   pytest-asyncio
     #   sqlalchemy2-stubs
 ujson==4.3.0 \
     --hash=sha256:00fd67952b1a8a46cf5b0a51b3838187332d13d2e8d178423c5a5405c21d9e7c \
