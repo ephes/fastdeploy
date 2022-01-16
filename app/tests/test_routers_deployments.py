@@ -1,8 +1,12 @@
 from unittest.mock import patch
 
 import pytest
+import pytest_asyncio
 
 from httpx import AsyncClient
+
+from app.auth import token_to_payload
+from app.models import Deployment, Service, Step
 
 
 @pytest.mark.asyncio
@@ -107,3 +111,59 @@ async def test_finish_deploy(app, base_url, valid_deploy_token_in_db):
     assert "id" in deployment_from_api
 
     assert "T" in deployment_from_api["finished"]
+
+
+@pytest.mark.asyncio
+async def test_get_deployment_details_no_such_deployment(app, base_url, deployment_in_db, valid_service_token_in_db):
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url=base_url) as client:
+        response = await client.get(app.url_path_for("get_deployment_details", deployment_id=666), headers=headers)
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Deployment does not exist"}
+
+
+@pytest_asyncio.fixture
+async def deployment_from_other_service(repository):
+    service = Service(name="fastdeploytest_other", data={"foo": "bar"})
+    service = await repository.add_service(service)
+    deployment = Deployment(service_id=service.id, origin="github", user="fastdeploy")
+    deployment, _ = await repository.add_deployment(deployment, [])
+    return deployment
+
+
+@pytest.mark.asyncio
+async def test_get_deployment_details_wrong_service(
+    app, base_url, repository, deployment_from_other_service, valid_service_token_in_db
+):
+    service = await repository.get_service_by_id(deployment_from_other_service.service_id)
+    payload = await token_to_payload(valid_service_token_in_db)
+    assert service.name != payload["service"]
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url=base_url) as client:
+        response = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=deployment_from_other_service.id), headers=headers
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Wrong service token"}
+
+
+@pytest_asyncio.fixture
+async def deployment_with_steps(repository, deployment_in_db):
+    step = Step(name="step1", state="success", deployment_id=deployment_in_db.id)
+    await repository.add_step(step)
+    return deployment_in_db
+
+
+@pytest.mark.asyncio
+async def test_get_deployment_details(app, base_url, deployment_with_steps, valid_service_token_in_db):
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url=base_url) as client:
+        response = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=deployment_with_steps.id), headers=headers
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["steps"]) > 0

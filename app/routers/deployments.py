@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from ..auth import ServiceToken
 from ..database import repository
@@ -9,7 +9,7 @@ from ..dependencies import (
     get_current_active_service_token,
     get_current_active_user,
 )
-from ..models import Deployment, DeploymentOut, User
+from ..models import Deployment, DeploymentOut, Step, User
 from ..tasks import get_deploy_environment, run_deploy
 
 
@@ -27,6 +27,43 @@ async def get_deployments(_: User = Depends(get_current_active_user)) -> list[De
     access token.
     """
     return await repository.get_deployments()
+
+
+WRONG_SERVICE_EXCEPTION = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="Wrong service token",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
+
+class DeploymentWithSteps(Deployment):
+    steps: list[Step] = []
+
+
+@router.get("/{deployment_id}")
+async def get_deployment_details(
+    deployment_id: int,
+    service_token: ServiceToken = Depends(get_current_active_service_token),
+) -> DeploymentWithSteps:
+    """
+    Fetch details of a deployment including the steps. Needs to be authenticated with a
+    valid service token for the service which is associated with the deployment.
+    """
+    deployment = await repository.get_deployment_by_id(deployment_id)
+    if deployment is None:
+        raise HTTPException(status_code=404, detail="Deployment does not exist")
+    service = await repository.get_service_by_id(deployment.service_id)
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service does not exist")
+    if service_token.service != service.name:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Wrong service token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    steps = await repository.get_steps_by_deployment_id(deployment_id)
+    deployment_with_steps = DeploymentWithSteps(**deployment.dict(), steps=steps)
+    return deployment_with_steps
 
 
 @router.post("/")

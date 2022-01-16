@@ -51,7 +51,7 @@ async def deployment_in_db(repository, deployment):
     return deployment
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def different_deployment_in_db(repository, deployment):
     different_deployment = Deployment(service_id=deployment.service_id + 1, origin="foo", user="bar")
     different_deployment, _ = await repository.add_deployment(different_deployment, [])
