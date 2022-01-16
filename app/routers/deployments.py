@@ -84,10 +84,11 @@ async def start_deployment(
     * Start deployment task
     * Mark the first step as "running"
     """
+    if service_token.service_model is None or service_token.service_model.id is None:
+        raise HTTPException(status_code=404, detail="Service does not exist")
+
     service = service_token.service_model
-    assert service is not None
-    service_id = service.id
-    assert service_id is not None
+    service_id = service_token.service_model.id
 
     deployment = Deployment(service_id=service_id, origin=service_token.origin, user=service_token.user)
     deployment.started = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
