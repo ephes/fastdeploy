@@ -52,10 +52,9 @@ async def get_deployment_details(
     deployment = await repository.get_deployment_by_id(deployment_id)
     if deployment is None:
         raise HTTPException(status_code=404, detail="Deployment does not exist")
-    service = await repository.get_service_by_id(deployment.service_id)
-    if service is None:
+    if service_token.service_model is None:
         raise HTTPException(status_code=404, detail="Service does not exist")
-    if service_token.service != service.name:
+    if service_token.service_model.id != deployment.service_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Wrong service token",
