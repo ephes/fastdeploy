@@ -112,11 +112,21 @@ class ServiceOut(Service):
     deleted: bool = False
 
 
+class DeploymentContext(SQLModel):
+    """
+    Pass some context for a deployment. For example when deploying a new
+    podcast, we need to pass the domain name and the port of the application
+    server.
+    """
+
+    env: dict = {}
+
+
 class Deployment(SQLModel, table=True):
     """
     Representing a single deployment for a service. It has an origin
-    to indicate who started the deployment (GitHub, Frontend, etc..)
-    and a list of steps which have been executed.
+    to indicate who started the deployment (GitHub, Frontend, etc..),
+    a context passed to the deployment script and a list of steps.
     """
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -131,6 +141,7 @@ class Deployment(SQLModel, table=True):
         default=None,
         sa_column=Column("finished", DateTime),
     )
+    context: dict = Field(sa_column=Column(JSON), default={})
 
     async def process_step(self, step: Step) -> Step:
         """

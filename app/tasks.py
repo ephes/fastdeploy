@@ -15,7 +15,7 @@ from pydantic import BaseSettings, Field
 
 from .auth import create_access_token
 from .config import settings
-from .models import Deployment, Step
+from .models import Deployment, DeploymentContext, Step
 
 
 async def run_deploy(environment):  # pragma no cover
@@ -34,6 +34,7 @@ def get_deploy_environment(deployment: Deployment, steps: list[Step], deploy_scr
         "DEPLOY_SCRIPT": deploy_script,
         "STEPS_URL": settings.steps_url,
         "DEPLOYMENT_FINISH_URL": settings.deployment_finish_url,
+        "CONTEXT": DeploymentContext(**deployment.context).json(),
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):
         environment["SSH_AUTH_SOCK"] = ssh_auth_sock
@@ -52,6 +53,7 @@ class DeployTask(BaseSettings):
     access_token: str = Field(..., env="ACCESS_TOKEN")
     steps_url: str = Field(..., env="STEPS_URL")
     deployment_finish_url: str = Field(..., env="DEPLOYMENT_FINISH_URL")
+    context: DeploymentContext = Field(..., env="CONTEXT")
     current_step_index: int = 0
     attempts: int = 3
     sleep_on_fail: float = 3.0

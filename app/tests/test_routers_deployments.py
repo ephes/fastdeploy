@@ -67,6 +67,21 @@ async def test_deploy_service_not_found(app, base_url, valid_service_token):
 
 
 @pytest.mark.asyncio
+async def test_deploy_service_with_context(app, base_url, valid_service_token_in_db):
+    my_context = {"env": {"foobar": "barfoo"}}
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url=base_url) as client:
+        with patch("app.routers.deployments.run_deploy"):
+            test_url = app.url_path_for("start_deployment")
+            response = await client.post(test_url, headers=headers, json=my_context)
+
+    assert response.status_code == 200
+    deployment_from_api = response.json()
+    assert "id" in deployment_from_api
+    assert deployment_from_api["context"] == my_context
+
+
+@pytest.mark.asyncio
 async def test_deploy_service(app, base_url, repository, handler, valid_service_token_in_db, service_in_db):
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
     async with AsyncClient(app=app, base_url=base_url) as client:

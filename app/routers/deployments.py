@@ -9,7 +9,7 @@ from ..dependencies import (
     get_current_active_service_token,
     get_current_active_user,
 )
-from ..models import Deployment, DeploymentOut, Step, User
+from ..models import Deployment, DeploymentContext, DeploymentOut, Step, User
 from ..tasks import get_deploy_environment, run_deploy
 
 
@@ -67,7 +67,9 @@ async def get_deployment_details(
 
 @router.post("/")
 async def start_deployment(
-    background_tasks: BackgroundTasks, service_token: ServiceToken = Depends(get_current_active_service_token)
+    background_tasks: BackgroundTasks,
+    context: DeploymentContext = DeploymentContext(env={}),
+    service_token: ServiceToken = Depends(get_current_active_service_token),
 ) -> DeploymentOut:
     """
     Start a new deployment. Needs to be authenticated with a service token. Invoked
@@ -84,13 +86,16 @@ async def start_deployment(
     * Start deployment task
     * Mark the first step as "running"
     """
+    print("context: ", context)
     if service_token.service_model is None or service_token.service_model.id is None:
         raise HTTPException(status_code=404, detail="Service does not exist")
 
     service = service_token.service_model
     service_id = service_token.service_model.id
 
-    deployment = Deployment(service_id=service_id, origin=service_token.origin, user=service_token.user)
+    deployment = Deployment(
+        service_id=service_id, origin=service_token.origin, user=service_token.user, context=context.dict()
+    )
     deployment.started = datetime.now(timezone.utc)  # FIXME: use CURRENT_TIMESTAMP from database
     pending_steps = await service.get_steps()
     deployment, steps = await repository.add_deployment(deployment, pending_steps)

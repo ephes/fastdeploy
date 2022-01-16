@@ -45,7 +45,9 @@ class Client:
 @pytest.fixture
 def task_kwargs():
     task_attrs = ["deploy_script", "access_token", "steps_url", "deployment_finish_url"]
-    return {attr: attr for attr in task_attrs}
+    kwargs = {attr: attr for attr in task_attrs}
+    kwargs["context"] = json.dumps({"env": {"foo": "bar"}})
+    return kwargs
 
 
 @pytest.fixture
