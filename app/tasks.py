@@ -54,7 +54,6 @@ class DeployTask(BaseSettings):
     steps_url: str = Field(..., env="STEPS_URL")
     deployment_finish_url: str = Field(..., env="DEPLOYMENT_FINISH_URL")
     context: DeploymentContext = Field(..., env="CONTEXT")
-    current_step_index: int = 0
     attempts: int = 3
     sleep_on_fail: float = 3.0
     client: Any = None
