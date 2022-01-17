@@ -1,0 +1,5 @@
+- hosts: localhost
+  tasks:
+    - name: Just a debug task
+      ansible.builtin.debug:
+        msg: "Hello cruel world! {{ foo }}"
