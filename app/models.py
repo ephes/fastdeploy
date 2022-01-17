@@ -208,3 +208,4 @@ class DeploymentOut(Deployment):
 
     type: str = "deployment"
     deleted: bool = False
+    details: str | None = None

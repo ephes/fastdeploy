@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from ..auth import ServiceToken
 from ..database import repository
@@ -67,6 +67,7 @@ async def get_deployment_details(
 
 @router.post("/")
 async def start_deployment(
+    request: Request,
     background_tasks: BackgroundTasks,
     context: DeploymentContext = DeploymentContext(env={}),
     service_token: ServiceToken = Depends(get_current_active_service_token),
@@ -86,7 +87,6 @@ async def start_deployment(
     * Start deployment task
     * Mark the first step as "running"
     """
-    print("context: ", context)
     if service_token.service_model is None or service_token.service_model.id is None:
         raise HTTPException(status_code=404, detail="Service does not exist")
 
@@ -103,7 +103,9 @@ async def start_deployment(
     await repository.update_step(steps[0])
     environment = get_deploy_environment(deployment, steps, service.get_deploy_script())
     background_tasks.add_task(run_deploy, environment)
-    return DeploymentOut(**deployment.dict())
+    assert deployment.id is not None
+    details_url = request.url_for("get_deployment_details", deployment_id=str(deployment.id))
+    return DeploymentOut(**deployment.dict(), details=details_url)
 
 
 @router.put("/finish/")
