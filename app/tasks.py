@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from datetime import datetime, timedelta
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 import httpx
@@ -57,6 +58,7 @@ class DeployTask(BaseSettings):
     attempts: int = 3
     sleep_on_fail: float = 3.0
     client: Any = None
+    context_file_name: str | None = None
 
     @property
     def headers(self):
@@ -85,8 +87,7 @@ class DeployTask(BaseSettings):
     async def deploy_steps(self):
         sudo_command = f"sudo -u {settings.sudo_user}"
         deploy_command = str(settings.services_root / self.deploy_script)
-        json_context = json.dumps(self.context.env)
-        command = f"{sudo_command} {deploy_command} '{json_context}'"
+        command = f"{sudo_command} {deploy_command} {self.context_file_name}"
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -123,7 +124,11 @@ async def run_deploy_task():  # pragma: no cover
     deploy_task = DeployTask()  # type: ignore
     async with httpx.AsyncClient(headers=deploy_task.headers) as client:
         deploy_task.client = client
-        await deploy_task.run_deploy()
+        with NamedTemporaryFile(delete=True) as f:
+            deploy_task.context_file_name = f.name
+            f.write(deploy_task.context.json().encode("utf-8"))
+            f.flush()  # really important
+            await deploy_task.run_deploy()
 
 
 if __name__ == "__main__":  # pragma: no cover

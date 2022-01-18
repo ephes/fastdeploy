@@ -1,5 +1,5 @@
 {
-    "deploy_script": "deploy.sh",
+    "deploy_script": "deploy.py",
     "description": "Install steps with context",
     "ansible_playbook": "services_development/dummy_context/playbook.yml"
 }
