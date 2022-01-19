@@ -292,9 +292,9 @@ distlib==0.3.4 \
     --hash=sha256:6564fe0a8f51e734df6333d08b8b94d4ea8ee6b99b5ed50613f731fd4089f34b \
     --hash=sha256:e4b58818180336dc9c529bfb9a0b58728ffc09ad92027a3f30b7cd91e3458579
     # via virtualenv
-dnspython==2.1.0 \
-    --hash=sha256:95d12f6ef0317118d2a1a6fc49aac65ffec7eb8087474158f42f26a639135216 \
-    --hash=sha256:e4a87f0b573201a0f3727fa18a516b055fd1107e0e5477cded4a2de497df1dd4
+dnspython==2.2.0 \
+    --hash=sha256:081649da27ced5e75709a1ee542136eaba9842a0fe4c03da4fb0a3d3ed1f3c44 \
+    --hash=sha256:e79351e032d0b606b98d38a4b0e6e2275b31a5b85c873e587cc11b73aca026d6
     # via email-validator
 ecdsa==0.17.0 \
     --hash=sha256:5cf31d5b33743abe0dfc28999036c849a69d548f994b535e527ee3cb7f3ef676 \
@@ -351,9 +351,9 @@ h11==0.12.0 \
     # via
     #   httpcore
     #   uvicorn
-httpcore==0.14.4 \
-    --hash=sha256:9410fe352bea732311f2b2bee0555c8cc5e62b9a73b9d3272fe125a2aa6eb28e \
-    --hash=sha256:d4305811f604d3c2e22869147392f134796976ff946c96a8cfba87f4e0171d83
+httpcore==0.14.5 \
+    --hash=sha256:2621ee769d0236574df51b305c5f4c69ca8f0c7b215221ad247b1ee42a9a9de1 \
+    --hash=sha256:435ab519628a6e2393f67812dea3ca5c6ad23b457412cd119295d9f906d96a2b
     # via httpx
 httptools==0.2.0 \
     --hash=sha256:01b392a166adcc8bc2f526a939a8aabf89fe079243e1543fd0e7dc1b58d737cb \
@@ -755,9 +755,9 @@ pluggy==1.0.0 \
     --hash=sha256:4224373bacce55f955a878bf9cfa763c1e360858e330072059e10bad68531159 \
     --hash=sha256:74134bbf457f031a36d68416e1509f34bd5ccc019f0bcc952c7b909d06b37bd3
     # via pytest
-pre-commit==2.16.0 \
-    --hash=sha256:758d1dc9b62c2ed8881585c254976d66eae0889919ab9b859064fc2fe3c7743e \
-    --hash=sha256:fe9897cac830aa7164dbd02a4e7b90cae49630451ce88464bca73db486ba9f65
+pre-commit==2.17.0 \
+    --hash=sha256:725fa7459782d7bec5ead072810e47351de01709be838c2ce1726b9591dad616 \
+    --hash=sha256:c1a8040ff15ad3d648c70cc3e55b93e4d2d5b687320955505587fd79bbaed06a
     # via -r app/requirements/develop.in
 prometheus-client==0.12.0 \
     --hash=sha256:1b12ba48cee33b9b0b9de64a1047cbd3c5f2d0ab6ebcead7ddda613a750ec3c5 \
