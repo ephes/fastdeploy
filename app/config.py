@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     database_url: str = Field(..., env="DATABASE_URL")
     db_engine: typing.Any
     secret_key: str = Field(..., env="SECRET_KEY")
+    path_for_deploy: str = Field(..., env="PATH_FOR_DEPLOY")
     origins: list[str] = [
         "http://localhost",
         "http://localhost:3000",

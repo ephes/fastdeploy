@@ -7,7 +7,6 @@ import subprocess
 import sys
 
 from datetime import datetime, timedelta
-from tempfile import NamedTemporaryFile
 from typing import Any
 
 import httpx
@@ -36,6 +35,7 @@ def get_deploy_environment(deployment: Deployment, steps: list[Step], deploy_scr
         "STEPS_URL": settings.steps_url,
         "DEPLOYMENT_FINISH_URL": settings.deployment_finish_url,
         "CONTEXT": DeploymentContext(**deployment.context).json(),
+        "PATH_FOR_DEPLOY": settings.path_for_deploy,
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):
         environment["SSH_AUTH_SOCK"] = ssh_auth_sock
@@ -55,10 +55,10 @@ class DeployTask(BaseSettings):
     steps_url: str = Field(..., env="STEPS_URL")
     deployment_finish_url: str = Field(..., env="DEPLOYMENT_FINISH_URL")
     context: DeploymentContext = Field(..., env="CONTEXT")
+    path_for_deploy: str = Field(..., env="PATH_FOR_DEPLOY")
     attempts: int = 3
     sleep_on_fail: float = 3.0
     client: Any = None
-    context_file_name: str | None = None
 
     @property
     def headers(self):
@@ -87,15 +87,20 @@ class DeployTask(BaseSettings):
     async def deploy_steps(self):
         sudo_command = f"sudo -u {settings.sudo_user}"
         deploy_command = str(settings.services_root / self.deploy_script)
-        command = f"{sudo_command} {deploy_command} {self.context_file_name}"
+        command = f"{sudo_command} --preserve-env {deploy_command}"
+        env = os.environ.copy()
+        env["PATH"] = self.path_for_deploy
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            env=env,
         )
         while True:
             started = datetime.utcnow()
             data = await proc.stdout.readline()  # type: ignore
+            # FIXME log returned data properly
+            # print("from deploy script:", data.decode("utf-8"))
             if len(data) == 0:
                 break
 
@@ -124,11 +129,7 @@ async def run_deploy_task():  # pragma: no cover
     deploy_task = DeployTask()  # type: ignore
     async with httpx.AsyncClient(headers=deploy_task.headers) as client:
         deploy_task.client = client
-        with NamedTemporaryFile(delete=True) as f:
-            deploy_task.context_file_name = f.name
-            f.write(deploy_task.context.json().encode("utf-8"))
-            f.flush()  # really important
-            await deploy_task.run_deploy()
+        await deploy_task.run_deploy()
 
 
 if __name__ == "__main__":  # pragma: no cover
