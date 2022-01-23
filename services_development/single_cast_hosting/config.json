@@ -1,5 +1,5 @@
 {
     "deploy_script": "deploy.py",
-    "description": "Install steps with context",
-    "ansible_playbook": "services_development/dummy_context/playbook.yml"
+    "description": "Install one single cast_hosting instance",
+    "ansible_playbook": "services_development/single_cast_hosting/playbook.yml"
 }
