@@ -47,6 +47,7 @@ def task_kwargs():
     task_attrs = ["deploy_script", "access_token", "steps_url", "deployment_finish_url"]
     kwargs = {attr: attr for attr in task_attrs}
     kwargs["context"] = json.dumps({"env": {"foo": "bar"}})
+    kwargs["path_for_deploy"] = "/tmp/deploy"
     return kwargs
 
 
