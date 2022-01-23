@@ -1,0 +1,120 @@
+- hosts: staging
+  vars:
+    - username: cast
+    - home_path: "/home/{{ username }}"
+    - deploy_home: /home/deploy
+    - site_path: "{{ home_path }}/site"
+    - services_path: "/home/deploy/site/services"
+    - global_python: python3.10
+    - ansible_venv_bin: "{{ deploy_home }}/ansible_venv/bin"
+    - ansible_python: "{{ ansible_venv_bin }}/python"
+    - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  tasks:
+    - name: "Include secret vars"
+      include_vars: secrets.yml
+
+    - name: Packages required for Pillow
+      apt:
+        name: ["libpng-dev", "libjpeg-dev"]
+
+    - name: Packages required for django-fluentcomments
+      apt:
+        name: ["gettext"]
+
+    - name: Add the unix user with a bash shell
+      user:
+        name: "{{ username }}"
+        shell: /bin/bash
+
+    - name: Create a new postgres database
+      # install role first:
+      # ansible-galaxy collection install community.postgresql
+      community.general.postgresql_db:
+        name: "{{ cast_postgres_database }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: Create a new postgres user
+      community.general.postgresql_user:
+        db: "{{ cast_postgres_database }}"
+        name: "{{ cast_postgres_user }}"
+        password: "{{ cast_postgres_password }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: Git checkout repository
+      git:
+        repo: "https://github.com/ephes/cast_hosting"
+        dest: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create .env file
+      template:
+        src: env.template.j2
+        dest: "{{ site_path }}/.env"
+        mode: "0600"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Install poetry
+      shell: curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3.10 -
+      args:
+        warn: no
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Install poetry dependencies
+      shell: "{{ home_path }}/.local/share/pypoetry/venv/bin/poetry install"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Find path to poetry venv interpreter
+      shell: "find {{ home_path }}/.cache/pypoetry/virtualenvs -name python | grep bin"
+      register: find_python
+
+    - name: Set python bin path
+      set_fact:
+        python_bin_path={{ find_python.stdout }}
+
+    - name: Upgrade pip
+      shell: "{{ python_bin_path }} -m pip install --upgrade pip"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Run django migrations
+      shell: "{{ python_bin_path }} manage.py migrate"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Run django collectstatic
+      shell: "{{ python_bin_path }} manage.py collectstatic --noinput"
+      args:
+        chdir: "{{ site_path }}"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create a symbolic link for gunicorn systemd service
+      file:
+        src: "{{ site_path }}/cast.service"
+        dest: /etc/systemd/system/cast.service
+        state: link
+
+    - name: Make sure cast gunicorn service is running
+      systemd:
+        state: restarted
+        name: "{{ username }}"
+
+    - name: Create a symbolic link for django_cast traefik loadbalancer
+      file:
+        src: "{{ site_path }}/django_cast.traefik.yml"
+        dest: /etc/traefik/dynamic/django_cast.traefik.yml
+        state: link
