@@ -4,11 +4,6 @@
     - home_path: "/home/{{ username }}"
     - deploy_home: /home/deploy
     - site_path: "{{ home_path }}/site"
-    - services_path: "/home/deploy/site/services"
-    - global_python: python3.10
-    - ansible_venv_bin: "{{ deploy_home }}/ansible_venv/bin"
-    - ansible_python: "{{ ansible_venv_bin }}/python"
-    - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     - settings_dir: "{{ site_path }}/config/settings/users"
   tasks:
     - name: "Include secret vars"
