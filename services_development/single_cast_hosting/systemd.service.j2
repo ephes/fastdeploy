@@ -1,0 +1,13 @@
+[Unit]
+Description={{ fqdn }} via cast hosting
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+WorkingDirectory=/home/cast/site
+User={{ fqdn }}
+ExecStart={{ gunicorn_bin_path }} --access-logfile - --error-logfile - -b 127.0.0.1:{{ port }} config.wsgi
+
+[Install]
+WantedBy=multi-user.target

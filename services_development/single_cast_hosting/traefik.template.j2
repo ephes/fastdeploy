@@ -1,0 +1,37 @@
+http:
+  routers:
+    {{ fqdn }}-router:
+      rule: "Host(`{{ fqdn }}`)"
+
+      entryPoints:
+        - web
+      middlewares:
+        - redirect
+        - csrf
+      service: {{ fqdn }}
+
+    {{ fqdn }}-secure-router:
+      rule: "Host(`{{ fqdn }}`)"
+
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+      service: {{ fqdn }}
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+    csrf:
+      headers:
+        hostsProxyHeaders: ["X-CSRFToken"]
+
+  services:
+    {{ fqdn }}:
+      loadBalancer:
+        servers:
+          - url: http://localhost:{{ port }}
