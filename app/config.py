@@ -61,4 +61,4 @@ class Settings(BaseSettings):
         return self.project_root / self.services_dir_name
 
 
-settings = Settings()
+settings = Settings()  # type: ignore
