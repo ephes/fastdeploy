@@ -1,17 +1,13 @@
 - hosts: staging
   vars:
-    - username: cast
-    - home_path: "/home/{{ username }}"
-    - deploy_home: /home/deploy
-    - site_path: "{{ home_path }}/site"
-    - settings_dir: "{{ site_path }}/config/settings/users"
+    - cast_user: cast
+    - host_home: "/home/{{ cast_user }}"
+    - site_path: "{{ host_home }}/site"
+    - settings_dir: "{{ site_path }}/config/settings/sites"
   tasks:
-    - name: "Include secret vars"
-      include_vars: secrets.yml
-
     - name: Add the unix user with a bash shell
       user:
-        name: "{{ fqdn }}"
+        name: "{{ user_name }}"
         shell: /bin/bash
 
     - name: Create a new postgres database
@@ -33,27 +29,29 @@
       become_user: postgres
 
     - name: Create directory for django settings file
+      # FIXME move to cast_hosting playbook
       file:
         path: "{{ settings_dir }}"
         state: directory
-        owner: "{{ username }}"
+        owner: "{{ cast_user }}"
 
     - name: Create django settings module
+      # FIXME move to cast_hosting playbook
       template:
         src: settings_init.template.j2
         dest: "{{ settings_dir }}/__init__.py"
-        owner: "{{ username }}"
+        owner: "{{ cast_user }}"
         mode: "0644"
 
     - name: Create django settings file
       template:
         src: settings.template.j2
         dest: "{{ settings_dir }}/{{ settings_file_name }}.py"
-        owner: "{{ fqdn }}"
+        owner: "{{ user_name }}"
         mode: "0600"
 
     - name: Find path to poetry venv interpreter
-      shell: "find {{ home_path }}/.cache/pypoetry/virtualenvs -name python | grep bin"
+      shell: "find {{ host_home }}/.cache/pypoetry/virtualenvs -name python | grep bin"
       register: find_python
 
     - name: Set python bin path
@@ -61,14 +59,14 @@
         python_bin_path={{ find_python.stdout }}
 
     - name: Run django migrations
-      shell: "DJANGO_SETTINGS_MODULE=config.settings.users.{{ settings_file_name }} {{ python_bin_path }} manage.py migrate"
+      shell: "DJANGO_SETTINGS_MODULE=config.settings.sites.{{ settings_file_name }} {{ python_bin_path }} manage.py migrate"
       args:
         chdir: "{{ site_path }}"
       become: true
-      become_user: "{{ fqdn }}"
+      become_user: "{{ user_name }}"
 
     - name: Find path to gunicorn
-      shell: "find {{ home_path }}/.cache/pypoetry/virtualenvs -name gunicorn | grep -v lib"
+      shell: "find {{ host_home }}/.cache/pypoetry/virtualenvs -name gunicorn | grep -v lib"
       register: find_gunicorn
 
     - name: Set gunicorn bin path
@@ -78,16 +76,16 @@
     - name: Create a unit file for gunicorn systemd service
       template:
         src: systemd.service.j2
-        dest: "/etc/systemd/system/{{ fqdn }}.service"
+        dest: "/etc/systemd/system/{{ site_id }}.service"
         mode: "0644"
 
     - name: Create a config file for traefik loadbalancer
       template:
         src: traefik.template.j2
-        dest: "/etc/traefik/dynamic/{{ fqdn }}.traefik.yml"
+        dest: "/etc/traefik/dynamic/{{ site_id }}.traefik.yml"
         mode: "0644"
 
     - name: Make sure cast gunicorn service is running
       systemd:
         state: restarted
-        name: "{{ fqdn }}"
+        name: "{{ site_id }}"

@@ -6,7 +6,8 @@ After=network.target
 Type=simple
 Restart=always
 WorkingDirectory=/home/cast/site
-User={{ fqdn }}
+User={{ user_name }}
+Environment="DJANGO_SETTINGS_MODULE=config.settings.sites.{{ settings_file_name }}"
 ExecStart={{ gunicorn_bin_path }} --access-logfile - --error-logfile - -b 127.0.0.1:{{ port }} config.wsgi
 
 [Install]
