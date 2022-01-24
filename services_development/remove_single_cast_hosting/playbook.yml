@@ -1,0 +1,45 @@
+- hosts: staging
+  vars:
+    - settings_dir: "/home/cast/site/config/settings/sites"
+  tasks:
+    - name: Make sure cast gunicorn service is stopped
+      systemd:
+        state: stopped
+        name: "{{ site_id }}"
+
+    - name: Remove postgres database
+      # install role first:
+      # ansible-galaxy collection install community.postgresql
+      community.general.postgresql_db:
+        name: "{{ database_name }}"
+        state: absent
+      become: true
+      become_user: postgres
+
+    - name: Remove postgres user
+      community.general.postgresql_user:
+        name: "{{ database_user }}"
+        state: absent
+      become: true
+      become_user: postgres
+
+    - name: Remove django settings file
+      file:
+        path: "{{ settings_dir }}/{{ settings_file_name }}.py"
+        state: absent
+
+    - name: Remove unit file for systemd service
+      file:
+        path: "/etc/systemd/system/{{ site_id }}.service"
+        state: absent
+
+    - name: Remove config file for traefik loadbalancer
+      file:
+        path: "/etc/traefik/dynamic/{{ site_id }}.traefik.yml"
+        state: absent
+
+    - name: Remove unix user
+      user:
+        name: "{{ user_name }}"
+        state: absent
+        remove: yes

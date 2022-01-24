@@ -1,0 +1,5 @@
+{
+    "deploy_script": "deploy.py",
+    "description": "Remove a single cast hosting deployment",
+    "ansible_playbook": "services_development/remove_single_cast_hosting/playbook.yml"
+}
