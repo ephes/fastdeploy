@@ -369,9 +369,9 @@ httptools==0.2.0 \
     --hash=sha256:d5682eeb10cca0606c4a8286a3391d4c3c5a36f0c448e71b8bd05be4e1694bfb \
     --hash=sha256:fd3b8905e21431ad306eeaf56644a68fdd621bf8f3097eff54d0f6bdf7262065
     # via uvicorn
-httpx==0.21.3 \
-    --hash=sha256:7a3eb67ef0b8abbd6d9402248ef2f84a76080fa1c839f8662e6eb385640e445a \
-    --hash=sha256:df9a0fd43fa79dbab411d83eb1ea6f7a525c96ad92e60c2d7f40388971b25777
+httpx==0.22.0 \
+    --hash=sha256:d8e778f76d9bbd46af49e7f062467e3157a5a3d2ae4876a4bbfd8a51ed9c9cb4 \
+    --hash=sha256:e35e83d1d2b9b2a609ef367cc4c1e66fd80b750348b20cc9e19d1952fc2ca3f6
     # via -r app/requirements/production.in
 identify==2.4.5 \
     --hash=sha256:d11469ff952a4d7fd7f9be520d335dc450f585d474b39b5dfb86a500831ab6c7 \
@@ -636,9 +636,9 @@ nbclient==0.5.10 \
     --hash=sha256:5b582e21c8b464e6676a9d60acc6871d7fbc3b080f74bef265a9f90411b31f6f \
     --hash=sha256:b5fdea88d6fa52ca38de6c2361401cfe7aaa7cd24c74effc5e489cec04d79088
     # via nbconvert
-nbconvert==6.4.0 \
-    --hash=sha256:5412ec774c6db4fccecb8c4ba07ec5d37d6dcf5762593cb3d6ecbbeb562ebbe5 \
-    --hash=sha256:f5ec6a1fad9e3aa2bee7c6a1c4ad3e0fafaa7ff64f29ba56d9da7e1669f8521c
+nbconvert==6.4.1 \
+    --hash=sha256:7dce3f977c2f9651841a3c49b5b7314c742f24dd118b99e51b8eec13c504f555 \
+    --hash=sha256:fe93bc42485c54c5a49a2324c834aca1ff315f320a535bed3e3c4e085d3eebe3
     # via
     #   jupyter-server
     #   notebook
@@ -1124,9 +1124,9 @@ stevedore==3.5.0 \
     --hash=sha256:a547de73308fd7e90075bb4d301405bebf705292fa90a90fc3bcf9133f58616c \
     --hash=sha256:f40253887d8712eaa2bb0ea3830374416736dc8ec0e22f5a65092c1174c44335
     # via bandit
-terminado==0.12.1 \
-    --hash=sha256:09fdde344324a1c9c6e610ee4ca165c4bb7f5bbf982fceeeb38998a988ef8452 \
-    --hash=sha256:b20fd93cc57c1678c799799d117874367cc07a3d2d55be95205b1a88fa08393f
+terminado==0.13.0 \
+    --hash=sha256:50a18654ad0cff153fdeb58711c9a7b25e0e2b74fb721dbaddd9e80d5612fac6 \
+    --hash=sha256:713531ccb5db7d4f544651f14050da79809030f00d1afa21462088cf32fb143a
     # via
     #   jupyter-server
     #   notebook
