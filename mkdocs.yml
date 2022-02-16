@@ -28,6 +28,7 @@ nav:
 
 plugins:
   - render_swagger
+  - mermaid2
 
 extra_css:
   - css/openapi-darkmode-fix.css
