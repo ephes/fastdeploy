@@ -25,7 +25,7 @@ theme:
 nav:
   - Home: index.md
   - About: about.md
-  - ER-Diagram: er_diagram.md
+  - Database: database.md
 
 plugins:
   - render_swagger
