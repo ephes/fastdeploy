@@ -25,6 +25,7 @@ theme:
 nav:
   - Home: index.md
   - About: about.md
+  - Domain: domain.md
   - Database: database.md
 
 plugins:
