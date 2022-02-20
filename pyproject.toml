@@ -13,11 +13,14 @@ skips = ["B101"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 env = [
-    "DATABASE_URL = sqlite:///:memory:?cache=shared",
-    "REPOSITORY = in_memory",
+    # "DATABASE_URL = sqlite:///:memory:?cache=shared",
+    # "REPOSITORY = in_memory",
+    "DATABASE_URL = postgres:///deploy",
+    "REPOSITORY = sqlite",
     "PASSWORD_HASH_ALGORITHM = ldap_md5",
 ]
-testpaths = "app/tests"
+# testpaths = "app/tests"
+testpaths = "tests"
 asyncio_mode = "strict"
 
 [tool.flake8]
