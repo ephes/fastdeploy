@@ -18,3 +18,4 @@ mkdocs
 mkdocs-material
 mkdocs-render-swagger-plugin
 mkdocs-mermaid2-plugin
+honcho
