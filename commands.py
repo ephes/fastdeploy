@@ -15,11 +15,11 @@ from httpx import Client
 from rich import print as rprint
 from rich.prompt import Prompt
 
-from app import database
-from app.auth import create_access_token, get_password_hash
-from app.config import settings
-from app.filesystem import working_directory
-from app.models import User
+from deploy import database
+from deploy.auth import create_access_token, get_password_hash
+from deploy.config import settings
+from deploy.filesystem import working_directory
+from deploy.models import User
 
 
 CWD = "."
@@ -91,24 +91,24 @@ def update():
         "--upgrade",
         "--allow-unsafe",
         "--generate-hashes",
-        "app/requirements/production.in",
+        "deploy/requirements/production.in",
     ]
     subprocess.call(  # develop + production
         [
             *base_command,
-            "app/requirements/develop.in",
+            "deploy/requirements/develop.in",
             "--output-file",
-            "app/requirements/develop.txt",
+            "deploy/requirements/develop.txt",
         ]
     )
     subprocess.call(  # production only
         [
             *base_command,
             "--output-file",
-            "app/requirements/production.txt",
+            "deploy/requirements/production.txt",
         ]
     )
-    subprocess.call([sys.executable, "-m", "piptools", "sync", "app/requirements/develop.txt"])
+    subprocess.call([sys.executable, "-m", "piptools", "sync", "deploy/requirements/develop.txt"])
     with working_directory(settings.project_root / "frontend"):
         subprocess.call(["npm", "update"])
 
@@ -202,7 +202,7 @@ def docs_build(site_path: Path = Path(CWD) / "site"):
 @cli.command()
 def docs_openapi(doc_path: Path = Path(CWD) / "docs"):
     """load new openapi.json into mkdocs"""
-    from app.main import app as fastapi_app
+    from deploy.main import app as fastapi_app
 
     open_api_schema = fastapi_app.openapi()
     with open(doc_path / "openapi.json", "w") as file:
