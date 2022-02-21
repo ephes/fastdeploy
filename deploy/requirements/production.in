@@ -6,3 +6,5 @@ python-jose[cryptography]
 httpx
 typer
 rich
+psycopg2
+trio

@@ -12,6 +12,7 @@ from .models import (
     StepOut,
     User,
 )
+from .pydantic_models import PServiceOut
 
 
 with working_directory(settings.project_root):
@@ -272,7 +273,8 @@ class SQLiteRepository(BaseRepository):
         self.engine = engine
 
     def reset(self):
-        SQLModel.metadata.drop_all(self.engine)
+        # SQLModel.metadata.drop_all(self.engine)
+        # drop_db_and_tables()
         create_db_and_tables()
 
     # User
@@ -299,7 +301,7 @@ class SQLiteRepository(BaseRepository):
             session.add(service)
             session.commit()
             session.refresh(service)
-        await self.dispatch_event(ServiceOut.parse_obj(service))
+        await self.dispatch_event(PServiceOut(**service.dict()))
         return service
 
     async def get_service_by_name(self, name: str) -> Service | None:
@@ -457,3 +459,11 @@ if settings.repository == "sqlite":
     repository = SQLiteRepository()
 elif settings.repository == "in_memory":
     repository = InMemoryRepository()
+
+
+# class SQLAlchemyServiceRepository:
+#     def __init__(self, session):
+#         self.session = session
+
+
+# services_repo = SQLAlchemyServiceRepository(sessionmaker(bind=get_engine()))

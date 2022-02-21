@@ -3,9 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from fastapi import WebSocket
-
 from app.websocket import ConnectionManager
+from fastapi import WebSocket
 
 
 @pytest.mark.asyncio

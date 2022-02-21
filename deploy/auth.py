@@ -53,9 +53,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 class TokenBase(BaseModel):
     type: str
     exp: int
-    item_from_db: Optional[BaseModel]
+    item_from_db: Optional[BaseModel | User]
 
-    def item_exists_in_database(self, item_from_db: Optional[BaseModel]):
+    class Config:
+        arbitrary_types_allowed = True
+
+    def item_exists_in_database(self, item_from_db: Optional[BaseModel | User]):
         return self.item_from_db is not None
 
     async def fetch_item_from_db(self):
@@ -79,6 +82,9 @@ class TokenBase(BaseModel):
 class UserToken(TokenBase):
     user: str
     user_model: Optional[User]
+
+    class Config:
+        arbitrary_types_allowed = True
 
     async def on_validation_success(self):
         self.user_model = cast(User, self.item_from_db)

@@ -6,7 +6,18 @@ from sqlalchemy.sql.schema import Column
 from sqlmodel import Field, SQLModel
 
 
-class User(SQLModel, table=True):
+class User:
+    """
+    User model used for authentication.
+    """
+
+    def __init__(self, *, id=None, name=None, password=None):
+        self.id = id
+        self.name = name
+        self.password = password
+
+
+class PydanticUser(SQLModel, table=True):
     """
     User model used for authentication.
     """
@@ -62,7 +73,21 @@ class StepOut(Step):
         return serialized
 
 
-class Service(SQLModel, table=True):
+class Service:
+    def __init__(self, *, id=None, name: str = "", data={}):
+        self.id = id
+        self.name = name
+        self.data = data
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "data": self.data,
+        }
+
+
+class ServicePydantic(SQLModel, table=True):
     """
     Services are deployed. They have a name and a config (which is a JSON)
     and reflected in the data attribute. They also need to have a script

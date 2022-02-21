@@ -3,10 +3,9 @@ from unittest.mock import patch
 import pytest
 import pytest_asyncio
 
-from httpx import AsyncClient
-
 from app.auth import token_to_payload
 from app.models import Deployment, Service, Step
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
