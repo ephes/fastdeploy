@@ -41,4 +41,4 @@ createuser deploy
 
 psql -d deploy -c "GRANT ALL PRIVILEGES ON DATABASE deploy to deploy;"
 
-postgres:///deploy
+postgresql:///deploy
