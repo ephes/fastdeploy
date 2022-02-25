@@ -6,25 +6,25 @@ from sqlalchemy.sql.schema import Column
 from sqlmodel import Field, SQLModel
 
 
-class User:
-    """
-    User model used for authentication.
-    """
+# class User:
+#     """
+#     User model used for authentication.
+#     """
 
-    def __init__(self, *, id=None, name=None, password=None):
-        self.id = id
-        self.name = name
-        self.password = password
+#     def __init__(self, *, id=None, name=None, password=None):
+#         self.id = id
+#         self.name = name
+#         self.password = password
 
 
-class PydanticUser(SQLModel, table=True):
-    """
-    User model used for authentication.
-    """
+# class PydanticUser(SQLModel, table=True):
+#     """
+#     User model used for authentication.
+#     """
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(sa_column=Column("name", String, unique=True))
-    password: str
+#     id: Optional[int] = Field(default=None, primary_key=True)
+#     name: str = Field(sa_column=Column("name", String, unique=True))
+#     password: str
 
 
 class StepBase(SQLModel):

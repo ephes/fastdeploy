@@ -44,8 +44,8 @@ def inject_dependencies(handler, dependencies):
     return lambda message: handler(message, **deps)
 
 
-bus = bootstrap()
+# bus = bootstrap()
 
 
 def get_bus() -> messagebus.MessageBus:
-    return bus
+    return bootstrap()

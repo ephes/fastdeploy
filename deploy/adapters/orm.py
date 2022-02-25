@@ -14,7 +14,7 @@ users = Table(
     "user",
     metadata_obj,
     Column("id", Integer, primary_key=True),
-    Column("name", String(255)),
+    Column("name", String(255), unique=True),
     Column("password", String(255)),
 )
 
@@ -23,7 +23,7 @@ services = Table(
     "service",
     metadata_obj,
     Column("id", Integer, primary_key=True),
-    Column("name", String(255)),
+    Column("name", String(255), unique=True),
     Column("data", JSON, default={}),
 )
 
@@ -37,6 +37,7 @@ def drop_db_and_tables():
 
 
 def start_mappers():
+    print("start mappers")
     mapper(model.User, users)
     mapper(model.Service, services)
 

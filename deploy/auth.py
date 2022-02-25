@@ -7,9 +7,10 @@ from jose import jwt  # type: ignore
 from passlib.context import CryptContext  # type: ignore
 from pydantic import BaseModel
 
-from . import database
+from .bootstrap import get_bus
 from .config import settings
-from .models import Deployment, Service, User
+from .domain.model import Deployment, Service, User
+from .service_layer.messagebus import MessageBus
 
 
 PWD_CONTEXT = CryptContext(schemes=[settings.password_hash_algorithm], deprecated="auto")
@@ -30,7 +31,8 @@ def verify_password(plain, hashed):
 
 
 async def authenticate_user(username: str, password: str):
-    user = await database.repository.get_user_by_name(username)
+    # user = await database.repository.get_user_by_name(username)
+    user = None
 
     if not user:
         return False
@@ -54,6 +56,7 @@ class TokenBase(BaseModel):
     type: str
     exp: int
     item_from_db: Optional[BaseModel | User]
+    bus: MessageBus
 
     class Config:
         arbitrary_types_allowed = True
@@ -90,7 +93,8 @@ class UserToken(TokenBase):
         self.user_model = cast(User, self.item_from_db)
 
     async def fetch_item_from_db(self) -> Optional[User]:
-        return await database.repository.get_user_by_name(self.user)
+        [user] = self.bus.uow.users.get(self.user)
+        return user
 
 
 class ServiceToken(TokenBase):
@@ -103,17 +107,19 @@ class ServiceToken(TokenBase):
         self.service_model = cast(Service, self.item_from_db)
 
     async def fetch_item_from_db(self):
-        return await database.repository.get_service_by_name(self.service)
+        ...
+        # return await database.repository.get_service_by_name(self.service)
 
 
 class DeploymentToken(TokenBase):
     deployment: int
 
     async def fetch_item_from_db(self):
-        return await database.repository.get_deployment_by_id(self.deployment)
+        ...
+        # return await database.repository.get_deployment_by_id(self.deployment)
 
 
-def payload_to_token(payload) -> UserToken | ServiceToken | DeploymentToken:
+def payload_to_token(payload, bus: MessageBus) -> UserToken | ServiceToken | DeploymentToken:
     type_to_token = {
         "user": UserToken,
         "service": ServiceToken,
@@ -123,7 +129,7 @@ def payload_to_token(payload) -> UserToken | ServiceToken | DeploymentToken:
         raise ValueError("unknown token type")
     # butt ugly FIXME
     if token_type is UserToken:
-        return UserToken(**payload)
+        return UserToken(**payload, bus=bus)
     elif token_type is ServiceToken:
         return ServiceToken(**payload)
     elif token_type is DeploymentToken:
@@ -140,23 +146,23 @@ async def token_to_payload(token: str):
     )
 
 
-async def verify_access_token(access_token: str) -> UserToken | ServiceToken | DeploymentToken:
+async def verify_access_token(access_token: str, bus: MessageBus) -> UserToken | ServiceToken | DeploymentToken:
     payload = await token_to_payload(access_token)
-    token = payload_to_token(payload)
+    token = payload_to_token(payload, bus)
     assert await token.validate()
     return token
 
 
-async def get_user_token_from_access_token(token: str) -> UserToken:
-    user_token = await verify_access_token(token)
+async def get_user_token_from_access_token(token: str, bus: MessageBus) -> UserToken:
+    user_token = await verify_access_token(token, bus)
     assert isinstance(user_token, UserToken)
     assert isinstance(user_token.user_model, User)
     return user_token
 
 
-async def get_current_user(token: str = Depends(OAUTH2_SCHEME)) -> User:
+async def get_current_user(token: str = Depends(OAUTH2_SCHEME), bus: MessageBus = Depends(get_bus)) -> User:
     try:
-        user_token = await get_user_token_from_access_token(token)
+        user_token = await get_user_token_from_access_token(token, bus)
         assert isinstance(user_token.user_model, User)
         return user_token.user_model
     except Exception:
