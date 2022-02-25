@@ -49,10 +49,13 @@ def rollback_postgres_session(postgres_db):
 
 
 @pytest.fixture
-def rollback_postgres_uow(rollback_postgres_session):
+def rollback_postgres_uow(request, rollback_postgres_session):
     """
     Returns a unit of work that rolls back all changes after each test.
     """
+    print("request: ", request)
+    marks = [m.name for m in request.node.iter_markers()]
+    print("marks: ", marks)
 
     def session_factory():
         """
