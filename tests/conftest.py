@@ -74,11 +74,17 @@ def rolling_back_postgres_uow(rolling_back_postgres_session):
 
 
 @pytest.fixture
+def in_memory_uow():
+    return unit_of_work.InMemoryUnitOfWork()
+
+
+@pytest.fixture
 def uow(request, database_type):
     """Builds a unit of work for the given database type."""
-    default_uow_fixture_name = "rolling_back_postgres_uow"  # default
-    if database_type == "postgres":
-        return request.getfixturevalue("rolling_back_postgres_uow")
+    # default_uow_fixture_name = "rolling_back_postgres_uow"  # default
+    default_uow_fixture_name = "in_memory_uow"
+    # if database_type == "postgres":
+    #     return request.getfixturevalue("rolling_back_postgres_uow")
     return request.getfixturevalue(default_uow_fixture_name)
 
 
@@ -122,7 +128,6 @@ def valid_access_token(user):
 
 @pytest.fixture
 def valid_access_token_in_db(user_in_db):
-    print("user in db: ", user_in_db)
     return create_access_token({"type": "user", "user": user_in_db.name}, timedelta(minutes=5))
 
 
@@ -137,5 +142,4 @@ def service_in_db(bus, service):
         uow.services.add(service)
         uow.commit()
         [from_db] = uow.services.get(service.name)
-        print("from_db: ", from_db)
     return from_db

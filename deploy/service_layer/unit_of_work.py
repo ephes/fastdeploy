@@ -78,3 +78,19 @@ class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):
 
     def __exit__(self, *args):
         pass
+
+
+class InMemoryUnitOfWork(AbstractUnitOfWork):
+    def __init__(self):
+        self.services = repository.InMemoryServiceRepository()
+        self.users = repository.InMemoryUserRepository()
+        self.committed = False
+
+    def __exit__(self, *args):
+        super().__exit__(*args)
+
+    def _commit(self):
+        self.committed = True
+
+    def rollback(self):
+        pass
