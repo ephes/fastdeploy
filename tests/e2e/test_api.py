@@ -6,7 +6,6 @@ from httpx import AsyncClient
 pytestmark = pytest.mark.anyio
 
 
-@pytest.mark.anyio
 async def test_get_services_without_authentication(app):
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get(app.url_path_for("get_services"))
@@ -15,7 +14,7 @@ async def test_get_services_without_authentication(app):
     assert response.json() == {"detail": "Not authenticated"}
 
 
-@pytest.mark.db("sqlite")
+@pytest.mark.db("database_url")
 async def test_get_empty_list_of_services(app, valid_access_token_in_db):
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get(

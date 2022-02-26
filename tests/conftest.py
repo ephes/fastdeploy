@@ -26,7 +26,7 @@ def anyio_backend():
 
 
 @pytest.fixture(scope="session")
-def postgres_db():
+def database():
     engine = create_engine(settings.database_url)
     orm.metadata_obj.create_all(engine)
     orm.start_mappers()
@@ -38,7 +38,7 @@ def postgres_db():
 @pytest.fixture
 def database_type(request):
     "Make it possible for tests to choose database type"
-    database = "postgres"  # default
+    database = "database_url"  # default
     marker = request.node.get_closest_marker("db")
     if marker is not None:
         database = marker.args[0]
@@ -46,9 +46,9 @@ def database_type(request):
 
 
 @pytest.fixture
-def rolling_back_postgres_session(postgres_db):
+def rolling_back_database_session(database):
     """Wraps the session in a transaction and rolls back after each test."""
-    connection = postgres_db.connect()
+    connection = database.connect()
     transaction = connection.begin()
     session = sessionmaker()(bind=connection)
     yield session
@@ -58,7 +58,7 @@ def rolling_back_postgres_session(postgres_db):
 
 
 @pytest.fixture
-def rolling_back_postgres_uow(rolling_back_postgres_session):
+def rolling_back_database_uow(rolling_back_database_session):
     """
     Returns a unit of work that rolls back all changes after each test.
     """
@@ -68,7 +68,7 @@ def rolling_back_postgres_uow(rolling_back_postgres_session):
         Just a helper to be able to pass the rollback_postgres_session
         to the unit of work.
         """
-        return rolling_back_postgres_session
+        return rolling_back_database_session
 
     return unit_of_work.TestableSqlAlchemyUnitOfWork(session_factory)
 
@@ -81,11 +81,12 @@ def in_memory_uow():
 @pytest.fixture
 def uow(request, database_type):
     """Builds a unit of work for the given database type."""
-    # default_uow_fixture_name = "rolling_back_postgres_uow"  # default
-    default_uow_fixture_name = "in_memory_uow"
-    # if database_type == "postgres":
-    #     return request.getfixturevalue("rolling_back_postgres_uow")
-    return request.getfixturevalue(default_uow_fixture_name)
+    if database_type == "database_url":
+        return request.getfixturevalue("rolling_back_database_uow")
+    elif database_type == "in_memory":
+        return request.getfixturevalue("in_memory_uow")
+    else:
+        raise ValueError(f"unknown database type: {database_type}")
 
 
 @pytest.fixture
