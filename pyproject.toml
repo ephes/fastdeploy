@@ -24,7 +24,7 @@ testpaths = "tests"
 asyncio_mode = "strict"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "sqlite",
+    "db",
 ]
 
 [tool.flake8]

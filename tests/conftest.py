@@ -36,41 +36,56 @@ def postgres_db():
 
 
 @pytest.fixture
-def rollback_postgres_session(postgres_db):
+def database_type(request):
+    "Make it possible for tests to choose database type"
+    database = "postgres"  # default
+    marker = request.node.get_closest_marker("db")
+    if marker is not None:
+        database = marker.args[0]
+    return database
+
+
+@pytest.fixture
+def rolling_back_postgres_session(postgres_db):
     """Wraps the session in a transaction and rolls back after each test."""
     connection = postgres_db.connect()
     transaction = connection.begin()
     session = sessionmaker()(bind=connection)
     yield session
-    print("cleanup/rollback session..")
     session.close()
     transaction.rollback()
     connection.close()
 
 
 @pytest.fixture
-def rollback_postgres_uow(request, rollback_postgres_session):
+def rolling_back_postgres_uow(rolling_back_postgres_session):
     """
     Returns a unit of work that rolls back all changes after each test.
     """
-    print("request: ", request)
-    marks = [m.name for m in request.node.iter_markers()]
-    print("marks: ", marks)
 
     def session_factory():
         """
         Just a helper to be able to pass the rollback_postgres_session
         to the unit of work.
         """
-        return rollback_postgres_session
+        return rolling_back_postgres_session
 
     return unit_of_work.TestableSqlAlchemyUnitOfWork(session_factory)
 
 
 @pytest.fixture
-def bus(rollback_postgres_uow):
+def uow(request, database_type):
+    """Builds a unit of work for the given database type."""
+    default_uow_fixture_name = "rolling_back_postgres_uow"  # default
+    if database_type == "postgres":
+        return request.getfixturevalue("rolling_back_postgres_uow")
+    return request.getfixturevalue(default_uow_fixture_name)
+
+
+@pytest.fixture
+def bus(uow):
     """The central message bus."""
-    return bootstrap(start_orm=False, uow=rollback_postgres_uow)
+    return bootstrap(start_orm=False, uow=uow)
 
 
 @pytest.fixture
