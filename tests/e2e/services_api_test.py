@@ -73,3 +73,5 @@ async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db
             [service] = uow.services.get(service_in_db.id)
 
     # FIXME: make sure deployments for this service are also removed
+    # maybe just listen to the service delete event and run cleanup
+    # function etc...
