@@ -8,3 +8,7 @@ class Command(BaseModel):
 class CreateService(Command):
     name: str
     data: dict
+
+
+class DeleteService(Command):
+    service_id: int

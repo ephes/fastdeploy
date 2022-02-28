@@ -89,10 +89,25 @@ def uow(request, database_type):
         raise ValueError(f"unknown database type: {database_type}")
 
 
+class TestablePublisher:
+    def __init__(self):
+        self.events = []
+
+    def __call__(self, message, event):
+        self.events.append((message, event))
+
+
 @pytest.fixture
-def bus(uow):
+def publisher():
+    return TestablePublisher()
+
+
+@pytest.fixture
+def bus(uow, publisher):
     """The central message bus."""
-    return bootstrap(start_orm=False, uow=uow)
+    print("publisher: ", publisher)
+    bus = bootstrap(start_orm=False, uow=uow, publish=publisher)
+    return bus
 
 
 @pytest.fixture
@@ -142,5 +157,5 @@ def service_in_db(bus, service):
     with bus.uow as uow:
         uow.services.add(service)
         uow.commit()
-        [from_db] = uow.services.get(service.name)
+        [from_db] = uow.services.get_by_name(service.name)
     return from_db

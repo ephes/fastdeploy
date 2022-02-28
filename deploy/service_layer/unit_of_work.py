@@ -23,10 +23,9 @@ class AbstractUnitOfWork(abc.ABC):
         self._commit()
 
     def collect_new_events(self):
-        return []
-        # for product in self.products.seen:
-        #     while product.events:
-        #         yield product.events.pop(0)
+        for service in self.services.seen:
+            while service.events:
+                yield service.events.pop(0)
 
     @abc.abstractmethod
     def _commit(self):

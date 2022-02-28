@@ -5,6 +5,8 @@ from sqlalchemy import JSON, DateTime, String
 from sqlalchemy.sql.schema import Column
 from sqlmodel import Field, SQLModel
 
+from . import events
+
 
 class User:
     """
@@ -78,6 +80,10 @@ class Service:
         self.id = id
         self.name = name
         self.data = data
+        self.events = []  # type: list[events.Event]
+
+    def __repr__(self):
+        return f"Service(id={self.id}, name={self.name})"
 
     def dict(self):
         return {
@@ -85,6 +91,9 @@ class Service:
             "name": self.name,
             "data": self.data,
         }
+
+    def delete(self):
+        self.events.append(events.ServiceDeleted(id=self.id))
 
 
 class ServicePydantic(SQLModel, table=True):

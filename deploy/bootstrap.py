@@ -1,5 +1,7 @@
 import inspect
 
+from typing import Callable
+
 # from .adapters import orm, websocket_eventpublisher
 from .adapters import orm
 from .adapters.notifications import AbstractNotifications, EmailNotifications
@@ -10,6 +12,7 @@ def bootstrap(
     start_orm: bool = True,
     uow: unit_of_work.AbstractUnitOfWork = unit_of_work.SqlAlchemyUnitOfWork(),
     notifications: AbstractNotifications = None,
+    publish: Callable = lambda *args: None,
     # publish: Callable = websocket_eventpublisher.publish,
 ) -> messagebus.MessageBus:
 
@@ -19,8 +22,8 @@ def bootstrap(
     if start_orm:
         orm.start_mappers()
 
-    # dependencies = {"uow": uow, "notifications": notifications, "publish": publish}
-    dependencies = {"uow": uow, "notifications": notifications}
+    dependencies = {"uow": uow, "notifications": notifications, "publish": publish}
+    # dependencies = {"uow": uow, "notifications": notifications}
 
     injected_event_handlers = {
         event_type: [inject_dependencies(handler, dependencies) for handler in event_handlers]

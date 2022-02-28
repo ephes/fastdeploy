@@ -37,7 +37,6 @@ def drop_db_and_tables():
 
 
 def start_mappers():
-    print("start mappers")
     mapper(model.User, users)
     mapper(model.Service, services)
 

@@ -32,15 +32,15 @@ async def get_services(
     return [Service(**s.dict()) for s, in services_from_db]
 
 
-@router.post("/")
-async def add_service(service: Service, bus: MessageBus = Depends(get_bus)) -> Service:
-    service.id = None  # prevent client from setting the id
-    cmd = commands.CreateService(name=service.name, data=service.data)
+@router.delete("/{service_id}")
+async def delete_service(
+    service_id: int,
+    _: model.User = Depends(get_current_active_user),
+    bus: MessageBus = Depends(get_bus),
+) -> dict:
+    """
+    Delete a service. Need to be authenticated.
+    """
+    cmd = commands.DeleteService(service_id=service_id)
     bus.handle(cmd)
-    with bus.uow:
-        stored_services = bus.uow.services.get(service.name)
-        print("stored services: ", stored_services)
-    stored_service = stored_services[0]
-    print("stored service: ", stored_service)
-    # return Service(**stored_service.dict())
-    return Service(id=1, name="foobar", data={"foo": "bar"})
+    return {"detail": f"Service {service_id} deleted"}
