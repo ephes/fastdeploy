@@ -95,7 +95,7 @@ class AbstractUserRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get(self, name) -> model.User:
+    def get(self, name) -> tuple[model.User]:
         return NotImplementedError
 
 

@@ -13,6 +13,7 @@ def bootstrap(
     uow: unit_of_work.AbstractUnitOfWork = unit_of_work.SqlAlchemyUnitOfWork(),
     notifications: AbstractNotifications = None,
     publish: Callable = lambda *args: None,
+    create_db_and_tables: bool = True,
     # publish: Callable = websocket_eventpublisher.publish,
 ) -> messagebus.MessageBus:
 
@@ -21,6 +22,9 @@ def bootstrap(
 
     if start_orm:
         orm.start_mappers()
+
+    if create_db_and_tables:
+        orm.create_db_and_tables()
 
     dependencies = {"uow": uow, "notifications": notifications, "publish": publish}
 

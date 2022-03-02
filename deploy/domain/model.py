@@ -18,6 +18,16 @@ class User:
         self.name = name
         self.password = password
 
+    def __repr__(self):
+        return f"User(id={self.id}, name={self.name})"
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "password": self.password,
+        }
+
 
 class PydanticUser(SQLModel, table=True):
     """
