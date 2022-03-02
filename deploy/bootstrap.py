@@ -23,7 +23,6 @@ def bootstrap(
         orm.start_mappers()
 
     dependencies = {"uow": uow, "notifications": notifications, "publish": publish}
-    # dependencies = {"uow": uow, "notifications": notifications}
 
     injected_event_handlers = {
         event_type: [inject_dependencies(handler, dependencies) for handler in event_handlers]
