@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ... import views
@@ -42,5 +42,8 @@ async def delete_service(
     Delete a service. Need to be authenticated.
     """
     cmd = commands.DeleteService(service_id=service_id)
-    bus.handle(cmd)
+    try:
+        bus.handle(cmd)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Service does not exist")
     return {"detail": f"Service {service_id} deleted"}

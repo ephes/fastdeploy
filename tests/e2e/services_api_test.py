@@ -49,6 +49,18 @@ async def test_delete_service_without_authentication(app):
     assert response.json() == {"detail": "Not authenticated"}
 
 
+@pytest.mark.db("database_url")
+async def test_delete_not_existingservice(app, valid_access_token_in_db):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.delete(
+            app.url_path_for("delete_service", service_id=42),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Service does not exist"}
+
+
 @pytest.mark.db("in_memory")
 async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db, publisher, uow):
     async with AsyncClient(app=app, base_url="http://test") as client:
