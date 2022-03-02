@@ -105,7 +105,6 @@ def publisher():
 @pytest.fixture
 def bus(uow, publisher):
     """The central message bus."""
-    print("publisher: ", publisher)
     bus = bootstrap(start_orm=False, uow=uow, publish=publisher)
     return bus
 
