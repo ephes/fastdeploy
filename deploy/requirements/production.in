@@ -1,6 +1,7 @@
 fastapi[all]
 orjson
-sqlmodel
+asyncpg
+sqlalchemy[asyncio]
 passlib[bcrypt]
 python-jose[cryptography]
 httpx
