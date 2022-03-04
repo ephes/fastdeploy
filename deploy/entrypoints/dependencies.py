@@ -24,7 +24,7 @@ async def get_current_active_user(
     bus: MessageBus = Depends(get_bus),
 ) -> User:
     try:
-        return user_from_token(token, bus.uow)
+        return await user_from_token(token, bus.uow)
     except Exception:
         raise CREDENTIALS_EXCEPTION
 
@@ -34,7 +34,7 @@ async def get_current_active_service(
     bus: MessageBus = Depends(get_bus),
 ) -> Service:
     try:
-        return service_from_token(token, bus.uow)
+        return await service_from_token(token, bus.uow)
     except Exception:
         raise CREDENTIALS_EXCEPTION
 
@@ -44,6 +44,6 @@ async def get_current_active_deployment(
     bus: MessageBus = Depends(get_bus),
 ) -> Deployment:
     try:
-        return deployment_from_token(token, bus.uow)
+        return await deployment_from_token(token, bus.uow)
     except Exception:
         raise CREDENTIALS_EXCEPTION

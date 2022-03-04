@@ -7,7 +7,7 @@ def service_by_name(name: str, uow: unit_of_work.SqlAlchemyUnitOfWork):
     return service
 
 
-def all_services(uow: unit_of_work.AbstractUnitOfWork):
-    with uow:
-        services_from_db = uow.services.list()
+async def all_services(uow: unit_of_work.AbstractUnitOfWork):
+    async with uow:
+        services_from_db = await uow.services.list()
     return services_from_db

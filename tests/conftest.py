@@ -1,16 +1,18 @@
+import asyncio
+
 from datetime import timedelta
 
 import pytest
+import pytest_asyncio
 
-from sqlalchemy import create_engine
-
-# from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.orm import clear_mappers, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 from deploy.adapters import orm
 from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap, get_bus
-from deploy.config import settings
+
+# from deploy.config import settings
 from deploy.domain import model
 from deploy.entrypoints.fastapi_app import app as fastapi_app
 from deploy.service_layer import unit_of_work
@@ -21,21 +23,29 @@ def base_url():
     return "http://test"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def anyio_backend():
     """Choose asyncio backend for tests"""
-    return "trio"
+    return "asyncio"
 
 
 @pytest.fixture(scope="session")
-def database():
-    engine = create_engine(settings.database_url)
-    # engine = create_async_engine(settings.database_url)
-    orm.metadata_obj.create_all(engine)
+def event_loop():
+    return asyncio.new_event_loop()
+
+
+@pytest_asyncio.fixture(scope="session")
+async def database():
+    meta = orm.metadata_obj
+    engine = create_async_engine("postgresql+asyncpg:///deploy", echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(meta.drop_all)
+        await conn.run_sync(meta.create_all)
     orm.start_mappers()
     yield engine
-    orm.metadata_obj.drop_all(engine)
-    clear_mappers()
+    async with engine.begin() as conn:
+        await conn.run_sync(meta.drop_all)
+    await engine.dispose()
 
 
 @pytest.fixture
@@ -48,16 +58,16 @@ def database_type(request):
     return database
 
 
-@pytest.fixture
-def rolling_back_database_session(database):
+@pytest_asyncio.fixture()
+async def rolling_back_database_session(database):
     """Wraps the session in a transaction and rolls back after each test."""
-    connection = database.connect()
-    transaction = connection.begin()
-    session = sessionmaker()(bind=connection)
+    connection = await database.connect()
+    transaction = await connection.begin()
+    session = sessionmaker(class_=AsyncSession, expire_on_commit=False)(bind=connection)
     yield session
-    session.close()
-    transaction.rollback()
-    connection.close()
+    await session.close()
+    await transaction.rollback()
+    await connection.close()
 
 
 @pytest.fixture
@@ -66,7 +76,7 @@ def rolling_back_database_uow(rolling_back_database_session):
     Returns a unit of work that rolls back all changes after each test.
     """
 
-    def session_factory():
+    async def session_factory():
         """
         Just a helper to be able to pass the rollback_postgres_session
         to the unit of work.
@@ -131,11 +141,12 @@ def user(password):
     return model.User(name="user", password=get_password_hash(password))
 
 
-@pytest.fixture
-def user_in_db(bus, user):
-    with bus.uow as uow:
-        uow.users.add(user)
-        [from_db] = uow.users.get(user.name)
+@pytest_asyncio.fixture()
+async def user_in_db(bus, user):
+    async with bus.uow as uow:
+        await uow.users.add(user)
+        await uow.commit()
+        [from_db] = await uow.users.get(user.name)
     return from_db
 
 
@@ -154,10 +165,10 @@ def service():
     return model.Service(name="fastdeploytest", data={"foo": "bar"})
 
 
-@pytest.fixture
-def service_in_db(bus, service):
-    with bus.uow as uow:
-        uow.services.add(service)
-        uow.commit()
-        [from_db] = uow.services.get_by_name(service.name)
+@pytest_asyncio.fixture()
+async def service_in_db(bus, service):
+    async with bus.uow as uow:
+        await uow.services.add(service)
+        await uow.commit()
+        [from_db] = await uow.services.get_by_name(service.name)
     return from_db

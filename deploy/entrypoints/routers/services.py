@@ -28,7 +28,7 @@ async def get_services(
     """
     Get a list of all services. Need to be authenticated.
     """
-    services_from_db = views.all_services(bus.uow)
+    services_from_db = await views.all_services(bus.uow)
     return [Service(**s.dict()) for s, in services_from_db]
 
 
@@ -43,7 +43,8 @@ async def delete_service(
     """
     cmd = commands.DeleteService(service_id=service_id)
     try:
-        bus.handle(cmd)
-    except Exception:
+        await bus.handle(cmd)
+    except Exception as e:
+        print("error: ", e)
         raise HTTPException(status_code=404, detail="Service does not exist")
     return {"detail": f"Service {service_id} deleted"}

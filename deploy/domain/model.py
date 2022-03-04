@@ -25,6 +25,9 @@ class User:
     def __repr__(self):
         return f"User(id={self.id}, name={self.name})"
 
+    def __eq__(self, other):
+        return self.id == other.id and self.name == other.name
+
     def dict(self):
         return {
             "id": self.id,
@@ -90,11 +93,14 @@ class StepOut(Step):
 
 
 class Service:
+    id: int | None
+    name: str
+    events = []  # type: list[events.Event]
+
     def __init__(self, *, id=None, name: str = "", data={}):
         self.id = id
         self.name = name
         self.data = data
-        self.events = []  # type: list[events.Event]
 
     def __repr__(self):
         return f"Service(id={self.id}, name={self.name})"

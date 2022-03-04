@@ -24,8 +24,8 @@ def verify_password(plain, hashed):
 
 
 async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWork) -> User | bool:
-    with uow as uow:
-        [user] = uow.users.get(username)
+    async with uow as uow:
+        [user] = await uow.users.get(username)
         uow.session.expunge_all()
 
     if not user:
@@ -67,7 +67,7 @@ def token_to_payload(token: str):
     )
 
 
-def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
+async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
     """
     Turn a JWT token into a User model.
     """
@@ -76,13 +76,13 @@ def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
         raise ValueError("not an access token")
 
     username = payload.get("user")
-    with uow as uow:
-        [user] = uow.users.get(username)
-        uow.session.expunge_all()
+    async with uow as uow:
+        [user] = await uow.users.get(username)
+        uow.session.expunge(user)
     return user
 
 
-def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
+async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
     """
     Turn a JWT token into a Service model.
     """
@@ -93,13 +93,13 @@ def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
     servicename = payload.get("service")
     if servicename is None:
         raise ValueError("no service name")
-    with uow as uow:
-        [service] = uow.services.get_by_name(servicename)
+    async with uow as uow:
+        [service] = await uow.services.get_by_name(servicename)
         uow.session.expunge_all()
     return service
 
 
-def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployment:
+async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployment:
     """
     Turn a JWT token into a Deployment model.
     """
@@ -111,6 +111,6 @@ def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployment:
     if deployment_id is None:
         raise ValueError("no deployment id")
     with uow as uow:
-        [deployment] = uow.deployments.get(deployment_id)
+        [deployment] = await uow.deployments.get(deployment_id)
         uow.session.expunge_all()
     return deployment

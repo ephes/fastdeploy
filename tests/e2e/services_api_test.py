@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy.orm.exc import NoResultFound
 
 
-pytestmark = pytest.mark.anyio
+pytestmark = pytest.mark.asyncio
 
 
 async def test_get_services_without_authentication(app):
@@ -50,7 +50,7 @@ async def test_delete_service_without_authentication(app):
 
 
 @pytest.mark.db("database_url")
-async def test_delete_not_existingservice(app, valid_access_token_in_db):
+async def test_delete_non_existing_service(app, valid_access_token_in_db):
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.delete(
             app.url_path_for("delete_service", service_id=42),
@@ -63,6 +63,9 @@ async def test_delete_not_existingservice(app, valid_access_token_in_db):
 
 @pytest.mark.db("in_memory")
 async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db, publisher, uow):
+    async with uow as uow:
+        print("begin of test services: ", await uow.services.list())
+        print("begin of test users: ", await uow.users.list())
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.delete(
             app.url_path_for("delete_service", service_id=service_in_db.id),
@@ -80,9 +83,9 @@ async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db
     assert delete_event.id == service_in_db.id
 
     # make sure service_in_db is not in db anymore
-    with uow as uow:
-        with pytest.raises((NoResultFound, StopIteration)):
-            [service] = uow.services.get(service_in_db.id)
+    async with uow as uow:
+        with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
+            [service] = await uow.services.get(service_in_db.id)
 
     # FIXME: make sure deployments for this service are also removed
     # maybe just listen to the service delete event and run cleanup

@@ -16,6 +16,7 @@ env = [
     # "DATABASE_URL = sqlite:///:memory:?cache=shared",
     # "REPOSITORY = in_memory",
     "DATABASE_URL = postgresql:///deploy_test",
+    # "DATABASE_URL = postgresql+asyncpg:///deploy",
     "REPOSITORY = sqlite",
     "PASSWORD_HASH_ALGORITHM = ldap_md5",
 ]

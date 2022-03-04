@@ -1,5 +1,4 @@
-# from datetime import datetime, timedelta
-# from unittest.mock import AsyncMock, patch
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -7,21 +6,30 @@ import pytest
 # from httpx import AsyncClient
 from sqlalchemy.orm.exc import NoResultFound
 
-from deploy.auth import (  # get_current_user,; payload_to_token,; verify_access_token,; create_access_token,
+from deploy.auth import (
     authenticate_user,
+    create_access_token,
+    token_to_payload,
+    user_from_token,
     verify_password,
 )
+from deploy.config import settings
 
 
-# from deploy.config import settings
+# from unittest.mock import AsyncMock, patch
 
 
 # from deploy.routers.users import UserOut
 
-pytestmark = pytest.mark.anyio
+pytestmark = pytest.mark.asyncio
 
 
-def test_verify_password(user, password):
+# async def test_database_fixture(async_database):
+#     print("database: ", async_database)
+#     assert False
+
+
+async def test_verify_password(user, password):
     assert verify_password(password, user.password)
     assert not verify_password("", user.password)
 
@@ -38,17 +46,29 @@ async def test_authenticate_user_wrong_password(user_in_db, uow):
 
 async def test_authenticate_happy(user_in_db, password, uow):
     user = user_in_db
-    assert user == await authenticate_user(user.name, password, uow)
+    user_from_db = await authenticate_user(user.name, password, uow)
+    assert user_in_db == user_from_db
 
 
-# async def test_create_access_token_without_expire():
-#     access_token = create_access_token(data={"type": "user", "user": "user"})
-#     repository = AsyncMock()
-#     with patch("app.database.repository", new=repository):
-#         token = await verify_access_token(access_token)
-#     expected_expire = datetime.utcnow() + timedelta(minutes=settings.default_expire_minutes)
-#     diff_seconds = (expected_expire - token.expires_at).total_seconds()
-#     assert diff_seconds < 1
+async def test_create_access_token_without_expire():
+    access_token = create_access_token(payload={"type": "user", "user": "user"})
+    payload = token_to_payload(access_token)
+    expires_at = datetime.utcfromtimestamp(payload["exp"])
+    expected_expire = datetime.utcnow() + timedelta(minutes=settings.default_expire_minutes)
+    diff_seconds = (expected_expire - expires_at).total_seconds()
+    assert diff_seconds < 1
+
+
+async def test_user_from_token_value_error(uow):
+    token = create_access_token(payload={"type": "asdf", "user": "user", "exp": 123})
+    with pytest.raises(ValueError):
+        await user_from_token(token, uow)
+
+
+async def test_user_from_token_happy(user_in_db, uow):
+    token = create_access_token(payload={"type": "user", "user": "user", "exp": 123})
+    verified_user = await user_from_token(token, uow)
+    assert verified_user == user_in_db
 
 
 # @pytest.mark.parametrize(

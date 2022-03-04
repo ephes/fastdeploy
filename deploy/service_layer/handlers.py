@@ -1,25 +1,21 @@
 from typing import Callable, Type
 
-from ..domain import commands, events, model
+from ..domain import commands, events
 from ..service_layer.unit_of_work import AbstractUnitOfWork
 
 
-def create_service(command: commands.CreateService, uow: AbstractUnitOfWork):
-    with uow:
-        service = model.Service(name=command.name, data=command.data)
-        uow.services.add(service)
-        uow.commit()
-
-
-def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
-    with uow:
-        [service] = uow.services.get(command.service_id)
-        uow.services.delete(service)
-        uow.commit()
+async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
+    async with uow:
+        print("in delete service: ", command.service_id)
+        print("list services: ", await uow.services.list())
+        [service] = await uow.services.get(command.service_id)
+        print("found service: ", service)
+        await uow.services.delete(service)
+        await uow.commit()
         service.delete()
 
 
-def publish_service_deleted_event(
+async def publish_service_deleted_event(
     event: events.ServiceDeleted,
     publish: Callable,
 ):
@@ -31,6 +27,5 @@ EVENT_HANDLERS = {
 }  # type: dict[Type[events.Event], list[Callable]]
 
 COMMAND_HANDLERS = {
-    commands.CreateService: create_service,
     commands.DeleteService: delete_service,
 }  # type: dict[Type[commands.Command], Callable]

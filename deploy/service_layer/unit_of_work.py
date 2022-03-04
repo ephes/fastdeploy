@@ -14,6 +14,22 @@ class AbstractSession(abc.ABC):
     def expunge_all(self):
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def expunge(self, obj):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def close(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def commit(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def rollback(self):
+        raise NotImplementedError
+
 
 class AbstractUnitOfWork(abc.ABC):
     services: repository.AbstractServiceRepository
@@ -24,11 +40,14 @@ class AbstractUnitOfWork(abc.ABC):
     def __enter__(self) -> AbstractUnitOfWork:
         return self
 
-    def __exit__(self, *args):
-        self.rollback()
+    async def __aenter__(self) -> AbstractUnitOfWork:
+        return self
 
-    def commit(self):
-        self._commit()
+    async def __aexit__(self, *args):
+        await self.rollback()
+
+    async def commit(self):
+        await self._commit()
 
     def collect_new_events(self):
         for service in self.services.seen:
@@ -36,11 +55,11 @@ class AbstractUnitOfWork(abc.ABC):
                 yield service.events.pop(0)
 
     @abc.abstractmethod
-    def _commit(self):
+    async def _commit(self):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def rollback(self):
+    async def rollback(self):
         raise NotImplementedError
 
 
@@ -51,21 +70,22 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, session_factory=DEFAULT_SESSION_FACTORY):
         self.session_factory = session_factory
 
-    def __enter__(self):
-        self.session = self.session_factory()
+    async def __aenter__(self):
+        self.session = await self.session_factory()
         self.services = repository.SqlAlchemyServiceRepository(self.session)
         self.users = repository.SqlAlchemyUserRepository(self.session)
         return super().__enter__()
 
-    def __exit__(self, *args):
-        super().__exit__(*args)
-        self.session.close()
+    async def __aexit__(self, *args):
+        await super().__aexit__(*args)
+        await self.session.close()
 
-    def _commit(self):
-        self.session.commit()
+    async def _commit(self):
+        await self.session.commit()
 
-    def rollback(self):
-        self.session.rollback()
+    async def rollback(self):
+        print("Rolling back")
+        await self.session.rollback()
 
 
 class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):
@@ -83,12 +103,24 @@ class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):
         #joining-a-session-into-an-external-transaction-such-as-for-test-suites
     """
 
-    def __exit__(self, *args):
+    async def __aexit__(self, *args):
         pass
 
 
 class DoNothingSession(AbstractSession):
     def expunge_all(self):
+        pass
+
+    def expunge(self, obj):
+        pass
+
+    def close(self):
+        pass
+
+    def commit(self):
+        pass
+
+    def rollback(self):
         pass
 
 
@@ -99,11 +131,11 @@ class InMemoryUnitOfWork(AbstractUnitOfWork):
         self.users = repository.InMemoryUserRepository()
         self.committed = False
 
-    def __exit__(self, *args):
-        super().__exit__(*args)
+    async def __aexit__(self, *args):
+        await super().__aexit__(*args)
 
-    def _commit(self):
+    async def _commit(self):
         self.committed = True
 
-    def rollback(self):
+    async def rollback(self):
         pass
