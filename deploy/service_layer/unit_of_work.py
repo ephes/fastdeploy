@@ -9,9 +9,17 @@ from ..adapters import repository
 from ..config import settings
 
 
+class AbstractSession(abc.ABC):
+    @abc.abstractmethod
+    def expunge_all(self):
+        raise NotImplementedError
+
+
 class AbstractUnitOfWork(abc.ABC):
     services: repository.AbstractServiceRepository
     users: repository.AbstractUserRepository
+    deployments: repository.AbstractDeploymentRepository
+    session: AbstractSession
 
     def __enter__(self) -> AbstractUnitOfWork:
         return self
@@ -79,8 +87,14 @@ class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):
         pass
 
 
+class DoNothingSession(AbstractSession):
+    def expunge_all(self):
+        pass
+
+
 class InMemoryUnitOfWork(AbstractUnitOfWork):
     def __init__(self):
+        self.session = DoNothingSession()
         self.services = repository.InMemoryServiceRepository()
         self.users = repository.InMemoryUserRepository()
         self.committed = False

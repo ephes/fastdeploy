@@ -13,6 +13,10 @@ class User:
     User model used for authentication.
     """
 
+    id: int | None
+    name: str | None
+    password: str | None
+
     def __init__(self, *, id=None, name=None, password=None):
         self.id = id
         self.name = name
