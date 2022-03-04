@@ -3,6 +3,8 @@ from datetime import timedelta
 import pytest
 
 from sqlalchemy import create_engine
+
+# from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import clear_mappers, sessionmaker
 
 from deploy.adapters import orm
@@ -28,6 +30,7 @@ def anyio_backend():
 @pytest.fixture(scope="session")
 def database():
     engine = create_engine(settings.database_url)
+    # engine = create_async_engine(settings.database_url)
     orm.metadata_obj.create_all(engine)
     orm.start_mappers()
     yield engine
