@@ -74,6 +74,13 @@ async def test_user_from_token_value_error(payload, uow):
         await user_from_token(token, uow)
 
 
+async def test_user_from_token_not_in_db(uow):
+    payload = {"type": "user", "user": "user", "exp": 123}
+    token = create_access_token(payload=payload)
+    with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
+        await user_from_token(token, uow)
+
+
 async def test_user_from_token_happy(user_in_db, uow):
     token = create_access_token(payload={"type": "user", "user": user_in_db.name, "exp": 123})
     verified_user = await user_from_token(token, uow)
@@ -90,6 +97,13 @@ async def test_user_from_token_happy(user_in_db, uow):
 async def test_service_from_token_value_error(payload, uow):
     token = create_access_token(payload=payload)
     with pytest.raises(ValueError):
+        await service_from_token(token, uow)
+
+
+async def test_service_from_token_not_in_db(uow):
+    payload = {"type": "service", "service": "fastdeploy", "exp": 123}
+    token = create_access_token(payload=payload)
+    with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
         await service_from_token(token, uow)
 
 
@@ -113,45 +127,18 @@ async def test_deployment_from_token_value_error(payload, uow):
         await deployment_from_token(token, uow)
 
 
+async def test_deployment_from_token_not_in_db(uow):
+    payload = {"type": "deployment", "deployment": 23, "exp": 123}
+    token = create_access_token(payload=payload)
+    with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
+        await deployment_from_token(token, uow)
+
+
 async def test_deployment_from_token_happy(deployment_in_db, uow):
     payload = {"type": "deployment", "deployment": deployment_in_db.id, "exp": 123}
     token = create_access_token(payload=payload)
     verified_deployment = await deployment_from_token(token, uow)
     assert verified_deployment == deployment_in_db
-
-
-# @pytest.mark.parametrize(
-#     "payload",
-#     [
-#         {"type": "user", "user": "user", "exp": 123},
-#         {"type": "service", "service": "fastdeploy", "origin": "GitHub", "user": "user", "exp": 123},
-#         {"type": "deployment", "deployment": 1, "exp": 123},
-#     ],
-# )
-# @pytest.mark.asyncio
-# async def test_payload_to_token_valid(payload):
-#     token = payload_to_token(payload)
-#     repository = AsyncMock()
-#     with patch("app.database.repository", new=repository):
-#         assert await token.validate()
-
-
-# @pytest.mark.parametrize(
-#     "payload",
-#     [
-#         {"type": "asdf", "user": "user", "exp": 123},
-#         {"user": "user", "exp": 123},
-#     ],
-# )
-# def test_payload_to_token_type_value_error(payload):
-#     with pytest.raises(ValueError):
-#         payload_to_token(payload)
-
-
-# @pytest.mark.asyncio
-# async def test_get_current_user_not_in_db(valid_access_token):
-#     with pytest.raises(HTTPException):
-#         await get_current_user(valid_access_token)
 
 
 # @pytest.mark.asyncio
