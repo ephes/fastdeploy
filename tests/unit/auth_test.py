@@ -60,8 +60,15 @@ async def test_create_access_token_without_expire():
     assert diff_seconds < 1
 
 
-async def test_user_from_token_value_error(uow):
-    token = create_access_token(payload={"type": "asdf", "user": "user", "exp": 123})
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"type": "asdf", "user": "user", "exp": 123},
+        {"type": "user", "exp": 123},
+    ],
+)
+async def test_user_from_token_value_error(payload, uow):
+    token = create_access_token(payload=payload)
     with pytest.raises(ValueError):
         await user_from_token(token, uow)
 
@@ -72,8 +79,15 @@ async def test_user_from_token_happy(user_in_db, uow):
     assert verified_user == user_in_db
 
 
-async def test_service_from_token_value_error(uow):
-    token = create_access_token(payload={"type": "asdf", "service": "foobar", "exp": 123})
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"type": "asdf", "service": "fastdeploy", "exp": 123},
+        {"type": "service", "exp": 123},
+    ],
+)
+async def test_service_from_token_value_error(payload, uow):
+    token = create_access_token(payload=payload)
     with pytest.raises(ValueError):
         await service_from_token(token, uow)
 

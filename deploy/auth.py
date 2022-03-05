@@ -76,6 +76,9 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
         raise ValueError("not an access token")
 
     username = payload.get("user")
+    if username is None:
+        raise ValueError("no user name")
+
     async with uow as uow:
         [user] = await uow.users.get(username)
         uow.session.expunge(user)
@@ -93,6 +96,7 @@ async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
     servicename = payload.get("service")
     if servicename is None:
         raise ValueError("no service name")
+
     async with uow as uow:
         [service] = await uow.services.get_by_name(servicename)
         uow.session.expunge_all()
