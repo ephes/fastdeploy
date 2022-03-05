@@ -16,7 +16,6 @@ async def test_login_required_without_token(app, base_url, user, password):
     assert response.json() == {"detail": "Not authenticated"}
 
 
-@pytest.mark.asyncio
 async def test_api_token(app, base_url, user_in_db, password):
     user = user_in_db
     # post username + password to login to get access token
