@@ -74,6 +74,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.session = await self.session_factory()
         self.services = repository.SqlAlchemyServiceRepository(self.session)
         self.users = repository.SqlAlchemyUserRepository(self.session)
+        self.deployments = repository.SqlAlchemyDeploymentRepository(self.session)
         return super().__enter__()
 
     async def __aexit__(self, *args):
@@ -84,7 +85,6 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         await self.session.commit()
 
     async def rollback(self):
-        print("Rolling back")
         await self.session.rollback()
 
 
@@ -129,6 +129,7 @@ class InMemoryUnitOfWork(AbstractUnitOfWork):
         self.session = DoNothingSession()
         self.services = repository.InMemoryServiceRepository()
         self.users = repository.InMemoryUserRepository()
+        self.deployments = repository.InMemoryDeploymentRepository()
         self.committed = False
 
     async def __aexit__(self, *args):

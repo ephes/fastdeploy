@@ -140,11 +140,11 @@ class InMemoryUserRepository(AbstractUserRepository):
 
 class AbstractDeploymentRepository(abc.ABC):
     @abc.abstractmethod
-    def add(self, deployment: model.Deployment) -> None:
+    async def add(self, deployment: model.Deployment) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get(self, deployment_id: int) -> tuple[model.Deployment]:
+    async def get(self, deployment_id: int) -> tuple[model.Deployment]:
         return NotImplementedError
 
 
@@ -152,21 +152,22 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self, session):
         self.session = session
 
-    def add(self, deployment):
+    async def add(self, deployment):
         self.session.add(deployment)
 
-    def get(self, deployment_id):
+    async def get(self, deployment_id):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
-        return self.session.execute(stmt).one()
+        result = await self.session.execute(stmt)
+        return result.one()
 
 
 class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self):
         self._deployments = []
 
-    def add(self, deployment):
+    async def add(self, deployment):
         self._deployments.append(deployment)
         deployment.id = len(self._deployments)
 
-    def get(self, deployment_id):
+    async def get(self, deployment_id):
         return next((d,) for d in self._deployments if d.id == deployment_id)

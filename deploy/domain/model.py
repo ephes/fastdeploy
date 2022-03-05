@@ -176,7 +176,42 @@ class DeploymentContext(SQLModel):
     env: dict = {}
 
 
-class Deployment(SQLModel, table=True):
+class Deployment:
+    """
+    Representing a single deployment for a service. It has an origin
+    to indicate who started the deployment (GitHub, Frontend, etc..),
+    a context passed to the deployment script and a list of steps.
+    """
+
+    id: int | None
+    service_id: int
+    origin: str
+    user: str
+    started: datetime | None
+    finished: datetime | None
+    context: dict
+
+    def __init__(
+        self,
+        *,
+        id=None,
+        service_id: int,
+        origin: str,
+        user: str,
+        started: datetime | None = None,
+        finished: datetime | None = None,
+        context: dict = {},
+    ):
+        self.id = id
+        self.service_id = service_id
+        self.origin = origin
+        self.user = user
+        self.started = started
+        self.finished = finished
+        self.context = context
+
+
+class DeploymentPydantic(SQLModel, table=True):
     """
     Representing a single deployment for a service. It has an origin
     to indicate who started the deployment (GitHub, Frontend, etc..),

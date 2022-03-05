@@ -9,6 +9,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from deploy.auth import (
     authenticate_user,
     create_access_token,
+    deployment_from_token,
     service_from_token,
     token_to_payload,
     user_from_token,
@@ -97,6 +98,26 @@ async def test_service_from_token_happy(service_in_db, uow):
     token = create_access_token(payload=payload)
     verified_service = await service_from_token(token, uow)
     assert verified_service == service_in_db
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"type": "asdf", "deployment": 23, "exp": 123},
+        {"type": "deployment", "exp": 123},
+    ],
+)
+async def test_deployment_from_token_value_error(payload, uow):
+    token = create_access_token(payload=payload)
+    with pytest.raises(ValueError):
+        await deployment_from_token(token, uow)
+
+
+async def test_deployment_from_token_happy(deployment_in_db, uow):
+    payload = {"type": "deployment", "deployment": deployment_in_db.id, "exp": 123}
+    token = create_access_token(payload=payload)
+    verified_deployment = await deployment_from_token(token, uow)
+    assert verified_deployment == deployment_in_db
 
 
 # @pytest.mark.parametrize(

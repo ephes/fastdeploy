@@ -1,4 +1,14 @@
-from sqlalchemy import JSON, Column, Integer, MetaData, String, Table, create_engine
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+)
 from sqlalchemy.orm import mapper
 
 from ..config import settings
@@ -28,6 +38,19 @@ services = Table(
 )
 
 
+deployments = Table(
+    "deployment",
+    metadata_obj,
+    Column("id", Integer, primary_key=True),
+    Column("service_id", Integer, ForeignKey("service.id")),
+    Column("origin", String(255)),
+    Column("user", String(255)),
+    Column("started", DateTime),
+    Column("finished", DateTime),
+    Column("context", JSON, default={}),
+)
+
+
 def create_db_and_tables():
     metadata_obj.create_all(engine)
 
@@ -39,6 +62,7 @@ def drop_db_and_tables():
 def start_mappers():
     mapper(model.User, users)
     mapper(model.Service, services)
+    mapper(model.Deployment, deployments)
 
 
 def get_engine():

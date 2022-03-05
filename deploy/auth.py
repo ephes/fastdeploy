@@ -114,7 +114,8 @@ async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployme
     deployment_id = payload.get("deployment")
     if deployment_id is None:
         raise ValueError("no deployment id")
-    with uow as uow:
+
+    async with uow as uow:
         [deployment] = await uow.deployments.get(deployment_id)
         uow.session.expunge_all()
     return deployment

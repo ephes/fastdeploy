@@ -172,3 +172,17 @@ async def service_in_db(bus, service):
         await uow.commit()
         [from_db] = await uow.services.get_by_name(service.name)
     return from_db
+
+
+@pytest.fixture
+def deployment(service_in_db):
+    return model.Deployment(service_id=service_in_db.id, origin="github", user="fastdeploy")
+
+
+@pytest_asyncio.fixture()
+async def deployment_in_db(bus, deployment):
+    async with bus.uow as uow:
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        [from_db] = await uow.deployments.get(deployment.id)
+    return from_db
