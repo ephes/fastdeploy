@@ -23,15 +23,21 @@ def verify_password(plain, hashed):
     return PWD_CONTEXT.verify(plain, hashed)
 
 
-async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWork) -> User | bool:
+async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWork) -> User:
+    """
+    Authenticate a user against the database. Raise an exception if the
+    user is not found or the password is incorrect.
+    """
     async with uow as uow:
         [user] = await uow.users.get(username)
         uow.session.expunge_all()
 
-    if not user:
-        return False
+    if user is None:
+        raise ValueError("user is None")
     if not verify_password(password, user.password):
-        return False
+        raise ValueError("invalid password")
+    if not isinstance(user, User):
+        raise ValueError("not a user")
     return user
 
 

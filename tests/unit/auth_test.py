@@ -2,8 +2,6 @@ from datetime import datetime, timedelta
 
 import pytest
 
-# from fastapi import HTTPException
-# from httpx import AsyncClient
 from sqlalchemy.orm.exc import NoResultFound
 
 from deploy.auth import (
@@ -18,17 +16,7 @@ from deploy.auth import (
 from deploy.config import settings
 
 
-# from unittest.mock import AsyncMock, patch
-
-
-# from deploy.routers.users import UserOut
-
 pytestmark = pytest.mark.asyncio
-
-
-# async def test_database_fixture(async_database):
-#     print("database: ", async_database)
-#     assert False
 
 
 async def test_verify_password(user, password):
@@ -43,7 +31,8 @@ async def test_authenticate_user_not_in_db(uow):
 
 async def test_authenticate_user_wrong_password(user_in_db, uow):
     user = user_in_db
-    assert not await authenticate_user(user.name, f"{user.password}foo", uow)
+    with pytest.raises(ValueError):
+        await authenticate_user(user.name, f"{user.password}foo", uow)
 
 
 async def test_authenticate_happy(user_in_db, password, uow):
@@ -139,31 +128,3 @@ async def test_deployment_from_token_happy(deployment_in_db, uow):
     token = create_access_token(payload=payload)
     verified_deployment = await deployment_from_token(token, uow)
     assert verified_deployment == deployment_in_db
-
-
-# @pytest.mark.asyncio
-# async def test_login_required_without_token(app, base_url, user, password):
-#     async with AsyncClient(app=app, base_url=base_url) as client:
-#         response = await client.get("/users/me")
-
-#     assert response.status_code == 401
-#     assert response.json() == {"detail": "Not authenticated"}
-
-
-# @pytest.mark.asyncio
-# async def test_api_token(app, base_url, user_in_db, password):
-#     user = user_in_db
-#     # post username + password to login to get access token
-#     async with AsyncClient(app=app, base_url=base_url) as ac:
-#         response = await ac.post("/token", data={"username": user.name, "password": password})
-#     assert response.status_code == 200
-#     access_token = response.json().get("access_token")
-#     assert access_token is not None
-
-#     # use fetched token to assert we are authenticated now
-#     headers = {"authorization": f"Bearer {access_token}"}
-#     async with AsyncClient(app=app, base_url=base_url) as ac:
-#         response = await ac.get("/users/me", headers=headers)
-
-#     assert response.status_code == 200
-#     assert response.json() == UserOut.from_orm(user).dict()
