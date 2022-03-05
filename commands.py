@@ -1,4 +1,5 @@
-# import asyncio
+import asyncio
+
 # import json
 import os
 
@@ -37,21 +38,28 @@ from deploy.domain import model
 cli = typer.Typer()
 
 
+async def createuser_async(username, password):
+    bus = await bootstrap()
+    # user has to be created after the orm mappers were started
+    user = model.User(name=username, password=get_password_hash(password))
+    async with bus.uow as uow:
+        await uow.users.add(user)
+        await uow.commit()
+        [user_in_db] = await uow.users.get(user.name)
+        uow.session.expunge(user_in_db)
+    return user_in_db
+
+
 @cli.command()
 def createuser():
     """
     Create a new user.
     """
-    bus = bootstrap()
     username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
     password = Prompt.ask("Enter password", password=True)
     rprint(f"creating user {username}")
-    user = model.User(name=username, password=get_password_hash(password))
-    with bus.uow as uow:
-        uow.users.add(user)
-        uow.commit()
-        [user_in_db] = uow.users.get(user.name)
-        rprint(f"created user with id: {user_in_db.id}")
+    user_in_db = asyncio.run(createuser_async(username, password))
+    rprint(f"created user with id: {user_in_db.id}")
 
 
 # @cli.command()

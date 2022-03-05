@@ -8,7 +8,7 @@ from .adapters.notifications import AbstractNotifications, EmailNotifications
 from .service_layer import handlers, messagebus, unit_of_work
 
 
-def bootstrap(
+async def bootstrap(
     start_orm: bool = True,
     uow: unit_of_work.AbstractUnitOfWork = unit_of_work.SqlAlchemyUnitOfWork(),
     notifications: AbstractNotifications = None,
@@ -24,7 +24,7 @@ def bootstrap(
         orm.start_mappers()
 
     if create_db_and_tables:
-        orm.create_db_and_tables()
+        await orm.create_db_and_tables(uow.engine)
 
     dependencies = {"uow": uow, "notifications": notifications, "publish": publish}
 
@@ -53,5 +53,5 @@ def inject_dependencies(handler, dependencies):
 # bus = bootstrap()
 
 
-def get_bus() -> messagebus.MessageBus:
-    return bootstrap()
+async def get_bus() -> messagebus.MessageBus:
+    return await bootstrap()

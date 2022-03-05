@@ -7,18 +7,14 @@ from sqlalchemy import (
     MetaData,
     String,
     Table,
-    create_engine,
 )
-from sqlalchemy.orm import mapper
+from sqlalchemy.orm import registry
 
-from ..config import settings
 from ..domain import model
 
 
-# engine = create_engine(settings.database_url, echo=True, future=True)
-engine = create_engine(settings.database_url, future=True)
 metadata_obj = MetaData()
-# session = Session(engine)
+mapper_registry = registry()
 
 users = Table(
     "user",
@@ -51,20 +47,19 @@ deployments = Table(
 )
 
 
-def create_db_and_tables():
-    metadata_obj.create_all(engine)
+async def create_db_and_tables(engine):
+    async with engine.begin() as conn:
+        await conn.run_sync(metadata_obj.create_all)
 
 
-def drop_db_and_tables():
-    metadata_obj.drop_all(engine)
+MAPPERS_STARTED = False
 
 
 def start_mappers():
-    mapper(model.User, users)
-    mapper(model.Service, services)
-    mapper(model.Deployment, deployments)
-
-
-def get_engine():
-    start_mappers()
-    return engine
+    global MAPPERS_STARTED
+    if MAPPERS_STARTED:
+        return
+    mapper_registry.map_imperatively(model.User, users)
+    mapper_registry.map_imperatively(model.Service, services)
+    mapper_registry.map_imperatively(model.Deployment, deployments)
+    MAPPERS_STARTED = True

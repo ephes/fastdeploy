@@ -11,8 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from deploy.adapters import orm
 from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap, get_bus
-
-# from deploy.config import settings
+from deploy.config import settings
 from deploy.domain import model
 from deploy.entrypoints.fastapi_app import app as fastapi_app
 from deploy.service_layer import unit_of_work
@@ -37,7 +36,7 @@ def event_loop():
 @pytest_asyncio.fixture(scope="session")
 async def database():
     meta = orm.metadata_obj
-    engine = create_async_engine("postgresql+asyncpg:///deploy", echo=False)
+    engine = create_async_engine(settings.database_url, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(meta.drop_all)
         await conn.run_sync(meta.create_all)
@@ -76,14 +75,18 @@ def rolling_back_database_uow(rolling_back_database_session):
     Returns a unit of work that rolls back all changes after each test.
     """
 
-    async def session_factory():
+    def session_factory(bind=None):
         """
         Just a helper to be able to pass the rollback_postgres_session
         to the unit of work.
         """
         return rolling_back_database_session
 
-    return unit_of_work.TestableSqlAlchemyUnitOfWork(session_factory)
+    class FakeEngine:
+        async def connect(self):
+            return None
+
+    return unit_of_work.TestableSqlAlchemyUnitOfWork(session_factory, FakeEngine())
 
 
 @pytest.fixture
@@ -115,10 +118,10 @@ def publisher():
     return TestablePublisher()
 
 
-@pytest.fixture
-def bus(uow, publisher):
+@pytest_asyncio.fixture()
+async def bus(uow, publisher):
     """The central message bus."""
-    bus = bootstrap(start_orm=False, uow=uow, publish=publisher)
+    bus = await bootstrap(start_orm=False, create_db_and_tables=False, uow=uow, publish=publisher)
     return bus
 
 

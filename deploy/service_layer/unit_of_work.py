@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from ..adapters import repository
@@ -32,6 +32,7 @@ class AbstractSession(abc.ABC):
 
 
 class AbstractUnitOfWork(abc.ABC):
+    engine = None
     services: repository.AbstractServiceRepository
     users: repository.AbstractUserRepository
     deployments: repository.AbstractDeploymentRepository
@@ -63,15 +64,18 @@ class AbstractUnitOfWork(abc.ABC):
         raise NotImplementedError
 
 
-DEFAULT_SESSION_FACTORY = sessionmaker(bind=create_engine(settings.database_url, future=True))
+DEFAULT_ENGINE = create_async_engine(settings.database_url, echo=False)
+DEFAULT_SESSION_FACTORY = sessionmaker(class_=AsyncSession, expire_on_commit=False)
 
 
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
-    def __init__(self, session_factory=DEFAULT_SESSION_FACTORY):
+    def __init__(self, session_factory=DEFAULT_SESSION_FACTORY, engine=DEFAULT_ENGINE):
+        self.engine = engine
         self.session_factory = session_factory
 
     async def __aenter__(self):
-        self.session = await self.session_factory()
+        connection = await self.engine.connect()
+        self.session = self.session_factory(bind=connection)
         self.services = repository.SqlAlchemyServiceRepository(self.session)
         self.users = repository.SqlAlchemyUserRepository(self.session)
         self.deployments = repository.SqlAlchemyDeploymentRepository(self.session)
