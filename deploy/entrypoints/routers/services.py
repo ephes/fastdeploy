@@ -42,3 +42,12 @@ async def delete_service(service_id: int, bus: MessageBus = Depends(get_bus)) ->
     except Exception:
         raise HTTPException(status_code=404, detail="Service does not exist")
     return {"detail": f"Service {service_id} deleted"}
+
+
+@router.get("/names/")
+async def get_service_names() -> list[str]:
+    """
+    Get a list of all available service names. Need to be authenticated. Only available
+    services can be created.
+    """
+    return await views.get_service_names()

@@ -41,6 +41,26 @@ async def test_get_services_happy(app, service_in_db, valid_access_token_in_db):
     assert service_from_api["name"] == service_in_db.name
 
 
+async def test_get_service_names_without_authentication(app):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get(app.url_path_for("get_service_names"))
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+
+
+async def test_get_service_names_happy(app, valid_access_token_in_db):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_service_names"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert "fastdeploy" in result
+
+
 async def test_delete_service_without_authentication(app):
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.delete(app.url_path_for("delete_service", service_id=1))
