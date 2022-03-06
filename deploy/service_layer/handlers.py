@@ -6,10 +6,7 @@ from ..service_layer.unit_of_work import AbstractUnitOfWork
 
 async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
     async with uow:
-        print("in delete service: ", command.service_id)
-        print("list services: ", await uow.services.list())
         [service] = await uow.services.get(command.service_id)
-        print("found service: ", service)
         await uow.services.delete(service)
         await uow.commit()
         service.delete()
