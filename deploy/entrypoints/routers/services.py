@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from ... import views
 from ...bootstrap import get_bus
-from ...domain import commands, model
+from ...domain import commands
 from ...service_layer.messagebus import MessageBus
 from ..dependencies import get_current_active_user
 
@@ -11,6 +11,7 @@ from ..dependencies import get_current_active_user
 router = APIRouter(
     prefix="/services",
     tags=["services"],
+    dependencies=[Depends(get_current_active_user)],
     responses={404: {"description": "Not found"}},
 )
 
@@ -22,9 +23,7 @@ class Service(BaseModel):
 
 
 @router.get("/")
-async def get_services(
-    _: model.User = Depends(get_current_active_user), bus: MessageBus = Depends(get_bus)
-) -> list[Service]:
+async def get_services(bus: MessageBus = Depends(get_bus)) -> list[Service]:
     """
     Get a list of all services. Need to be authenticated.
     """
@@ -33,11 +32,7 @@ async def get_services(
 
 
 @router.delete("/{service_id}")
-async def delete_service(
-    service_id: int,
-    _: model.User = Depends(get_current_active_user),
-    bus: MessageBus = Depends(get_bus),
-) -> dict:
+async def delete_service(service_id: int, bus: MessageBus = Depends(get_bus)) -> dict:
     """
     Delete a service. Need to be authenticated.
     """
