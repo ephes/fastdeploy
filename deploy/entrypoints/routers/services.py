@@ -11,6 +11,7 @@ from ..dependencies import get_current_active_user
 router = APIRouter(
     prefix="/services",
     tags=["services"],
+    # all requests to endpoints in this router need to be authenticated
     dependencies=[Depends(get_current_active_user)],
     responses={404: {"description": "Not found"}},
 )
@@ -25,16 +26,16 @@ class Service(BaseModel):
 @router.get("/")
 async def get_services(bus: MessageBus = Depends(get_bus)) -> list[Service]:
     """
-    Get a list of all services. Need to be authenticated.
+    Get a list of all services.
     """
-    services_from_db = await views.all_services(bus.uow)
-    return [Service(**s.dict()) for s, in services_from_db]
+    services_from_db = await views.all_synced_services(bus.uow)
+    return [Service(**s.dict()) for s in services_from_db]
 
 
 @router.delete("/{service_id}")
 async def delete_service(service_id: int, bus: MessageBus = Depends(get_bus)) -> dict:
     """
-    Delete a service. Need to be authenticated.
+    Delete a service.
     """
     cmd = commands.DeleteService(service_id=service_id)
     try:
@@ -45,9 +46,18 @@ async def delete_service(service_id: int, bus: MessageBus = Depends(get_bus)) ->
 
 
 @router.get("/names/")
-async def get_service_names() -> list[str]:
+async def get_service_names(bus: MessageBus = Depends(get_bus)) -> list[str]:
     """
-    Get a list of all available service names. Need to be authenticated. Only available
-    services can be created.
+    Get a list of all available service names Only available services can be created.
     """
-    return await views.get_service_names()
+    return await views.get_service_names(bus.fs)
+
+
+@router.post("/sync")
+async def sync_services(bus: MessageBus = Depends(get_bus)) -> dict:
+    """
+    Sync services from filesytem to database.
+    """
+    cmd = commands.SyncServices()
+    await bus.handle(cmd)
+    return {"detail": "Services synced"}

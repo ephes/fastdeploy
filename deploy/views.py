@@ -1,8 +1,8 @@
 """
 Readonly views.
 """
-from .config import settings
-from .filesystem import get_directories
+from .adapters.filesystem import AbstractFilesystem
+from .domain import model
 from .service_layer import unit_of_work
 
 
@@ -12,11 +12,19 @@ async def service_by_name(name: str, uow: unit_of_work.SqlAlchemyUnitOfWork):
     return service
 
 
-async def all_services(uow: unit_of_work.AbstractUnitOfWork):
+async def all_synced_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.Service]:
     async with uow:
-        services_from_db = await uow.services.list()
-    return services_from_db
+        from_db = await uow.services.list()
+    return [service for service, in from_db]
 
 
-async def get_service_names() -> list[str]:
-    return get_directories(settings.services_root)
+async def get_service_names(fs: AbstractFilesystem) -> list[str]:
+    return fs.list()
+
+
+async def get_services_from_filesystem(fs: AbstractFilesystem) -> list[model.Service]:
+    names = await get_service_names(fs)
+    services = []
+    for name in names:
+        services.append(model.Service(name=name, data=fs.get_config_by_name(name)))
+    return services

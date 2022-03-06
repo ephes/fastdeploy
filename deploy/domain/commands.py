@@ -12,3 +12,7 @@ class CreateService(Command):
 
 class DeleteService(Command):
     service_id: int
+
+
+class SyncServices(Command):
+    pass

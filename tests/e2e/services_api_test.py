@@ -49,7 +49,8 @@ async def test_get_service_names_without_authentication(app):
     assert response.json() == {"detail": "Not authenticated"}
 
 
-async def test_get_service_names_happy(app, valid_access_token_in_db):
+async def test_get_service_names_happy(app, valid_access_token_in_db, services_filesystem):
+    (services_filesystem.root / "fastdeploy").mkdir()  # create service directory
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_service_names"),
@@ -110,3 +111,36 @@ async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db
     # FIXME: make sure deployments for this service are also removed
     # maybe just listen to the service delete event and run cleanup
     # function etc...
+
+
+async def test_sync_services_without_authentication(app):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(app.url_path_for("sync_services"))
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+
+
+@pytest.fixture
+def service_in_fs(services_filesystem):
+    service_directory = services_filesystem.root / "fastdeploy"
+    service_directory.mkdir()
+    service_config = service_directory / "config.json"
+    with service_config.open("w") as f:
+        f.write("{}")
+    return service_directory
+
+
+async def test_sync_services_happy(app, uow, valid_access_token_in_db, service_in_fs):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.post(
+            app.url_path_for("sync_services"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result == {"detail": "Services synced"}
+    async with uow:
+        [service] = await uow.services.get_by_name(service_in_fs.name)
+    assert service.name == service_in_fs.name

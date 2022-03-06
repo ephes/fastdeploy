@@ -8,7 +8,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from deploy.adapters import orm
+from deploy.adapters import filesystem, orm
 from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap, get_bus
 from deploy.config import settings
@@ -118,10 +118,17 @@ def publisher():
     return TestablePublisher()
 
 
+@pytest.fixture
+def services_filesystem(tmp_path) -> filesystem.AbstractFilesystem:
+    return filesystem.Filesystem(tmp_path)
+
+
 @pytest_asyncio.fixture()
-async def bus(uow, publisher):
+async def bus(uow, publisher, services_filesystem):
     """The central message bus."""
-    bus = await bootstrap(start_orm=False, create_db_and_tables=False, uow=uow, publish=publisher)
+    bus = await bootstrap(
+        start_orm=False, create_db_and_tables=False, uow=uow, publish=publisher, fs=services_filesystem
+    )
     return bus
 
 
