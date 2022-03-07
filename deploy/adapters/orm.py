@@ -47,6 +47,19 @@ deployments = Table(
 )
 
 
+steps = Table(
+    "step",
+    metadata_obj,
+    Column("id", Integer, primary_key=True),
+    Column("name", String(255)),
+    Column("started", DateTime),
+    Column("finished", DateTime),
+    Column("state", String(20), default="pending"),
+    Column("message", String(255)),
+    Column("deployment_id", Integer, ForeignKey("deployment.id")),
+)
+
+
 async def create_db_and_tables(engine):
     async with engine.begin() as conn:
         await conn.run_sync(metadata_obj.create_all)
@@ -62,4 +75,5 @@ def start_mappers():
     mapper_registry.map_imperatively(model.User, users)
     mapper_registry.map_imperatively(model.Service, services)
     mapper_registry.map_imperatively(model.Deployment, deployments)
+    mapper_registry.map_imperatively(model.Step, steps)
     MAPPERS_STARTED = True

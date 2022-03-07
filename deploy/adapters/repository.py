@@ -1,6 +1,7 @@
 import abc
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
+from sqlalchemy.orm.exc import NoResultFound
 
 from ..domain import model
 
@@ -147,6 +148,10 @@ class AbstractDeploymentRepository(abc.ABC):
     async def get(self, deployment_id: int) -> tuple[model.Deployment]:
         return NotImplementedError
 
+    @abc.abstractmethod
+    async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
+        return NotImplementedError
+
 
 class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self, session):
@@ -160,6 +165,39 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         result = await self.session.execute(stmt)
         return result.one()
 
+    async def get_last_successful_deployment_id(self, service_id):
+        """
+        Returns the id of the last successful deployment for a service.
+        """
+        statement = text(
+            """
+            select step.deployment_id
+            from deployment, step
+            where step.deployment_id=deployment.id
+            and step.state = 'success'
+            and deployment.service_id = :service_id
+            and deployment.finished is not null
+            and step.deployment_id not in (
+                select distinct(step.deployment_id)
+                from step, deployment
+                where step.deployment_id=deployment.id
+                and deployment.service_id = :service_id
+                and step.state != 'success'
+                group by step.deployment_id
+                having count(step.id) > 1
+            )
+            group by step.deployment_id, deployment.started
+            having count(step.id) > 0
+            order by deployment.started desc
+        """
+        )
+        result = await self.session.execute(statement, {"service_id": service_id})
+        try:
+            [last_successful] = result.one()
+            return last_successful
+        except NoResultFound:
+            return None
+
 
 class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self):
@@ -171,3 +209,62 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
     async def get(self, deployment_id):
         return next((d,) for d in self._deployments if d.id == deployment_id)
+
+    async def get_last_successful_deployment_id(self, service_id):
+        # failed_deployments = set()
+        # for step in self._steps:
+        #     if step.state != "success":
+        #         failed_deployments.add(step.deployment_id)
+        last_successful = None
+        # FIXME dunno how to implement this
+        # for deployment in self.deployments:
+        #     is_for_service = deployment.service_id == service_id
+        #     is_successful = deployment.id not in failed_deployments and deployment.finished is not None
+        #     if is_successful and is_for_service:
+        #         if last_successful is None or deployment.finished > last_successful.finished:
+        #             last_successful = deployment.id
+        return last_successful
+
+
+class AbstractStepRepository(abc.ABC):
+    @abc.abstractmethod
+    async def add(self, step: model.Step) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get(self, step_id: int) -> tuple[model.Step]:
+        return NotImplementedError
+
+    @abc.abstractmethod
+    async def get_steps_from_deployment(self, deployment_id: int) -> list[tuple[model.Step]]:
+        return NotImplementedError
+
+
+class SqlAlchemyStepRepository(AbstractStepRepository):
+    def __init__(self, session):
+        self.session = session
+
+    async def add(self, step):
+        self.session.add(step)
+
+    async def get(self, step_id):
+        stmt = select(model.Step).where(model.Step.id == step_id)
+        result = await self.session.execute(stmt)
+        return result.one()
+
+    async def get_steps_from_deployment(self, deployment_id):
+        stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)
+        result = await self.session.execute(stmt)
+        return result.all()
+
+
+class InMemoryStepRepository(AbstractStepRepository):
+    def __init__(self):
+        self._steps = []
+
+    async def add(self, step):
+        self._steps.append(step)
+        step.id = len(self._steps)
+
+    async def get(self, step_id):
+        return next((s,) for s in self._steps if s.id == step_id)

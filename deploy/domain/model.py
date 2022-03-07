@@ -36,14 +36,39 @@ class User:
         }
 
 
-class PydanticUser(SQLModel, table=True):
+class Step:
     """
-    User model used for authentication.
+    Base class for all deployment steps. All steps have a name.
+    They can also have started and finished timestamps, depending on
+    whether they have been started or finished.
     """
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(sa_column=Column("name", String, unique=True))
-    password: str
+    id: int | None
+    name: str
+    deployment_id: int | None
+
+    def __init__(self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None):
+        self.id = id
+        self.name = name
+        self.started = started
+        self.finished = finished
+        self.state = state
+        self.deployment_id = deployment_id
+        self.message = message
+
+    def __eq__(self, other):
+        return self.id == other.id
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "started": self.started,
+            "finished": self.finished,
+            "state": self.state,
+            "deployment_id": self.deployment_id,
+            "message": self.message,
+        }
 
 
 class StepBase(SQLModel):
@@ -66,7 +91,7 @@ class StepBase(SQLModel):
     message: str = Field(default="", sa_column=Column("message", String))
 
 
-class Step(StepBase, table=True):
+class PydanticStep(StepBase, table=True):
     """
     A step in a deployment process. This is used to store steps in the
     database. If a step is stored in the database, it has to have an
@@ -77,7 +102,7 @@ class Step(StepBase, table=True):
     deployment_id: int = Field(foreign_key="deployment.id")
 
 
-class StepOut(Step):
+class StepOut(PydanticStep):
     """
     Steps which are sent out to the client. If they are received via websocket,
     they need to be identifyable by their type as steps. They also have a
@@ -93,6 +118,12 @@ class StepOut(Step):
 
 
 class Service:
+    """
+    Services are deployed. They have a name and a config (which is a JSON)
+    and reflected in the data attribute. They also need to have a script
+    which is called to deploy them called 'deploy_script' in data.
+    """
+
     id: int | None
     name: str
     events = []  # type: list[events.Event]
@@ -113,7 +144,9 @@ class Service:
         }
 
     def delete(self):
-        self.events.append(events.ServiceDeleted(id=self.id))
+        """Add deleted event if the service was in database."""
+        if self.id is not None:
+            self.events.append(events.ServiceDeleted(id=self.id))
 
 
 class ServicePydantic(SQLModel, table=True):
