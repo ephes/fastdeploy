@@ -35,3 +35,6 @@ yarn.lock
 
 # postgres
 databases/postgres
+
+# documentation
+site/

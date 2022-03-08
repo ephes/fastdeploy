@@ -1,9 +1,8 @@
 import asyncio
+import json
 import os
 import platform
 import subprocess
-
-# import json
 import sys
 
 from datetime import timedelta
@@ -26,8 +25,6 @@ from deploy.domain import model
 
 
 CWD = str(Path(__file__).parent.resolve())
-
-# database.create_db_and_tables()
 cli = typer.Typer()
 
 
@@ -163,83 +160,83 @@ def coverage():
     subprocess.call(["open", "htmlcov/index.html"])
 
 
-# # ---------- DOCUMENTATION mkdocs ---------------------------------------------
-# @cli.command()
-# def docs(
-#     serve: bool = True,
-#     build: bool = False,
-#     clean: bool = False,
-#     openapi: bool = False,
-#     doc_path: Path = Path(CWD) / "docs",
-#     site_path: Path = Path(CWD) / "site",
-# ):
-#     """
-#     default: mkdocs serve
-#     --build: clean, openapi and `mkdocs build`
-#     --clean: delete the site-folder
-#     --openapi: generate a fresh openapi.json
-#     """
-#     if openapi:
-#         docs_openapi(doc_path=doc_path)
-#     elif build:
-#         docs_build(site_path=site_path)
-#     elif clean:
-#         docs_clean(site_path=site_path)
-#     elif serve:
-#         if not (doc_path / "openapi.json").exists():
-#             docs_openapi(doc_path=doc_path)
-#         docs_serve()
+# ---------- DOCUMENTATION mkdocs ---------------------------------------------
+@cli.command()
+def docs(
+    serve: bool = True,
+    build: bool = False,
+    clean: bool = False,
+    openapi: bool = False,
+    doc_path: Path = Path(CWD) / "docs",
+    site_path: Path = Path(CWD) / "site",
+):
+    """
+    default: mkdocs serve
+    --build: clean, openapi and `mkdocs build`
+    --clean: delete the site-folder
+    --openapi: generate a fresh openapi.json
+    """
+    if openapi:
+        docs_openapi(doc_path=doc_path)
+    elif build:
+        docs_build(site_path=site_path)
+    elif clean:
+        docs_clean(site_path=site_path)
+    elif serve:
+        if not (doc_path / "openapi.json").exists():
+            docs_openapi(doc_path=doc_path)
+        docs_serve()
 
 
-# @cli.command()
-# def docs_build(site_path: Path = Path(CWD) / "site"):
-#     """
-#     build mkdocs
+@cli.command()
+def docs_build(site_path: Path = Path(CWD) / "site"):
+    """
+    build mkdocs
 
-#     cleans old docs in doc_path
-#     gets a new openapi-spec
-#     builds new docs to ./site
-#     """
-#     docs_clean(site_path=site_path)
-#     docs_openapi()
-#     command = "mkdocs build"
-#     subprocess.run(command.split(), cwd=CWD, env=None, shell=False)
-
-
-# @cli.command()
-# def docs_openapi(doc_path: Path = Path(CWD) / "docs"):
-#     """load new openapi.json into mkdocs"""
-#     from deploy.main import app as fastapi_app
-
-#     open_api_schema = fastapi_app.openapi()
-#     with open(doc_path / "openapi.json", "w") as file:
-#         json.dump(open_api_schema, file, indent=4)
-#     rprint(f"Updated {doc_path / 'openapi.json'}.")
+    cleans old docs in doc_path
+    gets a new openapi-spec
+    builds new docs to ./site
+    """
+    docs_clean(site_path=site_path)
+    docs_openapi()
+    command = "mkdocs build"
+    subprocess.run(command.split(), cwd=CWD, env=None, shell=False)
 
 
-# @cli.command()
-# def docs_serve():
-#     """serve mkdocs"""
-#     command = "mkdocs serve"
-#     subprocess.run(command.split(), cwd=CWD, env=None, shell=False)
+@cli.command()
+def docs_openapi(doc_path: Path = Path(CWD) / "docs"):
+    """load new openapi.json into mkdocs"""
+    from deploy.entrypoints.fastapi_app import app as fastapi_app
+
+    open_api_schema = fastapi_app.openapi()
+    with open(doc_path / "openapi.json", "w") as file:
+        json.dump(open_api_schema, file, indent=4)
+    rprint(f"Updated {doc_path / 'openapi.json'}.")
 
 
-# @cli.command()
-# def docs_clean(site_path: Path = Path(CWD) / "site"):
-#     """Delete the site_path directory recursively."""
+@cli.command()
+def docs_serve():
+    """serve mkdocs"""
+    command = "mkdocs serve"
+    subprocess.run(command.split(), cwd=CWD, env=None, shell=False)
 
-#     def rm_tree(path: Path):
-#         """Recursively delete the directory tree."""
-#         for child in path.iterdir():
-#             if child.is_file():
-#                 child.unlink(missing_ok=True)
-#             elif child.is_dir():
-#                 rm_tree(child)
-#         path.rmdir()
 
-#     rprint("Deletes .site/")
-#     if site_path.exists():
-#         rm_tree(site_path)
+@cli.command()
+def docs_clean(site_path: Path = Path(CWD) / "site"):
+    """Delete the site_path directory recursively."""
+
+    def rm_tree(path: Path):
+        """Recursively delete the directory tree."""
+        for child in path.iterdir():
+            if child.is_file():
+                child.unlink(missing_ok=True)
+            elif child.is_dir():
+                rm_tree(child)
+        path.rmdir()
+
+    rprint("Deletes .site/")
+    if site_path.exists():
+        rm_tree(site_path)
 
 
 # # ---------- MANAGE THE SERVER ------------------------------------------------
