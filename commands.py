@@ -14,8 +14,6 @@ from rich import print as rprint
 from rich.prompt import Prompt
 
 from deploy.adapters.filesystem import working_directory
-
-# from deploy import database
 from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap
 from deploy.config import settings
@@ -36,10 +34,10 @@ from deploy.domain import model
 cli = typer.Typer()
 
 
-async def createuser_async(username, password):
+async def createuser_async(username, password_hash):
     bus = await bootstrap()
     # user has to be created after the orm mappers were started
-    user = model.User(name=username, password=get_password_hash(password))
+    user = model.User(name=username, password=password_hash)
     async with bus.uow as uow:
         await uow.users.add(user)
         await uow.commit()
@@ -49,31 +47,24 @@ async def createuser_async(username, password):
 @cli.command()
 def createuser():
     """
-    Create a new user.
+    Create a new user. Username and password are either set via
+    environment variables, to create an initial user via ansible for example,
+    or interactively via the command line.
     """
-    username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
-    password = Prompt.ask("Enter password", password=True)
+    try:
+        username = os.environ["INITIAL_USER_NAME"]
+        password_hash = os.environ["INITIAL_PASSWORD_HASH"]
+    except KeyError:
+        username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
+        password_hash = get_password_hash(Prompt.ask("Enter password", password=True))
     rprint(f"creating user {username}")
-    user_in_db = asyncio.run(createuser_async(username, password))
-    rprint(f"created user with id: {user_in_db.id}")
-
-
-# @cli.command()
-# def create_initial_user():
-#     """
-#     Pass username and password hash as environment variables.
-#     """
-#     database.create_db_and_tables()
-#     username = os.environ["INITIAL_USER_NAME"]
-#     # Use environment instead of prompt to avoid leaking passwords
-#     password_hash = os.environ["INITIAL_PASSWORD_HASH"]
-#     if user := asyncio.run(database.repository.get_user_by_name(username)):
-#         rprint(f"user {username} already exists")
-#         sys.exit(0)
-#     rprint(f"creating user {username}")
-#     user = User(name=username, password=password_hash)
-#     user_in_db = asyncio.run(database.repository.add_user(user))
-#     rprint(f"created user with id: {user_in_db.id}")
+    try:
+        user = asyncio.run(createuser_async(username, password_hash))
+    except Exception as e:
+        rprint(f"failed to create user {username}")
+        rprint(f"{e}")
+        sys.exit(1)
+    rprint(f"created user with id: {user.id}")
 
 
 @cli.command()
