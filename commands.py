@@ -153,14 +153,14 @@ def test():
         subprocess.call([npm, "run", "test"])
 
 
-# @cli.command()
-# def coverage():
-#     """
-#     Run and show coverage.
-#     """
-#     subprocess.call(["coverage", "run"])
-#     subprocess.call(["coverage", "html"])
-#     subprocess.call(["open", "htmlcov/index.html"])
+@cli.command()
+def coverage():
+    """
+    Run and show coverage.
+    """
+    subprocess.call(["coverage", "run"])
+    subprocess.call(["coverage", "html"])
+    subprocess.call(["open", "htmlcov/index.html"])
 
 
 # # ---------- DOCUMENTATION mkdocs ---------------------------------------------

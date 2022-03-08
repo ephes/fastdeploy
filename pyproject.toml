@@ -57,8 +57,8 @@ known_sqlmodel = "sqlmodel"
 
 [tool.coverage.run]
 branch = true
-source = ["app"]
-omit = ["app/tests/*"]
+source = ["deploy"]
+omit = ["deploy/tests/*"]
 command_line = "-m pytest"
 
 [tool.poetry.dependencies]
