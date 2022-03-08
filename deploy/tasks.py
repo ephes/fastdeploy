@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -79,7 +79,7 @@ class DeployTask(BaseSettings):
 
     async def finish_step(self, step_result):
         step = Step(**step_result)
-        step.finished = datetime.utcnow()
+        step.finished = datetime.now(timezone.utc)
         if len(step_result.get("error_message", "")) > 0:
             step.message = step_result["error_message"]
         await self.send_step(self.steps_url, step)
@@ -97,7 +97,7 @@ class DeployTask(BaseSettings):
             env=env,
         )
         while True:
-            started = datetime.utcnow()
+            started = datetime.now(timezone.utc)
             data = await proc.stdout.readline()  # type: ignore
             # FIXME log returned data properly
             # print("from deploy script:", data.decode("utf-8"))

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -26,7 +26,7 @@ async def test_get_steps_to_do_from_service_has_steps_in_data(service):
 
 async def test_get_steps_to_do_from_service_only_failure_steps(uow, service_in_db):
     service = service_in_db
-    started = datetime.utcnow() - timedelta(days=1)
+    started = datetime.now(timezone.utc) - timedelta(days=1)
     finished = started + timedelta(minutes=3)
     deployment = model.Deployment(
         service_id=service.id, origin="GitHub", user="foobar", started=started, finished=finished
@@ -46,7 +46,7 @@ async def test_get_steps_to_do_from_service_only_failure_steps(uow, service_in_d
 
 async def test_get_steps_to_do_from_service_steps_from_last_deployment(uow, service_in_db):
     service = service_in_db
-    started = datetime.utcnow() - timedelta(days=1)
+    started = datetime.now(timezone.utc) - timedelta(days=1)
     finished = started + timedelta(minutes=3)
     deployment = model.Deployment(
         service_id=service.id, origin="GitHub", user="foobar", started=started, finished=finished

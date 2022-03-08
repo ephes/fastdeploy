@@ -10,13 +10,13 @@ pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
 def deployment():
-    started = datetime.utcnow() - timedelta(days=1)
+    started = datetime.now(timezone.utc) - timedelta(days=1)
     return model.Deployment(service_id=1, origin="GitHub", user="foobar", started=started)
 
 
 @pytest.fixture
 def step():
-    started = datetime.utcnow() - timedelta(days=1)
+    started = datetime.now(timezone.utc) - timedelta(days=1)
     finished = started + timedelta(minutes=3)
     return model.Step(name="step from database", started=started, finished=finished, state="failure")
 

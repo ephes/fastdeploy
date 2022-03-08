@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -44,8 +44,8 @@ async def test_authenticate_happy(user_in_db, password, uow):
 async def test_create_access_token_without_expire():
     access_token = create_access_token(payload={"type": "user", "user": "user"})
     payload = token_to_payload(access_token)
-    expires_at = datetime.utcfromtimestamp(payload["exp"])
-    expected_expire = datetime.utcnow() + timedelta(minutes=settings.default_expire_minutes)
+    expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    expected_expire = datetime.now(timezone.utc) + timedelta(minutes=settings.default_expire_minutes)
     diff_seconds = (expected_expire - expires_at).total_seconds()
     assert diff_seconds < 1
 

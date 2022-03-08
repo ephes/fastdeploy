@@ -41,8 +41,8 @@ deployments = Table(
     Column("service_id", Integer, ForeignKey("service.id")),
     Column("origin", String(255)),
     Column("user", String(255)),
-    Column("started", DateTime),
-    Column("finished", DateTime),
+    Column("started", DateTime(timezone=True)),
+    Column("finished", DateTime(timezone=True)),
     Column("context", JSON, default={}),
 )
 
@@ -52,8 +52,8 @@ steps = Table(
     metadata_obj,
     Column("id", Integer, primary_key=True),
     Column("name", String(255)),
-    Column("started", DateTime),
-    Column("finished", DateTime),
+    Column("started", DateTime(timezone=True)),
+    Column("finished", DateTime(timezone=True)),
     Column("state", String(20), default="pending"),
     Column("message", String(255)),
     Column("deployment_id", Integer, ForeignKey("deployment.id")),

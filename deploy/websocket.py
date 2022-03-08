@@ -1,6 +1,6 @@
 import asyncio
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -25,7 +25,7 @@ class ConnectionManager:
         """
         websocket = self.all_connections.get(client_id)  # get, because client may have disconnected
         if websocket is not None:
-            print("closing websocket: ", datetime.utcnow())
+            print("closing websocket: ", datetime.now(timezone.utc))
             await websocket.send_json({"type": "warning", "detail": message})
             await websocket.close()
 
@@ -35,7 +35,7 @@ class ConnectionManager:
         """
         print("close on expire called..")
         message = "Your session has expired."
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if now >= expires_at:
             await self.close(client_id, message)
         else:
