@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from . import events
 
@@ -237,6 +237,66 @@ class Deployment:
         self.started = started
         self.finished = finished
         self.context = context
+
+    def process_step(self, step: Step, steps: list[Step]) -> list[Step]:
+        """
+        After a deployment step has finished, the result has to be processed.
+        We need to check whether the current step is in the list of the steps
+        we need to take etc.
+
+        Returns a new list of steps that have been modified.
+
+        * Find out whether the step is already known
+        * If it's a known pending step, update the pending steps state and add
+          to the list of modified steps
+        * If it's unknown, add it to the list of modified steps
+        * Determine which step is now running and add it to the list
+          of modified steps, too
+        """
+        if self.started is None:
+            raise ValueError("deployment has not started yet")
+
+        if self.finished is not None:
+            raise ValueError("deployment has already finished")
+
+        modified_steps = []
+
+        # find out whether the step is already known
+        known_step = None
+        running_steps = [step for step in steps if step.state == "running"]
+        for running_step in running_steps:
+            if running_step.name == step.name:
+                known_step = running_step
+                break
+
+        pending_steps = [step for step in steps if step.state == "pending"]
+        if known_step is None:
+            # finished step was not already running -> maybe it was pending?
+            for pending_step in pending_steps:
+                if pending_step.name == step.name:
+                    known_step = pending_step
+                    break
+        else:
+            # finished step was already running -> change state of next pending
+            # step to running unless currently finished step has failed
+            if len(pending_steps) > 0 and step.state != "failure":
+                next_pending_step = pending_steps[0]
+                next_pending_step.state = "running"
+                modified_steps.append(next_pending_step)
+
+        if known_step is None:
+            # if it's an unknown step, create a new step
+            step.finished = datetime.now(timezone.utc)
+            step.deployment_id = self.id
+            modified_steps.append(step)
+        else:
+            # if it's a known step, update it
+            known_step.started = step.started
+            known_step.finished = datetime.now(timezone.utc)
+            known_step.state = step.state
+            known_step.message = step.message
+            modified_steps.append(known_step)
+        return modified_steps
 
 
 # class DeploymentPydantic(SQLModel, table=True):
