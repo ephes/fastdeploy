@@ -6,6 +6,7 @@ import subprocess
 import sys
 
 from datetime import timedelta
+from pathlib import Path
 
 import typer
 
@@ -21,8 +22,6 @@ from deploy.domain import model
 
 
 # import platform
-
-# from pathlib import Path
 
 
 # import uvicorn
@@ -121,24 +120,26 @@ def update():
         subprocess.call(["npm", "update"])
 
 
-# @cli.command()
-# def notebook():
-#     """
-#     Start the notebook server.
-#     """
-#     env = os.environ.copy()
-#     env["PYTHONPATH"] = ".."
-#     subprocess.call(["jupyter", "notebook", "--notebook-dir", "notebooks"], env=env)
+@cli.command()
+def notebook():
+    """
+    Start the notebook server.
+    """
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).parent.resolve())
+    rprint("added pythonpath: ", env["PYTHONPATH"])
+    subprocess.call(["jupyter", "notebook", "--notebook-dir", "notebooks"], env=env)
 
 
-# @cli.command()
-# def jupyterlab():
-#     """
-#     Start a jupyterlab server.
-#     """
-#     env = os.environ.copy()
-#     env["PYTHONPATH"] = ".."
-#     subprocess.call(["jupyter-lab"], env=env)
+@cli.command()
+def jupyterlab():
+    """
+    Start a jupyterlab server.
+    """
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).parent.resolve())
+    rprint("added pythonpath: ", env["PYTHONPATH"])
+    subprocess.call(["jupyter-lab"], env=env)
 
 
 # @cli.command()
