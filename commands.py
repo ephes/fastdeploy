@@ -1,7 +1,9 @@
 import asyncio
+import os
+import subprocess
 
 # import json
-import os
+import sys
 
 import typer
 
@@ -9,21 +11,17 @@ import typer
 from rich import print as rprint
 from rich.prompt import Prompt
 
+from deploy.adapters.filesystem import working_directory
+
 # from deploy import database
 # from deploy.auth import create_access_token, get_password_hash
 from deploy.auth import get_password_hash
 from deploy.bootstrap import bootstrap
-
-# from deploy.config import settings
+from deploy.config import settings
 from deploy.domain import model
 
 
-# from deploy.filesystem import working_directory
-
-
 # import platform
-# import subprocess
-# import sys
 
 # from datetime import timedelta
 # from pathlib import Path
@@ -93,43 +91,43 @@ def createuser():
 #         rprint("services synced")
 
 
-# @cli.command()
-# def update():
-#     """
-#     Update the development environment by calling:
-#     - pip-compile production.in develop.in -> develop.txt
-#     - pip-compile production.in -> production.txt
-#     - pip-sync develop.txt
-#     - npm update
-#     """
-#     base_command = [
-#         sys.executable,
-#         "-m",
-#         "piptools",
-#         "compile",
-#         "--upgrade",
-#         "--allow-unsafe",
-#         "--generate-hashes",
-#         "deploy/requirements/production.in",
-#     ]
-#     subprocess.call(  # develop + production
-#         [
-#             *base_command,
-#             "deploy/requirements/develop.in",
-#             "--output-file",
-#             "deploy/requirements/develop.txt",
-#         ]
-#     )
-#     subprocess.call(  # production only
-#         [
-#             *base_command,
-#             "--output-file",
-#             "deploy/requirements/production.txt",
-#         ]
-#     )
-#     subprocess.call([sys.executable, "-m", "piptools", "sync", "deploy/requirements/develop.txt"])
-#     with working_directory(settings.project_root / "frontend"):
-#         subprocess.call(["npm", "update"])
+@cli.command()
+def update():
+    """
+    Update the development environment by calling:
+    - pip-compile production.in develop.in -> develop.txt
+    - pip-compile production.in -> production.txt
+    - pip-sync develop.txt
+    - npm update
+    """
+    base_command = [
+        sys.executable,
+        "-m",
+        "piptools",
+        "compile",
+        "--upgrade",
+        "--allow-unsafe",
+        "--generate-hashes",
+        "deploy/requirements/production.in",
+    ]
+    subprocess.call(  # develop + production
+        [
+            *base_command,
+            "deploy/requirements/develop.in",
+            "--output-file",
+            "deploy/requirements/develop.txt",
+        ]
+    )
+    subprocess.call(  # production only
+        [
+            *base_command,
+            "--output-file",
+            "deploy/requirements/production.txt",
+        ]
+    )
+    subprocess.call([sys.executable, "-m", "piptools", "sync", "deploy/requirements/develop.txt"])
+    with working_directory(settings.project_root / "frontend"):
+        subprocess.call(["npm", "update"])
 
 
 # @cli.command()
