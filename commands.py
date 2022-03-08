@@ -45,9 +45,7 @@ async def createuser_async(username, password):
     async with bus.uow as uow:
         await uow.users.add(user)
         await uow.commit()
-        [user_in_db] = await uow.users.get(user.name)
-        uow.session.expunge(user_in_db)
-    return user_in_db
+    return user
 
 
 @cli.command()

@@ -156,8 +156,7 @@ async def user_in_db(bus, user):
     async with bus.uow as uow:
         await uow.users.add(user)
         await uow.commit()
-        [from_db] = await uow.users.get(user.name)
-    return from_db
+    return user
 
 
 @pytest.fixture
@@ -180,8 +179,7 @@ async def service_in_db(bus, service):
     async with bus.uow as uow:
         await uow.services.add(service)
         await uow.commit()
-        [from_db] = await uow.services.get_by_name(service.name)
-    return from_db
+    return service
 
 
 @pytest.fixture
@@ -194,5 +192,4 @@ async def deployment_in_db(bus, deployment):
     async with bus.uow as uow:
         await uow.deployments.add(deployment)
         await uow.commit()
-        [from_db] = await uow.deployments.get(deployment.id)
-    return from_db
+    return deployment
