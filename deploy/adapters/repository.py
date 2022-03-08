@@ -280,3 +280,6 @@ class InMemoryStepRepository(AbstractStepRepository):
 
     async def get(self, step_id):
         return next((s,) for s in self._steps if s.id == step_id)
+
+    async def get_steps_from_deployment(self, deployment_id):
+        return ((s,) for s in self._steps if s.deployment_id == deployment_id)

@@ -183,6 +183,11 @@ async def service_in_db(bus, service):
 
 
 @pytest.fixture
+def valid_service_token_in_db(service_in_db):
+    return create_access_token({"type": "service", "service": service_in_db.name}, timedelta(minutes=5))
+
+
+@pytest.fixture
 def deployment(service_in_db):
     return model.Deployment(service_id=service_in_db.id, origin="github", user="fastdeploy")
 

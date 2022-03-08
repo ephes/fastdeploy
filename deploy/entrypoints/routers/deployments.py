@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from ... import views
@@ -46,21 +46,24 @@ class DeploymentWithSteps(Deployment):
 @router.get("/{deployment_id}")
 async def get_deployment_details(
     deployment_id: int,
+    bus: MessageBus = Depends(get_bus),
     service: model.Service = Depends(get_current_active_service),
 ) -> DeploymentWithSteps:
     """
     Fetch details of a deployment including the steps. Needs to be authenticated with a
     valid service token for the service which is associated with the deployment.
     """
-    # deployment = await repository.get_deployment_by_id(deployment_id)
-    # if deployment is None:
-    #     raise HTTPException(status_code=404, detail="Deployment does not exist")
-    # if service.id != deployment.service_id:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Wrong service token",
-    #         headers={"WWW-Authenticate": "Bearer"},
-    #     )
-    # steps = await repository.get_steps_by_deployment_id(deployment_id)
-    # deployment_with_steps = DeploymentWithSteps(**deployment.dict(), steps=steps)
-    # return deployment_with_steps
+    try:
+        deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    if service.id != deployment.service_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Wrong service token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # steps = [Step(**s.dict()) for s in deployment.steps]
+    deployment_with_steps = DeploymentWithSteps(**deployment.dict())
+    return deployment_with_steps

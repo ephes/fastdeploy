@@ -218,6 +218,7 @@ class Deployment:
     started: datetime | None
     finished: datetime | None
     context: dict
+    steps: list[Step]
 
     def __init__(
         self,
@@ -229,6 +230,7 @@ class Deployment:
         started: datetime | None = None,
         finished: datetime | None = None,
         context: dict = {},
+        steps: list[Step] = [],
     ):
         self.id = id
         self.service_id = service_id
@@ -237,6 +239,7 @@ class Deployment:
         self.started = started
         self.finished = finished
         self.context = context
+        self.steps = steps
 
     def dict(self):
         return {
@@ -247,6 +250,7 @@ class Deployment:
             "started": self.started,
             "finished": self.finished,
             "context": self.context,
+            "steps": [step.dict() for step in self.steps],
         }
 
     def __repr__(self):
