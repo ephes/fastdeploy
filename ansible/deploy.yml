@@ -227,7 +227,7 @@
         PATH: "{{ default_path }}"
 
     - name: Create initial user
-      shell: "{{ python }} commands.py create-initial-user"
+      shell: "{{ python }} commands.py createuser"
       args:
         chdir: "{{ site_path }}"
       become: true
