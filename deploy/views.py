@@ -64,3 +64,10 @@ async def get_steps_to_do_from_service(
         # if no steps are found, create a default placeholder step
         steps.append(model.Step(name="Unknown step"))
     return steps
+
+
+async def get_all_deployments(uow: unit_of_work.AbstractUnitOfWork) -> list[model.Deployment]:
+    """Get a list of all deployments in the database."""
+    async with uow:
+        deployments = await uow.deployments.list()
+    return [deployment for deployment, in deployments]

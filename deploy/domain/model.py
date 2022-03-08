@@ -238,6 +238,23 @@ class Deployment:
         self.finished = finished
         self.context = context
 
+    def dict(self):
+        return {
+            "id": self.id,
+            "service_id": self.service_id,
+            "origin": self.origin,
+            "user": self.user,
+            "started": self.started,
+            "finished": self.finished,
+            "context": self.context,
+        }
+
+    def __repr__(self):
+        return f"Deployment(id={self.id}, service_id={self.service_id})"
+
+    def __eq__(self, other):
+        return self.id == other.id
+
     def process_step(self, step: Step, steps: list[Step]) -> list[Step]:
         """
         After a deployment step has finished, the result has to be processed.

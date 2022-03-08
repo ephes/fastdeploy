@@ -149,6 +149,10 @@ class AbstractDeploymentRepository(abc.ABC):
         return NotImplementedError
 
     @abc.abstractmethod
+    async def list(self) -> list[tuple[model.Deployment]]:
+        return NotImplementedError
+
+    @abc.abstractmethod
     async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
         return NotImplementedError
 
@@ -164,6 +168,11 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
         result = await self.session.execute(stmt)
         return result.one()
+
+    async def list(self):
+        stmt = select(model.Deployment)
+        result = await self.session.execute(stmt)
+        return result.all()
 
     async def get_last_successful_deployment_id(self, service_id):
         """
@@ -224,6 +233,9 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
         #         if last_successful is None or deployment.finished > last_successful.finished:
         #             last_successful = deployment.id
         return last_successful
+
+    async def list(self):
+        return self._deployments
 
 
 class AbstractStepRepository(abc.ABC):
