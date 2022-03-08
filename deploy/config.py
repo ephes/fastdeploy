@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     @property
     def fastapi_app(self):
         """Avoid circular import."""
-        from .main import app as fastapi_app
+        from .entrypoints.fastapi_app import app as fastapi_app
 
         return fastapi_app
 

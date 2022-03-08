@@ -5,17 +5,18 @@ import subprocess
 # import json
 import sys
 
+from datetime import timedelta
+
 import typer
 
-# from httpx import Client
+from httpx import Client
 from rich import print as rprint
 from rich.prompt import Prompt
 
 from deploy.adapters.filesystem import working_directory
 
 # from deploy import database
-# from deploy.auth import create_access_token, get_password_hash
-from deploy.auth import get_password_hash
+from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap
 from deploy.config import settings
 from deploy.domain import model
@@ -23,7 +24,6 @@ from deploy.domain import model
 
 # import platform
 
-# from datetime import timedelta
 # from pathlib import Path
 
 
@@ -76,19 +76,19 @@ def createuser():
 #     rprint(f"created user with id: {user_in_db.id}")
 
 
-# @cli.command()
-# def syncservices(username: str):
-#     """
-#     Sync services from filesystem with services in database. Username is required
-#     to be able to authenticate with the API. And have the application server send
-#     events to clients via websocket.
-#     """
-#     rprint(f"syncing services as user: {username}")
-#     access_token = create_access_token({"type": "user", "user": username}, timedelta(minutes=5))
-#     with Client(headers={"authorization": f"Bearer {access_token}"}) as client:
-#         response = client.post(settings.sync_services_url, follow_redirects=True)
-#         response.raise_for_status()
-#         rprint("services synced")
+@cli.command()
+def syncservices(username: str):
+    """
+    Sync services from filesystem with services in database. Username is required
+    to be able to authenticate with the API. And have the application server send
+    events to clients via websocket.
+    """
+    rprint(f"syncing services as user: {username}")
+    access_token = create_access_token({"type": "user", "user": username}, timedelta(minutes=5))
+    with Client(headers={"authorization": f"Bearer {access_token}"}) as client:
+        response = client.post(settings.sync_services_url, follow_redirects=True)
+        response.raise_for_status()
+        rprint("services synced")
 
 
 @cli.command()
