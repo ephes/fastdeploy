@@ -1,5 +1,6 @@
 import asyncio
 import os
+import platform
 import subprocess
 
 # import json
@@ -21,13 +22,10 @@ from deploy.config import settings
 from deploy.domain import model
 
 
-# import platform
-
-
 # import uvicorn
 
 
-# CWD = "."
+CWD = str(Path(__file__).parent.resolve())
 
 # database.create_db_and_tables()
 cli = typer.Typer()
@@ -126,7 +124,7 @@ def notebook():
     Start the notebook server.
     """
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(Path(__file__).parent.resolve())
+    env["PYTHONPATH"] = CWD
     rprint("added pythonpath: ", env["PYTHONPATH"])
     subprocess.call(["jupyter", "notebook", "--notebook-dir", "notebooks"], env=env)
 
@@ -137,22 +135,22 @@ def jupyterlab():
     Start a jupyterlab server.
     """
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(Path(__file__).parent.resolve())
+    env["PYTHONPATH"] = CWD
     rprint("added pythonpath: ", env["PYTHONPATH"])
     subprocess.call(["jupyter-lab"], env=env)
 
 
-# @cli.command()
-# def test():
-#     """
-#     Run the tests:
-#     - run backend tests via pytest
-#     - fun frontend tests via jest
-#     """
-#     subprocess.call([sys.executable, "-m", "pytest"])
-#     with working_directory(settings.project_root / "frontend"):
-#         npm = "npm" if not platform.system() == "Windows" else "npm.cmd"
-#         subprocess.call([npm, "run", "test"])
+@cli.command()
+def test():
+    """
+    Run the tests:
+    - run backend tests via pytest
+    - fun frontend tests via jest
+    """
+    subprocess.call([sys.executable, "-m", "pytest"])
+    with working_directory(settings.project_root / "frontend"):
+        npm = "npm" if not platform.system() == "Windows" else "npm.cmd"
+        subprocess.call([npm, "run", "test"])
 
 
 # @cli.command()
