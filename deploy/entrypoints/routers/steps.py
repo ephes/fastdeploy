@@ -8,6 +8,6 @@ class Step(BaseModel):
     name: str
     deployment_id: int
     state: str
-    started: datetime
-    finished: datetime
+    started: datetime | None
+    finished: datetime | None
     message: str

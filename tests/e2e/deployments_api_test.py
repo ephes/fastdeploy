@@ -62,3 +62,23 @@ async def test_get_deployment_details_wrong_service(app, uow, valid_service_toke
 
     assert response.status_code == 403
     assert response.json() == {"detail": "Wrong service token"}
+
+
+async def test_get_deployment_details_happy(app, uow, service, valid_service_token_in_db):
+    async with uow:
+        deployment = model.Deployment(service_id=service.id, origin="frontend", user="asdf")
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        step = model.Step(name="step of deployment", deployment_id=deployment.id, state="running", message="")
+        await uow.steps.add(step)
+        await uow.commit()
+
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=deployment.id), headers=headers
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["steps"]) > 0
