@@ -17,11 +17,6 @@ from deploy.entrypoints.fastapi_app import app as fastapi_app
 from deploy.service_layer import unit_of_work
 
 
-@pytest.fixture
-def base_url():
-    return "http://test"
-
-
 @pytest.fixture(scope="session")
 def anyio_backend():
     """Choose asyncio backend for tests"""
