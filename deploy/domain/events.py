@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -14,3 +16,13 @@ class ServiceCreated(Event):
 class ServiceDeleted(Event):
     id: int
     foo = "service deleted!"
+
+
+class StepDeleted(Event):
+    id: int
+    foo = "service deleted!"
+
+
+class DeploymentFinished(Event):
+    id: int
+    finished: datetime

@@ -8,7 +8,7 @@ from ..domain import model
 
 class AbstractServiceRepository(abc.ABC):
     def __init__(self):
-        self.seen = set()  # type: set[model.Service]
+        self.seen: set[model.Service] = set()
 
     async def add(self, service: model.Service):
         await self._add(service)
@@ -140,6 +140,9 @@ class InMemoryUserRepository(AbstractUserRepository):
 
 
 class AbstractDeploymentRepository(abc.ABC):
+    def __init__(self):
+        self.seen: set[model.Deployment] = set()
+
     @abc.abstractmethod
     async def add(self, deployment: model.Deployment) -> None:
         raise NotImplementedError
@@ -160,6 +163,7 @@ class AbstractDeploymentRepository(abc.ABC):
 class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self, session):
         self.session = session
+        super().__init__()
 
     async def add(self, deployment):
         self.session.add(deployment)
@@ -211,6 +215,7 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
 class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self):
         self._deployments = []
+        super().__init__()
 
     async def add(self, deployment):
         self._deployments.append(deployment)
@@ -239,12 +244,19 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
 
 class AbstractStepRepository(abc.ABC):
+    def __init__(self):
+        self.seen: set[model.Step] = set()
+
     @abc.abstractmethod
     async def add(self, step: model.Step) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod
     async def get(self, step_id: int) -> tuple[model.Step]:
+        return NotImplementedError
+
+    @abc.abstractmethod
+    async def delete(self, step: model.Step) -> None:
         return NotImplementedError
 
     @abc.abstractmethod
@@ -255,6 +267,7 @@ class AbstractStepRepository(abc.ABC):
 class SqlAlchemyStepRepository(AbstractStepRepository):
     def __init__(self, session):
         self.session = session
+        super().__init__()
 
     async def add(self, step):
         self.session.add(step)
@@ -263,6 +276,9 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
         stmt = select(model.Step).where(model.Step.id == step_id)
         result = await self.session.execute(stmt)
         return result.one()
+
+    async def delete(self, step):
+        self.session.delete(step)
 
     async def get_steps_from_deployment(self, deployment_id):
         stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)
@@ -273,6 +289,7 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
 class InMemoryStepRepository(AbstractStepRepository):
     def __init__(self):
         self._steps = []
+        super().__init__()
 
     async def add(self, step):
         self._steps.append(step)
@@ -280,6 +297,9 @@ class InMemoryStepRepository(AbstractStepRepository):
 
     async def get(self, step_id):
         return next((s,) for s in self._steps if s.id == step_id)
+
+    async def delete(self, step):
+        self._steps.remove(step)
 
     async def get_steps_from_deployment(self, deployment_id):
         return ((s,) for s in self._steps if s.deployment_id == deployment_id)

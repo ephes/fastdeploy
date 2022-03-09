@@ -5,9 +5,13 @@ from pydantic import BaseModel
 
 from ... import views
 from ...bootstrap import get_bus
-from ...domain import model
+from ...domain import commands, model
 from ...service_layer.messagebus import MessageBus
-from ..dependencies import get_current_active_service, get_current_active_user
+from ..dependencies import (
+    get_current_active_deployment,
+    get_current_active_service,
+    get_current_active_user,
+)
 from .steps import Step
 
 
@@ -50,8 +54,8 @@ async def get_deployment_details(
     service: model.Service = Depends(get_current_active_service),
 ) -> DeploymentWithSteps:
     """
-    Fetch details of a deployment including the steps. Needs to be authenticated with a
-    valid service token for the service which is associated with the deployment.
+    Fetch details of a deployment including the steps. Needs to be authenticated
+    with a service token for the service which is associated with the deployment.
     """
     try:
         deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
@@ -67,3 +71,21 @@ async def get_deployment_details(
     # steps = [Step(**s.dict()) for s in deployment.steps]
     deployment_with_steps = DeploymentWithSteps(**deployment.dict())
     return deployment_with_steps
+
+
+@router.put("/finish/")
+async def finish_deployment(
+    deployment: model.Deployment = Depends(get_current_active_deployment), bus: MessageBus = Depends(get_bus)
+) -> dict:
+    """
+    Finish a deployment. Need to be authenticated with a deployment token.
+    """
+    if deployment.id is None:
+        # this cannot happen -> it's just a type guard for command
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    cmd = commands.FinishDeployment(id=deployment.id)
+    try:
+        await bus.handle(cmd)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    return {"detail": f"Deployment {deployment.id} finished"}

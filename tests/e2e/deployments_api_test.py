@@ -82,3 +82,27 @@ async def test_get_deployment_details_happy(app, uow, service, valid_service_tok
     assert response.status_code == 200
     data = response.json()
     assert len(data["steps"]) > 0
+
+
+# test finish_deployment endpoint
+
+
+async def test_finish_deployment_invalid_access_token(app, valid_service_token_in_db):
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        finish_deployment = app.url_path_for("finish_deployment")
+        response = await client.put(finish_deployment, headers=headers)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Could not validate credentials"}
+
+
+async def test_finish_deployment_happy(app, valid_deploy_token_in_db):
+    headers = {"authorization": f"Bearer {valid_deploy_token_in_db}"}
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        test_url = app.url_path_for("finish_deployment")
+        response = await client.put(test_url, headers=headers)
+
+    assert response.status_code == 200
+    detail = response.json()["detail"]
+    assert "finished" in detail

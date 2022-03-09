@@ -52,9 +52,10 @@ class AbstractUnitOfWork(abc.ABC):
         await self._commit()
 
     def collect_new_events(self):
-        for service in self.services.seen:
-            while service.events:
-                yield service.events.pop(0)
+        for repo in [self.services, self.deployments, self.steps]:
+            for model in repo.seen:
+                while model.events:
+                    yield model.events.pop(0)
 
     @abc.abstractmethod
     async def _commit(self):
@@ -136,6 +137,7 @@ class InMemoryUnitOfWork(AbstractUnitOfWork):
         self.services = repository.InMemoryServiceRepository()
         self.users = repository.InMemoryUserRepository()
         self.deployments = repository.InMemoryDeploymentRepository()
+        self.steps = repository.InMemoryStepRepository()
         self.committed = False
 
     async def __aexit__(self, *args):

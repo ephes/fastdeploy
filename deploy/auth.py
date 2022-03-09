@@ -123,5 +123,5 @@ async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployme
 
     async with uow as uow:
         [deployment] = await uow.deployments.get(deployment_id)
-        uow.session.expunge_all()
+        uow.session.expunge(deployment)
     return deployment

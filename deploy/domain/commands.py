@@ -16,3 +16,7 @@ class DeleteService(Command):
 
 class SyncServices(Command):
     pass
+
+
+class FinishDeployment(Command):
+    id: int

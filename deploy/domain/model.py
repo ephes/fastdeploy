@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import List
 
 from . import events
 
@@ -41,6 +42,7 @@ class Step:
     id: int | None
     name: str
     deployment_id: int | None
+    events = []  # type: List[events.Event]
 
     def __init__(self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None):
         self.id = id
@@ -64,6 +66,11 @@ class Step:
             "deployment_id": self.deployment_id,
             "message": self.message,
         }
+
+    def delete(self):
+        """Raise deleted event if the step was in database."""
+        if self.id is not None:
+            self.events.append(events.StepDeleted(id=self.id))
 
 
 # class StepBase(SQLModel):
@@ -121,7 +128,7 @@ class Service:
 
     id: int | None
     name: str
-    events = []  # type: list[events.Event]
+    events = []  # type: List[events.Event]
 
     def __init__(self, *, id=None, name: str = "", data={}):
         self.id = id
@@ -139,7 +146,7 @@ class Service:
         }
 
     def delete(self):
-        """Add deleted event if the service was in database."""
+        """Raise deleted event if the service was in database."""
         if self.id is not None:
             self.events.append(events.ServiceDeleted(id=self.id))
 
@@ -219,6 +226,7 @@ class Deployment:
     finished: datetime | None
     context: dict
     steps: list[Step]
+    events = []  # type: List[events.Event]
 
     def __init__(
         self,
@@ -318,6 +326,14 @@ class Deployment:
             known_step.message = step.message
             modified_steps.append(known_step)
         return modified_steps
+
+    def finish(self):
+        """
+        Raise finished event if the deployment was in database and
+        has a finished timestamp.
+        """
+        if self.id is not None and self.finished is not None:
+            self.events.append(events.DeploymentFinished(id=self.id, finished=self.finished))
 
 
 # class DeploymentPydantic(SQLModel, table=True):

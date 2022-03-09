@@ -193,3 +193,8 @@ async def deployment_in_db(bus, deployment):
         await uow.deployments.add(deployment)
         await uow.commit()
     return deployment
+
+
+@pytest.fixture
+def valid_deploy_token_in_db(deployment_in_db):
+    return create_access_token({"type": "deployment", "deployment": deployment_in_db.id}, timedelta(minutes=5))
