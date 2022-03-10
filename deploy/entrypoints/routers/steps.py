@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
+from ...bootstrap import get_bus
+from ...domain import commands
+from ...service_layer.messagebus import MessageBus
 from ..dependencies import get_current_active_deployment
-from .helper_models import Deployment, Step
+from .helper_models import Deployment, StepResult
 
 
 router = APIRouter(
@@ -12,15 +15,21 @@ router = APIRouter(
 
 
 @router.post("/")
-async def process_step_result(step_in: Step, deployment: Deployment = Depends(get_current_active_deployment)) -> Step:
+async def process_step_result(
+    step: StepResult,
+    deployment: Deployment = Depends(get_current_active_deployment),
+    bus: MessageBus = Depends(get_bus),
+) -> dict:
     """
     When a step is finished, the deployment process sends a result back to this endpoint.
     Needs to be authenticated with a deployment token.
     """
     assert isinstance(deployment.id, int)
-    # step = Step(**step_in.dict(), deployment_id=deployment.id)
-    # step = await deployment.process_step(step)
-    # return step
-    return Step(
-        id=2, name="foobar", deployment_id=deployment.id, state="finished", started=None, finished=None, message=""
-    )
+    print("step? ", step)
+    cmd = commands.ProcessStep(**step.dict())
+    try:
+        await bus.handle(cmd)
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=400, detail="Something went wrong")
+    return {"detail": "step processed"}

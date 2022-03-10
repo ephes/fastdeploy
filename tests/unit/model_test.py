@@ -27,18 +27,18 @@ def step():
 async def test_not_started_deployment_cannot_process_steps(deployment, step):
     deployment.started = None
     with pytest.raises(ValueError):
-        await deployment.process_step(step, [])
+        await deployment.process_step(step)
 
 
 async def test_finished_deployment_cannot_process_steps(deployment, step):
     deployment.finished = datetime.now(timezone.utc)
     with pytest.raises(ValueError):
-        await deployment.process_step(step, [])
+        await deployment.process_step(step)
 
 
 async def test_deployment_process_unknown_step(deployment):
     unknown_step = model.Step(id=1, name="Unknown step", deployment_id=deployment.id, state="success")
-    modified_steps = deployment.process_step(unknown_step, [])
+    modified_steps = deployment.process_step(unknown_step)
     assert unknown_step in modified_steps
 
 
@@ -47,5 +47,6 @@ async def test_deployment_process_known_running_step(deployment):
         id=1, name="known step", started=datetime.now(timezone.utc), deployment_id=deployment.id, state="running"
     )
     finished_step = model.Step(**(known_step.dict() | {"state": "success"}))
-    modified_steps = deployment.process_step(finished_step, [known_step])
+    deployment.steps = [known_step]
+    modified_steps = deployment.process_step(finished_step)
     assert [finished_step] == modified_steps

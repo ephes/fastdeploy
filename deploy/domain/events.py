@@ -20,7 +20,15 @@ class ServiceDeleted(Event):
 
 class StepDeleted(Event):
     id: int
-    foo = "service deleted!"
+
+
+class StepProcessed(Event):
+    name: str
+    deployment_id: int
+    state: str
+    started: datetime
+    finished: datetime
+    message: str
 
 
 class DeploymentStarted(Event):

@@ -281,11 +281,15 @@ class AbstractStepRepository(abc.ABC):
         return NotImplementedError
 
     @abc.abstractmethod
+    async def list(self) -> list[tuple[model.Step]]:
+        return NotImplementedError
+
+    @abc.abstractmethod
     async def delete(self, step: model.Step) -> None:
         return NotImplementedError
 
     @abc.abstractmethod
-    async def get_steps_from_deployment(self, deployment_id: int) -> list[tuple[model.Step]]:
+    async def get_steps_from_deployment(self, deployment_id: int):
         return NotImplementedError
 
 
@@ -296,11 +300,17 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
 
     async def add(self, step):
         self.session.add(step)
+        self.seen.add(step)
 
     async def get(self, step_id):
         stmt = select(model.Step).where(model.Step.id == step_id)
         result = await self.session.execute(stmt)
         return result.one()
+
+    async def list(self):
+        stmt = select(model.Step)
+        result = await self.session.execute(stmt)
+        return result.all()
 
     async def delete(self, step):
         self.session.delete(step)
@@ -319,9 +329,13 @@ class InMemoryStepRepository(AbstractStepRepository):
     async def add(self, step):
         self._steps.append(step)
         step.id = len(self._steps)
+        self.seen.add(step)
 
     async def get(self, step_id):
         return next((s,) for s in self._steps if s.id == step_id)
+
+    async def list(self):
+        return [(s,) for s in self._steps]
 
     async def delete(self, step):
         self._steps.remove(step)

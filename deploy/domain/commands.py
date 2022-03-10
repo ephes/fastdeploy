@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -27,3 +29,13 @@ class StartDeployment(Command):
     user: str
     origin: str
     context: dict
+
+
+class ProcessStep(Command):
+    name: str
+    deployment_id: int
+    state: str
+    started: datetime
+    finished: datetime
+    message: str
+    state: str

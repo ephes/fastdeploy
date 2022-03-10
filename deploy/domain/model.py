@@ -56,6 +56,12 @@ class Step:
     def __eq__(self, other):
         return self.id == other.id
 
+    def __repr__(self):
+        return f"Step(id={self.id}, name={self.name}, state={self.state})"
+
+    def __hash__(self):
+        return hash((self.name, self.deployment_id, self.started))
+
     def dict(self):
         return {
             "id": self.id,
@@ -71,6 +77,12 @@ class Step:
         """Raise deleted event if the step was in database."""
         if self.id is not None:
             self.events.append(events.StepDeleted(id=self.id))
+
+    def process(self):
+        """
+        Raise processed event.
+        """
+        self.events.append(events.StepProcessed(**self.dict()))
 
 
 # class StepBase(SQLModel):
@@ -271,7 +283,7 @@ class Deployment:
     def __hash__(self):
         return hash((self.service_id, self.started))
 
-    def process_step(self, step: Step, steps: list[Step]) -> list[Step]:
+    def process_step(self, step: Step) -> list[Step]:
         """
         After a deployment step has finished, the result has to be processed.
         We need to check whether the current step is in the list of the steps
@@ -292,6 +304,7 @@ class Deployment:
         if self.finished is not None:
             raise ValueError("deployment has already finished")
 
+        steps = self.steps
         modified_steps = []
 
         # find out whether the step is already known

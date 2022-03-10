@@ -107,6 +107,21 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
         await uow.commit()
 
 
+async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
+    """
+    Process a finished deployment step.
+    """
+    # get the deployment that we are deploying from database
+    step = model.Step(**command.dict())
+    async with uow:
+        deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
+        steps_to_update = deployment.process_step(step)
+        for step in steps_to_update:
+            await uow.steps.add(step)
+            step.process()
+        await uow.commit()
+
+
 async def publish_service_deleted_event(
     event: events.ServiceDeleted,
     publish: Callable,
@@ -135,11 +150,19 @@ async def publish_step_deleted_event(
     publish("step deleted: ", event)
 
 
+async def publish_step_processed_event(
+    event: events.StepProcessed,
+    publish: Callable,
+):
+    publish("step processed: ", event)
+
+
 EVENT_HANDLERS = {
     events.ServiceDeleted: [publish_service_deleted_event],
     events.DeploymentFinished: [remove_pendings_and_running_steps, publish_deployment_finished_event],
     events.DeploymentStarted: [publish_deployment_started_event],
     events.StepDeleted: [publish_step_deleted_event],
+    events.StepProcessed: [publish_step_processed_event],
 }  # type: dict[Type[events.Event], list[Callable]]
 
 COMMAND_HANDLERS = {
@@ -147,4 +170,5 @@ COMMAND_HANDLERS = {
     commands.SyncServices: sync_services,
     commands.StartDeployment: start_deployment,
     commands.FinishDeployment: finish_deployment,
+    commands.ProcessStep: process_step,
 }  # type: dict[Type[commands.Command], Callable]
