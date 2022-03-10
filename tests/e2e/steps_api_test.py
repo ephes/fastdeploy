@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import pytest_asyncio
 
 from httpx import AsyncClient
 
@@ -107,3 +108,36 @@ async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy
     async with uow:
         [[step]] = await uow.steps.list()
         assert step.name == step_result.name
+
+
+# test get_steps_by_deployment endpoint
+
+
+async def test_get_steps_by_deployment_no_access_token(app):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get(app.url_path_for("get_steps_by_deployment"), params={"deployment_id": 1})
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+
+
+@pytest_asyncio.fixture()
+async def step_in_db(uow, deployment_in_db):
+    step = model.Step(name="foo bar baz", deployment_id=deployment_in_db.id)
+    async with uow:
+        await uow.steps.add(step)
+        await uow.commit()
+    return step
+
+
+async def test_get_steps_by_deployment_happy(app, step_in_db, valid_access_token_in_db):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_steps_by_deployment"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+            params={"deployment_id": step_in_db.deployment_id},
+        )
+
+    assert response.status_code == 200
+    steps_by_deployment = response.json()
+    assert steps_by_deployment[0]["id"] == step_in_db.id
