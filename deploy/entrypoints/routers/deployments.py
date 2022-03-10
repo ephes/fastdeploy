@@ -1,18 +1,16 @@
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ... import views
 from ...bootstrap import get_bus
 from ...domain import commands, model
 from ...service_layer.messagebus import MessageBus
+from ...tasks import DeploymentContext
 from ..dependencies import (
     get_current_active_deployment,
     get_current_active_service,
     get_current_active_user,
 )
-from .steps import Step
+from .helper_models import Deployment, DeploymentWithDetailsUrl, DeploymentWithSteps
 
 
 router = APIRouter(
@@ -20,16 +18,6 @@ router = APIRouter(
     tags=["deployments"],
     responses={404: {"description": "Not found"}},
 )
-
-
-class Deployment(BaseModel):
-    id: int
-    service_id: int
-    origin: str
-    user: str
-    started: datetime | None
-    finished: datetime | None
-    context: dict
 
 
 @router.get("/")
@@ -41,10 +29,6 @@ async def get_deployments(
     """
     deployments = await views.get_all_deployments(bus.uow)
     return [Deployment(**d.dict()) for d in deployments]
-
-
-class DeploymentWithSteps(Deployment):
-    steps: list[Step] = []
 
 
 @router.get("/{deployment_id}")
@@ -89,3 +73,37 @@ async def finish_deployment(
     except Exception:
         raise HTTPException(status_code=404, detail="Deployment not found")
     return {"detail": f"Deployment {deployment.id} finished"}
+
+
+@router.post("/")
+async def start_deployment(
+    request: Request,
+    context: DeploymentContext = DeploymentContext(env={}),
+    service: model.Service = Depends(get_current_active_service),
+    bus: MessageBus = Depends(get_bus),
+) -> DeploymentWithDetailsUrl:
+    """
+    Start a new deployment. Needs to be authenticated with a service token. Invoked
+    by frontend or github action. The service token is used to get the current
+    service from the database.
+    """
+    if service.id is None:
+        # this cannot happen -> it's just a type guard
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    cmd = commands.StartDeployment(
+        service_id=service.id, origin=service.origin, user=service.user, context=context.dict()
+    )
+    try:
+        await bus.handle(cmd)
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=400, detail="Something went wrong")
+
+    try:
+        started_deployment = await views.get_most_recently_started_deployment_for_service(cmd.service_id, bus.uow)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Started Deployment not found")
+
+    details_url = request.url_for("get_deployment_details", deployment_id=str(started_deployment.id))
+    return DeploymentWithDetailsUrl(**started_deployment.dict(), details=details_url)

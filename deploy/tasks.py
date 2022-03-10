@@ -11,24 +11,34 @@ from typing import Any
 
 import httpx
 
-from pydantic import BaseSettings, Field
+from pydantic import BaseModel, BaseSettings, Field
 
 from .auth import create_access_token
 from .config import settings
-from .models import Deployment, DeploymentContext, Step
+from .domain.model import Deployment, Step
 
 
-async def run_deploy(environment):  # pragma no cover
-    command = [sys.executable, "-m", "app.tasks"]  # make relative imports work
+def run_deploy(environment):  # pragma no cover
+    command = [sys.executable, "-m", "deploy.tasks"]  # make relative imports work
     subprocess.Popen(command, start_new_session=True, env=environment)
 
 
-def get_deploy_environment(deployment: Deployment, steps: list[Step], deploy_script: str) -> dict:
-    data = {
+class DeploymentContext(BaseModel):
+    """
+    Pass some context for a deployment. For example when deploying a new
+    podcast, we need to pass the domain name and the port of the application
+    server.
+    """
+
+    env: dict = {}
+
+
+def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
+    payload = {
         "type": "deployment",
         "deployment": deployment.id,
     }
-    access_token = create_access_token(data=data, expires_delta=timedelta(minutes=30))
+    access_token = create_access_token(payload=payload, expires_delta=timedelta(minutes=30))
     environment = {
         "ACCESS_TOKEN": access_token,
         "DEPLOY_SCRIPT": deploy_script,

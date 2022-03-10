@@ -23,6 +23,11 @@ class StepDeleted(Event):
     foo = "service deleted!"
 
 
+class DeploymentStarted(Event):
+    service_id: int
+    started: datetime
+
+
 class DeploymentFinished(Event):
     id: int
     finished: datetime

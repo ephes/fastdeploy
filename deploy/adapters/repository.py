@@ -159,6 +159,10 @@ class AbstractDeploymentRepository(abc.ABC):
     async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
         return NotImplementedError
 
+    @abc.abstractmethod
+    async def get_most_recent_running_deployment(self, service_id: int) -> tuple[model.Deployment]:
+        return NotImplementedError
+
 
 class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self, session):
@@ -167,6 +171,7 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
 
     async def add(self, deployment):
         self.session.add(deployment)
+        self.seen.add(deployment)
 
     async def get(self, deployment_id):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
@@ -211,6 +216,17 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         except NoResultFound:
             return None
 
+    async def get_most_recent_running_deployment(self, service_id):
+        stmt = (
+            select(model.Deployment)
+            .where(model.Deployment.service_id == service_id)
+            .where(model.Deployment.finished.is_(None))  # type: ignore
+            .where(model.Deployment.started.is_not(None))  # type: ignore
+            .order_by(model.Deployment.started.desc())  # type: ignore
+        )
+        result = await self.session.execute(stmt)
+        return result.one()
+
 
 class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self):
@@ -220,6 +236,7 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     async def add(self, deployment):
         self._deployments.append(deployment)
         deployment.id = len(self._deployments)
+        self.seen.add(deployment)
 
     async def get(self, deployment_id):
         return next((d,) for d in self._deployments if d.id == deployment_id)
@@ -241,6 +258,14 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
     async def list(self):
         return self._deployments
+
+    async def get_most_recent_running_deployment(self, service_id):
+        deployments = []
+        for deployment in self._deployments:
+            if deployment.service_id == service_id and deployment.finished is None and deployment.started is not None:
+                deployments.append(deployment)
+        deployments.sort(key=lambda d: d.started, reverse=True)
+        return next((d,) for d in deployments)
 
 
 class AbstractStepRepository(abc.ABC):

@@ -70,11 +70,55 @@ async def remove_pendings_and_running_steps(event: events.DeploymentFinished, uo
             step.delete()
 
 
+async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitOfWork):
+    """
+    Start a deployment. The list of deployment steps is fetched from the
+    configuration of the service to deploy or the last successful deployment.
+    """
+    # get the service that we are deploying from database
+    async with uow:
+        [service] = await uow.services.get(command.service_id)
+        uow.session.expunge(service)
+
+    # look up the deployment steps from last deployment
+    steps = await views.get_steps_to_do_from_service(service, uow)
+
+    # create a new deployment
+    deployment = model.Deployment(
+        service_id=command.service_id,
+        origin=command.origin,
+        user=command.user,
+        context=command.context,
+        started=datetime.now(timezone.utc),
+        finished=None,
+        steps=steps,
+    )
+
+    # actually start the deployment
+    async with uow:
+        # add the deployment to the database
+        await uow.deployments.add(deployment)
+        deployment.steps[0].state = "running"  # first step is running
+        for step in steps:
+            step.deployment_id = deployment.id  # set the deployment id fk
+            await uow.steps.add(step)
+        # fork the deployment task
+        deployment.start(service)
+        await uow.commit()
+
+
 async def publish_service_deleted_event(
     event: events.ServiceDeleted,
     publish: Callable,
 ):
     publish("service deleted: ", event)
+
+
+async def publish_deployment_started_event(
+    event: events.DeploymentStarted,
+    publish: Callable,
+):
+    publish("deployment started: ", event)
 
 
 async def publish_deployment_finished_event(
@@ -94,11 +138,13 @@ async def publish_step_deleted_event(
 EVENT_HANDLERS = {
     events.ServiceDeleted: [publish_service_deleted_event],
     events.DeploymentFinished: [remove_pendings_and_running_steps, publish_deployment_finished_event],
+    events.DeploymentStarted: [publish_deployment_started_event],
     events.StepDeleted: [publish_step_deleted_event],
 }  # type: dict[Type[events.Event], list[Callable]]
 
 COMMAND_HANDLERS = {
     commands.DeleteService: delete_service,
     commands.SyncServices: sync_services,
+    commands.StartDeployment: start_deployment,
     commands.FinishDeployment: finish_deployment,
 }  # type: dict[Type[commands.Command], Callable]

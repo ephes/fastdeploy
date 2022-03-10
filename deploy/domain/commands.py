@@ -20,3 +20,10 @@ class SyncServices(Command):
 
 class FinishDeployment(Command):
     id: int
+
+
+class StartDeployment(Command):
+    service_id: int
+    user: str
+    origin: str
+    context: dict

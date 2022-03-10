@@ -1,8 +1,14 @@
+import json
+
+from datetime import timedelta
+from unittest.mock import patch
+
 import pytest
 
 from httpx import AsyncClient
 
-from deploy.domain import model
+from deploy.auth import create_access_token
+from deploy.domain import events, model
 
 
 pytestmark = pytest.mark.asyncio
@@ -106,3 +112,92 @@ async def test_finish_deployment_happy(app, valid_deploy_token_in_db):
     assert response.status_code == 200
     detail = response.json()["detail"]
     assert "finished" in detail
+
+
+# test start_deployment endpoint
+
+
+async def test_deploy_no_access_token(app):
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        start_deployment = app.url_path_for("start_deployment")
+        response = await client.post(start_deployment)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+
+
+@pytest.fixture
+def invalid_service_token(service):
+    return create_access_token(
+        {"type": "service", "user": "foobar", "origin": "GitHub", "service": service.name}, timedelta(minutes=-5)
+    )
+
+
+async def test_deploy_invalid_access_token(app, invalid_service_token):
+    headers = {"authorization": f"Bearer {invalid_service_token}"}
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        start_deployment = app.url_path_for("start_deployment")
+        response = await client.post(start_deployment, headers=headers)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Could not validate credentials"}
+
+
+@pytest.fixture
+def valid_service_token(service):
+    """Valid service token, but service is not in database."""
+    return create_access_token({"type": "service", "service": service.name}, timedelta(minutes=5))
+
+
+async def test_deploy_service_not_found(app, valid_service_token):
+    headers = {"authorization": f"Bearer {valid_service_token}"}
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        start_deployment = app.url_path_for("start_deployment")
+        response = await client.post(start_deployment, headers=headers)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Could not validate credentials"}
+
+
+@patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_service_with_context(popen, app, valid_service_token_in_db):
+    my_context = {"env": {"foobar": "barfoo"}}
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        start_deployment = app.url_path_for("start_deployment")
+        response = await client.post(start_deployment, headers=headers, json=my_context)
+
+    # assert subprocess.Popen was called correctly
+    assert popen.call_args.args[0][-1] == "deploy.tasks"
+    context_from_popen = json.loads(popen.call_args.kwargs["env"]["CONTEXT"])
+    assert context_from_popen == my_context
+
+    # assert response is correct
+    assert response.status_code == 200
+    deployment_from_api = response.json()
+    assert "id" in deployment_from_api
+    assert deployment_from_api["context"] == my_context
+
+
+@patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_service_happy(popen, app, uow, publisher, valid_service_token_in_db, service_in_db):
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        start_deployment = app.url_path_for("start_deployment")
+        response = await client.post(start_deployment, headers=headers)
+
+    print("response.content: ", response.content)
+    assert response.status_code == 200
+    deployment_from_api = response.json()
+    assert "id" in deployment_from_api
+
+    # make sure added deployment was dispatched to event handlers
+    message, deployment_started = publisher.events[0]
+    assert message == "deployment started: "
+    assert isinstance(deployment_started, events.DeploymentStarted)
+    assert deployment_started.service_id == service_in_db.id
+
+    # make sure deployment was added to service in database
+    async with uow:
+        [deployment] = await uow.deployments.get(deployment_from_api["id"])
+    assert deployment.service_id == service_in_db.id

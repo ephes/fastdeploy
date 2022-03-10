@@ -128,6 +128,8 @@ class Service:
 
     id: int | None
     name: str
+    user: str = ""  # str instead of fk because of transport via service token
+    origin: str = ""
     events = []  # type: List[events.Event]
 
     def __init__(self, *, id=None, name: str = "", data={}):
@@ -149,6 +151,11 @@ class Service:
         """Raise deleted event if the service was in database."""
         if self.id is not None:
             self.events.append(events.ServiceDeleted(id=self.id))
+
+    def get_deploy_script(self) -> str:
+        deploy_script = self.data.get("deploy_script", "deploy.sh")
+        deploy_script = deploy_script.replace("/", "")
+        return f"{self.name}/{deploy_script}"
 
 
 # class ServicePydantic(SQLModel, table=True):
@@ -201,16 +208,6 @@ class ServiceOut(Service):
     deleted: bool = False
 
 
-# class DeploymentContext(SQLModel):
-#     """
-#     Pass some context for a deployment. For example when deploying a new
-#     podcast, we need to pass the domain name and the port of the application
-#     server.
-#     """
-
-#     env: dict = {}
-
-
 class Deployment:
     """
     Representing a single deployment for a service. It has an origin
@@ -250,6 +247,10 @@ class Deployment:
         self.steps = steps
 
     def dict(self):
+        if not hasattr(self, "steps"):
+            steps = []
+        else:
+            steps = [step.dict() for step in self.steps]
         return {
             "id": self.id,
             "service_id": self.service_id,
@@ -258,7 +259,7 @@ class Deployment:
             "started": self.started,
             "finished": self.finished,
             "context": self.context,
-            "steps": [step.dict() for step in self.steps],
+            "steps": steps,
         }
 
     def __repr__(self):
@@ -266,6 +267,9 @@ class Deployment:
 
     def __eq__(self, other):
         return self.id == other.id
+
+    def __hash__(self):
+        return hash((self.service_id, self.started))
 
     def process_step(self, step: Step, steps: list[Step]) -> list[Step]:
         """
@@ -326,6 +330,23 @@ class Deployment:
             known_step.message = step.message
             modified_steps.append(known_step)
         return modified_steps
+
+    def start(self, service: Service) -> None:
+        """
+        Raise started event.
+        """
+        if self.started is None or self.finished is not None:
+            raise ValueError("Unable to start deployment")
+
+        # start the deployment task
+        from ..tasks import get_deploy_environment, run_deploy
+
+        environment = get_deploy_environment(self, service.get_deploy_script())
+        run_deploy(environment)  # subproces.Popen(...)
+
+        # raise started event
+        assert service.id is not None
+        self.events.append(events.DeploymentStarted(service_id=service.id, started=self.started))
 
     def finish(self):
         """

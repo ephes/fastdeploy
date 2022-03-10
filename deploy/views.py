@@ -80,3 +80,12 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
         steps = await uow.steps.get_steps_from_deployment(deployment_id)
         deployment.steps = [s for s, in steps]
     return deployment
+
+
+async def get_most_recently_started_deployment_for_service(
+    service_id: int, uow: unit_of_work.AbstractUnitOfWork
+) -> model.Deployment:
+    """Get the most recently started deployment for a service."""
+    async with uow:
+        [deployment] = await uow.deployments.get_most_recent_running_deployment(service_id)
+    return deployment

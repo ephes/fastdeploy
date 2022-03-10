@@ -105,7 +105,10 @@ async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
 
     async with uow as uow:
         [service] = await uow.services.get_by_name(servicename)
-        uow.session.expunge_all()
+        uow.session.expunge(service)
+
+    service.origin = payload.get("origin", "")
+    service.user = payload.get("user", "")
     return service
 
 
