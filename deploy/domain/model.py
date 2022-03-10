@@ -1,3 +1,5 @@
+import json
+
 from datetime import datetime, timezone
 from typing import List
 
@@ -72,6 +74,13 @@ class Step:
             "deployment_id": self.deployment_id,
             "message": self.message,
         }
+
+    def json(self):
+        data = self.dict()
+        for key in ("started", "finished"):
+            if data[key] is not None:
+                data[key] = data[key].isoformat()
+        return json.dumps(data)
 
     def delete(self):
         """Raise deleted event if the step was in database."""
