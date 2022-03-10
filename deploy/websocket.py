@@ -7,13 +7,17 @@ from fastapi import WebSocket
 from jose import JWTError  # type: ignore
 from pydantic import BaseModel
 
-from .models import User
+from .auth import token_to_payload, user_from_token
+from .bootstrap import get_bus
+from .domain.model import User
+from .service_layer.messagebus import MessageBus
 
 
 class ConnectionManager:
-    def __init__(self) -> None:
+    def __init__(self, bus: MessageBus) -> None:
         self.all_connections: dict[UUID, WebSocket] = {}
         self.active_connections: dict[UUID, WebSocket] = {}
+        self.bus = bus
 
     async def connect(self, client_id: UUID, websocket: WebSocket):
         await websocket.accept()
@@ -46,16 +50,14 @@ class ConnectionManager:
             loop.call_later(expires_in_seconds, asyncio.create_task, self.close(client_id, message))
 
     async def authenticate(self, client_id: UUID, access_token: str):
-        from .auth import get_user_token_from_access_token
-
         try:
-            user_token = await get_user_token_from_access_token(access_token)
+            user = await user_from_token(access_token, self.bus.uow)
+            token = token_to_payload(access_token)
+            expires_at = datetime.fromtimestamp(token["exp"], timezone.utc)
             connection = self.all_connections[client_id]
             # after successful authentication, add connection close callback on token expiration
-            await self.close_on_expire(client_id, user_token.expires_at)
-            if user_token.user_model is not None:
-                print("authenticated: ", user_token.user_model.name)
-            user = user_token.user_model
+            await self.close_on_expire(client_id, expires_at)
+            print("authenticated: ", user.name)
             assert isinstance(user, User)
             message = {
                 "type": "authentication",
@@ -86,4 +88,4 @@ class ConnectionManager:
         await self.broadcast(event)
 
 
-connection_manager = ConnectionManager()
+connection_manager = ConnectionManager(asyncio.run(get_bus()))
