@@ -9,6 +9,7 @@ from ..auth import deployment_from_token, service_from_token, user_from_token
 from ..bootstrap import get_bus
 from ..domain.model import Deployment, Service, User
 from ..service_layer.messagebus import MessageBus
+from ..websocket import ConnectionManager
 
 
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
@@ -47,3 +48,13 @@ async def get_current_active_deployment(
         return await deployment_from_token(token, bus.uow)
     except Exception:
         raise CREDENTIALS_EXCEPTION
+
+
+CONNECTION_MANAGER = None
+
+
+async def get_connection_manager(bus: MessageBus = Depends(get_bus)) -> ConnectionManager:
+    global CONNECTION_MANAGER
+    if CONNECTION_MANAGER is None:
+        CONNECTION_MANAGER = ConnectionManager(bus)
+    return CONNECTION_MANAGER

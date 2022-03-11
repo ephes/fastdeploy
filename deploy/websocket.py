@@ -8,7 +8,6 @@ from jose import JWTError  # type: ignore
 from pydantic import BaseModel
 
 from .auth import token_to_payload, user_from_token
-from .bootstrap import get_bus
 from .domain.model import User
 from .service_layer.messagebus import MessageBus
 
@@ -86,6 +85,3 @@ class ConnectionManager:
 
     async def handle_event(self, event):
         await self.broadcast(event)
-
-
-connection_manager = ConnectionManager(asyncio.run(get_bus()))

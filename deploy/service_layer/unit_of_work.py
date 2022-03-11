@@ -85,6 +85,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         return super().__enter__()
 
     async def __aexit__(self, *args):
+        self.session.expunge_all()
         await super().__aexit__(*args)
         await self.session.close()
 
