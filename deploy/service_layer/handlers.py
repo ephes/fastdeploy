@@ -126,7 +126,8 @@ async def publish_service_deleted_event(
     event: events.ServiceDeleted,
     publish: Callable,
 ):
-    publish("service deleted: ", event)
+    print("publish service deleted event! ", event)
+    await publish("service deleted: ", event)
 
 
 async def publish_deployment_started_event(

@@ -2,7 +2,7 @@ import logging
 
 from typing import Callable, Union
 
-from ..adapters import filesystem
+from ..adapters import filesystem, websocket
 from ..domain import commands, events
 from . import unit_of_work
 
@@ -16,11 +16,13 @@ class MessageBus:
     def __init__(
         self,
         fs: filesystem.AbstractFilesystem,
+        cm: websocket.ConnectionManager,
         uow: unit_of_work.AbstractUnitOfWork,
         event_handlers: dict[type[events.Event], list[Callable]],
         command_handlers: dict[type[commands.Command], Callable],
     ):
         self.fs = fs
+        self.cm = cm
         self.uow = uow
         self.event_handlers = event_handlers
         self.command_handlers = command_handlers

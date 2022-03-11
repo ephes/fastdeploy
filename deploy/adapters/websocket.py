@@ -7,16 +7,16 @@ from fastapi import WebSocket
 from jose import JWTError  # type: ignore
 from pydantic import BaseModel
 
-from .auth import token_to_payload, user_from_token
-from .domain.model import User
-from .service_layer.messagebus import MessageBus
+from ..auth import token_to_payload, user_from_token
+from ..domain.model import User
+from ..service_layer.unit_of_work import AbstractUnitOfWork
 
 
 class ConnectionManager:
-    def __init__(self, bus: MessageBus) -> None:
+    def __init__(self, uow: AbstractUnitOfWork) -> None:
         self.all_connections: dict[UUID, WebSocket] = {}
         self.active_connections: dict[UUID, WebSocket] = {}
-        self.bus = bus
+        self.uow = uow
 
     async def connect(self, client_id: UUID, websocket: WebSocket):
         await websocket.accept()
@@ -50,7 +50,7 @@ class ConnectionManager:
 
     async def authenticate(self, client_id: UUID, access_token: str):
         try:
-            user = await user_from_token(access_token, self.bus.uow)
+            user = await user_from_token(access_token, self.uow)
             token = token_to_payload(access_token)
             expires_at = datetime.fromtimestamp(token["exp"], timezone.utc)
             connection = self.all_connections[client_id]
@@ -83,5 +83,6 @@ class ConnectionManager:
         for connection in self.active_connections.values():
             await connection.send_text(message.json())
 
-    async def handle_event(self, event):
+    async def publish(self, channel, event):
+        print("websocket publish: ", channel, event)
         await self.broadcast(event)

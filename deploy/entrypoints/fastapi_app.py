@@ -6,9 +6,9 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from ..bootstrap import get_bus
 from ..config import settings
-from ..websocket import ConnectionManager
-from .dependencies import get_connection_manager
+from ..service_layer.messagebus import MessageBus
 from .routers import deployments, services, steps, users
 
 
@@ -43,9 +43,8 @@ class Message(BaseModel):
 # This only works with fastapi app not with api router
 # see: https://github.com/tiangolo/fastapi/issues/98
 @app.websocket("/deployments/ws/{client_id}")
-async def websocket_endpoint(
-    websocket: WebSocket, client_id: UUID, connection_manager: ConnectionManager = Depends(get_connection_manager)
-):
+async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: MessageBus = Depends(get_bus)):
+    connection_manager = bus.cm
     await connection_manager.connect(client_id, websocket)
     try:
         while True:

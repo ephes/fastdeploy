@@ -6,8 +6,8 @@ import pytest
 from fastapi import WebSocket
 from pydantic import BaseModel
 
+from deploy.adapters.websocket import ConnectionManager
 from deploy.auth import create_access_token
-from deploy.websocket import ConnectionManager
 
 
 pytestmark = pytest.mark.asyncio
@@ -31,16 +31,16 @@ def stub_websocket():
     return StubWebsocket()
 
 
-async def test_websocket_connect(bus, stub_websocket):
-    cm = ConnectionManager(bus)
+async def test_websocket_connect(uow, stub_websocket):
+    cm = ConnectionManager(uow)
     client_id = uuid4()
     await cm.connect(client_id, stub_websocket)
     assert client_id in cm.all_connections
     assert stub_websocket.has_accepted
 
 
-async def test_websocket_disconnect(bus, stub_websocket):
-    cm = ConnectionManager(bus)
+async def test_websocket_disconnect(uow, stub_websocket):
+    cm = ConnectionManager(uow)
     client_id = uuid4()
 
     # inactive connection
@@ -65,8 +65,8 @@ def invalid_access_token(user):
     return create_access_token({"type": "user", "user": user.name}, timedelta(minutes=-5))
 
 
-async def test_websocket_authenticate_invalid_token(bus, invalid_access_token, stub_websocket):
-    cm = ConnectionManager(bus)
+async def test_websocket_authenticate_invalid_token(uow, invalid_access_token, stub_websocket):
+    cm = ConnectionManager(uow)
     client_id = uuid4()
     cm.all_connections[client_id] = stub_websocket
 
@@ -79,8 +79,8 @@ async def test_websocket_authenticate_invalid_token(bus, invalid_access_token, s
     assert "failed" in stub_websocket.sent[0]["detail"]
 
 
-async def test_websocket_authenticate_valid_token(bus, valid_access_token_in_db, stub_websocket):
-    cm = ConnectionManager(bus)
+async def test_websocket_authenticate_valid_token(uow, valid_access_token_in_db, stub_websocket):
+    cm = ConnectionManager(uow)
     client_id = uuid4()
     cm.all_connections[client_id] = stub_websocket
 
@@ -107,9 +107,9 @@ def test_message():
     return Message()
 
 
-async def test_broadcast_only_to_active_connections(bus, stub_websocket, test_message):
+async def test_broadcast_only_to_active_connections(uow, stub_websocket, test_message):
     client_id = uuid4()
-    cm = ConnectionManager(bus)
+    cm = ConnectionManager(uow)
     cm.all_connections[client_id] = stub_websocket
 
     await cm.broadcast(test_message)
@@ -121,7 +121,7 @@ async def test_broadcast_only_to_active_connections(bus, stub_websocket, test_me
     assert test_message.json() in stub_websocket.sent
 
 
-async def test_close_websocket_on_expire(bus):
+async def test_close_websocket_on_expire(uow):
     class StubWebsocket(WebSocket):
         def __init__(self):
             self.closed = False
@@ -135,7 +135,7 @@ async def test_close_websocket_on_expire(bus):
 
     websocket = StubWebsocket()
     client_id = uuid4()
-    cm = ConnectionManager(bus)
+    cm = ConnectionManager(uow)
     cm.all_connections[client_id] = websocket
 
     await cm.close_on_expire(client_id, datetime.now(timezone.utc))

@@ -1,12 +1,17 @@
 import logging
 
 from ..domain import events
-from ..websocket import connection_manager
+from .websocket import ConnectionManager
 
 
 logger = logging.getLogger(__name__)
 
 
-async def publish(event: events.Event):
-    logging.info("publishing: event=%s", event)
-    await connection_manager.handle_event(event)
+class WebsocketEventpublisher:
+    def __init__(self, cm: ConnectionManager):
+        self.cm = cm
+
+    async def __call__(self, channel: str, event: events.Event):
+        print("websocket event publisher: ", channel, event)
+        logging.info("publishing: event=%s", event)
+        await self.cm.publish(channel, event)

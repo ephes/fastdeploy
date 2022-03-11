@@ -1,9 +1,11 @@
 import inspect
 
-from typing import Callable
+from typing import Any, Callable
 
 from .adapters import filesystem, orm
 from .adapters.notifications import AbstractNotifications, EmailNotifications
+from .adapters.websocket import ConnectionManager
+from .adapters.websocket_eventpublisher import WebsocketEventpublisher
 
 # from .adapters import orm, websocket_eventpublisher
 from .config import settings
@@ -13,15 +15,21 @@ from .service_layer import handlers, messagebus, unit_of_work
 async def bootstrap(
     start_orm: bool = True,
     uow: unit_of_work.AbstractUnitOfWork = unit_of_work.SqlAlchemyUnitOfWork(),
+    connection_manager: Any = None,
     fs: filesystem.AbstractFilesystem = filesystem.Filesystem(settings.services_root),
-    notifications: AbstractNotifications = None,
-    publish: Callable = lambda *args: None,
+    notifications: AbstractNotifications | None = None,
+    publish: Callable | None = None,
     create_db_and_tables: bool = True,
-    # publish: Callable = websocket_eventpublisher.publish,
 ) -> messagebus.MessageBus:
 
     if notifications is None:
         notifications = EmailNotifications()
+
+    if connection_manager is None:
+        connection_manager = ConnectionManager(uow)
+
+    if publish is None:
+        publish = WebsocketEventpublisher(connection_manager)
 
     if start_orm:
         orm.start_mappers()
@@ -42,6 +50,7 @@ async def bootstrap(
 
     return messagebus.MessageBus(
         fs=fs,
+        cm=connection_manager,
         uow=uow,
         event_handlers=injected_event_handlers,
         command_handlers=injected_command_handlers,

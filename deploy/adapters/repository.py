@@ -152,6 +152,10 @@ class AbstractDeploymentRepository(abc.ABC):
         return NotImplementedError
 
     @abc.abstractmethod
+    async def get_by_service(self, service_id: int) -> tuple[model.Deployment]:
+        return NotImplementedError
+
+    @abc.abstractmethod
     async def list(self) -> list[tuple[model.Deployment]]:
         return NotImplementedError
 
@@ -175,6 +179,11 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
 
     async def get(self, deployment_id):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
+        result = await self.session.execute(stmt)
+        return result.one()
+
+    async def get_by_service(self, service_id):
+        stmt = select(model.Deployment).where(model.Deployment.service_id == service_id)
         result = await self.session.execute(stmt)
         return result.one()
 
@@ -240,6 +249,9 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
     async def get(self, deployment_id):
         return next((d,) for d in self._deployments if d.id == deployment_id)
+
+    async def get_by_service(self, service_id):
+        return next((d,) for d in self._deployments if d.service_id == service_id)
 
     async def get_last_successful_deployment_id(self, service_id):
         # failed_deployments = set()
