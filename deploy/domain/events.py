@@ -19,8 +19,8 @@ class ServiceCreated(Event):
 
 
 class ServiceDeleted(Event):
-    id: int
-    foo = "service deleted!"
+    service_id: int
+    name: str
 
 
 class StepDeleted(Event):
