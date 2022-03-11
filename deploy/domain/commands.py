@@ -7,6 +7,11 @@ class Command(BaseModel):
     pass
 
 
+class CreateUser(Command):
+    username: str
+    password_hash: str
+
+
 class CreateService(Command):
     name: str
     data: dict

@@ -7,6 +7,13 @@ from ..domain import commands, events, model
 from ..service_layer.unit_of_work import AbstractUnitOfWork
 
 
+async def create_user(command: commands.CreateUser, uow: AbstractUnitOfWork):
+    user = model.User(name=command.username, password=command.password_hash)
+    async with uow:
+        await uow.users.add(user)
+        await uow.commit()
+
+
 async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
     async with uow:
         [service] = await uow.services.get(command.service_id)
@@ -167,6 +174,7 @@ EVENT_HANDLERS = {
 }  # type: dict[Type[events.Event], list[Callable]]
 
 COMMAND_HANDLERS = {
+    commands.CreateUser: create_user,
     commands.DeleteService: delete_service,
     commands.SyncServices: sync_services,
     commands.StartDeployment: start_deployment,

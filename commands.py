@@ -19,7 +19,7 @@ from deploy.adapters.filesystem import working_directory
 from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap
 from deploy.config import settings
-from deploy.domain import model
+from deploy.domain import commands
 
 
 CWD = str(Path(__file__).parent.resolve())
@@ -28,12 +28,8 @@ cli = typer.Typer()
 
 async def createuser_async(username, password_hash):
     bus = await bootstrap()
-    # user has to be created after the orm mappers were started
-    user = model.User(name=username, password=password_hash)
-    async with bus.uow as uow:
-        await uow.users.add(user)
-        await uow.commit()
-    return user
+    cmd = commands.CreateUser(username=username, password_hash=password_hash)
+    await bus.handle(cmd)
 
 
 @cli.command()
@@ -51,12 +47,12 @@ def createuser():
         password_hash = get_password_hash(Prompt.ask("Enter password", password=True))
     rprint(f"creating user {username}")
     try:
-        user = asyncio.run(createuser_async(username, password_hash))
+        asyncio.run(createuser_async(username, password_hash))
     except Exception as e:
         rprint(f"failed to create user {username}")
         rprint(f"{e}")
         sys.exit(1)
-    rprint(f"created user with id: {user.id}")
+    rprint(f"created user: {username}")
 
 
 @cli.command()
