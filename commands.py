@@ -266,7 +266,7 @@ def run(
     (on windows fcntl is not available, -> ModuleNotFoundError: No module named 'fcntl')
     https://www.uvicorn.org/#running-with-gunicorn
 
-    gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker
+    gunicorn deploy.entrypoints.fastapi_app:app --workers 4 --worker-class uvicorn.workers.UvicornWorker
     """
     if docs:
         docs_serve()
