@@ -12,6 +12,7 @@ async def create_user(command: commands.CreateUser, uow: AbstractUnitOfWork):
     async with uow:
         await uow.users.add(user)
         await uow.commit()
+        user.create()
 
 
 async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
@@ -171,6 +172,7 @@ EVENT_HANDLERS = {
     events.DeploymentStarted: [publish_deployment_started_event],
     events.StepDeleted: [publish_step_deleted_event],
     events.StepProcessed: [publish_step_processed_event],
+    events.UserCreated: [],
 }  # type: dict[Type[events.Event], list[Callable]]
 
 COMMAND_HANDLERS = {

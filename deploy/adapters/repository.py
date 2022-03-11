@@ -94,9 +94,12 @@ class InMemoryServiceRepository(AbstractServiceRepository):
 
 
 class AbstractUserRepository(abc.ABC):
-    @abc.abstractmethod
+    def __init__(self):
+        self.seen: set[model.User] = set()
+
     async def add(self, user: model.User) -> None:
-        raise NotImplementedError
+        await self._add(user)
+        self.seen.add(user)
 
     @abc.abstractmethod
     async def get(self, name) -> tuple[model.User]:
@@ -110,8 +113,9 @@ class AbstractUserRepository(abc.ABC):
 class SqlAlchemyUserRepository(AbstractUserRepository):
     def __init__(self, session):
         self.session = session
+        super().__init__()
 
-    async def add(self, user):
+    async def _add(self, user):
         self.session.add(user)
 
     async def get(self, name):
@@ -127,8 +131,9 @@ class SqlAlchemyUserRepository(AbstractUserRepository):
 class InMemoryUserRepository(AbstractUserRepository):
     def __init__(self):
         self._users = []
+        super().__init__()
 
-    async def add(self, user):
+    async def _add(self, user):
         self._users.append(user)
         user.id = len(self._users)
 

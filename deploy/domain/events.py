@@ -7,6 +7,11 @@ class Event(BaseModel):
     pass
 
 
+class UserCreated(Event):
+    user_id: int
+    username: str
+
+
 class ServiceCreated(Event):
     id: int
     name: str

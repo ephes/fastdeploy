@@ -14,6 +14,7 @@ class User:
     id: int | None
     name: str | None
     password: str | None
+    events = []  # type: List[events.Event]
 
     def __init__(self, *, id=None, name=None, password=None):
         self.id = id
@@ -26,12 +27,22 @@ class User:
     def __eq__(self, other):
         return self.id == other.id and self.name == other.name
 
+    def __hash__(self):
+        return hash(self.name)
+
     def dict(self):
         return {
             "id": self.id,
             "name": self.name,
             "password": self.password,
         }
+
+    def create(self):
+        """
+        Raise created event.
+        """
+        assert self.id is not None and self.name is not None
+        self.events.append(events.UserCreated(user_id=self.id, username=self.name))
 
 
 class Step:

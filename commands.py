@@ -19,17 +19,26 @@ from deploy.adapters.filesystem import working_directory
 from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap
 from deploy.config import settings
-from deploy.domain import commands
+from deploy.domain import commands, events
 
 
 CWD = str(Path(__file__).parent.resolve())
 cli = typer.Typer()
 
 
-async def createuser_async(username, password_hash):
+async def createuser_async(username, password_hash) -> events.UserCreated:
     bus = await bootstrap()
+    user_created = None
+    catched_events = []  # if this is a scalar event, it fails - dunno why
+
+    async def handle_user_created(event: events.UserCreated):
+        catched_events.append(event)
+
+    bus.event_handlers[events.UserCreated].append(handle_user_created)
     cmd = commands.CreateUser(username=username, password_hash=password_hash)
     await bus.handle(cmd)
+    [user_created] = catched_events
+    return user_created
 
 
 @cli.command()
@@ -47,12 +56,12 @@ def createuser():
         password_hash = get_password_hash(Prompt.ask("Enter password", password=True))
     rprint(f"creating user {username}")
     try:
-        asyncio.run(createuser_async(username, password_hash))
+        user_created = asyncio.run(createuser_async(username, password_hash))
     except Exception as e:
         rprint(f"failed to create user {username}")
         rprint(f"{e}")
         sys.exit(1)
-    rprint(f"created user: {username}")
+    rprint("created: ", user_created)
 
 
 @cli.command()
