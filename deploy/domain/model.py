@@ -42,7 +42,7 @@ class User:
         Raise created event.
         """
         assert self.id is not None and self.name is not None
-        self.events.append(events.UserCreated(user_id=self.id, username=self.name))
+        self.events.append(events.UserCreated(id=self.id, username=self.name))
 
 
 class Step:
@@ -94,9 +94,10 @@ class Step:
         return json.dumps(data)
 
     def delete(self):
-        """Raise deleted event if the step was in database."""
-        if self.id is not None:
-            self.events.append(events.StepDeleted(id=self.id))
+        """Raise deleted event."""
+        assert self.id is not None
+        deleted = events.StepDeleted(**self.dict())
+        self.events.append(deleted)
 
     def process(self):
         """
@@ -188,7 +189,8 @@ class Service:
     def delete(self):
         """Raise deleted event if the service was in database."""
         assert self.id is not None and self.name is not None
-        self.events.append(events.ServiceDeleted(service_id=self.id, name=self.name))
+        deleted = events.ServiceDeleted(**self.dict())
+        self.events.append(deleted)
 
     def get_deploy_script(self) -> str:
         deploy_script = self.data.get("deploy_script", "deploy.sh")
@@ -385,15 +387,17 @@ class Deployment:
 
         # raise started event
         assert service.id is not None
-        self.events.append(events.DeploymentStarted(service_id=service.id, started=self.started))
+        print(self.dict())
+        started = events.DeploymentStarted(**self.dict())
+        self.events.append(started)
 
     def finish(self):
         """
-        Raise finished event if the deployment was in database and
-        has a finished timestamp.
+        Raise finished event.
         """
-        if self.id is not None and self.finished is not None:
-            self.events.append(events.DeploymentFinished(id=self.id, finished=self.finished))
+        assert self.id is not None and self.finished is not None
+        finished = events.DeploymentFinished(**self.dict())
+        self.events.append(finished)
 
 
 # class DeploymentPydantic(SQLModel, table=True):

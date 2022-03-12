@@ -86,7 +86,6 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     # get the service that we are deploying from database
     async with uow:
         [service] = await uow.services.get(command.service_id)
-        uow.session.expunge(service)
 
     # look up the deployment steps from last deployment
     steps = await views.get_steps_to_do_from_service(service, uow)
@@ -111,8 +110,8 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
             step.deployment_id = deployment.id  # set the deployment id fk
             await uow.steps.add(step)
         # fork the deployment task
-        deployment.start(service)
         await uow.commit()
+        deployment.start(service)
 
 
 async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
@@ -126,8 +125,11 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
         steps_to_update = deployment.process_step(step)
         for step in steps_to_update:
             await uow.steps.add(step)
-            step.process()
         await uow.commit()
+
+        # raise processed events after commit to have IDs
+        for step in steps_to_update:
+            step.process()
 
 
 async def publish_service_deleted_event(

@@ -1,6 +1,6 @@
 import asyncio
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -184,7 +184,9 @@ def valid_service_token_in_db(service_in_db):
 
 @pytest.fixture
 def deployment(service_in_db):
-    return model.Deployment(service_id=service_in_db.id, origin="github", user="fastdeploy")
+    return model.Deployment(
+        started=datetime.now(timezone.utc), service_id=service_in_db.id, origin="github", user="fastdeploy"
+    )
 
 
 @pytest_asyncio.fixture()

@@ -101,7 +101,7 @@ async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db
     # make sure deleted service event was dispatched to event handlers
     [(message, delete_event)] = publisher.events
     assert "deleted" in message
-    assert delete_event.service_id == service_in_db.id
+    assert delete_event.id == service_in_db.id
 
     # make sure service_in_db is not in db anymore
     async with uow as uow:

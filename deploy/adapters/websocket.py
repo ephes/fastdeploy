@@ -8,6 +8,7 @@ from jose import JWTError  # type: ignore
 from pydantic import BaseModel
 
 from ..auth import token_to_payload, user_from_token
+from ..domain import events
 from ..domain.model import User
 from ..service_layer.unit_of_work import AbstractUnitOfWork
 
@@ -58,17 +59,15 @@ class ConnectionManager:
             await self.close_on_expire(client_id, expires_at)
             print("authenticated: ", user.name)
             assert isinstance(user, User)
-            message = {
-                "type": "authentication",
-                "detail": f"access token verification successful for user {user.name}",
-                "status": "success",
-            }
+            auth_event = events.AuthenticationSucceeded(
+                detail=f"access token verification successful for user {user.name}"
+            )
             self.active_connections[client_id] = connection
             print("client successfully authenticated: ", client_id)
         except JWTError:
             print("verification failed")
-            message = {"type": "authentication", "detail": "access token verification failed", "status": "failure"}
-        await self.send(client_id, message)
+            auth_event = events.AuthenticationFailed(detail="access token verification failed")
+        await self.send(client_id, auth_event.dict())
 
     def disconnect(self, client_id: UUID):
         print("disconnecting client: ", client_id)

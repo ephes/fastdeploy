@@ -1,46 +1,71 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
 
+EVENT_TYPES = Literal["authentication", "service", "step", "deployment", "user"]
+
+
 class Event(BaseModel):
-    pass
+    # FIXME use Literal["service", ...] but it does not work
+    # in base class with pydantic atm dunno why
+    type: str
+
+
+class AuthenticationSucceeded(Event):
+    type: EVENT_TYPES = "authentication"
+    status: str = "success"
+    detail: str | None = None
+
+
+class AuthenticationFailed(AuthenticationSucceeded):
+    status: str = "failure"
 
 
 class UserCreated(Event):
-    user_id: int
+    type: EVENT_TYPES = "user"
+    id: int
     username: str
 
 
 class ServiceCreated(Event):
+    type: EVENT_TYPES = "service"
     id: int
     name: str
     data: dict = {}
+    deleted: bool = False
 
 
-class ServiceDeleted(Event):
-    service_id: int
-    name: str
-
-
-class StepDeleted(Event):
-    id: int
+class ServiceDeleted(ServiceCreated):
+    deleted: bool = True
 
 
 class StepProcessed(Event):
+    type: EVENT_TYPES = "step"
+    id: int
     name: str
+    state: Literal["pending", "running", "success", "failure"]
     deployment_id: int
-    state: str
+    message: str
     started: datetime
     finished: datetime
-    message: str
+    deleted: bool = False
+
+
+class StepDeleted(StepProcessed):
+    deleted: bool = True
 
 
 class DeploymentStarted(Event):
-    service_id: int
-    started: datetime
-
-
-class DeploymentFinished(Event):
+    type: EVENT_TYPES = "deployment"
     id: int
+    service_id: int
+    origin: str
+    user: str
+    started: datetime
+    finished: datetime | None
+
+
+class DeploymentFinished(DeploymentStarted):
     finished: datetime
