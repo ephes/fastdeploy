@@ -105,6 +105,12 @@ class Step:
         """
         self.events.append(events.StepProcessed(**self.dict()))
 
+    def create(self):
+        """
+        Raise created event.
+        """
+        self.events.append(events.StepCreated(**self.dict()))
+
 
 # class StepBase(SQLModel):
 #     """
@@ -380,16 +386,16 @@ class Deployment:
 
     def start(self, service: Service) -> None:
         """
-        Raise started event.
+        Start actual deployment task and raise started event.
         """
-        if self.started is None or self.finished is not None:
+        if self.started is None or self.finished is not None or self.id is None:
             raise ValueError("Unable to start deployment")
 
         # start the deployment task
         from ..tasks import get_deploy_environment, run_deploy
 
         environment = get_deploy_environment(self, service.get_deploy_script())
-        run_deploy(environment)  # subproces.Popen(...)
+        run_deploy(environment)  # subprocess.Popen(...)
 
         # raise started event
         assert service.id is not None

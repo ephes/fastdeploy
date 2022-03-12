@@ -45,19 +45,23 @@ class ServiceDeleted(ServiceCreated):
     deleted: bool = True
 
 
-class StepProcessed(Event):
+class StepCreated(Event):
     type: EVENT_TYPES = "step"
     id: int
     name: str
     state: Literal["pending", "running", "success", "failure"]
     deployment_id: int
     message: str
-    started: datetime
-    finished: datetime
+    started: datetime | None
+    finished: datetime | None
     deleted: bool = False
 
 
-class StepDeleted(StepProcessed):
+class StepProcessed(StepCreated):
+    ...
+
+
+class StepDeleted(StepCreated):
     deleted: bool = True
 
 

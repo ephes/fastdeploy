@@ -77,7 +77,9 @@ class DeployTask(BaseSettings):
     async def send_step(self, step_url, step):
         for _ in range(self.attempts):
             try:
+                print(step.dict())
                 r = await self.client.post(step_url, json=json.loads(step.json()))
+                print("send step result: ", r.json())
                 r.raise_for_status()
                 break
             except httpx.HTTPStatusError:

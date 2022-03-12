@@ -26,8 +26,7 @@ async def process_step_result(
     Needs to be authenticated with a deployment token.
     """
     assert isinstance(deployment.id, int)
-    print("step? ", step)
-    cmd = commands.ProcessStep(**step.dict())
+    cmd = commands.ProcessStep(**step.dict(), deployment_id=deployment.id)
     try:
         await bus.handle(cmd)
     except Exception as e:

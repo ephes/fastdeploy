@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 class StepBase(BaseModel):
     name: str
-    deployment_id: int
     state: str
     started: datetime | None
     finished: datetime | None

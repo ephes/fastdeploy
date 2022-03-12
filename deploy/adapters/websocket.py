@@ -78,12 +78,10 @@ class ConnectionManager:
         await self.all_connections[client_id].send_json(message)
 
     async def broadcast(self, message: BaseModel):
-        print("active connections: ", self.active_connections)
         for connection in self.active_connections.values():
             await connection.send_text(message.json())
 
     async def publish(self, channel, event):
-        print("websocket publish: ", channel, event)
         await self.broadcast(event)
 
 
