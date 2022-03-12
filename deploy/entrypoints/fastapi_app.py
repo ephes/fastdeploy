@@ -52,7 +52,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Message
             print("received data: ", data)
             if data.get("access_token") is not None:
                 # try to authenticate client
-                await connection_manager.authenticate(client_id, data["access_token"])
+                await connection_manager.authenticate(client_id, data["access_token"], bus.uow)
             else:
                 message = Message(message="message from backend!")
                 await connection_manager.broadcast(message)

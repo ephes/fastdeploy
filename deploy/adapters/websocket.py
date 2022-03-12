@@ -14,10 +14,9 @@ from ..service_layer.unit_of_work import AbstractUnitOfWork
 
 
 class ConnectionManager:
-    def __init__(self, uow: AbstractUnitOfWork) -> None:
+    def __init__(self) -> None:
         self.all_connections: dict[UUID, WebSocket] = {}
         self.active_connections: dict[UUID, WebSocket] = {}
-        self.uow = uow
 
     async def connect(self, client_id: UUID, websocket: WebSocket):
         await websocket.accept()
@@ -49,9 +48,9 @@ class ConnectionManager:
             loop = asyncio.get_event_loop()
             loop.call_later(expires_in_seconds, asyncio.create_task, self.close(client_id, message))
 
-    async def authenticate(self, client_id: UUID, access_token: str):
+    async def authenticate(self, client_id: UUID, access_token: str, uow: AbstractUnitOfWork):
         try:
-            user = await user_from_token(access_token, self.uow)
+            user = await user_from_token(access_token, uow)
             token = token_to_payload(access_token)
             expires_at = datetime.fromtimestamp(token["exp"], timezone.utc)
             connection = self.all_connections[client_id]
@@ -79,9 +78,13 @@ class ConnectionManager:
         await self.all_connections[client_id].send_json(message)
 
     async def broadcast(self, message: BaseModel):
+        print("active connections: ", self.active_connections)
         for connection in self.active_connections.values():
             await connection.send_text(message.json())
 
     async def publish(self, channel, event):
         print("websocket publish: ", channel, event)
         await self.broadcast(event)
+
+
+connection_manager = ConnectionManager()
