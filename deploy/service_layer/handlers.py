@@ -142,28 +142,28 @@ async def publish_deployment_started_event(
     event: events.DeploymentStarted,
     publish: Callable,
 ):
-    publish("deployment started: ", event)
+    await publish("deployment started: ", event)
 
 
 async def publish_deployment_finished_event(
     event: events.DeploymentFinished,
     publish: Callable,
 ):
-    publish("deployment finished: ", event)
+    await publish("deployment finished: ", event)
 
 
 async def publish_step_deleted_event(
     event: events.StepDeleted,
     publish: Callable,
 ):
-    publish("step deleted: ", event)
+    await publish("step deleted: ", event)
 
 
 async def publish_step_processed_event(
     event: events.StepProcessed,
     publish: Callable,
 ):
-    publish("step processed: ", event)
+    await publish("step processed: ", event)
 
 
 EVENT_HANDLERS = {

@@ -104,7 +104,7 @@ class TestablePublisher:
     def __init__(self):
         self.events = []
 
-    def __call__(self, message, event):
+    async def __call__(self, message, event):
         self.events.append((message, event))
 
 
