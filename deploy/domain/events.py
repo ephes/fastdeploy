@@ -37,6 +37,10 @@ class ServiceCreated(Event):
     deleted: bool = False
 
 
+class ServiceUpdated(ServiceCreated):
+    ...
+
+
 class ServiceDeleted(ServiceCreated):
     deleted: bool = True
 

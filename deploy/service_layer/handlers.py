@@ -45,6 +45,11 @@ async def sync_services(command: commands.SyncServices, uow: AbstractUnitOfWork,
     async with uow:
         await persist_synced_services(uow, updated_services, deleted_services)
         await uow.commit()
+        # raise events
+        for service in updated_services:
+            service.update()
+        for service in deleted_services:
+            service.delete()
 
 
 async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUnitOfWork):
@@ -141,6 +146,7 @@ async def publish_event(event: PUBLISH_EVENTS, publish: Callable):
 
 EVENT_HANDLERS = {
     events.ServiceDeleted: [publish_event],
+    events.ServiceUpdated: [publish_event],
     events.DeploymentFinished: [publish_event],
     events.DeploymentStarted: [publish_event],
     events.StepDeleted: [publish_event],

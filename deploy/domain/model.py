@@ -187,10 +187,16 @@ class Service:
         }
 
     def delete(self):
-        """Raise deleted event if the service was in database."""
+        """Raise deleted event."""
         assert self.id is not None and self.name is not None
         deleted = events.ServiceDeleted(**self.dict())
         self.events.append(deleted)
+
+    def update(self):
+        """Raise updated event."""
+        assert self.id is not None and self.name is not None
+        updated = events.ServiceUpdated(**self.dict())
+        self.events.append(updated)
 
     def get_deploy_script(self) -> str:
         deploy_script = self.data.get("deploy_script", "deploy.sh")
