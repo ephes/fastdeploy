@@ -1,3 +1,5 @@
+import logging
+
 from datetime import datetime, timezone
 from typing import Callable, Type
 
@@ -5,6 +7,9 @@ from .. import views
 from ..adapters.filesystem import AbstractFilesystem
 from ..domain import commands, events, model
 from ..service_layer.unit_of_work import AbstractUnitOfWork
+
+
+logger = logging.getLogger(__name__)
 
 
 async def create_user(command: commands.CreateUser, uow: AbstractUnitOfWork):
@@ -50,32 +55,26 @@ async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUni
     possible to update any deployment attributes.
 
     * Set the finished timestamp
-    * Remove all steps with state "running" or "pending"
+    * Remove all steps in state "running" or "pending"
     """
     async with uow:
         [deployment] = await uow.deployments.get(command.id)
         deployment.finished = datetime.now(timezone.utc)
         await uow.deployments.add(deployment)
-        await uow.commit()
-        deployment.finish()
 
-
-async def remove_pendings_and_running_steps(event: events.DeploymentFinished, uow: AbstractUnitOfWork):
-    """
-    Remove all steps with state "running" or "pending" from the database.
-
-    This should happens when a deployment is finished.
-    """
-    async with uow:
-        steps = await uow.steps.get_steps_from_deployment(event.id)
+        steps = await uow.steps.get_steps_from_deployment(command.id)
         removed_steps = []
         for (step,) in steps:
             if step.state in ("running", "pending"):
                 await uow.steps.delete(step)
                 removed_steps.append(step)
+
         await uow.commit()
+
+        # raise events after commit to have IDs
         for step in removed_steps:
             step.delete()
+        deployment.finish()
 
 
 async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitOfWork):
@@ -132,48 +131,20 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
             step.process()
 
 
-async def publish_service_deleted_event(
-    event: events.ServiceDeleted,
-    publish: Callable,
-):
-    print("publish service deleted event! ", event)
-    await publish("service deleted: ", event)
+PUBLISH_EVENTS = events.ServiceDeleted | events.DeploymentStarted | events.DeploymentFinished | events.StepDeleted
 
 
-async def publish_deployment_started_event(
-    event: events.DeploymentStarted,
-    publish: Callable,
-):
-    await publish("deployment started: ", event)
-
-
-async def publish_deployment_finished_event(
-    event: events.DeploymentFinished,
-    publish: Callable,
-):
-    await publish("deployment finished: ", event)
-
-
-async def publish_step_deleted_event(
-    event: events.StepDeleted,
-    publish: Callable,
-):
-    await publish("step deleted: ", event)
-
-
-async def publish_step_processed_event(
-    event: events.StepProcessed,
-    publish: Callable,
-):
-    await publish("step processed: ", event)
+async def publish_event(event: PUBLISH_EVENTS, publish: Callable):
+    logger.info(f"Publishing event {event}")
+    await publish("broadcast", event)
 
 
 EVENT_HANDLERS = {
-    events.ServiceDeleted: [publish_service_deleted_event],
-    events.DeploymentFinished: [remove_pendings_and_running_steps, publish_deployment_finished_event],
-    events.DeploymentStarted: [publish_deployment_started_event],
-    events.StepDeleted: [publish_step_deleted_event],
-    events.StepProcessed: [publish_step_processed_event],
+    events.ServiceDeleted: [publish_event],
+    events.DeploymentFinished: [publish_event],
+    events.DeploymentStarted: [publish_event],
+    events.StepDeleted: [publish_event],
+    events.StepProcessed: [publish_event],
     events.UserCreated: [],
 }  # type: dict[Type[events.Event], list[Callable]]
 

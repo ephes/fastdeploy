@@ -192,8 +192,8 @@ async def test_deploy_service_happy(popen, app, uow, publisher, valid_service_to
     assert "id" in deployment_from_api
 
     # make sure added deployment was dispatched to event handlers
-    message, deployment_started = publisher.events[0]
-    assert message == "deployment started: "
+    channel, deployment_started = publisher.events[0]
+    assert channel == "broadcast"
     assert isinstance(deployment_started, events.DeploymentStarted)
     assert deployment_started.service_id == service_in_db.id
 

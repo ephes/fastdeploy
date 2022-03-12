@@ -99,8 +99,8 @@ async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db
     assert result == {"detail": f"Service {service_in_db.id} deleted"}
 
     # make sure deleted service event was dispatched to event handlers
-    [(message, delete_event)] = publisher.events
-    assert "deleted" in message
+    [(channel, delete_event)] = publisher.events
+    assert channel == "broadcast"
     assert delete_event.id == service_in_db.id
 
     # make sure service_in_db is not in db anymore

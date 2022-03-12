@@ -99,8 +99,8 @@ async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy
     assert "processed" in result["detail"]
 
     # make sure processed step was dispatched to event handlers
-    message, step_processed = publisher.events[0]
-    assert message == "step processed: "
+    channel, step_processed = publisher.events[0]
+    assert channel == "broadcast"
     assert isinstance(step_processed, events.StepProcessed)
     assert step_processed.name == step_result.name
 

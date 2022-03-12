@@ -298,15 +298,17 @@ class AbstractStepRepository(abc.ABC):
         return NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[tuple[model.Step]]:
-        return NotImplementedError
-
-    @abc.abstractmethod
     async def delete(self, step: model.Step) -> None:
         return NotImplementedError
 
     @abc.abstractmethod
-    async def get_steps_from_deployment(self, deployment_id: int):
+    async def get_steps_from_deployment(self, deployment_id: int) -> list[tuple[model.Step]]:
+        return NotImplementedError
+
+    @abc.abstractmethod
+    async def list(self) -> list[tuple[model.Step]]:
+        # list has to be after get_steps_from_deployment otherwise
+        # type annotation wont work, duh :/ - maybe a bug in pylance..
         return NotImplementedError
 
 
