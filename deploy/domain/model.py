@@ -70,10 +70,16 @@ class Step:
         return self.id == other.id
 
     def __repr__(self):
-        return f"Step(id={self.id}, name={self.name}, state={self.state})"
+        return f"Step(id={self.id}, name={self.name}, state={self.state}, deployment={self.deployment_id})"
 
     def __hash__(self):
         return hash((self.name, self.deployment_id, self.started))
+
+    @classmethod
+    def new_pending_from_old(cls, other):
+        """Last successful steps have to be re-created to be able to be used in a new deployment."""
+        reset_attributes = {"id": None, "state": "pending", "started": None, "finished": None}
+        return cls(**(other.dict() | reset_attributes))
 
     def dict(self):
         return {
@@ -399,7 +405,6 @@ class Deployment:
 
         # raise started event
         assert service.id is not None
-        print(self.dict())
         started = events.DeploymentStarted(**self.dict())
         self.events.append(started)
 

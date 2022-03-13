@@ -63,11 +63,11 @@ async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUni
     * Remove all steps in state "running" or "pending"
     """
     async with uow:
-        [deployment] = await uow.deployments.get(command.id)
+        [deployment] = await uow.deployments.get(command.deployment_id)
         deployment.finished = datetime.now(timezone.utc)
         await uow.deployments.add(deployment)
 
-        steps = await uow.steps.get_steps_from_deployment(command.id)
+        steps = await uow.steps.get_steps_from_deployment(command.deployment_id)
         removed_steps = []
         for (step,) in steps:
             if step.state in ("running", "pending"):
@@ -135,8 +135,6 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
     async with uow:
         deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
         steps_to_update = deployment.process_step(step)
-        print("process step for deployment: ", deployment)
-        print("steps to update: ", steps_to_update)
         for step in steps_to_update:
             await uow.steps.add(step)
         await uow.commit()

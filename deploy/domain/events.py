@@ -73,6 +73,7 @@ class DeploymentStarted(Event):
     user: str
     started: datetime
     finished: datetime | None
+    context: dict = {}
 
 
 class DeploymentFinished(DeploymentStarted):

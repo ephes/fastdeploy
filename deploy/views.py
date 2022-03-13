@@ -57,7 +57,10 @@ async def get_steps_to_do_from_service(
         async with uow:
             steps = await get_steps_from_last_deployment(service, uow)
             if steps:
-                return steps
+                # copy steps from old deployment and create new steps
+                # beware: do not use old ids, it would overwrite steps
+                # from old deployment
+                return [model.Step.new_pending_from_old(step) for step in steps]
     # try to get steps from config
     steps = [model.Step(**step) for step in service.data.get("steps", [])]
     if len(steps) == 0:
@@ -79,13 +82,4 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
         [deployment] = await uow.deployments.get(deployment_id)
         steps = await uow.steps.get_steps_from_deployment(deployment_id)
         deployment.steps = [s for s, in steps]
-    return deployment
-
-
-async def get_most_recently_started_deployment_for_service(
-    service_id: int, uow: unit_of_work.AbstractUnitOfWork
-) -> model.Deployment:
-    """Get the most recently started deployment for a service."""
-    async with uow:
-        [deployment] = await uow.deployments.get_most_recent_running_deployment(service_id)
     return deployment

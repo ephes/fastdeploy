@@ -26,7 +26,7 @@ class SyncServices(Command):
 
 
 class FinishDeployment(Command):
-    id: int
+    deployment_id: int
 
 
 class StartDeployment(Command):

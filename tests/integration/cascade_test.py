@@ -1,8 +1,6 @@
 import pytest
 import pytest_asyncio
 
-from sqlalchemy.orm.exc import NoResultFound
-
 from deploy.domain import commands, model
 
 
@@ -23,11 +21,11 @@ async def service_cascade(uow, service_in_db):
 
 async def test_deleting_service_deletes_related_deployment_with_steps(bus, service_cascade):
     async with bus.uow as uow:
-        [deployment] = await uow.deployments.get_by_service(service_cascade.id)
+        deployments = [d for d, in await uow.deployments.get_by_service(service_cascade.id)]
+        deployment = deployments[0]
         [step] = await uow.steps.get_steps_from_deployment(deployment.id)
     cmd = commands.DeleteService(service_id=service_cascade.id)
     await bus.handle(cmd)
     async with bus.uow as uow:
         assert await uow.steps.get_steps_from_deployment(deployment.id) == []
-        with pytest.raises((NoResultFound, StopIteration)):
-            [deployment] = await uow.deployments.get_by_service(service_cascade.id)
+        await uow.deployments.get_by_service(service_cascade.id) == []

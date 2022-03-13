@@ -157,7 +157,7 @@ class AbstractDeploymentRepository(abc.ABC):
         return NotImplementedError
 
     @abc.abstractmethod
-    async def get_by_service(self, service_id: int) -> tuple[model.Deployment]:
+    async def get_by_service(self, service_id: int) -> list[tuple[model.Deployment]]:
         return NotImplementedError
 
     @abc.abstractmethod
@@ -166,10 +166,6 @@ class AbstractDeploymentRepository(abc.ABC):
 
     @abc.abstractmethod
     async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
-        return NotImplementedError
-
-    @abc.abstractmethod
-    async def get_most_recent_running_deployment(self, service_id: int) -> tuple[model.Deployment]:
         return NotImplementedError
 
 
@@ -190,7 +186,7 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
     async def get_by_service(self, service_id):
         stmt = select(model.Deployment).where(model.Deployment.service_id == service_id)
         result = await self.session.execute(stmt)
-        return result.one()
+        return result.all()
 
     async def list(self):
         stmt = select(model.Deployment)
@@ -230,17 +226,6 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         except NoResultFound:
             return None
 
-    async def get_most_recent_running_deployment(self, service_id):
-        stmt = (
-            select(model.Deployment)
-            .where(model.Deployment.service_id == service_id)
-            .where(model.Deployment.finished.is_(None))  # type: ignore
-            .where(model.Deployment.started.is_not(None))  # type: ignore
-            .order_by(model.Deployment.started.desc())  # type: ignore
-        )
-        result = await self.session.execute(stmt)
-        return result.one()
-
 
 class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     def __init__(self):
@@ -256,7 +241,7 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
         return next((d,) for d in self._deployments if d.id == deployment_id)
 
     async def get_by_service(self, service_id):
-        return next((d,) for d in self._deployments if d.service_id == service_id)
+        return [(d,) for d in self._deployments if d.service_id == service_id]
 
     async def get_last_successful_deployment_id(self, service_id):
         # failed_deployments = set()
@@ -275,14 +260,6 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
     async def list(self):
         return self._deployments
-
-    async def get_most_recent_running_deployment(self, service_id):
-        deployments = []
-        for deployment in self._deployments:
-            if deployment.service_id == service_id and deployment.finished is None and deployment.started is not None:
-                deployments.append(deployment)
-        deployments.sort(key=lambda d: d.started, reverse=True)
-        return next((d,) for d in deployments)
 
 
 class AbstractStepRepository(abc.ABC):

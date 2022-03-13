@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ... import views
 from ...bootstrap import get_bus
-from ...domain import commands, model
+from ...domain import commands, events, model
 from ...service_layer.messagebus import MessageBus
 from ...tasks import DeploymentContext
 from ..dependencies import (
@@ -67,7 +67,7 @@ async def finish_deployment(
     if deployment.id is None:
         # this cannot happen -> it's just a type guard for command
         raise HTTPException(status_code=404, detail="Deployment not found")
-    cmd = commands.FinishDeployment(id=deployment.id)
+    cmd = commands.FinishDeployment(deployment_id=deployment.id)
     try:
         await bus.handle(cmd)
     except Exception:
@@ -91,6 +91,16 @@ async def start_deployment(
         # this cannot happen -> it's just a type guard
         raise HTTPException(status_code=404, detail="Service not found")
 
+    # register deployment started handler to get the deployment_id
+    class DeploymentStartedHandler:
+        event: events.DeploymentStarted
+
+        async def __call__(self, event: events.DeploymentStarted):
+            self.event = event
+
+    handle_deployment_started = DeploymentStartedHandler()
+    bus.event_handlers[events.DeploymentStarted].append(handle_deployment_started)
+
     cmd = commands.StartDeployment(
         service_id=service.id, origin=service.origin, user=service.user, context=context.dict()
     )
@@ -100,10 +110,6 @@ async def start_deployment(
         print(e)
         raise HTTPException(status_code=400, detail="Something went wrong")
 
-    try:
-        started_deployment = await views.get_most_recently_started_deployment_for_service(cmd.service_id, bus.uow)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Started Deployment not found")
-
-    details_url = request.url_for("get_deployment_details", deployment_id=str(started_deployment.id))
-    return DeploymentWithDetailsUrl(**started_deployment.dict(), details=details_url)
+    started_event = handle_deployment_started.event
+    details_url = request.url_for("get_deployment_details", deployment_id=str(started_event.id))
+    return DeploymentWithDetailsUrl(**started_event.dict(), details=details_url)
