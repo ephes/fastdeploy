@@ -157,4 +157,3 @@ async def test_steps_removed_after_finish(bus, deployment_in_db):
     async with bus.uow as uow:
         steps = await uow.steps.get_steps_from_deployment(deployment_in_db.id)
         assert len(steps) == 0
-    assert False
