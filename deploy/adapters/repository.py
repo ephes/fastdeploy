@@ -221,7 +221,10 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         )
         result = await self.session.execute(statement, {"service_id": service_id})
         try:
-            [last_successful] = result.one()
+            # [last_successful] = result.first()
+            last_successful = result.first()
+            if last_successful is not None:
+                [last_successful] = last_successful
             return last_successful
         except NoResultFound:
             return None

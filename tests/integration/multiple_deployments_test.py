@@ -4,14 +4,50 @@ from unittest.mock import patch
 import pytest
 import pytest_asyncio
 
-from deploy.domain import commands, events
+from deploy import views
+from deploy.domain import commands, events, model
 
 
 pytestmark = pytest.mark.asyncio
 
 
+async def test_last_successful_id_multiple_deployments(uow, service_in_db):
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
+    finished = started + timedelta(minutes=1)
+    params = {
+        "service_id": service_in_db.id,
+        "origin": "github",
+        "user": "fastdeploy",
+        "started": started,
+        "finished": finished,
+        "context": {},
+    }
+    d1 = model.Deployment(**params)
+    params["started"] = finished
+    params["finished"] = finished + timedelta(minutes=1)
+    d2 = model.Deployment(**params)
+    async with uow:
+        await uow.deployments.add(d1)
+        await uow.deployments.add(d2)
+        await uow.commit()
+
+    step1 = model.Step(
+        name="first successful step", deployment_id=d1.id, state="success", started=started, finished=finished
+    )
+    step2 = model.Step(
+        name="second successful step", deployment_id=d2.id, state="success", started=finished, finished=d2.finished
+    )
+    async with uow:
+        await uow.steps.add(step1)
+        await uow.steps.add(step2)
+        await uow.commit()
+
+    steps = await views.get_steps_from_last_deployment(service_in_db, uow)
+    assert steps[0].deployment_id == d2.id
+
+
 @pytest_asyncio.fixture()
-async def service(uow, service_in_db):
+async def service_with_steps(uow, service_in_db):
     """Need two steps, because the first one is always set to 'running'"""
     service_in_db.data = {
         "steps": [{"name": "step1"}, {"name": "step2"}],
@@ -55,11 +91,12 @@ async def process_steps(bus, deployment_id):
 
 
 @patch("deploy.tasks.subprocess.Popen")
-async def test_two_deployments(popen, bus, service, deployment_started_handler):
+async def test_two_deployments(popen, bus, service_with_steps, deployment_started_handler):
     """
     There was a bug where the steps first deployment get assigned to the
     second deployment. Make sure it wont happen again.
     """
+    service = service_with_steps
     # deployment parameters
     params = {
         "service_id": service.id,
