@@ -28,17 +28,19 @@ cli = typer.Typer()
 
 async def createuser_async(username, password_hash) -> events.UserCreated:
     bus = await bootstrap()
-    user_created = None
-    catched_events = []  # if this is a scalar event, it fails - dunno why
 
-    async def handle_user_created(event: events.UserCreated):
-        catched_events.append(event)
+    class UserCreatedHandler:
+        user_event: events.UserCreated
+
+        async def __call__(self, event: events.UserCreated):
+            self.user_event = event
+
+    handle_user_created = UserCreatedHandler()
 
     bus.event_handlers[events.UserCreated].append(handle_user_created)
     cmd = commands.CreateUser(username=username, password_hash=password_hash)
     await bus.handle(cmd)
-    [user_created] = catched_events
-    return user_created
+    return handle_user_created.user_event
 
 
 @cli.command()
