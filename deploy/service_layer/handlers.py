@@ -116,13 +116,13 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
         for step in steps:
             step.deployment_id = deployment.id  # set the deployment id fk
             await uow.steps.add(step)
-        # fork the deployment task
+
+        # save the steps to the database
         await uow.commit()
 
         # start actual deployment task + raise events
         deployment.start(service)
         for step in steps:
-            # step.deployment_id = deployment.id  # wtf? FIXME
             step.create()
 
 
@@ -135,6 +135,8 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
     async with uow:
         deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
         steps_to_update = deployment.process_step(step)
+        print("process step for deployment: ", deployment)
+        print("steps to update: ", steps_to_update)
         for step in steps_to_update:
             await uow.steps.add(step)
         await uow.commit()

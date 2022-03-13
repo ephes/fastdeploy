@@ -13,6 +13,7 @@ class StepBase(BaseModel):
 
 class Step(StepBase):
     id: int
+    deployment_id: int
 
 
 class StepResult(StepBase):

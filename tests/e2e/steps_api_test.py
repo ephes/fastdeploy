@@ -141,3 +141,4 @@ async def test_get_steps_by_deployment_happy(app, step_in_db, valid_access_token
     assert response.status_code == 200
     steps_by_deployment = response.json()
     assert steps_by_deployment[0]["id"] == step_in_db.id
+    assert "deployment_id" in steps_by_deployment[0]
