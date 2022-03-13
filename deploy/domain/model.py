@@ -57,7 +57,9 @@ class Step:
     deployment_id: int | None
     events = []  # type: List[events.Event]
 
-    def __init__(self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None):
+    def __init__(
+        self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None, **kwargs
+    ):
         self.id = id
         self.name = name
         self.started = started

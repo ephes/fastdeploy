@@ -55,7 +55,7 @@ steps = Table(
     Column("started", DateTime(timezone=True)),
     Column("finished", DateTime(timezone=True)),
     Column("state", String(20), default="pending"),
-    Column("message", String(255)),
+    Column("message", String(1024)),
     Column("deployment_id", Integer, ForeignKey("deployment.id", ondelete="CASCADE")),
 )
 
