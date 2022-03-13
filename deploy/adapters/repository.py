@@ -312,7 +312,7 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
         return result.all()
 
     async def delete(self, step):
-        self.session.delete(step)
+        await self.session.delete(step)
 
     async def get_steps_from_deployment(self, deployment_id):
         stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)

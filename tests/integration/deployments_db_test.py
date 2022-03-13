@@ -141,3 +141,20 @@ async def test_two_deployments(popen, bus, service_with_steps, deployment_starte
     async with bus.uow as uow:
         second_steps = [s for s, in await uow.steps.get_steps_from_deployment(second_deployment_id)]
         assert len(second_steps) == len(service.data["steps"])
+
+
+async def test_steps_removed_after_finish(bus, deployment_in_db):
+    step1 = model.Step(name="a pending step", deployment_id=deployment_in_db.id, state="pending")
+    step2 = model.Step(name="a pending step", deployment_id=deployment_in_db.id, state="running")
+    async with bus.uow as uow:
+        await uow.steps.add(step1)
+        await uow.steps.add(step2)
+        await uow.commit()
+
+    cmd = commands.FinishDeployment(deployment_id=deployment_in_db.id)
+    await bus.handle(cmd)
+
+    async with bus.uow as uow:
+        steps = await uow.steps.get_steps_from_deployment(deployment_in_db.id)
+        assert len(steps) == 0
+    assert False
