@@ -39,9 +39,6 @@ class AbstractUnitOfWork(abc.ABC):
     steps: repository.AbstractStepRepository
     session: AbstractSession
 
-    def __enter__(self) -> AbstractUnitOfWork:
-        return self
-
     async def __aenter__(self) -> AbstractUnitOfWork:
         return self
 
@@ -76,13 +73,13 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.session_factory = session_factory
 
     async def __aenter__(self):
-        connection = await self.engine.connect()
+        self.connection = connection = await self.engine.connect()
         self.session = self.session_factory(bind=connection)
         self.services = repository.SqlAlchemyServiceRepository(self.session)
         self.users = repository.SqlAlchemyUserRepository(self.session)
         self.deployments = repository.SqlAlchemyDeploymentRepository(self.session)
         self.steps = repository.SqlAlchemyStepRepository(self.session)
-        return super().__enter__()
+        return await super().__aenter__()
 
     async def __aexit__(self, *args):
         self.session.expunge_all()
