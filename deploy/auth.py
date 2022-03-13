@@ -87,7 +87,6 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
 
     async with uow as uow:
         [user] = await uow.users.get(username)
-        uow.session.expunge(user)
     return user
 
 
