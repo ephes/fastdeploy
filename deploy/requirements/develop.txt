@@ -578,17 +578,17 @@ jupyter-core==4.9.2 \
     #   nbconvert
     #   nbformat
     #   notebook
-jupyter-server==1.15.1 \
-    --hash=sha256:65fe92c556289990d6b82cbef23d20acb938f6e0b912718af726cbef98229e72 \
-    --hash=sha256:7680063a87a7f5ff0aa787693695475442a72c2faa90bb375ffdc78c7705d0f3
+jupyter-server==1.15.2 \
+    --hash=sha256:a74bac401d7d0d530149cdc7fbaa0bf08efba81ae74ad990c3134d118bbfac9a \
+    --hash=sha256:cdc63220f005704cbc8996a6aed4cb96ef7a41cffa54ad561b8634ffddb5bbc0
     # via
     #   jupyterlab
     #   jupyterlab-server
     #   nbclassic
     #   notebook-shim
-jupyterlab==3.3.1 \
-    --hash=sha256:ce482799379c70aa87e63b59e2c5379779ce18658b92460cd20bb44154865973 \
-    --hash=sha256:e60bf834fed95a946c95eebf26ac888b70b61145822d2bd866714fe640ee6e13
+jupyterlab==3.3.2 \
+    --hash=sha256:32c9e3fae93d02f7a071f5e69a7a5450fa4bf087dd3d5aca58c7dd2adf2565d3 \
+    --hash=sha256:3c716bf5592cb28c5c55c615c6e5bd3efc71898f6957d13719b56478bbbb587a
     # via -r deploy/requirements/develop.in
 jupyterlab-pygments==0.1.2 \
     --hash=sha256:abfb880fd1561987efaefcb2d2ac75145d2a5d0139b1876d5be806e32f630008 \
