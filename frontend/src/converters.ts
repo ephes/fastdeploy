@@ -52,7 +52,9 @@ export function utcStringToLocalDate(utcString: string | null): Date | null {
   if (!utcString) {
     return null;
   } else {
-    return new Date(`${utcString}Z`);
+    // dunno why I don't have to append Z anymore :( weird
+    // return new Date(`${utcString}Z`);
+    return new Date(utcString);
   }
 }
 

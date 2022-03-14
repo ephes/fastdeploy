@@ -25,3 +25,20 @@ node_modules/jest/bin/jest.js -t "fetches the list of services"
 
 # debug with ipdb
 PYTHONBREAKPOINT=pdb.set_trace pytest -s app/tests/test_models.py::test_service_get_steps_returns_steps_from_deployment
+
+# postgres db
+pg_ctl initdb -D databases/postgres
+pg_ctl -D databases/postgres start
+pg_ctl -D databases/postgres stop
+
+start postgres via honcho..
+
+create fastdeploy database:
+dropdb deploy
+dropuser deploy
+createdb deploy
+createuser deploy
+
+psql -d deploy -c "GRANT ALL PRIVILEGES ON DATABASE deploy to deploy;"
+
+postgresql:///deploy

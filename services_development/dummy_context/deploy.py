@@ -34,7 +34,8 @@ class AnsibleCaller(BaseSettings):
         env["ANSIBLE_STDOUT_CALLBACK"] = "json_cb"
 
         # FIXME: build command dynamically / better shebang
-        command = "/Users/jochen/Library/Python/3.10/bin/ansible-playbook"
+        # command = "/Users/jochen/Library/Python/3.10/bin/ansible-playbook"
+        command = "/Users/jochen/.local/bin/ansible-playbook"
         # first argument gets lost dunno why
         args = ["lost", "playbook.yml", "--connection=local", "--extra-vars", json.dumps(self.context.env)]
         os.execve(command, args, env)

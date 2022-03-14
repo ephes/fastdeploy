@@ -1,0 +1,9 @@
+fastapi[all]
+orjson
+asyncpg
+sqlalchemy[asyncio]
+passlib[bcrypt]
+python-jose[cryptography]
+httpx
+typer
+rich

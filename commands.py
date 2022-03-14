@@ -15,48 +15,55 @@ from httpx import Client
 from rich import print as rprint
 from rich.prompt import Prompt
 
-from app import database
-from app.auth import create_access_token, get_password_hash
-from app.config import settings
-from app.filesystem import working_directory
-from app.models import User
+from deploy.adapters.filesystem import working_directory
+from deploy.auth import create_access_token, get_password_hash
+from deploy.bootstrap import bootstrap
+from deploy.config import settings
+from deploy.domain import commands, events
 
 
-CWD = "."
-
-database.create_db_and_tables()
+CWD = str(Path(__file__).parent.resolve())
 cli = typer.Typer()
+
+
+async def createuser_async(username, password_hash) -> events.UserCreated:
+    bus = await bootstrap()
+
+    class UserCreatedHandler:
+        user_event: events.UserCreated
+
+        async def __call__(self, event: events.UserCreated):
+            self.user_event = event
+
+    handle_user_created = UserCreatedHandler()
+
+    bus.event_handlers[events.UserCreated].append(handle_user_created)
+    cmd = commands.CreateUser(username=username, password_hash=password_hash)
+    await bus.handle(cmd)
+    return handle_user_created.user_event
 
 
 @cli.command()
 def createuser():
     """
-    Create a new user.
+    Create a new user. Username and password are either set via
+    environment variables, to create an initial user via ansible for example,
+    or interactively via the command line.
     """
-    username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
-    password = Prompt.ask("Enter password", password=True)
+    try:
+        username = os.environ["INITIAL_USER_NAME"]
+        password_hash = os.environ["INITIAL_PASSWORD_HASH"]
+    except KeyError:
+        username = Prompt.ask("Enter username", default=os.environ.get("USER", "fastdeploy"))
+        password_hash = get_password_hash(Prompt.ask("Enter password", password=True))
     rprint(f"creating user {username}")
-    user = User(name=username, password=get_password_hash(password))
-    user_in_db = asyncio.run(database.repository.add_user(user))
-    rprint(f"created user with id: {user_in_db.id}")
-
-
-@cli.command()
-def create_initial_user():
-    """
-    Pass username and password hash as environment variables.
-    """
-    database.create_db_and_tables()
-    username = os.environ["INITIAL_USER_NAME"]
-    # Use environment instead of prompt to avoid leaking passwords
-    password_hash = os.environ["INITIAL_PASSWORD_HASH"]
-    if user := asyncio.run(database.repository.get_user_by_name(username)):
-        rprint(f"user {username} already exists")
-        sys.exit(0)
-    rprint(f"creating user {username}")
-    user = User(name=username, password=password_hash)
-    user_in_db = asyncio.run(database.repository.add_user(user))
-    rprint(f"created user with id: {user_in_db.id}")
+    try:
+        user_created = asyncio.run(createuser_async(username, password_hash))
+    except Exception as e:
+        rprint(f"failed to create user {username}")
+        rprint(f"{e}")
+        sys.exit(1)
+    rprint("created: ", user_created)
 
 
 @cli.command()
@@ -91,24 +98,24 @@ def update():
         "--upgrade",
         "--allow-unsafe",
         "--generate-hashes",
-        "app/requirements/production.in",
+        "deploy/requirements/production.in",
     ]
     subprocess.call(  # develop + production
         [
             *base_command,
-            "app/requirements/develop.in",
+            "deploy/requirements/develop.in",
             "--output-file",
-            "app/requirements/develop.txt",
+            "deploy/requirements/develop.txt",
         ]
     )
     subprocess.call(  # production only
         [
             *base_command,
             "--output-file",
-            "app/requirements/production.txt",
+            "deploy/requirements/production.txt",
         ]
     )
-    subprocess.call([sys.executable, "-m", "piptools", "sync", "app/requirements/develop.txt"])
+    subprocess.call([sys.executable, "-m", "piptools", "sync", "deploy/requirements/develop.txt"])
     with working_directory(settings.project_root / "frontend"):
         subprocess.call(["npm", "update"])
 
@@ -119,7 +126,8 @@ def notebook():
     Start the notebook server.
     """
     env = os.environ.copy()
-    env["PYTHONPATH"] = ".."
+    env["PYTHONPATH"] = CWD
+    rprint("added pythonpath: ", env["PYTHONPATH"])
     subprocess.call(["jupyter", "notebook", "--notebook-dir", "notebooks"], env=env)
 
 
@@ -129,7 +137,8 @@ def jupyterlab():
     Start a jupyterlab server.
     """
     env = os.environ.copy()
-    env["PYTHONPATH"] = ".."
+    env["PYTHONPATH"] = CWD
+    rprint("added pythonpath: ", env["PYTHONPATH"])
     subprocess.call(["jupyter-lab"], env=env)
 
 
@@ -202,7 +211,7 @@ def docs_build(site_path: Path = Path(CWD) / "site"):
 @cli.command()
 def docs_openapi(doc_path: Path = Path(CWD) / "docs"):
     """load new openapi.json into mkdocs"""
-    from app.main import app as fastapi_app
+    from deploy.entrypoints.fastapi_app import app as fastapi_app
 
     open_api_schema = fastapi_app.openapi()
     with open(doc_path / "openapi.json", "w") as file:
@@ -264,14 +273,14 @@ def run(
     (on windows fcntl is not available, -> ModuleNotFoundError: No module named 'fcntl')
     https://www.uvicorn.org/#running-with-gunicorn
 
-    gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker
+    gunicorn deploy.entrypoints.fastapi_app:app --workers 4 --worker-class uvicorn.workers.UvicornWorker
     """
     if docs:
         docs_serve()
         return
 
     uvicorn.run(
-        "app.main:app",
+        "deploy.entrypoints.fastapi_app:app",
         host=host,
         port=port,
         log_level=log_level,

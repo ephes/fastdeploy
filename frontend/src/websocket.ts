@@ -138,6 +138,7 @@ export function createWebsocketClient(): WebsocketClient {
      * @param event {MessageEvent} The url of the websocket server
      */
     onMessage(event: MessageEvent) {
+      console.log("Received message from websocket server: ", event.data);
       const message = JSON.parse(event.data) as Message;
       useWebsocketStore().receivedMessage();
       if (message.type === "authentication") {
