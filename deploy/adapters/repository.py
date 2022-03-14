@@ -97,6 +97,10 @@ class AbstractUserRepository(abc.ABC):
     def __init__(self):
         self.seen: set[model.User] = set()
 
+    @abc.abstractmethod
+    async def _add(self, user: model.User) -> None:
+        raise NotImplementedError
+
     async def add(self, user: model.User) -> None:
         await self._add(user)
         self.seen.add(user)
