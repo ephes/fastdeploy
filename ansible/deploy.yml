@@ -75,6 +75,22 @@
       environment:
         PATH: "{{ default_path }}"
 
+    - name: Create a new postgres database
+      community.general.postgresql_db:
+        name: "{{ postgres_database }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: Create a new postgres user
+      community.general.postgresql_user:
+        db: "{{ postgres_database }}"
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        state: present
+      become: true
+      become_user: postgres
+
     - name: Install fastdeploy frontend vue app dependencies
       shell: npm install
       args:
@@ -218,7 +234,7 @@
       # added --pip-args --no-deps because sqlalchemy depends on greenlet!=0.4.17
       # which is incompatible with --require-hashes mode requiring all dependencies
       # to be pinned with '==' *sigh*
-      shell: "{{ pip_sync }} --pip-args --no-deps app/requirements/production.txt"
+      shell: "{{ pip_sync }} --pip-args --no-deps deploy/requirements/production.txt"
       args:
         chdir: "{{ site_path }}"
       become: true

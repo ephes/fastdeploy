@@ -62,7 +62,7 @@ def createuser():
     except Exception as e:
         rprint(f"failed to create user {username}")
         rprint(f"{e}")
-        sys.exit(1)
+        sys.exit(0)
     rprint("created: ", user_created)
 
 
