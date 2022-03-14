@@ -8,7 +8,7 @@ from sqlalchemy import (
     String,
     Table,
 )
-from sqlalchemy.orm import registry
+from sqlalchemy.orm import registry  # type: ignore
 
 from ..domain import model
 

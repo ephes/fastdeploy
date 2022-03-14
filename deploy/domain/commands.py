@@ -43,4 +43,3 @@ class ProcessStep(Command):
     started: datetime
     finished: datetime
     message: str
-    state: str

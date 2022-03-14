@@ -33,7 +33,7 @@ async def get_services_from_filesystem(fs: AbstractFilesystem) -> list[model.Ser
 async def get_steps_from_last_deployment(
     service: model.Service, uow: unit_of_work.AbstractUnitOfWork
 ) -> list[model.Step]:
-    steps = []
+    steps: list[model.Step] = []
     if service.id is None:
         return steps
     last_successful_deployment_id = await uow.deployments.get_last_successful_deployment_id(service.id)

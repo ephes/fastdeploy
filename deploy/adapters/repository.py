@@ -47,12 +47,12 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
     async def _add(self, service: model.Service):
         self.session.add(service)
 
-    async def get(self, service_id) -> model.Service:
+    async def get(self, service_id) -> tuple[model.Service]:
         stmt = select(model.Service).where(model.Service.id == service_id)
         result = await self.session.execute(stmt)
         return result.one()
 
-    async def get_by_name(self, name) -> model.Service:
+    async def get_by_name(self, name) -> tuple[model.Service]:
         stmt = select(model.Service).where(model.Service.name == name)
         result = await self.session.execute(stmt)
         return result.one()
@@ -107,11 +107,11 @@ class AbstractUserRepository(abc.ABC):
 
     @abc.abstractmethod
     async def get(self, name) -> tuple[model.User]:
-        return NotImplementedError
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def list(self) -> list[tuple[model.User]]:
-        return NotImplementedError
+        raise NotImplementedError
 
 
 class SqlAlchemyUserRepository(AbstractUserRepository):
@@ -162,19 +162,19 @@ class AbstractDeploymentRepository(abc.ABC):
 
     @abc.abstractmethod
     async def get(self, deployment_id: int) -> tuple[model.Deployment]:
-        return NotImplementedError
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def get_by_service(self, service_id: int) -> list[tuple[model.Deployment]]:
-        return NotImplementedError
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def list(self) -> list[tuple[model.Deployment]]:
-        return NotImplementedError
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
-        return NotImplementedError
+        raise NotImplementedError
 
 
 class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
@@ -285,11 +285,11 @@ class AbstractStepRepository(abc.ABC):
 
     @abc.abstractmethod
     async def get(self, step_id: int) -> tuple[model.Step]:
-        return NotImplementedError
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def _delete(self, step: model.Step) -> None:
-        return NotImplementedError
+        raise NotImplementedError
 
     async def delete(self, step: model.Step) -> None:
         await self._delete(step)
@@ -297,13 +297,13 @@ class AbstractStepRepository(abc.ABC):
 
     @abc.abstractmethod
     async def get_steps_from_deployment(self, deployment_id: int) -> list[tuple[model.Step]]:
-        return NotImplementedError
+        raise NotImplementedError
 
     @abc.abstractmethod
     async def list(self) -> list[tuple[model.Step]]:
         # list has to be after get_steps_from_deployment otherwise
         # type annotation wont work, duh :/ - maybe a bug in pylance..
-        return NotImplementedError
+        raise NotImplementedError
 
 
 class SqlAlchemyStepRepository(AbstractStepRepository):
