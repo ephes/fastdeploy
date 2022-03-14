@@ -45,7 +45,7 @@ class ServiceDeleted(ServiceCreated):
     deleted: bool = True
 
 
-class StepCreated(Event):
+class StepProcessed(Event):
     type: EVENT_TYPES = "step"
     id: int
     name: str
@@ -57,11 +57,7 @@ class StepCreated(Event):
     deleted: bool = False
 
 
-class StepProcessed(StepCreated):
-    ...
-
-
-class StepDeleted(StepCreated):
+class StepDeleted(StepProcessed):
     deleted: bool = True
 
 

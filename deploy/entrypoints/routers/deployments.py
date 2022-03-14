@@ -106,8 +106,7 @@ async def start_deployment(
     )
     try:
         await bus.handle(cmd)
-    except Exception as e:
-        print(e)
+    except Exception:
         raise HTTPException(status_code=400, detail="Something went wrong")
 
     started_event = handle_deployment_started.event

@@ -113,11 +113,12 @@ class Step:
         """
         self.events.append(events.StepProcessed(**self.dict()))
 
-    def create(self):
+    def start(self):
         """
-        Raise created event.
+        Change state to 'running' and set started timestamp.
         """
-        self.events.append(events.StepCreated(**self.dict()))
+        self.state = "running"
+        self.started = datetime.now(timezone.utc)
 
 
 class Service:

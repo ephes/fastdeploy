@@ -49,8 +49,6 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):
         environment["SSH_AUTH_SOCK"] = ssh_auth_sock
-    print("------------------------------------------")
-    print("Enviroment Context: ", environment)
     return environment
 
 
@@ -79,9 +77,7 @@ class DeployTask(BaseSettings):
     async def send_step(self, step_url, step):
         for _ in range(self.attempts):
             try:
-                print("post step result: ", step.dict())
                 r = await self.client.post(step_url, json=json.loads(step.json()))
-                print("send step result: ", r.json())
                 r.raise_for_status()
                 break
             except httpx.HTTPStatusError:

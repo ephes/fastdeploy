@@ -109,7 +109,8 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     async with uow:
         # add the deployment to the database
         await uow.deployments.add(deployment)
-        deployment.steps[0].state = "running"  # first step is running
+        deployment.steps[0].start()  # start first step immediately
+
         # have to commit early to get the deployment ID :(
         # FIXME: this is a bit of a hack
         await uow.commit()
@@ -123,7 +124,7 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
         # start actual deployment task + raise events
         deployment.start(service)
         for step in steps:
-            step.create()
+            step.process()
 
 
 async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
@@ -159,7 +160,6 @@ EVENT_HANDLERS = {
     events.DeploymentStarted: [publish_event],
     events.StepDeleted: [publish_event],
     events.StepProcessed: [publish_event],
-    events.StepCreated: [publish_event],
     events.UserCreated: [],
 }  # type: dict[Type[events.Event], list[Callable]]
 
