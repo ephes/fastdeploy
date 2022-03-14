@@ -153,8 +153,12 @@ class AbstractDeploymentRepository(abc.ABC):
         self.seen: set[model.Deployment] = set()
 
     @abc.abstractmethod
-    async def add(self, deployment: model.Deployment) -> None:
+    async def _add(self, deployment: model.Deployment) -> None:
         raise NotImplementedError
+
+    async def add(self, deployment: model.Deployment) -> None:
+        await self._add(deployment)
+        self.seen.add(deployment)
 
     @abc.abstractmethod
     async def get(self, deployment_id: int) -> tuple[model.Deployment]:
@@ -178,9 +182,8 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         self.session = session
         super().__init__()
 
-    async def add(self, deployment):
+    async def _add(self, deployment):
         self.session.add(deployment)
-        self.seen.add(deployment)
 
     async def get(self, deployment_id):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
@@ -239,10 +242,9 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
         self._deployments = []
         super().__init__()
 
-    async def add(self, deployment):
+    async def _add(self, deployment):
         self._deployments.append(deployment)
         deployment.id = len(self._deployments)
-        self.seen.add(deployment)
 
     async def get(self, deployment_id):
         return next((d,) for d in self._deployments if d.id == deployment_id)
@@ -274,8 +276,12 @@ class AbstractStepRepository(abc.ABC):
         self.seen: set[model.Step] = set()
 
     @abc.abstractmethod
-    async def add(self, step: model.Step) -> None:
+    async def _add(self, step: model.Step) -> None:
         raise NotImplementedError
+
+    async def add(self, step: model.Step) -> None:
+        await self._add(step)
+        self.seen.add(step)
 
     @abc.abstractmethod
     async def get(self, step_id: int) -> tuple[model.Step]:
@@ -301,9 +307,8 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
         self.session = session
         super().__init__()
 
-    async def add(self, step):
+    async def _add(self, step):
         self.session.add(step)
-        self.seen.add(step)
 
     async def get(self, step_id):
         stmt = select(model.Step).where(model.Step.id == step_id)
@@ -329,10 +334,9 @@ class InMemoryStepRepository(AbstractStepRepository):
         self._steps = []
         super().__init__()
 
-    async def add(self, step):
+    async def _add(self, step):
         self._steps.append(step)
         step.id = len(self._steps)
-        self.seen.add(step)
 
     async def get(self, step_id):
         return next((s,) for s in self._steps if s.id == step_id)
