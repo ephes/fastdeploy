@@ -62,6 +62,10 @@ class AbstractUnitOfWork(abc.ABC):
     async def rollback(self):
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def stop(self):
+        raise NotImplementedError
+
 
 DEFAULT_ENGINE = create_async_engine(settings.database_url, echo=False)
 DEFAULT_SESSION_FACTORY = sessionmaker(class_=AsyncSession, expire_on_commit=False)
@@ -85,12 +89,18 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.session.expunge_all()
         await super().__aexit__(*args)
         await self.session.close()
+        # await self.connection.close()
+        # await self.engine.dispose()
 
     async def _commit(self):
         await self.session.commit()
 
     async def rollback(self):
         await self.session.rollback()
+
+    async def stop(self):
+        await self.connection.close()
+        await self.engine.dispose()
 
 
 class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):

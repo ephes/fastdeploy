@@ -57,3 +57,6 @@ class MessageBus:
         except Exception:
             logger.exception("Exception handling command %s", command)
             raise
+
+    async def stop(self):
+        await self.uow.stop()

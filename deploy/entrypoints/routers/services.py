@@ -2,10 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ... import views
-from ...bootstrap import get_bus
 from ...domain import commands
-from ...service_layer.messagebus import MessageBus
 from ..dependencies import get_current_active_user
+from ..helper_models import Bus
 
 
 router = APIRouter(
@@ -24,7 +23,7 @@ class Service(BaseModel):
 
 
 @router.get("/")
-async def get_services(bus: MessageBus = Depends(get_bus)) -> list[Service]:
+async def get_services(bus: Bus = Depends()) -> list[Service]:
     """
     Get a list of all services.
     """
@@ -33,7 +32,7 @@ async def get_services(bus: MessageBus = Depends(get_bus)) -> list[Service]:
 
 
 @router.delete("/{service_id}")
-async def delete_service(service_id: int, bus: MessageBus = Depends(get_bus)) -> dict:
+async def delete_service(service_id: int, bus: Bus = Depends()) -> dict:
     """
     Delete a service.
     """
@@ -46,7 +45,7 @@ async def delete_service(service_id: int, bus: MessageBus = Depends(get_bus)) ->
 
 
 @router.get("/names/")
-async def get_service_names(bus: MessageBus = Depends(get_bus)) -> list[str]:
+async def get_service_names(bus: Bus = Depends()) -> list[str]:
     """
     Get a list of all available service names Only available services can be created.
     """
@@ -54,7 +53,7 @@ async def get_service_names(bus: MessageBus = Depends(get_bus)) -> list[str]:
 
 
 @router.post("/sync")
-async def sync_services(bus: MessageBus = Depends(get_bus)) -> dict:
+async def sync_services(bus: Bus = Depends()) -> dict:
     """
     Sync services from filesytem to database.
     """

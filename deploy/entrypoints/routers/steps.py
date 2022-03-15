@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ... import views
-from ...bootstrap import get_bus
 from ...domain import commands
-from ...service_layer.messagebus import MessageBus
 from ..dependencies import get_current_active_deployment, get_current_active_user
-from .helper_models import Deployment, Step, StepResult
+from ..helper_models import Bus, Deployment, Step, StepResult
 
 
 router = APIRouter(
@@ -19,7 +17,7 @@ router = APIRouter(
 async def process_step_result(
     step: StepResult,
     deployment: Deployment = Depends(get_current_active_deployment),
-    bus: MessageBus = Depends(get_bus),
+    bus: Bus = Depends(),
 ) -> dict:
     """
     When a step is finished, the deployment process sends a result back to this endpoint.
@@ -38,7 +36,7 @@ async def process_step_result(
 @router.get("/", dependencies=[Depends(get_current_active_user)])
 async def get_steps_by_deployment(
     deployment_id: int,
-    bus: MessageBus = Depends(get_bus),
+    bus: Bus = Depends(),
 ) -> list[Step]:
     """
     Get all steps for a deployment.

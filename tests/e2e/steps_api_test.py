@@ -9,7 +9,7 @@ from httpx import AsyncClient
 
 from deploy.auth import create_access_token
 from deploy.domain import events, model
-from deploy.entrypoints.routers.helper_models import StepResult
+from deploy.entrypoints.helper_models import StepResult
 
 
 pytestmark = pytest.mark.asyncio
