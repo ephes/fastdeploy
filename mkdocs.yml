@@ -27,6 +27,7 @@ nav:
   - About: about.md
   - Domain: domain.md
   - Database: database.md
+  - Endpoints: endpoints.md
 
 plugins:
   - render_swagger
