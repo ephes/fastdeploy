@@ -254,7 +254,7 @@
         PATH: "{{ default_path }}"
 
     - name: Sync services from filesystem with database
-      shell: "{{ python }} commands.py syncservices {{ initial_user_name }}"
+      shell: "{{ python }} commands.py syncservices"
       args:
         chdir: "{{ site_path }}"
       become: true
