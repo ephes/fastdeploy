@@ -28,6 +28,7 @@ nav:
   - Domain: domain.md
   - Database: database.md
   - Endpoints: endpoints.md
+  - Command Line Interface: cli.md
 
 plugins:
   - render_swagger
