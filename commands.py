@@ -59,11 +59,11 @@ def createuser():
     rprint(f"creating user {username}")
     try:
         user_created = asyncio.run(createuser_async(username, password_hash))
+        rprint("created: ", user_created)
     except Exception as e:
         rprint(f"failed to create user {username}")
         rprint(f"{e}")
         sys.exit(0)
-    rprint("created: ", user_created)
 
 
 @cli.command()
