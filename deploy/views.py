@@ -6,6 +6,12 @@ from .domain import model
 from .service_layer import unit_of_work
 
 
+async def get_user_by_name(name: str, uow: unit_of_work.AbstractUnitOfWork) -> model.User:
+    async with uow:
+        [user] = await uow.users.get(name)
+    return user
+
+
 async def service_by_name(name: str, uow: unit_of_work.AbstractUnitOfWork):
     async with uow:
         service = await uow.services.get_by_name(name)

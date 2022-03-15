@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ... import views
 from ...bootstrap import get_bus
-from ...domain import commands, model
+from ...domain import commands
 from ...service_layer.messagebus import MessageBus
 from ..dependencies import get_current_active_deployment, get_current_active_user
 from .helper_models import Deployment, Step, StepResult
@@ -35,10 +35,9 @@ async def process_step_result(
     return {"detail": "step processed"}
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(get_current_active_user)])
 async def get_steps_by_deployment(
     deployment_id: int,
-    _: model.User = Depends(get_current_active_user),
     bus: MessageBus = Depends(get_bus),
 ) -> list[Step]:
     """

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from jose import jwt  # type: ignore
 from passlib.context import CryptContext  # type: ignore
 
+from . import views
 from .config import settings
 from .domain.model import Deployment, Service, User
 from .service_layer.unit_of_work import AbstractUnitOfWork
@@ -28,16 +29,10 @@ async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWor
     Authenticate a user against the database. Raise an exception if the
     user is not found or the password is incorrect.
     """
-    async with uow as uow:
-        [user] = await uow.users.get(username)
-        uow.session.expunge_all()
+    user = await views.get_user_by_name(username, uow)
 
-    if user is None:
-        raise ValueError("user is None")
     if not verify_password(password, user.password):
         raise ValueError("invalid password")
-    if not isinstance(user, User):
-        raise ValueError("not a user")
     return user
 
 
@@ -85,9 +80,7 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
     if username is None:
         raise ValueError("no user name")
 
-    async with uow as uow:
-        [user] = await uow.users.get(username)
-    return user
+    return await views.get_user_by_name(username, uow)
 
 
 async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:

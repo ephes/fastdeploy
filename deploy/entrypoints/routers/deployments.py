@@ -20,10 +20,8 @@ router = APIRouter(
 )
 
 
-@router.get("/")
-async def get_deployments(
-    _: model.User = Depends(get_current_active_user), bus: MessageBus = Depends(get_bus)
-) -> list[Deployment]:
+@router.get("/", dependencies=[Depends(get_current_active_user)])
+async def get_deployments(bus: MessageBus = Depends(get_bus)) -> list[Deployment]:
     """
     Get all deployments from database.
     """
