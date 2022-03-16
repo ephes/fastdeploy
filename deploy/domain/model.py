@@ -58,7 +58,6 @@ class User(EventsMixin):
     password: str | None
 
     def __init__(self, *, id=None, name=None, password=None):
-        super().__init__()
         self.id = id
         self.name = name
         self.password = password
@@ -100,7 +99,6 @@ class Step(EventsMixin):
     def __init__(
         self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None, **kwargs
     ):
-        super().__init__()
         self.id = id
         self.name = name
         self.started = started
@@ -173,7 +171,6 @@ class Service(EventsMixin):
     origin: str = ""
 
     def __init__(self, *, id=None, name: str = "", data={}):
-        super().__init__()
         self.id = id
         self.name = name
         self.data = data
@@ -236,7 +233,6 @@ class Deployment(EventsMixin):
         context: dict = {},
         steps: list[Step] = [],
     ):
-        super().__init__()
         self.id = id
         self.service_id = service_id
         self.origin = origin
@@ -330,14 +326,24 @@ class Deployment(EventsMixin):
             known_step.state = step.state
             known_step.message = step.message
             modified_steps.append(known_step)
+
+        # raise processed events for all modified steps
+        for step in modified_steps:
+            step.process()
         return modified_steps
 
-    def start(self, service: Service) -> None:
+    def start_deployment_task(self, service: Service):
         """
         Start actual deployment task and raise started event.
         """
         if self.started is None or self.finished is not None or self.id is None:
             raise ValueError("Unable to start deployment")
+
+        # start first step immediately + raise processed events for all steps
+        self.steps[0].start()
+        for step in self.steps:
+            step.deployment_id = self.id
+            step.process()
 
         # start the deployment task
         from ..tasks import get_deploy_environment, run_deploy
@@ -350,9 +356,18 @@ class Deployment(EventsMixin):
 
     def finish(self):
         """
-        Record finished event.
+        Set finished timestamp, ecord finished event and
+        return all steps that have to be removed.
         """
+        self.finished = datetime.now(timezone.utc)
         self.record(events_module.DeploymentFinished)
+
+        steps_to_remove = []
+        for step in self.steps:
+            if step.state in ("running", "pending"):
+                steps_to_remove.append(step)
+                step.delete()
+        return steps_to_remove
 
 
 def sync_services(
@@ -371,9 +386,11 @@ def sync_services(
                 target_service.data = service.data
                 # use target_service to keep the id
                 updated_services.append(target_service)
+                target_service.update()
         else:
             # service does not exist in target, add it
             updated_services.append(service)
+            service.update()
 
     # check if any services in target are not in source
     deleted_services = []
@@ -381,4 +398,5 @@ def sync_services(
     for service in target_services:
         if service.name not in source_name_lookup:
             deleted_services.append(service)
+            service.delete()
     return updated_services, deleted_services

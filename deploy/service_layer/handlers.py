@@ -16,16 +16,16 @@ async def create_user(command: commands.CreateUser, uow: AbstractUnitOfWork):
     user = model.User(name=command.username, password=command.password_hash)
     async with uow:
         await uow.users.add(user)
-        await uow.commit()
         user.create()
+        await uow.commit()
 
 
 async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
     async with uow:
         [service] = await uow.services.get(command.service_id)
         await uow.services.delete(service)
-        await uow.commit()
         service.delete()
+        await uow.commit()
 
 
 async def sync_services(command: commands.SyncServices, uow: AbstractUnitOfWork, fs: AbstractFilesystem):
@@ -45,41 +45,23 @@ async def sync_services(command: commands.SyncServices, uow: AbstractUnitOfWork,
     async with uow:
         await persist_synced_services(uow, updated_services, deleted_services)
         await uow.commit()
-        # raise events
-        for service in updated_services:
-            service.update()
-        for service in deleted_services:
-            service.delete()
 
 
 async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUnitOfWork):
     """
     Finish a deployment.
 
-    We set the finished timestamp on the server side because it should not be
-    possible to update any deployment attributes.
-
-    * Set the finished timestamp
-    * Remove all steps in state "running" or "pending"
+    Get steps from deployment that have to be removed, because they
+    where still running or pending. Remove those steps from the database
+    and update the finished deployment.
     """
     async with uow:
-        [deployment] = await uow.deployments.get(command.deployment_id)
-        deployment.finished = datetime.now(timezone.utc)
-        await uow.deployments.add(deployment)
-
-        steps = await uow.steps.get_steps_from_deployment(command.deployment_id)
-        removed_steps = []
-        for (step,) in steps:
-            if step.state in ("running", "pending"):
-                await uow.steps.delete(step)
-                removed_steps.append(step)
-
-        await uow.commit()
-
-        # raise events after commit to have IDs
+        deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
+        removed_steps = deployment.finish()
         for step in removed_steps:
-            step.delete()
-        deployment.finish()
+            await uow.steps.delete(step)
+        await uow.deployments.add(deployment)
+        await uow.commit()
 
 
 async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitOfWork):
@@ -91,10 +73,9 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     async with uow:
         [service] = await uow.services.get(command.service_id)
 
-    # look up the deployment steps from last deployment
+    # look up the deployment steps from last deployment / service.data / default
+    # and create new deployment
     steps = await views.get_steps_to_do_from_service(service, uow)
-
-    # create a new deployment
     deployment = model.Deployment(
         service_id=command.service_id,
         origin=command.origin,
@@ -108,23 +89,16 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     # actually start the deployment
     async with uow:
         # add the deployment to the database
-        await uow.deployments.add(deployment)
-        deployment.steps[0].start()  # start first step immediately
-
         # have to commit early to get the deployment ID :(
         # FIXME: this is a bit of a hack
+        await uow.deployments.add(deployment)
         await uow.commit()
-        for step in steps:
-            step.deployment_id = deployment.id  # set the deployment id fk
+
+        # start deployment task
+        deployment.start_deployment_task(service)
+        for step in deployment.steps:
             await uow.steps.add(step)
-
-        # save the steps to the database
         await uow.commit()
-
-        # start actual deployment task + raise events
-        deployment.start(service)
-        for step in steps:
-            step.process()
 
 
 async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
@@ -139,10 +113,6 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
         for step in steps_to_update:
             await uow.steps.add(step)
         await uow.commit()
-
-        # raise processed events after commit to have IDs
-        for step in steps_to_update:
-            step.process()
 
 
 PUBLISH_EVENTS = events.ServiceDeleted | events.DeploymentStarted | events.DeploymentFinished | events.StepDeleted
