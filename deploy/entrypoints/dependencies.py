@@ -6,9 +6,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from ..auth import deployment_from_token, service_from_token, user_from_token
-from ..bootstrap import get_bus
 from ..domain.model import Deployment, Service, User
-from ..service_layer.messagebus import MessageBus
+from .helper_models import Bus
 
 
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
@@ -21,7 +20,7 @@ CREDENTIALS_EXCEPTION = HTTPException(
 
 async def get_current_active_user(
     token: str = Depends(OAUTH2_SCHEME),
-    bus: MessageBus = Depends(get_bus),
+    bus: Bus = Depends(),
 ) -> User:
     try:
         return await user_from_token(token, bus.uow)
@@ -31,7 +30,7 @@ async def get_current_active_user(
 
 async def get_current_active_service(
     token: str = Depends(OAUTH2_SCHEME),
-    bus: MessageBus = Depends(get_bus),
+    bus: Bus = Depends(),
 ) -> Service:
     try:
         return await service_from_token(token, bus.uow)
@@ -41,7 +40,7 @@ async def get_current_active_service(
 
 async def get_current_active_deployment(
     token: str = Depends(OAUTH2_SCHEME),
-    bus: MessageBus = Depends(get_bus),
+    bus: Bus = Depends(),
 ) -> Deployment:
     try:
         return await deployment_from_token(token, bus.uow)

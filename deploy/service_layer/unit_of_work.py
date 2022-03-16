@@ -73,8 +73,8 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.session_factory = session_factory
 
     async def __aenter__(self):
-        self.connection = connection = await self.engine.connect()
-        self.session = self.session_factory(bind=connection)
+        self.connection = await self.engine.connect()
+        self.session = self.session_factory(bind=self.connection)
         self.services = repository.SqlAlchemyServiceRepository(self.session)
         self.users = repository.SqlAlchemyUserRepository(self.session)
         self.deployments = repository.SqlAlchemyDeploymentRepository(self.session)
@@ -85,6 +85,8 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.session.expunge_all()
         await super().__aexit__(*args)
         await self.session.close()
+        # await self.connection.close()
+        # await self.engine.dispose()
 
     async def _commit(self):
         await self.session.commit()

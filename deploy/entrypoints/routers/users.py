@@ -6,11 +6,10 @@ from pydantic import BaseModel
 from pydantic.types import conint
 
 from ... import auth
-from ...bootstrap import get_bus
 from ...config import settings
 from ...domain.model import User
-from ...service_layer.messagebus import MessageBus
 from ..dependencies import get_current_active_user
+from ..helper_models import Bus
 
 
 router = APIRouter()
@@ -33,7 +32,7 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
 
 
 @router.post("/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), bus: MessageBus = Depends(get_bus)):
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), bus: Bus = Depends()) -> dict:
     """Obtain an access token for the current user."""
     try:
         user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)

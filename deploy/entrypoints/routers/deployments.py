@@ -1,16 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ... import views
-from ...bootstrap import get_bus
 from ...domain import commands, events, model
-from ...service_layer.messagebus import MessageBus
 from ...tasks import DeploymentContext
 from ..dependencies import (
     get_current_active_deployment,
     get_current_active_service,
     get_current_active_user,
 )
-from .helper_models import Deployment, DeploymentWithDetailsUrl, DeploymentWithSteps
+from ..helper_models import (
+    Bus,
+    Deployment,
+    DeploymentWithDetailsUrl,
+    DeploymentWithSteps,
+)
 
 
 router = APIRouter(
@@ -21,7 +24,7 @@ router = APIRouter(
 
 
 @router.get("/", dependencies=[Depends(get_current_active_user)])
-async def get_deployments(bus: MessageBus = Depends(get_bus)) -> list[Deployment]:
+async def get_deployments(bus: Bus = Depends()) -> list[Deployment]:
     """
     Get all deployments from database.
     """
@@ -32,7 +35,7 @@ async def get_deployments(bus: MessageBus = Depends(get_bus)) -> list[Deployment
 @router.get("/{deployment_id}")
 async def get_deployment_details(
     deployment_id: int,
-    bus: MessageBus = Depends(get_bus),
+    bus: Bus = Depends(),
     service: model.Service = Depends(get_current_active_service),
 ) -> DeploymentWithSteps:
     """
@@ -57,7 +60,8 @@ async def get_deployment_details(
 
 @router.put("/finish/")
 async def finish_deployment(
-    deployment: model.Deployment = Depends(get_current_active_deployment), bus: MessageBus = Depends(get_bus)
+    deployment: model.Deployment = Depends(get_current_active_deployment),
+    bus: Bus = Depends(),
 ) -> dict:
     """
     Finish a deployment. Need to be authenticated with a deployment token.
@@ -78,7 +82,7 @@ async def start_deployment(
     request: Request,
     context: DeploymentContext = DeploymentContext(env={}),
     service: model.Service = Depends(get_current_active_service),
-    bus: MessageBus = Depends(get_bus),
+    bus: Bus = Depends(),
 ) -> DeploymentWithDetailsUrl:
     """
     Start a new deployment. Needs to be authenticated with a service token. Invoked

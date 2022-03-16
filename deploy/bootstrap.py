@@ -60,5 +60,5 @@ def inject_dependencies(handler, dependencies):
     return lambda message: handler(message, **deps)
 
 
-async def get_bus() -> messagebus.MessageBus:
+async def get_bus():
     return await bootstrap()
