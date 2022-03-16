@@ -326,6 +326,10 @@ class Deployment(EventsMixin):
             known_step.state = step.state
             known_step.message = step.message
             modified_steps.append(known_step)
+
+        # raise processed events for all modified steps
+        for step in modified_steps:
+            step.process()
         return modified_steps
 
     def start_deployment_task(self, service: Service):
