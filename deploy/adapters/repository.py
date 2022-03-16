@@ -296,12 +296,12 @@ class AbstractStepRepository(abc.ABC):
         self.seen.add(step)
 
     @abc.abstractmethod
-    async def get_steps_from_deployment(self, deployment_id: int) -> list[tuple[model.Step]]:
+    async def get_steps_by_deployment(self, deployment_id: int) -> list[tuple[model.Step]]:
         raise NotImplementedError
 
     @abc.abstractmethod
     async def list(self) -> list[tuple[model.Step]]:
-        # list has to be after get_steps_from_deployment otherwise
+        # list has to be after get_steps_by_deployment otherwise
         # type annotation wont work, duh :/ - maybe a bug in pylance..
         raise NotImplementedError
 
@@ -327,7 +327,7 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
     async def _delete(self, step):
         await self.session.delete(step)
 
-    async def get_steps_from_deployment(self, deployment_id):
+    async def get_steps_by_deployment(self, deployment_id):
         stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)
         result = await self.session.execute(stmt)
         return result.all()
@@ -351,5 +351,5 @@ class InMemoryStepRepository(AbstractStepRepository):
     async def _delete(self, step):
         self._steps.remove(step)
 
-    async def get_steps_from_deployment(self, deployment_id):
+    async def get_steps_by_deployment(self, deployment_id):
         return ((s,) for s in self._steps if s.deployment_id == deployment_id)
