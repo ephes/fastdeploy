@@ -16,16 +16,16 @@ async def create_user(command: commands.CreateUser, uow: AbstractUnitOfWork):
     user = model.User(name=command.username, password=command.password_hash)
     async with uow:
         await uow.users.add(user)
-        await uow.commit()
         user.create()
+        await uow.commit()
 
 
 async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
     async with uow:
         [service] = await uow.services.get(command.service_id)
         await uow.services.delete(service)
-        await uow.commit()
         service.delete()
+        await uow.commit()
 
 
 async def sync_services(command: commands.SyncServices, uow: AbstractUnitOfWork, fs: AbstractFilesystem):
@@ -45,11 +45,6 @@ async def sync_services(command: commands.SyncServices, uow: AbstractUnitOfWork,
     async with uow:
         await persist_synced_services(uow, updated_services, deleted_services)
         await uow.commit()
-        # raise events
-        for service in updated_services:
-            service.update()
-        for service in deleted_services:
-            service.delete()
 
 
 async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUnitOfWork):

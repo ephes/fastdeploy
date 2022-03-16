@@ -367,9 +367,11 @@ def sync_services(
                 target_service.data = service.data
                 # use target_service to keep the id
                 updated_services.append(target_service)
+                target_service.update()
         else:
             # service does not exist in target, add it
             updated_services.append(service)
+            service.update()
 
     # check if any services in target are not in source
     deleted_services = []
@@ -377,4 +379,5 @@ def sync_services(
     for service in target_services:
         if service.name not in source_name_lookup:
             deleted_services.append(service)
+            service.delete()
     return updated_services, deleted_services
