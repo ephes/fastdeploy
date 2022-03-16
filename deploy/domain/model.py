@@ -346,9 +346,18 @@ class Deployment(EventsMixin):
 
     def finish(self):
         """
-        Record finished event.
+        Set finished timestamp, ecord finished event and
+        return all steps that have to be removed.
         """
+        self.finished = datetime.now(timezone.utc)
         self.record(events_module.DeploymentFinished)
+
+        steps_to_remove = []
+        for step in self.steps:
+            if step.state in ("running", "pending"):
+                steps_to_remove.append(step)
+                step.delete()
+        return steps_to_remove
 
 
 def sync_services(

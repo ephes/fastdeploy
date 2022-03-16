@@ -51,30 +51,17 @@ async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUni
     """
     Finish a deployment.
 
-    We set the finished timestamp on the server side because it should not be
-    possible to update any deployment attributes.
-
-    * Set the finished timestamp
-    * Remove all steps in state "running" or "pending"
+    Get steps from deployment that have to be removed, because they
+    where still running or pending. Remove those steps from the database
+    and update the finished deployment.
     """
     async with uow:
-        [deployment] = await uow.deployments.get(command.deployment_id)
-        deployment.finished = datetime.now(timezone.utc)
-        await uow.deployments.add(deployment)
-
-        steps = await uow.steps.get_steps_from_deployment(command.deployment_id)
-        removed_steps = []
-        for (step,) in steps:
-            if step.state in ("running", "pending"):
-                await uow.steps.delete(step)
-                removed_steps.append(step)
-
-        await uow.commit()
-
-        # raise events after commit to have IDs
+        deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
+        removed_steps = deployment.finish()
         for step in removed_steps:
-            step.delete()
-        deployment.finish()
+            await uow.steps.delete(step)
+        await uow.deployments.add(deployment)
+        await uow.commit()
 
 
 async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitOfWork):
