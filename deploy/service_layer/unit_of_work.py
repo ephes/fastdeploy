@@ -62,10 +62,6 @@ class AbstractUnitOfWork(abc.ABC):
     async def rollback(self):
         raise NotImplementedError
 
-    @abc.abstractmethod
-    async def stop(self):
-        raise NotImplementedError
-
 
 DEFAULT_ENGINE = create_async_engine(settings.database_url, echo=False)
 DEFAULT_SESSION_FACTORY = sessionmaker(class_=AsyncSession, expire_on_commit=False)
@@ -77,8 +73,8 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.session_factory = session_factory
 
     async def __aenter__(self):
-        self.connection = connection = await self.engine.connect()
-        self.session = self.session_factory(bind=connection)
+        self.connection = await self.engine.connect()
+        self.session = self.session_factory(bind=self.connection)
         self.services = repository.SqlAlchemyServiceRepository(self.session)
         self.users = repository.SqlAlchemyUserRepository(self.session)
         self.deployments = repository.SqlAlchemyDeploymentRepository(self.session)
@@ -97,10 +93,6 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
 
     async def rollback(self):
         await self.session.rollback()
-
-    async def stop(self):
-        await self.connection.close()
-        await self.engine.dispose()
 
 
 class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):

@@ -61,10 +61,4 @@ def inject_dependencies(handler, dependencies):
 
 
 async def get_bus():
-    print("get bus called!")
-    bus = await bootstrap()
-    try:
-        yield bus
-    finally:
-        print("finally :)")
-        # await bus.stop()
+    return await bootstrap()
