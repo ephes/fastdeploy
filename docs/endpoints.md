@@ -131,3 +131,30 @@ Reads from database:
 Writes to database:
 * Create a new deployment via `uow.deployments.add(deployment)`
 * Create pending steps (who need a deployment_id) via `uow.steps.add(step)`
+
+# Endpoints Auth Overview
+
+Just a note to myself which endpoints require wich kind auf authentication.
+
+## Username/Password
+ * login_for_access_token /token
+
+## Access Token + Needs User Object
+* read_users_me /users/me
+* service_token /service-token
+
+## Just Access Token
+* get_steps_by_deployment /steps/
+* get_services /services/
+* delete_service /services/{service_id}
+* get_service_names /services/names/
+* sync_services /services/sync
+* get_deployments /deployments/
+
+## Deployment Token
+* process_step_result /steps/
+* finish_deployment /deployments/finish/
+
+## Service Token
+* get_deployment_details /deployments/{deployment_id}
+* start_deployment /deployments/
