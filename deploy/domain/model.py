@@ -24,28 +24,27 @@ class EventsMixin(Serializable):
     for all seen models.
     """
 
-    def __init__(self):
-        self._recorded_events: list[tuple[Serializable, type[events_module.Event]]] = []
-        self.events: list[events_module.Event] = []
+    def _make_sure_recording_attributes_exists(self):
+        """
+        Prepare recording of events. Cant set attributes in __init__
+        because it wont be called if the model is created by orm.
+        """
+        if not hasattr(self, "_recorded_events"):
+            self._recorded_events: list[tuple[Serializable, type[events_module.Event]]] = []
+        if not hasattr(self, "events"):
+            self.events: list[events_module.Event] = []
 
     def raise_recorded_events(self):
-        """
-        Raise recorded events.
-        """
-        if not hasattr(self, "events"):
-            # if created by mapper, __init__ will not be called
-            self.events = []
+        self._make_sure_recording_attributes_exists()
         for instance, event_cls in self._recorded_events:
             self.events.append(event_cls(**instance.dict()))
         self._recorded_events = []  # really important to avoid busy looping
 
     def record(self, event_cls: type[events_module.Event]):
         """
-        Record event to raise.
+        Record event to raise later on.
         """
-        if not hasattr(self, "_recorded_events"):
-            # if created by mapper, __init__ will not be called
-            self._recorded_events = []
+        self._make_sure_recording_attributes_exists()
         self._recorded_events.append((self, event_cls))
 
 
