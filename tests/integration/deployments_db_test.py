@@ -111,7 +111,7 @@ async def test_two_deployments(popen, bus, service_with_steps, deployment_starte
 
     # process steps of first deployment
     async with bus.uow as uow:
-        first_steps = [s for s, in await uow.steps.get_steps_from_deployment(first_deployment_id)]
+        first_steps = [s for s, in await uow.steps.get_steps_by_deployment(first_deployment_id)]
     first_cmds = create_process_steps_commands(first_steps)
     for cmd in first_cmds:
         await bus.handle(cmd)
@@ -126,12 +126,12 @@ async def test_two_deployments(popen, bus, service_with_steps, deployment_starte
     second_deployment_id = deployment_started_handler.event.id
 
     async with bus.uow as uow:
-        steps = [s for s, in await uow.steps.get_steps_from_deployment(second_deployment_id)]
+        steps = [s for s, in await uow.steps.get_steps_by_deployment(second_deployment_id)]
         print("steps state:", steps[0].state)
 
     # process steps of second deployment
     async with bus.uow as uow:
-        second_steps = [s for s, in await uow.steps.get_steps_from_deployment(second_deployment_id)]
+        second_steps = [s for s, in await uow.steps.get_steps_by_deployment(second_deployment_id)]
     second_cmds = create_process_steps_commands(second_steps)
     for cmd in second_cmds:
         await bus.handle(cmd)
@@ -142,12 +142,12 @@ async def test_two_deployments(popen, bus, service_with_steps, deployment_starte
 
     # make sure step from first deployment is not assigned to second deployment
     async with bus.uow as uow:
-        first_steps = [s for s, in await uow.steps.get_steps_from_deployment(first_deployment_id)]
+        first_steps = [s for s, in await uow.steps.get_steps_by_deployment(first_deployment_id)]
         assert len(first_steps) > 0
 
     # make only planned steps were assigned to second deployment
     async with bus.uow as uow:
-        second_steps = [s for s, in await uow.steps.get_steps_from_deployment(second_deployment_id)]
+        second_steps = [s for s, in await uow.steps.get_steps_by_deployment(second_deployment_id)]
         assert len(second_steps) == len(service.data["steps"])
 
 
@@ -163,7 +163,7 @@ async def test_steps_removed_after_finish(bus, deployment_in_db):
     await bus.handle(cmd)
 
     async with bus.uow as uow:
-        steps = await uow.steps.get_steps_from_deployment(deployment_in_db.id)
+        steps = await uow.steps.get_steps_by_deployment(deployment_in_db.id)
         assert len(steps) == 0
 
 

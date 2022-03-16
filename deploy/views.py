@@ -45,7 +45,7 @@ async def get_steps_from_last_deployment(
     last_successful_deployment_id = await uow.deployments.get_last_successful_deployment_id(service.id)
     if last_successful_deployment_id is not None:
         # try to get steps from last successful deployment
-        steps_from_db = await uow.steps.get_steps_from_deployment(last_successful_deployment_id)
+        steps_from_db = await uow.steps.get_steps_by_deployment(last_successful_deployment_id)
         steps.extend([s for s, in steps_from_db])
     return steps
 
@@ -86,6 +86,6 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
     """Get a deployment with all steps."""
     async with uow:
         [deployment] = await uow.deployments.get(deployment_id)
-        steps = await uow.steps.get_steps_from_deployment(deployment_id)
+        steps = await uow.steps.get_steps_by_deployment(deployment_id)
         deployment.steps = [s for s, in steps]
     return deployment

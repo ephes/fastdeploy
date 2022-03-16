@@ -23,9 +23,9 @@ async def test_deleting_service_deletes_related_deployment_with_steps(bus, servi
     async with bus.uow as uow:
         deployments = [d for d, in await uow.deployments.get_by_service(service_cascade.id)]
         deployment = deployments[0]
-        [step] = await uow.steps.get_steps_from_deployment(deployment.id)
+        [step] = await uow.steps.get_steps_by_deployment(deployment.id)
     cmd = commands.DeleteService(service_id=service_cascade.id)
     await bus.handle(cmd)
     async with bus.uow as uow:
-        assert await uow.steps.get_steps_from_deployment(deployment.id) == []
+        assert await uow.steps.get_steps_by_deployment(deployment.id) == []
         await uow.deployments.get_by_service(service_cascade.id) == []

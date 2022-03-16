@@ -32,7 +32,7 @@ Auth: Fetches the current user from database via `uow.users.get(username)`.
 
 Reads from database:
 * Fetches a deployment via `uow.deployments.get(deployment_id)`
-* Fetches a list of steps via `uow.steps.get_steps_from_deployment(deployment_id)`
+* Fetches a list of steps via `uow.steps.get_steps_by_deployment(deployment_id)`
 
 ## process_step_result /steps/
 
@@ -40,7 +40,7 @@ Auth: Fetches the current deployment from database via `uow.deployments.get(depl
 
 Reads from database:
 * Fetches a deployment via `uow.deployments.get(deployment_id)`
-* Fetches a list of steps via `uow.steps.get_steps_from_deployment(deployment_id)`
+* Fetches a list of steps via `uow.steps.get_steps_by_deployment(deployment_id)`
 
 Hmm, auth + those fetches can be done in the same function.
 
@@ -102,7 +102,7 @@ Auth: Fetches the current service from database via `uow.services.get_by_name(se
 
 Reads from database:
 * Fetches a deployment via `uow.deployments.get(deployment_id)`
-* Fetches a list of steps via `uow.steps.get_steps_from_deployment(deployment_id)`
+* Fetches a list of steps via `uow.steps.get_steps_by_deployment(deployment_id)`
 
 ## finish_deployment /deployments/finish/
 
@@ -110,7 +110,7 @@ Auth: Fetches the current deployment from database via `uow.deployments.get(depl
 
 Reads from database:
 * Fetches the current deployment again via `uow.deployments.get(command.deployment_id)`
-* Fetches the list of deployment steps via `uow.steps.get_steps_from_deployment(command.deployment_id)`
+* Fetches the list of deployment steps via `uow.steps.get_steps_by_deployment(command.deployment_id)`
 
 This could be done via `views.get_deployment_with_steps`.
 
@@ -125,7 +125,7 @@ Auth: Fetches the current service from database via `uow.services.get_by_name(se
 Reads from database:
 * Fetches current service from database again via `uow.services.get(command.service_id)`
 * Get last successful deployment id from database via `uow.deployments.get_last_successful_deployment_id(service.id)`
-* Fetches a list of steps from database via `uow.steps.get_steps_from_deployment(last_successful_deployment_id)`
+* Fetches a list of steps from database via `uow.steps.get_steps_by_deployment(last_successful_deployment_id)`
 *
 
 Writes to database:
