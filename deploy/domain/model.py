@@ -1,9 +1,45 @@
+import abc
 import json
 
 from datetime import datetime, timezone
 from typing import List
 
-from . import events
+from . import events as events_module
+
+
+class Serializable(abc.ABC):
+    @abc.abstractmethod
+    def dict(self) -> dict:
+        raise NotImplementedError
+
+
+class EventsMixin(Serializable):
+    """
+    We cannot raise events at arbitrary points in time, because
+    for some events, we need to know the id of a model, which will
+    only be known after the model has been saved and the transaction
+    has been committed.
+
+    So we record events to raise, and raise them only after the
+    unit of work exits it's context and calls raise_recorded_events
+    for all seen models.
+    """
+
+    _recorded_events: list[tuple[Serializable, type[events_module.Event]]] = []
+    events: list[events_module.Event] = []
+
+    def raise_recorded_events(self):
+        """
+        Raise recorded events.
+        """
+        for instance, event_cls in self._recorded_events:
+            self.events.append(event_cls(**instance.dict()))
+
+    def record(self, event_cls: type[events_module.Event]):
+        """
+        Record event to raise.
+        """
+        self._recorded_events.append((self, event_cls))
 
 
 class User:
@@ -14,7 +50,7 @@ class User:
     id: int | None
     name: str | None
     password: str | None
-    events = []  # type: List[events.Event]
+    events = []  # type: List[events_module.Event]
 
     def __init__(self, *, id=None, name=None, password=None):
         self.id = id
@@ -42,7 +78,7 @@ class User:
         Raise created event.
         """
         assert self.id is not None and self.name is not None
-        self.events.append(events.UserCreated(id=self.id, username=self.name))
+        self.events.append(events_module.UserCreated(id=self.id, username=self.name))
 
 
 class Step:
@@ -55,7 +91,7 @@ class Step:
     id: int | None
     name: str
     deployment_id: int | None
-    events = []  # type: List[events.Event]
+    events = []  # type: List[events_module.Event]
 
     def __init__(
         self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None, **kwargs
@@ -104,14 +140,14 @@ class Step:
     def delete(self):
         """Raise deleted event."""
         assert self.id is not None
-        deleted = events.StepDeleted(**self.dict())
+        deleted = events_module.StepDeleted(**self.dict())
         self.events.append(deleted)
 
     def process(self):
         """
         Raise processed event.
         """
-        self.events.append(events.StepProcessed(**self.dict()))
+        self.events.append(events_module.StepProcessed(**self.dict()))
 
     def start(self):
         """
@@ -132,7 +168,7 @@ class Service:
     name: str
     user: str = ""  # str instead of fk because of transport via service token
     origin: str = ""
-    events = []  # type: List[events.Event]
+    events = []  # type: List[events_module.Event]
 
     def __init__(self, *, id=None, name: str = "", data={}):
         self.id = id
@@ -158,13 +194,13 @@ class Service:
     def delete(self):
         """Raise deleted event."""
         assert self.id is not None and self.name is not None
-        deleted = events.ServiceDeleted(**self.dict())
+        deleted = events_module.ServiceDeleted(**self.dict())
         self.events.append(deleted)
 
     def update(self):
         """Raise updated event."""
         assert self.id is not None and self.name is not None
-        updated = events.ServiceUpdated(**self.dict())
+        updated = events_module.ServiceUpdated(**self.dict())
         self.events.append(updated)
 
     def get_deploy_script(self) -> str:
@@ -188,7 +224,7 @@ class Deployment:
     finished: datetime | None
     context: dict
     steps: list[Step]
-    events = []  # type: List[events.Event]
+    events = []  # type: List[events_module.Event]
 
     def __init__(
         self,
@@ -312,7 +348,7 @@ class Deployment:
 
         # raise started event
         assert service.id is not None
-        started = events.DeploymentStarted(**self.dict())
+        started = events_module.DeploymentStarted(**self.dict())
         self.events.append(started)
 
     def finish(self):
@@ -320,7 +356,7 @@ class Deployment:
         Raise finished event.
         """
         assert self.id is not None and self.finished is not None
-        finished = events.DeploymentFinished(**self.dict())
+        finished = events_module.DeploymentFinished(**self.dict())
         self.events.append(finished)
 
 
