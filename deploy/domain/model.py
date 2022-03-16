@@ -2,7 +2,6 @@ import abc
 import json
 
 from datetime import datetime, timezone
-from typing import List
 
 from . import events as events_module
 
@@ -25,24 +24,32 @@ class EventsMixin(Serializable):
     for all seen models.
     """
 
-    _recorded_events: list[tuple[Serializable, type[events_module.Event]]] = []
-    events: list[events_module.Event] = []
+    def __init__(self):
+        self._recorded_events: list[tuple[Serializable, type[events_module.Event]]] = []
+        self.events: list[events_module.Event] = []
 
     def raise_recorded_events(self):
         """
         Raise recorded events.
         """
+        if not hasattr(self, "events"):
+            # if created by mapper, __init__ will not be called
+            self.events = []
         for instance, event_cls in self._recorded_events:
             self.events.append(event_cls(**instance.dict()))
+        self._recorded_events = []  # really important to avoid busy looping
 
     def record(self, event_cls: type[events_module.Event]):
         """
         Record event to raise.
         """
+        if not hasattr(self, "_recorded_events"):
+            # if created by mapper, __init__ will not be called
+            self._recorded_events = []
         self._recorded_events.append((self, event_cls))
 
 
-class User:
+class User(EventsMixin):
     """
     User model used for authentication.
     """
@@ -50,9 +57,9 @@ class User:
     id: int | None
     name: str | None
     password: str | None
-    events = []  # type: List[events_module.Event]
 
     def __init__(self, *, id=None, name=None, password=None):
+        super().__init__()
         self.id = id
         self.name = name
         self.password = password
@@ -75,13 +82,12 @@ class User:
 
     def create(self):
         """
-        Raise created event.
+        Record created event.
         """
-        assert self.id is not None and self.name is not None
-        self.events.append(events_module.UserCreated(id=self.id, username=self.name))
+        self.record(events_module.UserCreated)
 
 
-class Step:
+class Step(EventsMixin):
     """
     Base class for all deployment steps. All steps have a name.
     They can also have started and finished timestamps, depending on
@@ -91,11 +97,11 @@ class Step:
     id: int | None
     name: str
     deployment_id: int | None
-    events = []  # type: List[events_module.Event]
 
     def __init__(
         self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None, **kwargs
     ):
+        super().__init__()
         self.id = id
         self.name = name
         self.started = started
@@ -138,16 +144,14 @@ class Step:
         return json.dumps(data)
 
     def delete(self):
-        """Raise deleted event."""
-        assert self.id is not None
-        deleted = events_module.StepDeleted(**self.dict())
-        self.events.append(deleted)
+        """Record deleted event."""
+        self.record(events_module.StepDeleted)
 
     def process(self):
         """
-        Raise processed event.
+        Record processed event.
         """
-        self.events.append(events_module.StepProcessed(**self.dict()))
+        self.record(events_module.StepProcessed)
 
     def start(self):
         """
@@ -157,7 +161,7 @@ class Step:
         self.started = datetime.now(timezone.utc)
 
 
-class Service:
+class Service(EventsMixin):
     """
     Services are deployed. They have a name and a config (which is a JSON)
     and reflected in the data attribute. They also need to have a script
@@ -168,9 +172,9 @@ class Service:
     name: str
     user: str = ""  # str instead of fk because of transport via service token
     origin: str = ""
-    events = []  # type: List[events_module.Event]
 
     def __init__(self, *, id=None, name: str = "", data={}):
+        super().__init__()
         self.id = id
         self.name = name
         self.data = data
@@ -192,16 +196,12 @@ class Service:
         }
 
     def delete(self):
-        """Raise deleted event."""
-        assert self.id is not None and self.name is not None
-        deleted = events_module.ServiceDeleted(**self.dict())
-        self.events.append(deleted)
+        """Record deleted event."""
+        self.record(events_module.ServiceDeleted)
 
     def update(self):
-        """Raise updated event."""
-        assert self.id is not None and self.name is not None
-        updated = events_module.ServiceUpdated(**self.dict())
-        self.events.append(updated)
+        """Record updated event."""
+        self.record(events_module.ServiceUpdated)
 
     def get_deploy_script(self) -> str:
         deploy_script = self.data.get("deploy_script", "deploy.sh")
@@ -209,7 +209,7 @@ class Service:
         return f"{self.name}/{deploy_script}"
 
 
-class Deployment:
+class Deployment(EventsMixin):
     """
     Representing a single deployment for a service. It has an origin
     to indicate who started the deployment (GitHub, Frontend, etc..),
@@ -224,7 +224,6 @@ class Deployment:
     finished: datetime | None
     context: dict
     steps: list[Step]
-    events = []  # type: List[events_module.Event]
 
     def __init__(
         self,
@@ -238,6 +237,7 @@ class Deployment:
         context: dict = {},
         steps: list[Step] = [],
     ):
+        super().__init__()
         self.id = id
         self.service_id = service_id
         self.origin = origin
@@ -346,18 +346,14 @@ class Deployment:
         environment = get_deploy_environment(self, service.get_deploy_script())
         run_deploy(environment)  # subprocess.Popen(...)
 
-        # raise started event
-        assert service.id is not None
-        started = events_module.DeploymentStarted(**self.dict())
-        self.events.append(started)
+        # record started event
+        self.record(events_module.DeploymentStarted)
 
     def finish(self):
         """
-        Raise finished event.
+        Record finished event.
         """
-        assert self.id is not None and self.finished is not None
-        finished = events_module.DeploymentFinished(**self.dict())
-        self.events.append(finished)
+        self.record(events_module.DeploymentFinished)
 
 
 def sync_services(

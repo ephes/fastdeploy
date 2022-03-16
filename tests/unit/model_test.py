@@ -56,7 +56,7 @@ async def test_deployment_process_known_running_step(deployment):
 
 class ModelWithEvents(model.EventsMixin):
     def dict(self):
-        return {"id": 1, "username": "test"}
+        return {"id": 1, "name": "test"}
 
 
 async def test_events_mixin_creates_events_on_demand():

@@ -26,7 +26,7 @@ class AuthenticationFailed(AuthenticationSucceeded):
 class UserCreated(Event):
     type: EVENT_TYPES = "user"
     id: int
-    username: str
+    name: str
 
 
 class ServiceCreated(Event):
