@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 
-from deploy.domain import model
+from deploy.domain import events, model
+from deploy.service_layer.unit_of_work import AbstractUnitOfWork
 
 
 pytestmark = pytest.mark.asyncio
@@ -50,3 +52,39 @@ async def test_deployment_process_known_running_step(deployment):
     deployment.steps = [known_step]
     modified_steps = deployment.process_step(finished_step)
     assert [finished_step] == modified_steps
+
+
+class ModelWithEvents(model.EventsMixin):
+    def dict(self):
+        return {"id": 1, "name": "test"}
+
+
+async def test_events_mixin_creates_events_on_demand():
+    instance = ModelWithEvents()
+    instance.record(events.UserCreated)
+    instance.raise_recorded_events()
+    assert instance.events == [events.UserCreated(**ModelWithEvents().dict())]
+
+
+async def test_events_mixin_events_are_consumable_by_unit_of_work():
+    instance = ModelWithEvents()
+    instance.record(events.UserCreated)
+
+    class Repository:
+        def __init__(self, seen):
+            self.seen = seen
+
+    class Uow(AbstractUnitOfWork):
+        services: Any = Repository(set())
+        deployments: Any = Repository(set())
+        steps: Any = Repository(set())
+        users: Any = Repository({instance})
+
+        async def _commit(self):
+            pass
+
+        async def rollback(self):
+            pass
+
+    uow = Uow()
+    assert list(uow.collect_new_events()) == [events.UserCreated(**ModelWithEvents().dict())]

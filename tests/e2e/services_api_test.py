@@ -84,9 +84,6 @@ async def test_delete_non_existing_service(app, valid_access_token_in_db):
 
 @pytest.mark.db("in_memory")
 async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db, publisher, uow):
-    async with uow as uow:
-        print("begin of test services: ", await uow.services.list())
-        print("begin of test users: ", await uow.users.list())
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.delete(
             app.url_path_for("delete_service", service_id=service_in_db.id),
