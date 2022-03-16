@@ -114,10 +114,6 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
             await uow.steps.add(step)
         await uow.commit()
 
-        # raise processed events after commit to have IDs
-        for step in steps_to_update:
-            step.process()
-
 
 PUBLISH_EVENTS = events.ServiceDeleted | events.DeploymentStarted | events.DeploymentFinished | events.StepDeleted
 
