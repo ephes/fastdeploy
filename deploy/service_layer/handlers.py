@@ -73,10 +73,9 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     async with uow:
         [service] = await uow.services.get(command.service_id)
 
-    # look up the deployment steps from last deployment
+    # look up the deployment steps from last deployment / service.data / default
+    # and create new deployment
     steps = await views.get_steps_to_do_from_service(service, uow)
-
-    # create a new deployment
     deployment = model.Deployment(
         service_id=command.service_id,
         origin=command.origin,
@@ -90,23 +89,16 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     # actually start the deployment
     async with uow:
         # add the deployment to the database
-        await uow.deployments.add(deployment)
-        deployment.steps[0].start()  # start first step immediately
-
         # have to commit early to get the deployment ID :(
         # FIXME: this is a bit of a hack
+        await uow.deployments.add(deployment)
         await uow.commit()
-        for step in steps:
-            step.deployment_id = deployment.id  # set the deployment id fk
+
+        # start deployment task
+        deployment.start_deployment_task(service)
+        for step in deployment.steps:
             await uow.steps.add(step)
-
-        # save the steps to the database
         await uow.commit()
-
-        # start actual deployment task + raise events
-        deployment.start(service)
-        for step in steps:
-            step.process()
 
 
 async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):

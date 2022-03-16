@@ -328,12 +328,18 @@ class Deployment(EventsMixin):
             modified_steps.append(known_step)
         return modified_steps
 
-    def start(self, service: Service) -> None:
+    def start_deployment_task(self, service: Service):
         """
         Start actual deployment task and raise started event.
         """
         if self.started is None or self.finished is not None or self.id is None:
             raise ValueError("Unable to start deployment")
+
+        # start first step immediately + raise processed events for all steps
+        self.steps[0].start()
+        for step in self.steps:
+            step.deployment_id = self.id
+            step.process()
 
         # start the deployment task
         from ..tasks import get_deploy_environment, run_deploy
