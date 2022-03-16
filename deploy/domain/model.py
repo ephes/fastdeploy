@@ -58,7 +58,6 @@ class User(EventsMixin):
     password: str | None
 
     def __init__(self, *, id=None, name=None, password=None):
-        super().__init__()
         self.id = id
         self.name = name
         self.password = password
@@ -100,7 +99,6 @@ class Step(EventsMixin):
     def __init__(
         self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None, **kwargs
     ):
-        super().__init__()
         self.id = id
         self.name = name
         self.started = started
@@ -173,7 +171,6 @@ class Service(EventsMixin):
     origin: str = ""
 
     def __init__(self, *, id=None, name: str = "", data={}):
-        super().__init__()
         self.id = id
         self.name = name
         self.data = data
@@ -236,7 +233,6 @@ class Deployment(EventsMixin):
         context: dict = {},
         steps: list[Step] = [],
     ):
-        super().__init__()
         self.id = id
         self.service_id = service_id
         self.origin = origin
