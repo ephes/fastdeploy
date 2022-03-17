@@ -1,6 +1,10 @@
 import json
 
+from pathlib import Path
+
 import pytest
+
+from deploy.adapters.filesystem import working_directory
 
 
 def test_list_only_directories(services_filesystem):
@@ -45,3 +49,9 @@ def test_get_steps_from_playbook_happy(services_filesystem):
         config_file.write(json.dumps(config))
     config = services_filesystem.get_config_by_name("service")
     assert config["steps"] == [{"name": "Gathering Facts"}, {"name": "task1"}]
+
+
+def test_switch_working_directory(services_filesystem):
+    with working_directory(services_filesystem.root):
+        assert Path.cwd().absolute() == services_filesystem.root
+    assert Path.cwd().absolute() != services_filesystem.root
