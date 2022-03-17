@@ -10,15 +10,6 @@ import yaml
 from ..config import settings
 
 
-def get_directories(path: Path) -> list[str]:
-    """Returns a list of directories in a given path."""
-    directories = []
-    for entry_path in path.iterdir():
-        if entry_path.is_dir():
-            directories.append(entry_path.name)
-    return directories
-
-
 class AbstractFilesystem(abc.ABC):
     def __init__(self, root: Path):
         self.root = root
@@ -26,16 +17,17 @@ class AbstractFilesystem(abc.ABC):
     @abc.abstractmethod
     def list(self) -> list[str]:
         """Returns a list of directories for a given root."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     @abc.abstractmethod
     def get_config_by_name(self, name: str) -> dict:
         """Returns a dictionary containing the configuration for a given service name."""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
 
 class Filesystem(AbstractFilesystem):
     def list(self):
+        """Returns a list of directories in root."""
         directories = []
         for entry_path in self.root.iterdir():
             if entry_path.is_dir():
