@@ -104,6 +104,7 @@ class DeployTask(BaseSettings):
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            limit=1024 * 128,  # 128 KiB output -> raise exception on bigger output
             env=env,
         )
         while True:
@@ -131,6 +132,19 @@ class DeployTask(BaseSettings):
     async def run_deploy(self):
         try:
             await self.deploy_steps()
+        except Exception as e:
+            # If some unknown exception happens, we need to finish the deployment
+            # as failed and therefore have at least one failed step. Which we create
+            # here. We also append the exception message to the step.
+            message = f"deployment failed: {e}"
+            step_result = {
+                "name": "failed step",
+                "error_message": message,
+                "state": "failure",
+                "started": datetime.now(timezone.utc),
+            }
+            await self.finish_step(step_result)
+            raise e
         finally:
             await self.finish_deployment()
 
