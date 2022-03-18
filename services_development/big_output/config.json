@@ -1,0 +1,12 @@
+{
+    "deploy_script": "deploy.sh",
+    "description": "Just a test for steps with big output",
+    "steps": [
+        {
+            "name": "message 0"
+        },
+        {
+            "name": "message 1"
+        }
+    ]
+}
