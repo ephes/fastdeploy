@@ -104,7 +104,7 @@ class DeployTask(BaseSettings):
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            limit=1024 * 512,  # 512 KiB output -> raise exception on bigger output
+            limit=1024 * 1024,  # 1 MiB output -> raise exception on bigger output
             env=env,
         )
         while True:
