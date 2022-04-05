@@ -1483,9 +1483,6 @@ watchdog==2.1.7 \
     --hash=sha256:d802d65262a560278cf1a65ef7cae4e2bc7ecfe19e5451349e4c67e23c9dc420 \
     --hash=sha256:ed6d9aad09a2a948572224663ab00f8975fae242aa540509737bb4507133fa2d
     # via mkdocs
-watchgod==0.8.1 \
-    --hash=sha256:4ba20c2fa3e63df706ab50e694b9453b05395fadb7cbbfd984d71fb1547d485d \
-    --hash=sha256:c12d15f3df7d11e740704e45398277f75f1d78f46ad59ca9d7505bfd8b8d3086
 watchgod==0.8.2 \
     --hash=sha256:2f3e8137d98f493ff58af54ea00f4d1433a6afe2ed08ab331a657df468c6bfce \
     --hash=sha256:cb11ff66657befba94d828e3b622d5fb76f22fbda1376f355f3e6e51e97d9450
