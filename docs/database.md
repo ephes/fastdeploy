@@ -52,11 +52,21 @@ get's displayed to the user.
 If you know about ansible, you can think of steps as ansible tasks and
 deployments as ansible playbooks.
 
+
+## Deployed Service
+
+Some services like `apt upgrade` just get deployed and that's about it.
+But sometimes a deployment results in a deployed service which is running
+and can be stopped, monitored or backuped. Information about those services
+is stored in the DeployedService table. DeployedServices are linked to the
+Deployment they were created by.
+
 # ER-Diagram
 
 ```mermaid
 erDiagram
-          USER ||..o{ DEPLOYMENT : starts
-          SERVICE ||..o{ DEPLOYMENT : "gets deployed"
-          DEPLOYMENT ||..o{ STEP : "consists of"
+          USER ||--o{ DEPLOYMENT : starts
+          SERVICE ||--o{ DEPLOYMENT : "gets deployed"
+          DEPLOYMENT ||--o{ STEP : "consists of"
+          DEPLOYMENT ||--|| DEPLOYED-SERVICE : "creates"
 ```
