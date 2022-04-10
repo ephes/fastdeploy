@@ -28,8 +28,8 @@ Deployment tokens are generated when a service is getting deployed.
 The deployment process, which is completely separate from the
 application server, is provided with a deployment token via its
 environment. The deployment process is now able to use its token
-to create an finish deployment steps for the deployment it is running
-via the `/steps` endpoint.
+to send back information about steps to process and finish the
+running deployment.
 
 ## Config Token
 
