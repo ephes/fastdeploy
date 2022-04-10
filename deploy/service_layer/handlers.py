@@ -123,10 +123,18 @@ async def publish_event(event: PUBLISH_EVENTS, publish: Callable):
     await publish("broadcast", event)
 
 
+async def update_deployed_services(event: events.DeploymentFinished):
+    """
+    Depending on which service was deployed, add a service to the
+    list of deployed services or remove it.
+    """
+    pass
+
+
 EVENT_HANDLERS = {
     events.ServiceDeleted: [publish_event],
     events.ServiceUpdated: [publish_event],
-    events.DeploymentFinished: [publish_event],
+    events.DeploymentFinished: [publish_event, update_deployed_services],
     events.DeploymentStarted: [publish_event],
     events.StepDeleted: [publish_event],
     events.StepProcessed: [publish_event],

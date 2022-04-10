@@ -118,3 +118,14 @@ async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployme
     async with uow as uow:
         [deployment] = await uow.deployments.get(deployment_id)
     return deployment
+
+
+async def config_from_token(token: str):
+    """
+    Turn a JWT token into a config dict.
+    """
+    payload = token_to_payload(token)
+    if payload.get("type") != "config":
+        raise ValueError("not a config token")
+
+    return payload

@@ -200,3 +200,19 @@ async def deployment_in_db(bus, deployment):
 @pytest.fixture
 def valid_deploy_token_in_db(deployment_in_db):
     return create_access_token({"type": "deployment", "deployment": deployment_in_db.id}, timedelta(minutes=5))
+
+
+@pytest.fixture
+def deployed_service(deployment_in_db):
+    return model.DeployedService(
+        deployment_id=deployment_in_db.id,
+        config={"foo": "bar"},
+    )
+
+
+@pytest_asyncio.fixture()
+async def deployed_service_in_db(bus, deployed_service):
+    async with bus.uow as uow:
+        await uow.deployed_services.add(deployed_service)
+        await uow.commit()
+    return deployed_service
