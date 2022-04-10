@@ -132,6 +132,15 @@ Writes to database:
 * Create a new deployment via `uow.deployments.add(deployment)`
 * Create pending steps (who need a deployment_id) via `uow.steps.add(step)`
 
+# Deployed Services
+
+## list_deployed_services /deployed-services/
+
+Auth: Needs a valid config token.
+
+Reads from database:
+* Fetches the list of deployed services via `uow.deployed_services.list()`
+
 # Endpoints Auth Overview
 
 Just a note to myself which endpoints require wich kind auf authentication.
