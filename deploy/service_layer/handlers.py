@@ -126,7 +126,8 @@ async def publish_event(event: PUBLISH_EVENTS, publish: Callable):
 async def update_deployed_services(event: events.DeploymentFinished):
     """
     Depending on which service was deployed, add a service to the
-    list of deployed services or remove it.
+    list of deployed services, update the services information
+    or remove it.
     """
     pass
 
