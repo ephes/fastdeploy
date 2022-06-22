@@ -21,8 +21,8 @@
 
 ## Documentation
 
-This project uses [mkdocs.org](https://www.mkdocs.org) with [material theme](https://squidfunk.github.io/mkdocs-material/) for documentation.  
-To add an updated `openapi.json` to the docs run `python commands.py docs --openapi`.  
+This project uses [mkdocs.org](https://www.mkdocs.org) with [material theme](https://squidfunk.github.io/mkdocs-material/) for documentation.
+To add an updated `openapi.json` to the docs run `python commands.py docs --openapi`.
 
 Layout:
 
