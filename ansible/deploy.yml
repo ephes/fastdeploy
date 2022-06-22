@@ -224,7 +224,7 @@
         PATH: "{{ default_path }}"
 
     - name: Install pip-tools
-      shell: "{{ python }} -m pip install pip-tools"
+      shell: "{{ python }} -m pip install -U pip-tools"
       become: true
       become_user: "{{ username }}"
       environment:
