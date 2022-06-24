@@ -38,3 +38,6 @@ databases/postgres
 
 # documentation
 site/
+
+# mac
+.DS_Store
