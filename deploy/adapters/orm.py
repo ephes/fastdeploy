@@ -60,6 +60,15 @@ steps = Table(
 )
 
 
+deployed_services = Table(
+    "deployed_service",
+    metadata_obj,
+    Column("id", Integer, primary_key=True),
+    Column("deployment_id", Integer, ForeignKey("deployment.id", ondelete="CASCADE")),
+    Column("config", JSON, default={}),
+)
+
+
 async def create_db_and_tables(engine):
     async with engine.begin() as conn:
         await conn.run_sync(metadata_obj.create_all)
@@ -76,6 +85,7 @@ def start_mappers():
     mapper_registry.map_imperatively(model.Step, steps)
     mapper_registry.map_imperatively(model.Deployment, deployments)
     mapper_registry.map_imperatively(model.Service, services)
+    mapper_registry.map_imperatively(model.DeployedService, deployed_services)
     MAPPERS_STARTED = True
     # Maybe define relationships?
     # steps_mapper = mapper_registry.map_imperatively(model.Step, steps)

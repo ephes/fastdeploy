@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from ..config import settings
 from .helper_models import Bus
-from .routers import deployments, services, steps, users
+from .routers import deployed_services, deployments, services, steps, users
 
 
 app = FastAPI()
@@ -16,6 +16,7 @@ app.include_router(users.router)
 app.include_router(steps.router)
 app.include_router(services.router)
 app.include_router(deployments.router)
+app.include_router(deployed_services.router)
 
 
 app.add_middleware(

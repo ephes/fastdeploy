@@ -353,3 +353,52 @@ class InMemoryStepRepository(AbstractStepRepository):
 
     async def get_steps_by_deployment(self, deployment_id):
         return ((s,) for s in self._steps if s.deployment_id == deployment_id)
+
+
+class AbstractDeployedServiceRepository(abc.ABC):
+    def __init__(self):
+        self.seen: set[model.DeployedService] = set()
+
+    @abc.abstractmethod
+    async def _add(self, deployed_service: model.DeployedService) -> None:
+        raise NotImplementedError
+
+    async def add(self, deployed_service: model.DeployedService) -> None:
+        await self._add(deployed_service)
+        self.seen.add(deployed_service)
+
+    # @abc.abstractmethod
+    # async def _delete(self, deployed_service: model.DeployedService) -> None:
+    #     raise NotImplementedError
+
+    @abc.abstractmethod
+    async def list(self) -> list[tuple[model.DeployedService]]:
+        raise NotImplementedError
+
+
+class SqlAlchemyDeployedServiceRepository(AbstractDeployedServiceRepository):
+    def __init__(self, session):
+        self.session = session
+        super().__init__()
+
+    async def _add(self, deployed_service):
+        print("adding: ", deployed_service)
+        self.session.add(deployed_service)
+
+    async def list(self):
+        stmt = select(model.DeployedService)
+        result = await self.session.execute(stmt)
+        return result.all()
+
+
+class InMemoryDeployedServiceRepository(AbstractDeployedServiceRepository):
+    def __init__(self):
+        self._deployed_services = []
+        super().__init__()
+
+    async def _add(self, deployed_service):
+        self._deployed_services.append(deployed_service)
+        deployed_service.id = len(self._deployed_services)
+
+    async def list(self):
+        return [(d,) for d in self._deployed_services]
