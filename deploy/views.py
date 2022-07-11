@@ -89,3 +89,10 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
         steps = await uow.steps.get_steps_by_deployment(deployment_id)
         deployment.steps = [s for s, in steps]
     return deployment
+
+
+async def all_deployed_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.DeployedService]:
+    """Get a list of all deployed services."""
+    async with uow:
+        deployed = await uow.deployed_services.list()
+    return [dservice for dservice, in deployed]

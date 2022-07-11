@@ -5,7 +5,12 @@ that are used as dependencies for fastAPI routers.
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-from ..auth import deployment_from_token, service_from_token, user_from_token
+from ..auth import (
+    config_from_token,
+    deployment_from_token,
+    service_from_token,
+    user_from_token,
+)
 from ..domain.model import Deployment, Service, User
 from .helper_models import Bus
 
@@ -44,5 +49,12 @@ async def get_current_active_deployment(
 ) -> Deployment:
     try:
         return await deployment_from_token(token, bus.uow)
+    except Exception:
+        raise CREDENTIALS_EXCEPTION
+
+
+async def get_current_config(token: str = Depends(OAUTH2_SCHEME)):
+    try:
+        return await config_from_token(token)
     except Exception:
         raise CREDENTIALS_EXCEPTION

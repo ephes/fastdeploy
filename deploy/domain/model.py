@@ -356,7 +356,7 @@ class Deployment(EventsMixin):
 
     def finish(self):
         """
-        Set finished timestamp, ecord finished event and
+        Set finished timestamp, record finished event and
         return all steps that have to be removed.
         """
         self.finished = datetime.now(timezone.utc)
@@ -400,3 +400,38 @@ def sync_services(
             deleted_services.append(service)
             service.delete()
     return updated_services, deleted_services
+
+
+class DeployedService(EventsMixin):
+    """
+    A deployed service is a service that has been deployed with a
+    specific config and is now running.
+    For example assume there's a podcast service that can be configures
+    with a domain name. Then a DeployedService would be a specific
+    podcast running on this configured domain.
+    """
+
+    id: int | None
+    deployment_id: int
+    config: dict
+
+    def __init__(self, *, id=None, deployment_id: int, config: dict = {}):
+        self.id = id
+        self.deployment_id = deployment_id
+        self.config = config
+
+    def dict(self):
+        return {
+            "id": self.id,
+            "deployment_id": self.deployment_id,
+            "config": self.config,
+        }
+
+    def __repr__(self):
+        return f"DeployedService(id={self.id}, deployment_id={self.deployment_id})"
+
+    def __eq__(self, other):
+        return self.id == other.id
+
+    def __hash__(self):
+        return hash(self.deployment_id)
