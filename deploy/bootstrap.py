@@ -14,13 +14,17 @@ from .service_layer import handlers, messagebus, unit_of_work
 
 async def bootstrap(
     start_orm: bool = True,
-    uow: unit_of_work.AbstractUnitOfWork = unit_of_work.SqlAlchemyUnitOfWork(),
+    uow: unit_of_work.AbstractUnitOfWork | None = None,
     connection_manager: Any = connection_manager,
     fs: filesystem.AbstractFilesystem = filesystem.Filesystem(settings.services_root),
     notifications: AbstractNotifications | None = None,
     publish: Callable | None = None,
     create_db_and_tables: bool = True,
 ) -> messagebus.MessageBus:
+
+    if uow is None:
+        uow = unit_of_work.SqlAlchemyUnitOfWork()
+        await uow.connect()
 
     if notifications is None:
         notifications = EmailNotifications()
