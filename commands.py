@@ -18,6 +18,7 @@ from deploy.auth import get_password_hash
 from deploy.bootstrap import bootstrap
 from deploy.config import settings
 from deploy.domain import commands, events
+from deploy.service_layer.unit_of_work import SqlAlchemyUnitOfWork
 
 
 CWD = str(Path(__file__).parent.resolve())
@@ -25,7 +26,9 @@ cli = typer.Typer()
 
 
 async def createuser_async(username, password_hash) -> events.UserCreated:
-    bus = await bootstrap()
+    uow = SqlAlchemyUnitOfWork()
+    await uow.connect()
+    bus = await bootstrap(uow=uow)
 
     class UserCreatedHandler:
         user_event: events.UserCreated
@@ -38,6 +41,7 @@ async def createuser_async(username, password_hash) -> events.UserCreated:
     bus.event_handlers[events.UserCreated].append(handle_user_created)
     cmd = commands.CreateUser(username=username, password_hash=password_hash)
     await bus.handle(cmd)
+    await bus.uow.close()
     return handle_user_created.user_event
 
 
@@ -65,9 +69,12 @@ def createuser():
 
 
 async def _syncservices() -> None:
-    bus = await bootstrap()
+    uow = SqlAlchemyUnitOfWork()
+    await uow.connect()
+    bus = await bootstrap(uow=uow)
     cmd = commands.SyncServices()
     await bus.handle(cmd)
+    await bus.uow.close()
 
 
 @cli.command()
