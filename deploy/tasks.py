@@ -52,6 +52,10 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
     return environment
 
 
+MAX_ASYNCIO_STDOUT_SIZE = (1024 * 1024 * 10,)  # 10 MiB output -> raise exception on bigger output
+MAX_STEP_MESSAGE_SIZE = 4096
+
+
 class DeployTask(BaseSettings):
     """
     Run a complete deployment for a service:
@@ -74,7 +78,14 @@ class DeployTask(BaseSettings):
     def headers(self):
         return {"authorization": f"Bearer {self.access_token}"}
 
+    @staticmethod
+    def limit_message_size(step):
+        if len(step.message) > MAX_STEP_MESSAGE_SIZE:
+            step.message = step.message[:MAX_STEP_MESSAGE_SIZE]
+        return step
+
     async def send_step(self, step_url, step):
+        step = self.limit_message_size(step)
         for _ in range(self.attempts):
             try:
                 r = await self.client.post(step_url, json=json.loads(step.json()))
@@ -104,7 +115,7 @@ class DeployTask(BaseSettings):
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            limit=1024 * 1024 * 10,  # 10 MiB output -> raise exception on bigger output
+            limit=MAX_ASYNCIO_STDOUT_SIZE,
             env=env,
         )
         while True:
