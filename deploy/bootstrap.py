@@ -61,4 +61,10 @@ def inject_dependencies(handler, dependencies):
 
 
 async def get_bus():
-    return await bootstrap()
+    uow = unit_of_work.SqlAlchemyUnitOfWork()
+    await uow.connect()
+    bus = await bootstrap(uow=uow)
+    try:
+        yield bus
+    finally:
+        await bus.uow.close()

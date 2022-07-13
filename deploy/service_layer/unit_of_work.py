@@ -33,6 +33,7 @@ class AbstractSession(abc.ABC):
 
 class AbstractUnitOfWork(abc.ABC):
     engine = None
+    connection = None
     services: repository.AbstractServiceRepository
     users: repository.AbstractUserRepository
     deployments: repository.AbstractDeploymentRepository
@@ -73,10 +74,26 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, session_factory=DEFAULT_SESSION_FACTORY, engine=DEFAULT_ENGINE):
         self.engine = engine
         self.session_factory = session_factory
+        self.connection = None
 
-    async def __aenter__(self):
+    async def connect(self):
+        """
+        Being able to explicitly control when the connection starts. This
+        is called at the beginning of each web request via `bootstrap.get_bus`.
+        """
         self.connection = await self.engine.connect()
         self.session = self.session_factory(bind=self.connection)
+
+    async def close(self):
+        """
+        Being able to explicitly control when the connection is closed.
+        This is called at the end of each web request via `bootstrap.get_bus`.
+        """
+        await self.session.close()
+        await self.connection.close()
+        await self.engine.dispose()
+
+    async def __aenter__(self):
         self.services = repository.SqlAlchemyServiceRepository(self.session)
         self.users = repository.SqlAlchemyUserRepository(self.session)
         self.deployments = repository.SqlAlchemyDeploymentRepository(self.session)
@@ -87,9 +104,6 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     async def __aexit__(self, *args):
         self.session.expunge_all()
         await super().__aexit__(*args)
-        await self.session.close()
-        # await self.connection.close()
-        # await self.engine.dispose()
 
     async def _commit(self):
         await self.session.commit()
@@ -106,12 +120,20 @@ class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):
     session.close() and session.rollback() on __exit__. And this
     will trigger the outer transaction to rollback :(.
 
-    Therefore we just override the __exit__ method and do nothing
+    Therefore, we just override the __exit__ method and do nothing
     instead.
 
     See https://docs.sqlalchemy.org/en/14/orm/session_transaction.html
         #joining-a-session-into-an-external-transaction-such-as-for-test-suites
     """
+
+    async def __aenter__(self):
+        """
+        Create a new connection implicitly when used in an async context_manager.
+        """
+        self.connection = await self.engine.connect()
+        self.session = self.session_factory(bind=self.connection)
+        return await super().__aenter__()
 
     async def __aexit__(self, *args):
         pass
