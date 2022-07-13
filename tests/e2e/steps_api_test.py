@@ -84,7 +84,6 @@ def step_result(deployment_in_db):
 
 
 async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy_token_in_db, deployment_in_db):
-    print("step: ", step_result)
     deployment_in_db.started = datetime.now(timezone.utc)
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.post(
