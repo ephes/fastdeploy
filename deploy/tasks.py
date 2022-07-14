@@ -52,7 +52,7 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
     return environment
 
 
-MAX_ASYNCIO_STDOUT_SIZE = (1024 * 1024 * 10,)  # 10 MiB output -> raise exception on bigger output
+MAX_ASYNCIO_STDOUT_SIZE = 1024 * 1024 * 10  # 10 MiB output -> raise exception on bigger output
 MAX_STEP_MESSAGE_SIZE = 4096
 
 
@@ -119,6 +119,7 @@ class DeployTask(BaseSettings):
             env=env,
         )
         while True:
+            print("proc: ", proc.stdout)
             started = datetime.now(timezone.utc)
             data = await proc.stdout.readline()  # type: ignore
             # FIXME log returned data properly
