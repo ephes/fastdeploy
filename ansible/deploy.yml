@@ -42,7 +42,7 @@
     - name: Add a unix user with a bash shell
       user:
         name: "{{ username }}"
-        shell: /bin/bash
+        shell: /usr/bin/fish
       environment:
         PATH: "{{ default_path }}"
 
@@ -61,6 +61,25 @@
         dest: "{{ site_path }}/.env"
         mode: '0600'
       become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
+    - name: Create directory for fish config
+      file:
+        path: "{{ home_path }}/.config/fish"
+        state: directory
+        owner: "{{ username }}"
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+
+    - name: Create fish config
+      template:
+        src: user_config.fish.template.j2
+        dest: "{{ home_path }}/.config/fish/config.fish"
+        mode: "0644"
+        owner: "{{ username }}"
       become_user: "{{ username }}"
       environment:
         PATH: "{{ default_path }}"
