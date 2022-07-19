@@ -66,14 +66,10 @@ class AbstractUnitOfWork(abc.ABC):
         raise NotImplementedError
 
 
-DEFAULT_ENGINE = create_async_engine(settings.database_url, echo=False)
-DEFAULT_SESSION_FACTORY = sessionmaker(class_=AsyncSession, expire_on_commit=False)
-
-
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
-    def __init__(self, session_factory=DEFAULT_SESSION_FACTORY, engine=DEFAULT_ENGINE):
-        self.engine = engine
-        self.session_factory = session_factory
+    def __init__(self):
+        self.engine = create_async_engine(settings.database_url, echo=False)
+        self.session_factory = sessionmaker(class_=AsyncSession, expire_on_commit=False)
         self.connection = None
 
     async def connect(self):
