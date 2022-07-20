@@ -49,7 +49,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
     try:
         while True:
             data = await websocket.receive_json()
-            print("received data: ", data)
             if data.get("access_token") is not None:
                 # try to authenticate client
                 await connection_manager.authenticate(client_id, data["access_token"], bus.uow)
