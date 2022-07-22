@@ -81,7 +81,7 @@ def rolling_back_database_uow(rolling_back_database_session):
         async def connect(self):
             return None
 
-    return unit_of_work.TestableSqlAlchemyUnitOfWork(session_factory, FakeEngine())
+    return unit_of_work.TestableSqlAlchemyUnitOfWork(FakeEngine(), session_factory)
 
 
 @pytest.fixture

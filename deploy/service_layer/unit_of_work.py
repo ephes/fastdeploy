@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import abc
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
 from ..adapters import repository
-from ..config import settings
 
 
 class AbstractSession(abc.ABC):
@@ -67,9 +63,9 @@ class AbstractUnitOfWork(abc.ABC):
 
 
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
-    def __init__(self):
-        self.engine = create_async_engine(settings.database_url, echo=False)
-        self.session_factory = sessionmaker(class_=AsyncSession, expire_on_commit=False)
+    def __init__(self, engine, session_factory):
+        self.engine = engine
+        self.session_factory = session_factory
         self.connection = None
 
     async def connect(self):

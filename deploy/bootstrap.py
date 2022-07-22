@@ -2,6 +2,9 @@ import inspect
 
 from typing import Any, Callable
 
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
 from .adapters import filesystem, orm
 from .adapters.notifications import AbstractNotifications, EmailNotifications
 from .adapters.websocket import connection_manager
@@ -65,7 +68,9 @@ def inject_dependencies(handler, dependencies):
 
 
 async def get_bus():
-    uow = unit_of_work.SqlAlchemyUnitOfWork()
+    engine = create_async_engine(settings.database_url, echo=False)
+    session_factory = sessionmaker(class_=AsyncSession, expire_on_commit=False)
+    uow = unit_of_work.SqlAlchemyUnitOfWork(engine, session_factory)
     await uow.connect()
     bus = await bootstrap(uow=uow)
     try:
