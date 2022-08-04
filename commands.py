@@ -7,18 +7,45 @@ import sys
 
 from pathlib import Path
 
-import typer
-import uvicorn
 
-from rich import print as rprint
-from rich.prompt import Prompt
+def bootstrap():
+    """
+    Called when first non-standard lib import fails.
 
-from deploy.adapters.filesystem import working_directory
-from deploy.auth import get_password_hash
-from deploy.bootstrap import bootstrap
-from deploy.config import settings
-from deploy.domain import commands, events
-from deploy.service_layer.unit_of_work import SqlAlchemyUnitOfWork
+    We need at least pip-tools, typer and rich to use this script.
+    """
+
+    def get_base_prefix_compat():
+        """Get base/real prefix, or sys.prefix if there is none."""
+        return getattr(sys, "base_prefix", None) or getattr(sys, "real_prefix", None) or sys.prefix
+
+    def in_virtualenv():
+        return get_base_prefix_compat() != sys.prefix
+
+    if not in_virtualenv():
+        print("Please create a virtual environment first and activate it!")
+        sys.exit(1)
+    print("Empty virtualenv, installing development requirements..")
+    subprocess.call([sys.executable, "-m", "pip", "install", "-r", "deploy/requirements/develop.txt"])
+
+
+try:
+    import typer
+except ImportError:
+    bootstrap()
+    import typer
+
+import uvicorn  # noqa
+
+from rich import print as rprint  # noqa
+from rich.prompt import Prompt  # noqa
+
+from deploy.adapters.filesystem import working_directory  # noqa
+from deploy.auth import get_password_hash  # noqa
+from deploy.bootstrap import bootstrap  # noqa
+from deploy.config import settings  # noqa
+from deploy.domain import commands, events  # noqa
+from deploy.service_layer.unit_of_work import SqlAlchemyUnitOfWork  # noqa
 
 
 CWD = str(Path(__file__).parent.resolve())
