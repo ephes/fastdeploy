@@ -733,9 +733,9 @@ mkdocs-mermaid2-plugin==0.6.0 \
     --hash=sha256:99cca6db7c6b4a954a701dcb6b507191bc32a7b0b47eacf2885c1bacf77d1af1 \
     --hash=sha256:ffbe8a7daa7ed718cb800c44c5ce4c0ff413caebf7b8b63d9c4a998dfd78a64d
     # via -r deploy/requirements/develop.in
-mkdocs-render-swagger-plugin==0.0.3 \
-    --hash=sha256:30e9fe80ba2bdbc2f634e97f9c78b8e71199b1268af4ad192decbc8351b1fe96 \
-    --hash=sha256:b8002e34d9bfd3f8eb13d879201da465080ce6b44bb3933ba8a385990c2abe6c
+mkdocs-render-swagger-plugin==0.0.4 \
+    --hash=sha256:0d7880076de624640d6f9e2bf4689a484db0597d43c5d6cd1b2ccad0dfe469c2 \
+    --hash=sha256:5936889a0405947ff5c9e2b5c4393fe26dbd3dd1e2d03ec8a38ff826ee105866
     # via -r deploy/requirements/develop.in
 mypy==0.971 \
     --hash=sha256:02ef476f6dcb86e6f502ae39a16b93285fef97e7f1ff22932b657d1ef1f28655 \
@@ -1506,9 +1506,9 @@ uvloop==0.16.0 \
     --hash=sha256:e814ac2c6f9daf4c36eb8e85266859f42174a4ff0d71b99405ed559257750382 \
     --hash=sha256:f74bc20c7b67d1c27c72601c78cf95be99d5c2cdd4514502b4f3eb0933ff1228
     # via uvicorn
-virtualenv==20.16.2 \
-    --hash=sha256:0ef5be6d07181946891f5abc8047fda8bc2f0b4b9bf222c64e6e8963baee76db \
-    --hash=sha256:635b272a8e2f77cb051946f46c60a54ace3cb5e25568228bd6b57fc70eca9ff3
+virtualenv==20.16.3 \
+    --hash=sha256:4193b7bc8a6cd23e4eb251ac64f29b4398ab2c233531e66e40b19a6b7b0d30c1 \
+    --hash=sha256:d86ea0bb50e06252d79e6c241507cb904fcd66090c3271381372d6221a3970f9
     # via pre-commit
 watchdog==2.1.9 \
     --hash=sha256:083171652584e1b8829581f965b9b7723ca5f9a2cd7e20271edf264cfd7c1412 \
