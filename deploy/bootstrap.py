@@ -77,3 +77,11 @@ async def get_bus():
         yield bus
     finally:
         await bus.uow.close()
+
+
+async def get_bus_for_cli():
+    engine = create_async_engine(settings.database_url, echo=False)
+    session_factory = sessionmaker(class_=AsyncSession, expire_on_commit=False)
+    uow = unit_of_work.SqlAlchemyUnitOfWork(engine, session_factory)
+    await uow.connect()
+    return await bootstrap(uow=uow)

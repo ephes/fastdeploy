@@ -42,10 +42,9 @@ from rich.prompt import Prompt  # noqa
 
 from deploy.adapters.filesystem import working_directory  # noqa
 from deploy.auth import get_password_hash  # noqa
-from deploy.bootstrap import bootstrap  # noqa
+from deploy.bootstrap import get_bus_for_cli  # noqa
 from deploy.config import settings  # noqa
 from deploy.domain import commands, events  # noqa
-from deploy.service_layer.unit_of_work import SqlAlchemyUnitOfWork  # noqa
 
 
 CWD = str(Path(__file__).parent.resolve())
@@ -53,9 +52,7 @@ cli = typer.Typer()
 
 
 async def createuser_async(username, password_hash) -> events.UserCreated:
-    uow = SqlAlchemyUnitOfWork()
-    await uow.connect()
-    bus = await bootstrap(uow=uow)
+    bus = await get_bus_for_cli()
 
     class UserCreatedHandler:
         user_event: events.UserCreated
@@ -96,9 +93,7 @@ def createuser():
 
 
 async def _syncservices() -> None:
-    uow = SqlAlchemyUnitOfWork()
-    await uow.connect()
-    bus = await bootstrap(uow=uow)
+    bus = await get_bus_for_cli()
     cmd = commands.SyncServices()
     await bus.handle(cmd)
     await bus.uow.close()
