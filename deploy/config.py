@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     path_for_deploy: str = Field(..., env="PATH_FOR_DEPLOY")
     origins: list[str] = [
         "http://localhost",
-        "http://localhost:3000",
+        "http://localhost:5173",
         "https://deploy.staging.wersdoerfer.de",
     ]
     project_root: Path = ROOT_DIR
