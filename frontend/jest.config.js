@@ -1,9 +1,4 @@
 module.exports = {
-  globals: {
-    'vue-jest': {
-      babelConfig: true,
-    }
-  },
   moduleFileExtensions: [
     'js',
     'ts',
@@ -12,6 +7,5 @@ module.exports = {
   ],
   transform: {
     '^.+\\.ts$': 'ts-jest',
-    '^.+\\.vue$': 'vue-jest'
   },
 }
