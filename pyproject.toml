@@ -24,16 +24,6 @@ markers = [
     "db",
 ]
 
-[tool.flake8]
-statistics = "True"
-ignore = ["D203" , "W503"]
-max-line-length = 119
-exclude = '''
-    frontend,
-    .git,
-'''
-
-
 [tool.isort]
 skip = [".git", "__pycache__", "LC_MESSAGES", "locale", "build", "dist", ".github", "frontend"]
 blocked_extensions = ["rst", "html", "js", "svg", "txt", "css", "scss", "png", "snap", "tsx", "sh"]
