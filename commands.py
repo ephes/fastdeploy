@@ -123,10 +123,10 @@ def update():
         "-m",
         "piptools",
         "compile",
-        "--resolver=backtracking" "--upgrade",
+        "--resolver=backtracking",
+        "--upgrade",
         "--allow-unsafe",
         "--generate-hashes",
-        "--resolver=backtracking",
         "deploy/requirements/production.in",
     ]
     subprocess.call(  # develop + production
