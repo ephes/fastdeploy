@@ -4,7 +4,6 @@ ipdb
 notebook
 jupyterlab
 black
-nb-black
 pytest-asyncio
 coverage[toml]
 pytest-env
