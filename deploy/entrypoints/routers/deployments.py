@@ -112,5 +112,6 @@ async def start_deployment(
         raise HTTPException(status_code=400, detail="Something went wrong")
 
     started_event = handle_deployment_started.event
-    details_url = request.url_for("get_deployment_details", deployment_id=str(started_event.id))
+    # convert to string because url_for returns a URL and pydantic does not like that
+    details_url = str(request.url_for("get_deployment_details", deployment_id=str(started_event.id)))
     return DeploymentWithDetailsUrl(**started_event.dict(), details=details_url)
