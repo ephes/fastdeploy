@@ -1,6 +1,7 @@
 import inspect
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -24,9 +25,10 @@ async def bootstrap(
     publish: Callable | None = None,
     create_db_and_tables: bool = True,
 ) -> messagebus.MessageBus:
-
     if uow is None:
-        uow = unit_of_work.SqlAlchemyUnitOfWork()
+        engine = create_async_engine(settings.database_url, echo=False)
+        session_factory = sessionmaker(class_=AsyncSession, expire_on_commit=False)
+        uow = unit_of_work.SqlAlchemyUnitOfWork(engine, session_factory)
         await uow.connect()
 
     if notifications is None:
