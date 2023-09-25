@@ -28,7 +28,7 @@
 
     - name: Add nodejs repository
       apt_repository:
-        repo: deb https://deb.nodesource.com/node_17.x bullseye main
+        repo: deb https://deb.nodesource.com/node_20.x bookworm main
         state: present
       environment:
         PATH: "{{ default_path }}"
@@ -38,6 +38,7 @@
         name: ["git", "nodejs"]
       environment:
         PATH: "{{ default_path }}"
+        NODE_MAJOR: 20
 
     - name: Add a unix user with a bash shell
       user:
