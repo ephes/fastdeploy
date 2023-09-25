@@ -22,7 +22,7 @@ class UserOut(BaseModel):
     name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 @router.get("/users/me", response_model=UserOut)

@@ -88,7 +88,7 @@ async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.post(
             app.url_path_for("process_step_result"),
-            json=json.loads(step_result.json()),
+            json=json.loads(step_result.model_dump_json()),
             headers={"authorization": f"Bearer {valid_deploy_token_in_db}"},
         )
 

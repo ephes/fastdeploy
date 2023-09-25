@@ -1,7 +1,7 @@
 import logging
 
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable, Type
 
 from .. import views
 from ..adapters.filesystem import AbstractFilesystem
@@ -106,7 +106,7 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
     Process a finished deployment step.
     """
     # get the deployment that we are deploying from database
-    step = model.Step(**command.dict())
+    step = model.Step(**command.model_dump())
     async with uow:
         deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
         steps_to_update = deployment.process_step(step)

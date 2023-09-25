@@ -34,7 +34,7 @@ async def test_api_token(app, user_in_db, password):
         response = await ac.get("/users/me", headers=headers)
 
     assert response.status_code == 200
-    assert response.json() == UserOut.from_orm(user).dict()
+    assert response.json() == UserOut.model_validate(user).model_dump()
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def service_in(service):
 
 async def test_fetch_service_token_no_access_token(app, service_in):
     async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.post(app.url_path_for("service_token"), json=service_in.dict())
+        response = await client.post(app.url_path_for("service_token"), json=service_in.model_dump())
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Not authenticated"}
@@ -54,7 +54,7 @@ async def test_fetch_service_token(app, service_in, service_in_db, valid_access_
     async with AsyncClient(app=app, base_url="http://test") as client:
         response = await client.post(
             app.url_path_for("service_token"),
-            json=service_in.dict(),
+            json=service_in.model_dump(),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
         )
 

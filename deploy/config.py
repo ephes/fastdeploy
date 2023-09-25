@@ -2,37 +2,37 @@ import typing
 
 from pathlib import Path
 
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=(ROOT_DIR / ".env"), extra="ignore")
+
     app_name: str = "Small Deployment Frontend"
     admin_email: str = "jochen-fastdeploy@wersdoerfer.de"
-    password_hash_algorithm: str = Field("bcrypt", env="PASSWORD_HASH_ALGORITHM")
+    password_hash_algorithm: str = Field("bcrypt")
     token_sign_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    database_url: str = Field(..., env="DATABASE_URL")
-    db_engine: typing.Any
-    secret_key: str = Field(..., env="SECRET_KEY")
-    path_for_deploy: str = Field(..., env="PATH_FOR_DEPLOY")
+    database_url: str = "postgresql+asyncpg:///deploy"
+    db_engine: typing.Any = None
+    secret_key: str = Field(...)
+    path_for_deploy: str
     origins: list[str] = [
         "http://localhost",
         "http://localhost:5173",
         "https://deploy.staging.wersdoerfer.de",
     ]
     project_root: Path = ROOT_DIR
-    services_dir_name = Field("services", env="SERVICES_ROOT")
+    services_dir_name: str = Field("services", alias="services_root")
     default_expire_minutes: int = 15
-    api_url: str = Field("http://localhost:8000", env="API_URL")
-    services_sync_path: str = Field("/services/sync/", env="SERVICES_SYNC_PATH")
-    repository: str = Field("sqlite", env="REPOSITORY")
-    sudo_user: str = Field("jochen", env="SUDO_USER")
-
-    class Config:
-        env_file = ROOT_DIR / ".env"
+    api_url: str = Field("http://localhost:8000", alias="api_url")
+    services_sync_path: str = Field("/services/sync/", alias="services_sync_path")
+    repository: str = Field("sqlite", alias="repository")
+    sudo_user: str = Field("jochen", alias="sudo_user")
 
     @property
     def fastapi_app(self):

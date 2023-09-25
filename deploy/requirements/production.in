@@ -3,6 +3,7 @@ orjson
 asyncpg
 sqlalchemy[asyncio]
 passlib[bcrypt]
+pydantic-settings
 python-jose[cryptography]
 httpx
 typer

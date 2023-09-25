@@ -114,11 +114,11 @@ async def test_broadcast_only_to_active_connections(stub_websocket, test_message
 
     await cm.broadcast(test_message)
 
-    assert test_message.json() not in stub_websocket.sent
+    assert test_message.model_dump_json() not in stub_websocket.sent
 
     cm.active_connections[client_id] = stub_websocket
     await cm.broadcast(test_message)
-    assert test_message.json() in stub_websocket.sent
+    assert test_message.model_dump_json() in stub_websocket.sent
 
 
 async def test_close_websocket_on_expire():

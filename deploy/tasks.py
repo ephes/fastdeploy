@@ -11,7 +11,8 @@ from typing import Any
 
 import httpx
 
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
 
 from .auth import create_access_token
 from .config import settings
@@ -44,7 +45,7 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
         "DEPLOY_SCRIPT": deploy_script,
         "STEPS_URL": settings.steps_url,
         "DEPLOYMENT_FINISH_URL": settings.deployment_finish_url,
-        "CONTEXT": DeploymentContext(**deployment.context).json(),
+        "CONTEXT": DeploymentContext(**deployment.context).model_dump_json(),
         "PATH_FOR_DEPLOY": settings.path_for_deploy,
     }
     if ssh_auth_sock := os.environ.get("SSH_AUTH_SOCK"):

@@ -66,7 +66,7 @@ class ConnectionManager:
         except JWTError:
             print("verification failed")
             auth_event = events.AuthenticationFailed(detail="access token verification failed")
-        await self.send(client_id, auth_event.dict())
+        await self.send(client_id, auth_event.model_dump())
 
     def disconnect(self, client_id: UUID):
         print("disconnecting client: ", client_id)
@@ -79,7 +79,7 @@ class ConnectionManager:
 
     async def broadcast(self, message: BaseModel):
         for connection in self.active_connections.values():
-            await connection.send_text(message.json())
+            await connection.send_text(message.model_dump_json())
 
     async def publish(self, channel, event):
         await self.broadcast(event)
