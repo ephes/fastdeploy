@@ -4,7 +4,7 @@
     - home_path: "/home/{{ username }}"
     - site_path: "{{ home_path }}/site"
     - services_path: "{{ site_path }}/services"
-    - global_python: python3.11
+    - global_python: python3.12
     - venv_bin: "{{ site_path }}/venv/bin"
     - ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
     - ansible_plugin_dir: "/root/.ansible/plugins/callback"
