@@ -4,7 +4,7 @@ description = "Backend for deploying web applications"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"  # FIXME: remove upper bound when some async packages support Python 3.13
 version = "0.1.2"
-authors = []
+authors = ["Jochen Wersdörfer <jochen-fastdeploy@wersdoerfer.de>"]
 dependencies = [
     "asyncpg>=0.29.0",
     "bcrypt<=4.2",
