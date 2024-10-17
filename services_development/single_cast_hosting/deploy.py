@@ -6,7 +6,8 @@ import sys
 
 from pathlib import Path
 
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
 
 
 class ExampleContext(BaseModel):

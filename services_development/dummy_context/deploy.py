@@ -6,7 +6,8 @@ import sys
 
 from pathlib import Path
 
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings
 
 
 class ExampleContext(BaseModel):
@@ -22,8 +23,14 @@ class AnsibleCaller(BaseSettings):
     Run a deployment calling an ansible playbook.
     """
 
-    context: ExampleContext = Field(..., env="CONTEXT")
+    context: ExampleContext
     deploy_directory: Path = Path(__file__).parent
+
+    @classmethod
+    def parse_env(cls):
+        context_data = os.getenv("CONTEXT", "{}")
+        context = ExampleContext(env=json.loads(context_data))
+        return cls(context=context)
 
     def run(self):
         print("context: ", self.context)
@@ -42,7 +49,7 @@ class AnsibleCaller(BaseSettings):
 
 
 def run_ansible_deployment(args):
-    ansible = AnsibleCaller()  # type: ignore
+    ansible = AnsibleCaller.parse_env()
     ansible.run()
 
 
