@@ -155,6 +155,14 @@
         PATH: "{{ default_path }}"
         VIRTUAL_ENV: "{{ site_path }}/ansible_venv"
 
+    - name: Install psycopg2 for ansible
+      shell: "{{ uv_path }} pip install psycopg2-binary"
+      become: true
+      become_user: "{{ username }}"
+      environment:
+        PATH: "{{ default_path }}"
+        VIRTUAL_ENV: "{{ site_path }}/ansible_venv"
+
     - name: Create directory for ansible callback plugins
       file:
         path: "{{ ansible_plugin_dir }}"
