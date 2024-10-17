@@ -5,6 +5,7 @@
     - site_path: "{{ home_path }}/site"
     - services_path: "{{ site_path }}/services"
     - global_python: python3.12
+    - uv_path: "/usr/local/bin/uv"
     - venv_bin: "{{ site_path }}/venv/bin"
     - ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
     - ansible_plugin_dir: "/root/.ansible/plugins/callback"
@@ -130,39 +131,29 @@
         PATH: "{{ default_path }}"
 
     - name: Create virtualenv for python
-      shell: "{{ global_python }} -m venv {{ site_path }}/venv"
+      shell: "{{uv_path}} venv -p {{ global_python }} {{ site_path }}/.venv"
       become: true
       become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
 
-    - name: Upgrade pip prod venv
-      shell: "{{ python }} -m pip install --upgrade pip"
+    - name: Link .venv to venv
+      shell: "ln -s .venv venv"
+      args:
+        chdir: "{{ site_path }}"
       become: true
       become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
 
     - name: Create virtualenv for ansible
-      shell: "{{ global_python }} -m venv {{ home_path }}/ansible_venv"
+      shell: "{{uv_path}} venv -p {{ global_python }} {{ site_path }}/ansible_venv"
       become: true
       become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
-
-    - name: Upgrade pip ansible venv
-      shell: "{{ ansible_python }} -m pip install --upgrade pip"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
 
     - name: Install ansible
-      shell: "{{ ansible_python }} -m pip install ansible"
+      shell: "{{ uv_path }} pip install ansible"
       become: true
       become_user: "{{ username }}"
       environment:
         PATH: "{{ default_path }}"
+        VIRTUAL_ENV: "{{ site_path }}/ansible_venv"
 
     - name: Create directory for ansible callback plugins
       file:
@@ -243,18 +234,8 @@
       environment:
         PATH: "{{ default_path }}"
 
-    - name: Install pip-tools
-      shell: "{{ python }} -m pip install -U pip-tools"
-      become: true
-      become_user: "{{ username }}"
-      environment:
-        PATH: "{{ default_path }}"
-
     - name: Install app production requirements
-      # added --pip-args --no-deps because sqlalchemy depends on greenlet!=0.4.17
-      # which is incompatible with --require-hashes mode requiring all dependencies
-      # to be pinned with '==' *sigh*
-      shell: "{{ pip_sync }} --pip-args --no-deps deploy/requirements/production.txt"
+      shell: "{{ uv_path }} sync --no-dev"
       args:
         chdir: "{{ site_path }}"
       become: true
