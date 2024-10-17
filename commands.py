@@ -292,11 +292,13 @@ def deploy(environment):
 
 @cli.command()
 def deploy_staging():
+    """Deploy to staging environment."""
     deploy("staging")
 
 
 @cli.command()
 def deploy_production():
+    """Deploy to production environment."""
     deploy("production")
 
 
