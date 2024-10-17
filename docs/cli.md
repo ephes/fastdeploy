@@ -18,7 +18,11 @@ Options:
 
 Commands:
   coverage      Run and show coverage.
-  createuser    Create a new user.
+  createuser    Create a new user. Username and password are either set via
+                environment variables, to create an initial user via ansible
+                for example, or interactively via the command line.
+  deploy-production   Deploy to production environment.
+  deploy-staging      Deploy to staging environment.
   docs          default: mkdocs serve --build: clean, openapi and...
   docs-build    build mkdocs
   docs-clean    Delete the site_path directory recursively.
