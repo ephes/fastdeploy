@@ -11,22 +11,15 @@ from pathlib import Path
 def bootstrap():
     """
     Called when first non-standard lib import fails.
-
-    We need at least pip-tools, typer and rich to use this script.
     """
-
-    def get_base_prefix_compat():
-        """Get base/real prefix, or sys.prefix if there is none."""
-        return getattr(sys, "base_prefix", None) or getattr(sys, "real_prefix", None) or sys.prefix
-
-    def in_virtualenv():
-        return get_base_prefix_compat() != sys.prefix
-
-    if not in_virtualenv():
-        print("Please create a virtual environment first and activate it!")
+    if not (Path.cwd() / ".venv").exists():
+        print("No .venv found, creating one using uv...")
+        subprocess.run(["uv", "venv", ".venv"], check=True)
+        print("Please activate the virtual environment and run the script again.")
         sys.exit(1)
-    print("Empty virtualenv, installing development requirements..")
-    subprocess.call([sys.executable, "-m", "pip", "install", "-r", "deploy/requirements/develop.txt"])
+
+    print("Sync requirements via uv...")
+    subprocess.run(["uv", "sync"], check=True)
 
 
 try:
@@ -110,41 +103,12 @@ def syncservices():
 
 
 @cli.command()
-def update():
+def update(upgrade: bool = typer.Option(True, "--upgrade/--no-upgrade")):
     """
-    Update the development environment by calling:
-    - pip-compile production.in develop.in -> develop.txt
-    - pip-compile production.in -> production.txt
-    - pip-sync develop.txt
-    - npm update
+    Update the requirements using uv.
     """
-    base_command = [
-        sys.executable,
-        "-m",
-        "piptools",
-        "compile",
-        "--resolver=backtracking",
-        "--upgrade",
-        "--allow-unsafe",
-        "--generate-hashes",
-        "deploy/requirements/production.in",
-    ]
-    subprocess.call(  # develop + production
-        [
-            *base_command,
-            "deploy/requirements/develop.in",
-            "--output-file",
-            "deploy/requirements/develop.txt",
-        ]
-    )
-    subprocess.call(  # production only
-        [
-            *base_command,
-            "--output-file",
-            "deploy/requirements/production.txt",
-        ]
-    )
-    subprocess.call([sys.executable, "-m", "piptools", "sync", "deploy/requirements/develop.txt"])
+    print("Updating requirements via uv...")
+    subprocess.call(["uv", "lock", "--upgrade"])
     with working_directory(settings.project_root / "frontend"):
         subprocess.call(["npm", "update"])
 

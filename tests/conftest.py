@@ -25,7 +25,9 @@ def anyio_backend():
 
 @pytest.fixture(scope="session")
 def event_loop():
-    return asyncio.new_event_loop()
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -44,7 +46,7 @@ async def database():
 
 @pytest.fixture
 def database_type(request):
-    "Make it possible for tests to choose database type"
+    """Make it possible for tests to choose database type"""
     database = "database_url"  # default
     marker = request.node.get_closest_marker("db")
     if marker is not None:

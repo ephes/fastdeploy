@@ -2,22 +2,40 @@
 
 ## Installation for development
 
-1. Create a venv & activate it.
+### Create a venv & activate it and install the dev requirements
+```shell
+     uv venv -p python3.12
+     source .venv/bin/activate.fish
+     uv sync
+```
 
-2. Install dev requirements via `pip-tools`.
+### Set up the database
+```shell
+    initdb databases/postgres
+    postgres -D databases/postgres  # in a different terminal tab
+    createdb deploy
+    createuser deploy
+    python commands.py createuser  # will also create the tables
 
-    ```
-    python -m pip install pip-tools
+    # Create a test database and copy the schema over
+    createdb deploy_test
+    pg_dump deploy | psql deploy_test
+```
 
-    # Add/Remove dependencies to develop.in/production.in
-    pip-compile .\app\requirements\develop.in
-    pip-compile .\app\requirements\production.in
+### Run the tests
+```shell
+    pytest
+```
 
-    # Sync (install) prod|dev to the activated venv.
-    pip-sync .\app\requirements\develop|production.txt
-    ```
+### Run the static type checker
+```shell
+    mypy deploy
+```
 
-
+### Run the devserver
+```shell
+    honcho start
+```
 
 ## Documentation
 
