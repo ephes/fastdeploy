@@ -105,7 +105,8 @@ def syncservices():
 @cli.command()
 def update(upgrade: bool = typer.Option(True, "--upgrade/--no-upgrade")):
     """
-    Update the requirements using uv.
+    Update the backend requirements using uv.
+    Update the frontend requirements using npm.
     """
     print("Updating requirements via uv...")
     subprocess.call(["uv", "lock", "--upgrade"])
