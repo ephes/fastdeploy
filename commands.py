@@ -141,7 +141,7 @@ def test():
     """
     Run the tests:
     - run backend tests via pytest
-    - fun frontend tests via jest
+    - run frontend tests via vitest
     """
     subprocess.call([sys.executable, "-m", "pytest"])
     with working_directory(settings.project_root / "frontend"):
