@@ -1,14 +1,12 @@
 import pytest
-
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.orm.exc import NoResultFound
-
 
 pytestmark = pytest.mark.asyncio
 
 
 async def test_get_services_without_authentication(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(app.url_path_for("get_services"))
 
     assert response.status_code == 401
@@ -17,7 +15,7 @@ async def test_get_services_without_authentication(app):
 
 @pytest.mark.db("database_url")
 async def test_get_empty_list_of_services(app, valid_access_token_in_db):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_services"),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
@@ -29,7 +27,7 @@ async def test_get_empty_list_of_services(app, valid_access_token_in_db):
 
 
 async def test_get_services_happy(app, service_in_db, valid_access_token_in_db):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_services"),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
@@ -42,7 +40,7 @@ async def test_get_services_happy(app, service_in_db, valid_access_token_in_db):
 
 
 async def test_get_service_names_without_authentication(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(app.url_path_for("get_service_names"))
 
     assert response.status_code == 401
@@ -51,7 +49,7 @@ async def test_get_service_names_without_authentication(app):
 
 async def test_get_service_names_happy(app, valid_access_token_in_db, services_filesystem):
     (services_filesystem.root / "fastdeploy").mkdir()  # create service directory
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_service_names"),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
@@ -63,7 +61,7 @@ async def test_get_service_names_happy(app, valid_access_token_in_db, services_f
 
 
 async def test_delete_service_without_authentication(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(app.url_path_for("delete_service", service_id=1))
 
     assert response.status_code == 401
@@ -72,7 +70,7 @@ async def test_delete_service_without_authentication(app):
 
 @pytest.mark.db("database_url")
 async def test_delete_non_existing_service(app, valid_access_token_in_db):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(
             app.url_path_for("delete_service", service_id=42),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
@@ -84,7 +82,7 @@ async def test_delete_non_existing_service(app, valid_access_token_in_db):
 
 @pytest.mark.db("in_memory")
 async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db, publisher, uow):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(
             app.url_path_for("delete_service", service_id=service_in_db.id),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
@@ -111,7 +109,7 @@ async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db
 
 
 async def test_sync_services_without_authentication(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(app.url_path_for("sync_services"))
 
     assert response.status_code == 401
@@ -129,7 +127,7 @@ def service_in_fs(services_filesystem):
 
 
 async def test_sync_services_happy(app, uow, valid_access_token_in_db, service_in_fs):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             app.url_path_for("sync_services"),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},

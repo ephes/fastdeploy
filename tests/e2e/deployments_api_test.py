@@ -1,15 +1,12 @@
 import json
-
 from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
-
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from deploy.auth import create_access_token
 from deploy.domain import events, model
-
 
 pytestmark = pytest.mark.asyncio
 
@@ -18,7 +15,7 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_get_deployments_without_authentication(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(app.url_path_for("get_deployments"))
 
     assert response.status_code == 401
@@ -26,7 +23,7 @@ async def test_get_deployments_without_authentication(app):
 
 
 async def test_get_deployments_happy(app, deployment_in_db, valid_access_token_in_db):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_deployments"),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
@@ -43,7 +40,7 @@ async def test_get_deployments_happy(app, deployment_in_db, valid_access_token_i
 
 async def test_get_deployment_details_no_such_deployment(app, valid_service_token_in_db):
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(app.url_path_for("get_deployment_details", deployment_id=666), headers=headers)
 
     assert response.status_code == 404
@@ -61,7 +58,7 @@ async def test_get_deployment_details_wrong_service(app, uow, valid_service_toke
         await uow.commit()
 
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_deployment_details", deployment_id=deployment.id), headers=headers
         )
@@ -80,7 +77,7 @@ async def test_get_deployment_details_happy(app, uow, service, valid_service_tok
         await uow.commit()
 
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_deployment_details", deployment_id=deployment.id), headers=headers
         )
@@ -95,7 +92,7 @@ async def test_get_deployment_details_happy(app, uow, service, valid_service_tok
 
 async def test_finish_deployment_invalid_access_token(app, valid_service_token_in_db):
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         finish_deployment = app.url_path_for("finish_deployment")
         response = await client.put(finish_deployment, headers=headers)
 
@@ -105,7 +102,7 @@ async def test_finish_deployment_invalid_access_token(app, valid_service_token_i
 
 async def test_finish_deployment_happy(app, valid_deploy_token_in_db):
     headers = {"authorization": f"Bearer {valid_deploy_token_in_db}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         finish_deployment = app.url_path_for("finish_deployment")
         response = await client.put(finish_deployment, headers=headers)
 
@@ -118,7 +115,7 @@ async def test_finish_deployment_happy(app, valid_deploy_token_in_db):
 
 
 async def test_deploy_no_access_token(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         start_deployment = app.url_path_for("start_deployment")
         response = await client.post(start_deployment)
 
@@ -135,7 +132,7 @@ def invalid_service_token(service):
 
 async def test_deploy_invalid_access_token(app, invalid_service_token):
     headers = {"authorization": f"Bearer {invalid_service_token}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         start_deployment = app.url_path_for("start_deployment")
         response = await client.post(start_deployment, headers=headers)
 
@@ -151,7 +148,7 @@ def valid_service_token(service):
 
 async def test_deploy_service_not_found(app, valid_service_token):
     headers = {"authorization": f"Bearer {valid_service_token}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         start_deployment = app.url_path_for("start_deployment")
         response = await client.post(start_deployment, headers=headers)
 
@@ -163,7 +160,7 @@ async def test_deploy_service_not_found(app, valid_service_token):
 async def test_deploy_service_with_context(popen, app, valid_service_token_in_db):
     my_context = {"env": {"foobar": "barfoo"}}
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         start_deployment = app.url_path_for("start_deployment")
         response = await client.post(start_deployment, headers=headers, json=my_context)
 
@@ -182,7 +179,7 @@ async def test_deploy_service_with_context(popen, app, valid_service_token_in_db
 @patch("deploy.tasks.subprocess.Popen")
 async def test_deploy_service_happy(popen, app, uow, publisher, valid_service_token_in_db, service_in_db):
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         start_deployment = app.url_path_for("start_deployment")
         response = await client.post(start_deployment, headers=headers)
 

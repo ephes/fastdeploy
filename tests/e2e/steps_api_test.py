@@ -1,16 +1,13 @@
 import json
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
-
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from deploy.auth import create_access_token
 from deploy.domain import events, model
 from deploy.entrypoints.helper_models import StepResult
-
 
 pytestmark = pytest.mark.asyncio
 
@@ -23,8 +20,8 @@ def step():
 
 
 async def test_process_step_no_access_token(app, step):
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.post(app.url_path_for("process_step_result"), json=step.dict())
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(app.url_path_for("process_step_result"), json=step.model_dump())
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Not authenticated"}
@@ -36,10 +33,10 @@ def invalid_deploy_token():
 
 
 async def test_process_step_invalid_access_token(app, step, invalid_deploy_token):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             app.url_path_for("process_step_result"),
-            json=step.dict(),
+            json=step.model_dump(),
             headers={"authorization": f"Bearer {invalid_deploy_token}"},
         )
 
@@ -54,10 +51,10 @@ def valid_deploy_token(deployment):
 
 
 async def test_process_step_deployment_not_found(app, step, valid_deploy_token):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             app.url_path_for("process_step_result"),
-            json=step.dict(),
+            json=step.model_dump(),
             headers={"authorization": f"Bearer {valid_deploy_token}"},
         )
 
@@ -85,7 +82,7 @@ def step_result(deployment_in_db):
 
 async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy_token_in_db, deployment_in_db):
     deployment_in_db.started = datetime.now(timezone.utc)
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             app.url_path_for("process_step_result"),
             json=json.loads(step_result.model_dump_json()),
@@ -113,14 +110,14 @@ async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy
 
 
 async def test_get_steps_by_deployment_no_access_token(app):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(app.url_path_for("get_steps_by_deployment"), params={"deployment_id": 1})
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Not authenticated"}
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def step_in_db(uow, deployment_in_db):
     step = model.Step(name="foo bar baz", deployment_id=deployment_in_db.id)
     async with uow:
@@ -130,7 +127,7 @@ async def step_in_db(uow, deployment_in_db):
 
 
 async def test_get_steps_by_deployment_happy(app, step_in_db, valid_access_token_in_db):
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_steps_by_deployment"),
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
