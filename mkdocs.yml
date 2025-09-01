@@ -24,7 +24,7 @@ theme:
 
 nav:
   - Home: index.md
-  - About: about.md
+  - Architecture: architecture.md
   - Domain: domain.md
   - Database: database.md
   - Endpoints: endpoints.md
