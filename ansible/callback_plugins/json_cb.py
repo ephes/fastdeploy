@@ -1,5 +1,4 @@
 import json
-
 from datetime import datetime
 
 from ansible.plugins.callback import CallbackBase  # type: ignore
