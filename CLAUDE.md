@@ -188,7 +188,7 @@ Real-time updates during deployments via WebSocket connections:
 
 ## Future Improvements
 
-See `todo.md` for the current list of planned improvements and technical debt items.
+The project follows trunk-based development practices - changes are committed directly to the main branch rather than using feature branches.
 
 ## Contact
 
