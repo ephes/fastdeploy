@@ -77,6 +77,10 @@ mypy_path = "src"
 [tool.uv]
 package = true
 
+[tool.uv.build-backend]
+module-name = "deploy"
+module-root = "src"
+
 [dependency-groups]
 dev = [
     "coverage>=7.6.3",
