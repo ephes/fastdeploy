@@ -1,5 +1,4 @@
 import json
-
 from pathlib import Path
 
 import pytest
@@ -42,7 +41,7 @@ def test_get_steps_from_playbook_happy(services_filesystem):
     service_path.mkdir()
     playbook_path = service_path / "playbook.yml"
     with playbook_path.open("w") as playbook_file:
-        playbook_file.write("- hosts: localhost\n" "  tasks:\n" "    - name: task1\n")
+        playbook_file.write("- hosts: localhost\n  tasks:\n    - name: task1\n")
     config_path = service_path / "config.json"
     with config_path.open("w") as config_file:
         config = {"ansible_playbook": str(playbook_path)}

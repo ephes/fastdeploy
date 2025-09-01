@@ -1,11 +1,10 @@
 import logging
-
-from typing import Callable, Union
+from collections.abc import Callable
+from typing import Union
 
 from ..adapters import filesystem, websocket
 from ..domain import commands, events
 from . import unit_of_work
-
 
 logger = logging.getLogger(__name__)
 

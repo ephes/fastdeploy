@@ -2,6 +2,7 @@
 This module contains a collection of authentication related
 functions.
 """
+
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt  # type: ignore
@@ -11,7 +12,6 @@ from . import views
 from .config import settings
 from .domain.model import Deployment, Service, User
 from .service_layer.unit_of_work import AbstractUnitOfWork
-
 
 PWD_CONTEXT = CryptContext(schemes=[settings.password_hash_algorithm], deprecated="auto")
 

@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic.types import conint
 
 from ... import auth
@@ -10,7 +10,6 @@ from ...config import settings
 from ...domain.model import User
 from ..dependencies import get_current_active_user
 from ..helper_models import Bus
-
 
 router = APIRouter()
 
@@ -21,8 +20,7 @@ class UserOut(BaseModel):
     id: int
     name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get("/users/me", response_model=UserOut)

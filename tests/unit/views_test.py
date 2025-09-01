@@ -5,7 +5,6 @@ import pytest
 from deploy import views
 from deploy.domain import model
 
-
 pytestmark = pytest.mark.asyncio
 
 # test views.get_steps_to_do_from_service
@@ -19,7 +18,7 @@ async def test_get_steps_to_do_from_service_returns_placeholder_step(service):
 
 async def test_get_steps_to_do_from_service_has_steps_in_data(service):
     step = model.Step(id=1, name="Step 1")
-    service.data = {"steps": [step.dict()]}
+    service.data = {"steps": [step.model_dump()]}
     steps = await views.get_steps_to_do_from_service(service)
     assert [step] == steps
 

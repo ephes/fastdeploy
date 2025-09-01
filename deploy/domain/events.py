@@ -3,7 +3,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-
 EVENT_TYPES = Literal["authentication", "service", "step", "deployment", "user"]
 
 
@@ -37,8 +36,7 @@ class ServiceCreated(Event):
     deleted: bool = False
 
 
-class ServiceUpdated(ServiceCreated):
-    ...
+class ServiceUpdated(ServiceCreated): ...
 
 
 class ServiceDeleted(ServiceCreated):

@@ -2,7 +2,6 @@ import pytest
 
 from deploy.domain import commands, model
 
-
 # test domain.model.sync_services
 
 
@@ -24,7 +23,7 @@ def test_sync_services_update():
         model.Service(name="bar", data={"description": "foobar", "steps": [1]}),
     ]
     updated_services, deleted_services = model.sync_services(services_from_fs, services_from_db)
-    assert updated_services == [model.Service(**{**services_from_fs[0].dict(), "id": 1})]
+    assert updated_services == [model.Service(**{**services_from_fs[0].model_dump(), "id": 1})]
     assert deleted_services == []
 
 

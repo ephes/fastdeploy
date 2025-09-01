@@ -6,7 +6,6 @@ from ...domain import commands
 from ..dependencies import get_current_active_user
 from ..helper_models import Bus
 
-
 router = APIRouter(
     prefix="/services",
     tags=["services"],
@@ -28,7 +27,7 @@ async def get_services(bus: Bus = Depends()) -> list[Service]:
     Get a list of all services.
     """
     services_from_db = await views.all_synced_services(bus.uow)
-    return [Service(**s.dict()) for s in services_from_db]
+    return [Service(**s.model_dump()) for s in services_from_db]
 
 
 @router.delete("/{service_id}")

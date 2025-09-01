@@ -5,14 +5,12 @@ import json
 import os
 import subprocess
 import sys
-
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
-
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .auth import create_access_token
 from .config import settings
@@ -64,13 +62,14 @@ class DeployTask(BaseSettings):
       - run deploy script in a new process reading json from stdout
       - post finished steps back to application server
     """
+    model_config = SettingsConfigDict(env_file=None)
 
-    deploy_script: str = Field(..., env="DEPLOY_SCRIPT")
-    access_token: str = Field(..., env="ACCESS_TOKEN")
-    steps_url: str = Field(..., env="STEPS_URL")
-    deployment_finish_url: str = Field(..., env="DEPLOYMENT_FINISH_URL")
-    context: DeploymentContext = Field(..., env="CONTEXT")
-    path_for_deploy: str = Field(..., env="PATH_FOR_DEPLOY")
+    deploy_script: str
+    access_token: str
+    steps_url: str
+    deployment_finish_url: str
+    context: DeploymentContext
+    path_for_deploy: str
     attempts: int = 3
     sleep_on_fail: float = 3.0
     client: Any = None

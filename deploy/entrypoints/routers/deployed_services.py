@@ -5,7 +5,6 @@ from ... import views
 from ..dependencies import get_current_config
 from ..helper_models import Bus
 
-
 router = APIRouter(
     prefix="/deployed-services",
     tags=["deployed-services"],
@@ -28,4 +27,4 @@ async def list_deployed_services(bus: Bus = Depends()) -> list[DeployedService]:
     Get a list of all deployed services.
     """
     deployed_services_from_db = await views.all_deployed_services(bus.uow)
-    return [DeployedService(**d.dict()) for d in deployed_services_from_db]
+    return [DeployedService(**d.model_dump()) for d in deployed_services_from_db]

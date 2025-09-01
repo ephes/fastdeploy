@@ -2,13 +2,11 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
-
 from fastapi import WebSocket
 from pydantic import BaseModel
 
 from deploy.adapters.websocket import ConnectionManager
 from deploy.auth import create_access_token
-
 
 pytestmark = pytest.mark.asyncio
 
@@ -85,8 +83,7 @@ async def test_websocket_authenticate_valid_token(uow, valid_access_token_in_db,
     cm.all_connections[client_id] = stub_websocket
 
     # mock close on expire to avoid cm.close was never awaited warning
-    async def do_nothing(*args, **kwargs):
-        ...
+    async def do_nothing(*args, **kwargs): ...
 
     cm.close_on_expire = do_nothing
 

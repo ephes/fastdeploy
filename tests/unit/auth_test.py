@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from sqlalchemy.orm.exc import NoResultFound
 
 from deploy.auth import (
@@ -14,7 +13,6 @@ from deploy.auth import (
     verify_password,
 )
 from deploy.config import settings
-
 
 pytestmark = pytest.mark.asyncio
 

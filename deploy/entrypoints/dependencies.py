@@ -2,6 +2,7 @@
 This module is just here to collect all the functions
 that are used as dependencies for fastAPI routers.
 """
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
@@ -13,7 +14,6 @@ from ..auth import (
 )
 from ..domain.model import Deployment, Service, User
 from .helper_models import Bus
-
 
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
 CREDENTIALS_EXCEPTION = HTTPException(

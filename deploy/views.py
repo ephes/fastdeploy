@@ -1,6 +1,7 @@
 """
 Readonly views.
 """
+
 from .adapters.filesystem import AbstractFilesystem
 from .domain import model
 from .service_layer import unit_of_work
@@ -21,7 +22,7 @@ async def service_by_name(name: str, uow: unit_of_work.AbstractUnitOfWork):
 async def all_synced_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.Service]:
     async with uow:
         from_db = await uow.services.list()
-    return [service for service, in from_db]
+    return [service for (service,) in from_db]
 
 
 async def get_service_names(fs: AbstractFilesystem) -> list[str]:
@@ -46,7 +47,7 @@ async def get_steps_from_last_deployment(
     if last_successful_deployment_id is not None:
         # try to get steps from last successful deployment
         steps_from_db = await uow.steps.get_steps_by_deployment(last_successful_deployment_id)
-        steps.extend([s for s, in steps_from_db])
+        steps.extend([s for (s,) in steps_from_db])
     return steps
 
 
@@ -79,7 +80,7 @@ async def get_all_deployments(uow: unit_of_work.AbstractUnitOfWork) -> list[mode
     """Get a list of all deployments in the database."""
     async with uow:
         deployments = await uow.deployments.list()
-    return [deployment for deployment, in deployments]
+    return [deployment for (deployment,) in deployments]
 
 
 async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.AbstractUnitOfWork) -> model.Deployment:
@@ -87,7 +88,7 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
     async with uow:
         [deployment] = await uow.deployments.get(deployment_id)
         steps = await uow.steps.get_steps_by_deployment(deployment_id)
-        deployment.steps = [s for s, in steps]
+        deployment.steps = [s for (s,) in steps]
     return deployment
 
 
@@ -95,4 +96,4 @@ async def all_deployed_services(uow: unit_of_work.AbstractUnitOfWork) -> list[mo
     """Get a list of all deployed services."""
     async with uow:
         deployed = await uow.deployed_services.list()
-    return [dservice for dservice, in deployed]
+    return [dservice for (dservice,) in deployed]

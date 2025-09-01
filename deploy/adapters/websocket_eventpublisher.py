@@ -3,7 +3,6 @@ import logging
 from ..domain import events
 from .websocket import ConnectionManager
 
-
 logger = logging.getLogger(__name__)
 
 

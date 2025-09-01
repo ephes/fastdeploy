@@ -1,6 +1,5 @@
 import abc
 import json
-
 from datetime import datetime, timezone
 
 from . import events as events_module
@@ -8,7 +7,7 @@ from . import events as events_module
 
 class Serializable(abc.ABC):
     @abc.abstractmethod
-    def dict(self) -> dict:
+    def model_dump(self) -> dict:
         raise NotImplementedError
 
 
@@ -37,7 +36,7 @@ class EventsMixin(Serializable):
     def raise_recorded_events(self):
         self._make_sure_recording_attributes_exists()
         for instance, event_cls in self._recorded_events:
-            self.events.append(event_cls(**instance.dict()))
+            self.events.append(event_cls(**instance.model_dump()))
         self._recorded_events = []  # really important to avoid busy looping
 
     def record(self, event_cls: type[events_module.Event]):
@@ -71,7 +70,7 @@ class User(EventsMixin):
     def __hash__(self):
         return hash(self.name)
 
-    def dict(self):
+    def model_dump(self):
         return {
             "id": self.id,
             "name": self.name,
@@ -120,9 +119,9 @@ class Step(EventsMixin):
     def new_pending_from_old(cls, other):
         """Last successful steps have to be re-created to be able to be used in a new deployment."""
         reset_attributes = {"id": None, "state": "pending", "started": None, "finished": None}
-        return cls(**(other.dict() | reset_attributes))
+        return cls(**(other.model_dump() | reset_attributes))
 
-    def dict(self):
+    def model_dump(self):
         return {
             "id": self.id,
             "name": self.name,
@@ -134,7 +133,7 @@ class Step(EventsMixin):
         }
 
     def json(self):
-        data = self.dict()
+        data = self.model_dump()
         for key in ("started", "finished"):
             if data[key] is not None:
                 data[key] = data[key].isoformat()
@@ -184,7 +183,7 @@ class Service(EventsMixin):
     def __eq__(self, other):
         return self.name == other.name
 
-    def dict(self):
+    def model_dump(self):
         return {
             "id": self.id,
             "name": self.name,
@@ -242,11 +241,11 @@ class Deployment(EventsMixin):
         self.context = context
         self.steps = steps
 
-    def dict(self):
+    def model_dump(self):
         if not hasattr(self, "steps"):
             steps = []
         else:
-            steps = [step.dict() for step in self.steps]
+            steps = [step.model_dump() for step in self.steps]
         return {
             "id": self.id,
             "service_id": self.service_id,
@@ -420,7 +419,7 @@ class DeployedService(EventsMixin):
         self.deployment_id = deployment_id
         self.config = config
 
-    def dict(self):
+    def model_dump(self):
         return {
             "id": self.id,
             "deployment_id": self.deployment_id,

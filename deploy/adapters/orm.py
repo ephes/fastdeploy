@@ -12,7 +12,6 @@ from sqlalchemy.orm import registry  # type: ignore
 
 from ..domain import model
 
-
 metadata_obj = MetaData()
 mapper_registry = registry()
 

@@ -2,7 +2,6 @@ import abc
 import contextlib
 import json
 import os
-
 from pathlib import Path
 
 import yaml

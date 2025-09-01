@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ExampleContext(BaseModel):
@@ -22,8 +22,9 @@ class AnsibleCaller(BaseSettings):
     """
     Run a deployment calling an ansible playbook.
     """
+    model_config = SettingsConfigDict(env_file=None)
 
-    context: ExampleContext = Field(..., env="CONTEXT")
+    context: ExampleContext
     deploy_directory: Path = Path(__file__).parent
 
     def run(self):

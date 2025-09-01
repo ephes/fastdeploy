@@ -1,5 +1,4 @@
 import logging
-
 from collections.abc import Callable
 from datetime import datetime, timezone
 
@@ -7,7 +6,6 @@ from .. import views
 from ..adapters.filesystem import AbstractFilesystem
 from ..domain import commands, events, model
 from ..service_layer.unit_of_work import AbstractUnitOfWork
-
 
 logger = logging.getLogger(__name__)
 

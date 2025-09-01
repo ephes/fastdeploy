@@ -10,7 +10,6 @@ from ..config import settings
 from .helper_models import Bus
 from .routers import deployed_services, deployments, services, steps, users
 
-
 app = FastAPI()
 app.include_router(users.router)
 app.include_router(steps.router)

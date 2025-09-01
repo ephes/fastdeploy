@@ -5,7 +5,6 @@ from ...domain import commands
 from ..dependencies import get_current_active_deployment, get_current_active_user
 from ..helper_models import Bus, Deployment, Step, StepResult
 
-
 router = APIRouter(
     prefix="/steps",
     tags=["steps"],
@@ -44,4 +43,4 @@ async def get_steps_by_deployment(
     async with bus.uow as uow:
         deployment = await views.get_deployment_with_steps(deployment_id, uow)
 
-    return [Step(**step.dict()) for step in deployment.steps]
+    return [Step(**step.model_dump()) for step in deployment.steps]

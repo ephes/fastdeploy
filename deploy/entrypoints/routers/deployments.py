@@ -15,7 +15,6 @@ from ..helper_models import (
     DeploymentWithSteps,
 )
 
-
 router = APIRouter(
     prefix="/deployments",
     tags=["deployments"],
@@ -29,7 +28,7 @@ async def get_deployments(bus: Bus = Depends()) -> list[Deployment]:
     Get all deployments from database.
     """
     deployments = await views.get_all_deployments(bus.uow)
-    return [Deployment(**d.dict()) for d in deployments]
+    return [Deployment(**d.model_dump()) for d in deployments]
 
 
 @router.get("/{deployment_id}")
@@ -54,7 +53,7 @@ async def get_deployment_details(
             headers={"WWW-Authenticate": "Bearer"},
         )
     # steps = [Step(**s.dict()) for s in deployment.steps]
-    deployment_with_steps = DeploymentWithSteps(**deployment.dict())
+    deployment_with_steps = DeploymentWithSteps(**deployment.model_dump())
     return deployment_with_steps
 
 
@@ -104,7 +103,7 @@ async def start_deployment(
     bus.event_handlers[events.DeploymentStarted].append(handle_deployment_started)
 
     cmd = commands.StartDeployment(
-        service_id=service.id, origin=service.origin, user=service.user, context=context.dict()
+        service_id=service.id, origin=service.origin, user=service.user, context=context.model_dump()
     )
     try:
         await bus.handle(cmd)
@@ -114,4 +113,4 @@ async def start_deployment(
     started_event = handle_deployment_started.event
     # convert to string because url_for returns a URL and pydantic does not like that
     details_url = str(request.url_for("get_deployment_details", deployment_id=str(started_event.id)))
-    return DeploymentWithDetailsUrl(**started_event.dict(), details=details_url)
+    return DeploymentWithDetailsUrl(**started_event.model_dump(), details=details_url)

@@ -1,12 +1,10 @@
 import json
-
 from unittest.mock import patch
 
 import httpx
 import pytest
 
 from deploy.tasks import DeploymentContext, DeployTask
-
 
 pytestmark = pytest.mark.asyncio
 
