@@ -7,7 +7,7 @@ name = "fastDeploy"
 description = "Backend for deploying web applications"
 readme = "README.md"
 requires-python = ">=3.10"
-version = "0.1.2"
+version = "0.2.0"
 authors = [{name = "Jochen Wersdörfer", email = "jochen-fastdeploy@wersdoerfer.de"}]
 dependencies = [
     "asyncpg>=0.29.0",
