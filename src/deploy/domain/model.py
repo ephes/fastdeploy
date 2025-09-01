@@ -23,7 +23,7 @@ class EventsMixin(Serializable):
     for all seen models.
     """
 
-    def _make_sure_recording_attributes_exists(self):
+    def _make_sure_recording_attributes_exists(self) -> None:
         """
         Prepare recording of events. Cant set attributes in __init__
         because it wont be called if the model is created by orm.

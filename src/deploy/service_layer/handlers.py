@@ -137,7 +137,7 @@ EVENT_HANDLERS = {
     events.StepDeleted: [publish_event],
     events.StepProcessed: [publish_event],
     events.UserCreated: [],
-}  # type: dict[Type[events.Event], list[Callable]]
+}  # type: dict[type[events.Event], list[Callable]]
 
 COMMAND_HANDLERS = {
     commands.CreateUser: create_user,
@@ -146,4 +146,4 @@ COMMAND_HANDLERS = {
     commands.StartDeployment: start_deployment,
     commands.FinishDeployment: finish_deployment,
     commands.ProcessStep: process_step,
-}  # type: dict[Type[commands.Command], Callable]
+}  # type: dict[type[commands.Command], Callable]

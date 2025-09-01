@@ -37,6 +37,8 @@ env = [
     # "DATABASE_URL = sqlite:///:memory:?cache=shared",
     "DATABASE_URL = postgresql+asyncpg:///deploy_test",
     "PASSWORD_HASH_ALGORITHM = ldap_md5",
+    "SECRET_KEY = test-secret-key",
+    "PATH_FOR_DEPLOY = /tmp/deploy",
 ]
 testpaths = "tests"
 pythonpath = ["src"]

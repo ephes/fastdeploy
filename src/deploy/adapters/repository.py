@@ -7,7 +7,7 @@ from ..domain import model
 
 
 class AbstractServiceRepository(abc.ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         self.seen: set[model.Service] = set()
 
     async def add(self, service: model.Service):
@@ -67,8 +67,8 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
 
 
 class InMemoryServiceRepository(AbstractServiceRepository):
-    def __init__(self):
-        self._services = []
+    def __init__(self) -> None:
+        self._services: list[model.Service] = []
         super().__init__()
 
     async def _add(self, service):
@@ -94,7 +94,7 @@ class InMemoryServiceRepository(AbstractServiceRepository):
 
 
 class AbstractUserRepository(abc.ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         self.seen: set[model.User] = set()
 
     @abc.abstractmethod
@@ -133,8 +133,8 @@ class SqlAlchemyUserRepository(AbstractUserRepository):
 
 
 class InMemoryUserRepository(AbstractUserRepository):
-    def __init__(self):
-        self._users = []
+    def __init__(self) -> None:
+        self._users: list[model.User] = []
         super().__init__()
 
     async def _add(self, user):
@@ -149,7 +149,7 @@ class InMemoryUserRepository(AbstractUserRepository):
 
 
 class AbstractDeploymentRepository(abc.ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         self.seen: set[model.Deployment] = set()
 
     @abc.abstractmethod
@@ -238,8 +238,8 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
 
 
 class InMemoryDeploymentRepository(AbstractDeploymentRepository):
-    def __init__(self):
-        self._deployments = []
+    def __init__(self) -> None:
+        self._deployments: list[model.Deployment] = []
         super().__init__()
 
     async def _add(self, deployment):
@@ -272,7 +272,7 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
 
 class AbstractStepRepository(abc.ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         self.seen: set[model.Step] = set()
 
     @abc.abstractmethod
@@ -334,8 +334,8 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
 
 
 class InMemoryStepRepository(AbstractStepRepository):
-    def __init__(self):
-        self._steps = []
+    def __init__(self) -> None:
+        self._steps: list[model.Step] = []
         super().__init__()
 
     async def _add(self, step):
@@ -356,7 +356,7 @@ class InMemoryStepRepository(AbstractStepRepository):
 
 
 class AbstractDeployedServiceRepository(abc.ABC):
-    def __init__(self):
+    def __init__(self) -> None:
         self.seen: set[model.DeployedService] = set()
 
     @abc.abstractmethod
@@ -392,8 +392,8 @@ class SqlAlchemyDeployedServiceRepository(AbstractDeployedServiceRepository):
 
 
 class InMemoryDeployedServiceRepository(AbstractDeployedServiceRepository):
-    def __init__(self):
-        self._deployed_services = []
+    def __init__(self) -> None:
+        self._deployed_services: list[model.DeployedService] = []
         super().__init__()
 
     async def _add(self, deployed_service):
