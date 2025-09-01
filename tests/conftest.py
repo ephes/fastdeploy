@@ -1,10 +1,8 @@
 import asyncio
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
-
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -23,14 +21,7 @@ def anyio_backend():
     return "asyncio"
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(loop_scope="function")
 async def database():
     meta = orm.metadata_obj
     engine = create_async_engine(settings.database_url, echo=False)
@@ -54,7 +45,7 @@ def database_type(request):
     return database
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def rolling_back_database_session(database):
     """Wraps the session in a transaction and rolls back after each test."""
     connection = await database.connect()
@@ -120,7 +111,7 @@ def services_filesystem(tmp_path) -> filesystem.AbstractFilesystem:
     return filesystem.Filesystem(tmp_path)
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def bus(uow, publisher, services_filesystem):
     """The central message bus."""
     bus = await bootstrap(
@@ -148,7 +139,7 @@ def user(password):
     return model.User(name="user", password=get_password_hash(password))
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def user_in_db(bus, user):
     async with bus.uow as uow:
         await uow.users.add(user)
@@ -171,7 +162,7 @@ def service():
     return model.Service(name="fastdeploytest", data={"foo": "bar"})
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def service_in_db(bus, service):
     async with bus.uow as uow:
         await uow.services.add(service)
@@ -191,7 +182,7 @@ def deployment(service_in_db):
     )
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def deployment_in_db(bus, deployment):
     async with bus.uow as uow:
         await uow.deployments.add(deployment)
@@ -212,7 +203,7 @@ def deployed_service(deployment_in_db):
     )
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def deployed_service_in_db(bus, deployed_service):
     async with bus.uow as uow:
         await uow.deployed_services.add(deployed_service)

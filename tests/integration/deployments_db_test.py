@@ -7,7 +7,6 @@ import pytest_asyncio
 from deploy import views
 from deploy.domain import commands, events, model
 
-
 pytestmark = pytest.mark.asyncio
 
 
@@ -46,7 +45,7 @@ async def test_last_successful_id_multiple_deployments(uow, service_in_db):
     assert steps[0].deployment_id == d2.id
 
 
-@pytest_asyncio.fixture()
+@pytest_asyncio.fixture(loop_scope="function")
 async def service_with_steps(uow, service_in_db):
     """Need two steps, because the first one is always set to 'running'"""
     service_in_db.data = {
@@ -111,7 +110,7 @@ async def test_two_deployments(popen, bus, service_with_steps, deployment_starte
 
     # process steps of first deployment
     async with bus.uow as uow:
-        first_steps = [s for s, in await uow.steps.get_steps_by_deployment(first_deployment_id)]
+        first_steps = [s for (s,) in await uow.steps.get_steps_by_deployment(first_deployment_id)]
     first_cmds = create_process_steps_commands(first_steps)
     for cmd in first_cmds:
         await bus.handle(cmd)
@@ -126,12 +125,12 @@ async def test_two_deployments(popen, bus, service_with_steps, deployment_starte
     second_deployment_id = deployment_started_handler.event.id
 
     async with bus.uow as uow:
-        steps = [s for s, in await uow.steps.get_steps_by_deployment(second_deployment_id)]
+        steps = [s for (s,) in await uow.steps.get_steps_by_deployment(second_deployment_id)]
         print("steps state:", steps[0].state)
 
     # process steps of second deployment
     async with bus.uow as uow:
-        second_steps = [s for s, in await uow.steps.get_steps_by_deployment(second_deployment_id)]
+        second_steps = [s for (s,) in await uow.steps.get_steps_by_deployment(second_deployment_id)]
     second_cmds = create_process_steps_commands(second_steps)
     for cmd in second_cmds:
         await bus.handle(cmd)
@@ -142,12 +141,12 @@ async def test_two_deployments(popen, bus, service_with_steps, deployment_starte
 
     # make sure step from first deployment is not assigned to second deployment
     async with bus.uow as uow:
-        first_steps = [s for s, in await uow.steps.get_steps_by_deployment(first_deployment_id)]
+        first_steps = [s for (s,) in await uow.steps.get_steps_by_deployment(first_deployment_id)]
         assert len(first_steps) > 0
 
     # make only planned steps were assigned to second deployment
     async with bus.uow as uow:
-        second_steps = [s for s, in await uow.steps.get_steps_by_deployment(second_deployment_id)]
+        second_steps = [s for (s,) in await uow.steps.get_steps_by_deployment(second_deployment_id)]
         assert len(second_steps) == len(service.data["steps"])
 
 
