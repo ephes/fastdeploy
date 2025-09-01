@@ -28,5 +28,5 @@ repos:
         additional_dependencies:
           - types-PyYAML
           - sqlalchemy[mypy]
-        args: ["deploy"]
+        args: ["--config-file=pyproject.toml", "src/deploy"]
         pass_filenames: false

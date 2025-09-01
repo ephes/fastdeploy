@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .auth import create_access_token
@@ -62,6 +62,7 @@ class DeployTask(BaseSettings):
       - run deploy script in a new process reading json from stdout
       - post finished steps back to application server
     """
+
     model_config = SettingsConfigDict(env_file=None)
 
     deploy_script: str

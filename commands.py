@@ -4,7 +4,6 @@ import os
 import platform
 import subprocess
 import sys
-
 from pathlib import Path
 
 
@@ -27,6 +26,8 @@ try:
 except ImportError:
     bootstrap()
     import typer
+
+sys.path.insert(0, "src")
 
 import uvicorn  # noqa
 

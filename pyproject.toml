@@ -1,3 +1,7 @@
+[build-system]
+requires = ["uv_build>=0.8.14,<0.9.0"]
+build-backend = "uv_build"
+
 [project]
 name = "fastDeploy"
 description = "Backend for deploying web applications"
@@ -13,15 +17,13 @@ dependencies = [
     "orjson>=3.10.7",
     "passlib[bcrypt]>=1.7.4",
     "pydantic-settings>=2.5.2",
-    "pytest-asyncio>=0.24",
     "python-jose[cryptography]>=3.3.0",
     "rich>=13.9.2",
     "sqlalchemy[asyncio]>=2.0.36",
     "typer>=0.12.5",
 ]
 
-[tool.setuptools.packages.find]
-include = ["deploy*"]
+# Removed setuptools configuration - using UV build backend now
 
 [tool.black]
 line-length = 119
@@ -37,6 +39,7 @@ env = [
     "PASSWORD_HASH_ALGORITHM = ldap_md5",
 ]
 testpaths = "tests"
+pythonpath = ["src"]
 asyncio_mode = "strict"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -63,15 +66,19 @@ known_sqlmodel = "sqlmodel"
 
 [tool.coverage.run]
 branch = true
-source = ["deploy"]
-omit = ["deploy/tests/*"]
+source = ["src/deploy"]
+omit = ["src/deploy/tests/*"]
 command_line = "-m pytest"
 
 [tool.mypy]
 plugins = "sqlalchemy.ext.mypy.plugin"
+mypy_path = "src"
 
 [tool.uv]
-dev-dependencies = [
+package = true
+
+[dependency-groups]
+dev = [
     "coverage>=7.6.3",
     "honcho>=2.0.0",
     "ipdb>=0.13.13",

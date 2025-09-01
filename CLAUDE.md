@@ -5,10 +5,11 @@
 fastDeploy is a deployment automation platform that enables both technical and non-technical users to deploy web applications via API or web interface. It provides real-time deployment monitoring through WebSockets and manages infrastructure using Ansible playbooks.
 
 ### Architecture
-- **Backend**: FastAPI with async PostgreSQL (asyncpg/SQLAlchemy)
-- **Frontend**: Vue.js 3 with Vite
+- **Backend**: FastAPI with async PostgreSQL (asyncpg/SQLAlchemy) - uses src layout (src/deploy/)
+- **Frontend**: Vue.js 3 with Vite - at root level (frontend/)
 - **Documentation**: MkDocs with Material theme
 - **Testing**: pytest (Python), Vitest (TypeScript/Vue)
+- **Build Backend**: UV build backend for modern Python packaging
 - **Process Management**: Currently migrating from Honcho to justfile
 - **Infrastructure**: Ansible playbooks for Linux host deployments
 
@@ -78,12 +79,13 @@ Services are defined in the `services/` directory. Each service includes:
 - Service-specific documentation
 
 ### Database Migrations
-Currently manual - use SQLAlchemy models in `deploy/adapters/orm.py`
+Currently manual - use SQLAlchemy models in `src/deploy/adapters/orm.py`
 
 ### API Development
-- Routers in `deploy/entrypoints/routers/`
-- Domain models in `deploy/domain/model.py`
+- Routers in `src/deploy/entrypoints/routers/`
+- Domain models in `src/deploy/domain/model.py`
 - Use Pydantic v2 patterns (ConfigDict, model_dump, etc.)
+- Package imports remain as `from deploy.domain import ...` (not src.deploy)
 
 ## Important Patterns
 
@@ -193,3 +195,4 @@ The project follows trunk-based development practices - changes are committed di
 ## Contact
 
 For questions about the deployment infrastructure or architecture decisions, consult the project maintainer.
+- always run the tests before committing

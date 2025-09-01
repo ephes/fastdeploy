@@ -23,6 +23,9 @@ just createuser     # Create initial user
 
 # Start all development services
 just dev            # Starts postgres, fastapi, frontend, and docs
+
+# Note: The project uses a src layout for Python code.
+# The backend package 'deploy' is located at src/deploy/
 ```
 
 ## Installation for development
@@ -136,11 +139,12 @@ Layout:
 
 ```
 fastdeploy/
-├── deploy/              # Backend Python code
-│   ├── domain/         # Domain models and business logic
-│   ├── adapters/       # Database and external adapters
-│   ├── entrypoints/    # FastAPI routes and endpoints
-│   └── service_layer/  # Services and message bus
+├── src/
+│   └── deploy/         # Backend Python code (src layout)
+│       ├── domain/     # Domain models and business logic
+│       ├── adapters/   # Database and external adapters
+│       ├── entrypoints/# FastAPI routes and endpoints
+│       └── service_layer/# Services and message bus
 ├── frontend/           # Vue.js 3 frontend application
 │   ├── src/           # Vue components and logic
 │   └── tests/         # Frontend tests (Vitest)

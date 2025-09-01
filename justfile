@@ -118,7 +118,7 @@ postgres:
 
 fastapi:
     @echo "Starting FastAPI server..."
-    PYTHONUNBUFFERED=true uvicorn deploy.entrypoints.fastapi_app:app --reload --host 0.0.0.0 --port 8000
+    PYTHONPATH=src PYTHONUNBUFFERED=true uvicorn deploy.entrypoints.fastapi_app:app --reload --host 0.0.0.0 --port 8000
 
 frontend:
     @echo "Starting Vue.js frontend..."
@@ -133,13 +133,13 @@ docs-serve:
 # Run all tests (Python + JavaScript)
 test:
     @echo "Running Python tests..."
-    uv run pytest
+    SECRET_KEY="${SECRET_KEY:-test-secret-key}" PATH_FOR_DEPLOY="${PATH_FOR_DEPLOY:-/tmp/deploy}" PYTHONPATH=src uv run pytest
     @echo "Running JavaScript tests..."
     cd frontend && npm test
 
 # Run Python tests only
 test-python *ARGS:
-    uv run pytest {{ARGS}}
+    SECRET_KEY="${SECRET_KEY:-test-secret-key}" PATH_FOR_DEPLOY="${PATH_FOR_DEPLOY:-/tmp/deploy}" PYTHONPATH=src uv run pytest {{ARGS}}
 
 # Run JavaScript tests only
 test-js:
@@ -148,8 +148,8 @@ test-js:
 # Run tests with coverage
 coverage:
     @echo "Running tests with coverage..."
-    uv run coverage run -m pytest
-    uv run coverage html
+    SECRET_KEY="${SECRET_KEY:-test-secret-key}" PATH_FOR_DEPLOY="${PATH_FOR_DEPLOY:-/tmp/deploy}" PYTHONPATH=src uv run coverage run -m pytest
+    PYTHONPATH=src uv run coverage html
     @echo "Coverage report generated in htmlcov/"
     @echo "Opening coverage report..."
     open htmlcov/index.html || xdg-open htmlcov/index.html 2>/dev/null || echo "Please open htmlcov/index.html manually"
@@ -157,20 +157,20 @@ coverage:
 # Run type checking
 typecheck:
     @echo "Running mypy type checker..."
-    uv run mypy deploy
+    PYTHONPATH=src uv run mypy src/deploy
 
 # Run linting
 lint:
     @echo "Running ruff linter..."
-    uv run ruff check deploy tests
+    uv run ruff check src/deploy tests
     @echo "Running ruff formatter..."
-    uv run ruff format --check deploy tests
+    uv run ruff format --check src/deploy tests
 
 # Fix linting issues
 lint-fix:
     @echo "Fixing linting issues..."
-    uv run ruff check --fix deploy tests
-    uv run ruff format deploy tests
+    uv run ruff check --fix src/deploy tests
+    uv run ruff format src/deploy tests
 
 # === Documentation ===
 
@@ -201,12 +201,12 @@ docs-clean:
 # Start Jupyter notebook
 notebook:
     @echo "Starting Jupyter notebook..."
-    PYTHONPATH=$(pwd) uv run jupyter notebook --notebook-dir notebooks
+    PYTHONPATH=$(pwd)/src uv run jupyter notebook --notebook-dir notebooks
 
 # Start JupyterLab
 jupyterlab:
     @echo "Starting JupyterLab..."
-    PYTHONPATH=$(pwd) uv run jupyter-lab
+    PYTHONPATH=$(pwd)/src uv run jupyter-lab
 
 # === Deployment ===
 
