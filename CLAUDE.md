@@ -192,6 +192,16 @@ Real-time updates during deployments via WebSocket connections:
 
 The project follows trunk-based development practices - changes are committed directly to the main branch rather than using feature branches.
 
+## Code Quality Requirements
+
+### Before Committing
+**IMPORTANT**: Only commit code when:
+1. All tests pass (`just test` or `just test-python`)
+2. Mypy shows no errors (`just typecheck`)
+3. Ruff linting passes (`just lint`)
+
+If there are pre-existing issues, fix them before adding new code.
+
 ## Contact
 
 For questions about the deployment infrastructure or architecture decisions, consult the project maintainer.
