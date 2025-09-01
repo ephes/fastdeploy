@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { initPinia } from "./conftest";
 import { useAuth } from "../src/stores/auth";
 
@@ -44,7 +45,7 @@ describe("Auth Store Actions", () => {
       },
       options: {headers: {}},
     } as any;
-    authStore.onLoginSuccess = jest.fn();  // mock onLoginSuccess action
+    authStore.onLoginSuccess = vi.fn();  // mock onLoginSuccess action
     expect(authStore.isAuthenticated).toBe(false);
     await authStore.login();
     expect(authStore.isAuthenticated).toBe(true);

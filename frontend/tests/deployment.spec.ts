@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { initPinia, createEvent } from "./conftest";
 import { createWebsocketClient } from "../src/websocket";
 import { pythonToJavascript } from "../src/converters";
@@ -50,7 +51,7 @@ describe("Deployment Store Actions", () => {
   it("starts a deployment", async () => {
     const servicesStore = useServices();
     const deploymentsStore = useDeployments();
-    servicesStore.fetchServiceToken = jest.fn();
+    servicesStore.fetchServiceToken = vi.fn();
     const client = {
       async post<T = unknown>(): Promise<T> {
         return new Promise<any>((resolve, reject) => {
