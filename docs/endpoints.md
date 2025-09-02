@@ -1,169 +1,288 @@
-# Endpoints
-
-Just a note to myself which endpoints have to write / fetch which data from the database.
-
-# default
-
-## read_users_me /users/me
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Expects an access token and returns the current user.
-
-## login_for_access_token /token
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Receives username and password via post and returns an access token.
-
-Both endpoints above should use the same get user function from views.
-
-## service_token /service-token
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Receives a service_name, origin and expiration in days number via post and returns a signed service token.
-
-# steps
-
-## get_steps_by_deployment /steps/
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Reads from database:
-* Fetches a deployment via `uow.deployments.get(deployment_id)`
-* Fetches a list of steps via `uow.steps.get_steps_by_deployment(deployment_id)`
-
-## process_step_result /steps/
-
-Auth: Fetches the current deployment from database via `uow.deployments.get(deployment_id)`
-
-Reads from database:
-* Fetches a deployment via `uow.deployments.get(deployment_id)`
-* Fetches a list of steps via `uow.steps.get_steps_by_deployment(deployment_id)`
-
-Hmm, auth + those fetches can be done in the same function.
-
-Writes to database:
-* Saves a list of updated steps via `uow.steps.add(step)`
-
-# services
-
-## get_services /services/
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Reads from database:
-* Fetches all services from database via `uow.services.list()`
-
-## delete_service /services/{service_id}
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Reads from database:
-* Fetches the service to delete from database via `uow.services.get(command.service_id)`
-
-Writes to database:
-* Deletes service from database via `uow.services.delete(service)`
-
-This might delete deployments and steps via on_cascade, too.
-
-## get_service_names /services/names/
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Fetches list of available service names from filesystem via:
-* `fs.list()`
-
-## sync_services /services/sync
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Reads from database:
-* All services from database via `uow.services.list()`
-* All services from filesystem via `fs.list()`
-
-Writes to database:
-* Delete one or more services via `uow.services.delete(to_delete)`
-* Update/Add one or more services via `uow.services.add(to_update)`
-
-# deployments
-
-## get_deployments /deployments/
-
-Auth: Fetches the current user from database via `uow.users.get(username)`.
-
-Reads from database:
-* Get a list of all deployments via `uow.deployments.list()`
-
-## get_deployment_details /deployments/{deployment_id}
-
-Auth: Fetches the current service from database via `uow.services.get_by_name(servicename)`.
-
-Reads from database:
-* Fetches a deployment via `uow.deployments.get(deployment_id)`
-* Fetches a list of steps via `uow.steps.get_steps_by_deployment(deployment_id)`
-
-## finish_deployment /deployments/finish/
-
-Auth: Fetches the current deployment from database via `uow.deployments.get(deployment_id)`
-
-Reads from database:
-* Fetches the current deployment again via `uow.deployments.get(command.deployment_id)`
-* Fetches the list of deployment steps via `uow.steps.get_steps_by_deployment(command.deployment_id)`
-
-This could be done via `views.get_deployment_with_steps`.
-
-Writes to the database:
-* Updates the finished timestamp on deployment via `uow.deployments.add(deployment)`
-* Deletes a list of steps via `uow.steps.delete(step)`
-
-## start_deployment /deployments/
-
-Auth: Fetches the current service from database via `uow.services.get_by_name(servicename)`.
-
-Reads from database:
-* Fetches current service from database again via `uow.services.get(command.service_id)`
-* Get last successful deployment id from database via `uow.deployments.get_last_successful_deployment_id(service.id)`
-* Fetches a list of steps from database via `uow.steps.get_steps_by_deployment(last_successful_deployment_id)`
-*
-
-Writes to database:
-* Create a new deployment via `uow.deployments.add(deployment)`
-* Create pending steps (who need a deployment_id) via `uow.steps.add(step)`
-
-# Deployed Services
-
-## list_deployed_services /deployed-services/
-
-Auth: Needs a valid config token.
-
-Reads from database:
-* Fetches the list of deployed services via `uow.deployed_services.list()`
-
-# Endpoints Auth Overview
-
-Just a note to myself which endpoints require wich kind auf authentication.
-
-## Username/Password
- * login_for_access_token /token
-
-## Access Token + Needs User Object
-* read_users_me /users/me
-* service_token /service-token
-
-## Just Access Token
-* get_steps_by_deployment /steps/
-* get_services /services/
-* delete_service /services/{service_id}
-* get_service_names /services/names/
-* sync_services /services/sync
-* get_deployments /deployments/
-
-## Deployment Token
-* process_step_result /steps/
-* finish_deployment /deployments/finish/
-
-## Service Token
-* get_deployment_details /deployments/{deployment_id}
-* start_deployment /deployments/
+# API Endpoints
+
+Complete reference of all fastDeploy API endpoints, their authentication requirements, and usage.
+
+## Authentication Endpoints
+
+### POST /token
+**Purpose**: Authenticate users and obtain access token
+**Authentication**: None (username/password in body)
+**Request Body**:
+```
+application/x-www-form-urlencoded
+username=<username>&password=<password>
+```
+**Response**:
+```json
+{"access_token": "<jwt>", "token_type": "bearer"}
+```
+
+### POST /service-token
+**Purpose**: Generate service token for deployments
+**Authentication**: User token required
+**Request Body**:
+```json
+{
+  "service": "<service_name>",
+  "origin": "<origin_identifier>",
+  "expiration_in_days": 1-180
+}
+```
+**Response**:
+```json
+{"service_token": "<jwt>", "token_type": "bearer"}
+```
+
+### GET /users/me
+**Purpose**: Get current authenticated user
+**Authentication**: User token required
+**Response**:
+```json
+{"id": 1, "name": "username"}
+```
+
+## Service Management Endpoints
+
+### GET /services/
+**Purpose**: List all registered services
+**Authentication**: User token required
+**Response**:
+```json
+[
+  {
+    "id": 1,
+    "name": "service_name",
+    "data": {
+      "deploy_script": "deploy.sh",
+      "description": "Service description",
+      "steps": [{"name": "step1"}]
+    }
+  }
+]
+```
+
+### GET /services/names/
+**Purpose**: List available service names from filesystem
+**Authentication**: User token required
+**Response**:
+```json
+["service1", "service2", "service3"]
+```
+
+### POST /services/sync
+**Purpose**: Synchronize filesystem services to database
+**Authentication**: User token required
+**Response**:
+```json
+{"detail": "Services synced"}
+```
+
+### DELETE /services/{service_id}
+**Purpose**: Remove service from database
+**Authentication**: User token required
+**Response**:
+```json
+{"detail": "Service 1 deleted"}
+```
+
+## Deployment Endpoints
+
+### POST /deployments/
+**Purpose**: Initiate new deployment
+**Authentication**: Service token required
+**Request Body**:
+```json
+{
+  "env": {
+    "key": "value"  // Optional deployment context
+  }
+}
+```
+**Response**:
+```json
+{
+  "id": 1,
+  "service_id": 1,
+  "started": "2024-01-01T12:00:00Z",
+  "details": "/deployments/1"
+}
+```
+
+### GET /deployments/
+**Purpose**: List all deployments
+**Authentication**: User token required
+**Response**:
+```json
+[
+  {
+    "id": 1,
+    "service_id": 1,
+    "origin": "github",
+    "user": "username",
+    "started": "2024-01-01T12:00:00Z",
+    "finished": "2024-01-01T12:05:00Z"
+  }
+]
+```
+
+### GET /deployments/{deployment_id}
+**Purpose**: Get deployment details with steps
+**Authentication**: Service token required (must match deployment's service)
+**Response**:
+```json
+{
+  "id": 1,
+  "service_id": 1,
+  "started": "2024-01-01T12:00:00Z",
+  "finished": null,
+  "steps": [
+    {
+      "id": 1,
+      "name": "step1",
+      "state": "success",
+      "message": "Step completed"
+    }
+  ]
+}
+```
+
+### PUT /deployments/finish/
+**Purpose**: Mark deployment as complete
+**Authentication**: Deployment token required
+**Response**:
+```json
+{"detail": "Deployment 1 finished"}
+```
+
+## Step Management Endpoints
+
+### POST /steps/
+**Purpose**: Report step progress
+**Authentication**: Deployment token required
+**Request Body**:
+```json
+{
+  "name": "step_name",
+  "state": "pending|running|success|failure",
+  "message": "Optional status message",
+  "error_message": "Error details if failure"
+}
+```
+**Response**:
+```json
+{"detail": "step processed"}
+```
+
+### GET /steps/
+**Purpose**: List steps for a deployment
+**Authentication**: User token required
+**Query Parameters**: `?deployment_id=1`
+**Response**:
+```json
+[
+  {
+    "id": 1,
+    "name": "step1",
+    "state": "success",
+    "message": "Step completed",
+    "started": "2024-01-01T12:00:00Z",
+    "finished": "2024-01-01T12:01:00Z"
+  }
+]
+```
+
+## Service Discovery Endpoints
+
+### GET /deployed-services/
+**Purpose**: List deployed services for service discovery
+**Authentication**: Config token required
+**Response**:
+```json
+[
+  {
+    "id": 1,
+    "deployment_id": 1,
+    "config": {
+      "domain": "example.com",
+      "port": 8080,
+      "database": "app_db"
+    }
+  }
+]
+```
+
+## WebSocket Endpoint
+
+### WS /deployments/ws/{client_id}
+**Purpose**: Real-time deployment updates
+**Protocol**: WebSocket
+**Authentication**: Send token after connection
+
+**Connection Flow**:
+1. Connect to `ws://host/deployments/ws/<uuid>`
+2. Send authentication message:
+   ```json
+   {"access_token": "<jwt_token>"}
+   ```
+3. Receive authentication response:
+   ```json
+   {"type": "authentication", "status": "success"}
+   ```
+4. Receive real-time events:
+   ```json
+   {
+     "type": "step|deployment|service",
+     "id": 1,
+     "name": "step_name",
+     "state": "success",
+     "deployment_id": 1
+   }
+   ```
+
+## Authentication Summary
+
+| Endpoint | Required Token Type |
+|----------|-------------------|
+| `POST /token` | None (username/password) |
+| `GET /users/me` | User Token |
+| `POST /service-token` | User Token |
+| `GET /services/*` | User Token |
+| `POST /services/sync` | User Token |
+| `DELETE /services/*` | User Token |
+| `GET /deployments/` | User Token |
+| `POST /deployments/` | Service Token |
+| `GET /deployments/{id}` | Service Token |
+| `PUT /deployments/finish/` | Deployment Token |
+| `POST /steps/` | Deployment Token |
+| `GET /steps/` | User Token |
+| `GET /deployed-services/` | Config Token |
+| `WS /deployments/ws/*` | User Token |
+
+## Error Responses
+
+All endpoints may return these standard error responses:
+
+- **401 Unauthorized**: Invalid or expired token
+  ```json
+  {"detail": "Could not validate credentials"}
+  ```
+
+- **403 Forbidden**: Token lacks required permissions
+  ```json
+  {"detail": "Wrong service token"}
+  ```
+
+- **404 Not Found**: Resource does not exist
+  ```json
+  {"detail": "Service not found"}
+  ```
+
+- **422 Unprocessable Entity**: Invalid request data
+  ```json
+  {"detail": [{"loc": ["body", "field"], "msg": "field required"}]}
+  ```
+
+- **500 Internal Server Error**: Unexpected system error
+  ```json
+  {"detail": "Internal server error"}
+  ```
