@@ -1,5 +1,8 @@
 name: Deploy on Push
-on: [push]
+# Temporarily disabled - service token needs to be renewed
+on:
+  workflow_dispatch:  # Only run manually
+# on: [push]  # Disabled automatic deployment
 jobs:
   deployment:
     runs-on: ubuntu-latest
