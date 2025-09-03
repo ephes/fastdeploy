@@ -52,6 +52,7 @@
       git:
         repo: "https://github.com/ephes/fastdeploy"
         dest: "{{ site_path }}"
+        force: yes
       become: true
       become_user: "{{ username }}"
       environment:
