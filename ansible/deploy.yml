@@ -29,7 +29,7 @@
 
     - name: Add nodejs repository
       apt_repository:
-        repo: deb https://deb.nodesource.com/node_20.x bookworm main
+        repo: deb https://deb.nodesource.com/node_22.x bookworm main
         state: present
       environment:
         PATH: "{{ default_path }}"
@@ -41,7 +41,7 @@
         update_cache: yes
       environment:
         PATH: "{{ default_path }}"
-        NODE_MAJOR: 20
+        NODE_MAJOR: 22
 
     - name: Add a unix user with a bash shell
       user:
