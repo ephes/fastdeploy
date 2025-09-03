@@ -19,18 +19,16 @@
     - name: "Include secret vars"
       include_vars: secrets.yml
 
-    - name: Add nodejs signing key - do not download if present
-      apt_key:
-        id: 9FD3B784BC1C6FC31A8A0A1C1655A0AB68576280
-        url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
-        state: present
+    - name: Download NodeSource setup script
+      get_url:
+        url: https://deb.nodesource.com/setup_22.x
+        dest: /tmp/nodesource_setup.sh
+        mode: '0755'
       environment:
         PATH: "{{ default_path }}"
 
-    - name: Add nodejs repository
-      apt_repository:
-        repo: deb https://deb.nodesource.com/node_22.x bookworm main
-        state: present
+    - name: Run NodeSource setup script
+      shell: /tmp/nodesource_setup.sh
       environment:
         PATH: "{{ default_path }}"
 
