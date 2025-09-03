@@ -37,6 +37,8 @@
     - name: Install required build packages
       apt:
         name: ["git", "nodejs"]
+        state: latest
+        update_cache: yes
       environment:
         PATH: "{{ default_path }}"
         NODE_MAJOR: 20
