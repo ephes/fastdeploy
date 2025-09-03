@@ -2,6 +2,8 @@
 import re
 import os
 import sys
+# Add src directory to Python path for src layout
+sys.path.insert(0, "{{ site_path }}/src")
 from uvicorn.main import main
 if __name__ == "__main__":
     os.chdir("{{ site_path }}")
