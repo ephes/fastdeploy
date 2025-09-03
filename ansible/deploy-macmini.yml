@@ -1,0 +1,401 @@
+---
+# Deploy fastDeploy to macmini via SSH
+- hosts: macmini
+  vars:
+    username: fastdeploy
+    home_path: "/home/{{ username }}"
+    site_path: "{{ home_path }}/site"
+    services_path: "{{ site_path }}/services"
+    global_python: python3.13
+    uv_path: "/opt/homebrew/bin/uv"
+    venv_bin: "{{ site_path }}/venv/bin"
+    ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
+    python: "{{ venv_bin }}/python"
+    ansible_python: "{{ ansible_venv_bin }}/python"
+    default_path: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    initial_user_name: jochen
+    app_port: 9999
+    postgres_database: fastdeploy_macmini
+    postgres_user: fastdeploy
+    postgres_version: 17
+    deploy_environment: "macmini"
+    api_url: "https://deploy.home.wersdörfer.de"
+    systemd_unit_path: "/etc/systemd/system/fastdeploy.service"
+
+  tasks:
+    - name: "Include secret vars"
+      include_vars: secrets.yml
+
+    - name: Check if uv is installed at /usr/local/bin/uv
+      stat:
+        path: "/usr/local/bin/uv"
+      register: uv_local
+
+    - name: Check if uv is installed at /opt/homebrew/bin/uv
+      stat:
+        path: "/opt/homebrew/bin/uv"
+      register: uv_homebrew
+
+    - name: Install uv if not present
+      shell: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+      when: not uv_homebrew.stat.exists and not uv_local.stat.exists
+
+    - name: Set uv path based on installation
+      set_fact:
+        uv_path: "{{ '/usr/local/bin/uv' if uv_local.stat.exists else '/opt/homebrew/bin/uv' }}"
+
+    - name: Install Python dependencies for Ansible
+      apt:
+        name:
+          - python3-setuptools
+          - python3-psycopg2
+          - python3-dev
+          - python3-passlib
+        state: present
+        update_cache: yes
+
+    - name: Install PostgreSQL and related packages
+      apt:
+        name:
+          - postgresql-{{ postgres_version }}
+          - postgresql-client-{{ postgres_version }}
+          - postgresql-contrib-{{ postgres_version }}
+          - libpq-dev
+        state: present
+        update_cache: yes
+
+    - name: Ensure PostgreSQL is running
+      systemd:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Download NodeSource setup script for Node.js 24
+      get_url:
+        url: https://deb.nodesource.com/setup_24.x
+        dest: /tmp/nodesource_setup.sh
+        mode: '0755'
+
+    - name: Run NodeSource setup script
+      shell: /tmp/nodesource_setup.sh
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js 24.x (latest stable)
+      apt:
+        name: nodejs
+        state: latest
+        update_cache: yes
+
+    - name: Add the fastdeploy unix user
+      user:
+        name: "{{ username }}"
+        shell: /bin/bash
+        home: "{{ home_path }}"
+        create_home: yes
+        comment: "FastDeploy Service Account"
+
+    - name: Create site directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      loop:
+        - "{{ site_path }}"
+        - "{{ site_path }}/bin"
+        - "{{ site_path }}/logs"
+        - "{{ services_path }}"
+        - "{{ site_path }}/ansible"
+        - "{{ site_path }}/ansible/inventory"
+
+    - name: Sync fastDeploy source code to macmini
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../"
+        dest: "{{ site_path }}/"
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=__pycache__"
+          - "--exclude=*.pyc"
+          - "--exclude=.env"
+          - "--exclude=.venv"
+          - "--exclude=venv"
+          - "--exclude=ansible_venv"
+          - "--exclude=databases"
+          - "--exclude=frontend/node_modules"
+          - "--exclude=frontend/dist"
+          - "--exclude=.mypy_cache"
+          - "--exclude=.pytest_cache"
+          - "--exclude=.ruff_cache"
+          - "--exclude=htmlcov"
+          - "--exclude=site"
+          - "--exclude=.DS_Store"
+      become: true
+      become_user: "{{ username }}"
+
+    - name: Create .env file
+      template:
+        src: env.macmini.j2
+        dest: "{{ site_path }}/.env"
+        mode: '0600'
+        owner: "{{ username }}"
+        group: "{{ username }}"
+
+    - name: Create .vault_password file
+      template:
+        src: vault_password.template.j2
+        dest: "{{ site_path }}/ansible/.vault_password"
+        mode: '0600'
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      when: vault_password is defined
+
+    - name: Create PostgreSQL database
+      community.general.postgresql_db:
+        name: "{{ postgres_database }}"
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: Create PostgreSQL user
+      community.general.postgresql_user:
+        db: "{{ postgres_database }}"
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password_macmini }}"
+        priv: ALL
+        state: present
+      become: true
+      become_user: postgres
+
+    - name: Grant database privileges
+      community.general.postgresql_privs:
+        database: "{{ postgres_database }}"
+        privs: ALL
+        type: database
+        role: "{{ postgres_user }}"
+      become: true
+      become_user: postgres
+
+    - name: Grant schema privileges on public schema
+      community.general.postgresql_privs:
+        database: "{{ postgres_database }}"
+        privs: ALL
+        type: schema
+        objs: public
+        role: "{{ postgres_user }}"
+      become: true
+      become_user: postgres
+
+    - name: Grant table creation privileges
+      community.general.postgresql_query:
+        db: "{{ postgres_database }}"
+        query: |
+          GRANT CREATE ON SCHEMA public TO {{ postgres_user }};
+          GRANT ALL ON ALL TABLES IN SCHEMA public TO {{ postgres_user }};
+          GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO {{ postgres_user }};
+      become: true
+      become_user: postgres
+
+    - name: Install frontend dependencies
+      shell: npm ci
+      args:
+        chdir: "{{ site_path }}/frontend"
+      become_user: "{{ username }}"
+
+    - name: Build frontend Vue app (without type checking)
+      shell: npx vite build --base=/static
+      args:
+        chdir: "{{ site_path }}/frontend"
+      become_user: "{{ username }}"
+      environment:
+        NODE_ENV: production
+
+    - name: Create Python virtual environment
+      shell: "{{ uv_path }} venv --python {{ global_python }}"
+      args:
+        chdir: "{{ site_path }}"
+        creates: "{{ site_path }}/.venv"
+      become_user: "{{ username }}"
+
+    - name: Check if venv symlink exists
+      stat:
+        path: "{{ site_path }}/venv"
+      register: venv_link
+
+    - name: Create venv symlink
+      file:
+        src: ".venv"
+        dest: "{{ site_path }}/venv"
+        state: link
+        owner: "{{ username }}"
+        group: "{{ username }}"
+      when: not venv_link.stat.exists
+
+    - name: Create Ansible virtual environment
+      shell: "{{ uv_path }} venv --python {{ global_python }} ansible_venv"
+      args:
+        chdir: "{{ home_path }}"
+        creates: "{{ ansible_venv_bin }}"
+      become_user: "{{ username }}"
+
+    - name: Install production dependencies
+      shell: "{{ uv_path }} sync --frozen --no-dev"
+      args:
+        chdir: "{{ site_path }}"
+      become_user: "{{ username }}"
+
+    - name: Install Ansible in its virtual environment
+      shell: |
+        {{ uv_path }} pip install ansible
+      args:
+        chdir: "{{ home_path }}"
+      environment:
+        VIRTUAL_ENV: "{{ home_path }}/ansible_venv"
+        UV_PROJECT_ENVIRONMENT: "{{ home_path }}/ansible_venv"
+      become_user: "{{ username }}"
+
+    - name: Install psycopg2 for Ansible PostgreSQL modules
+      shell: |
+        {{ uv_path }} pip install psycopg2-binary
+      args:
+        chdir: "{{ home_path }}"
+      environment:
+        VIRTUAL_ENV: "{{ home_path }}/ansible_venv"
+        UV_PROJECT_ENVIRONMENT: "{{ home_path }}/ansible_venv"
+      become_user: "{{ username }}"
+
+    - name: Create directory for ansible callback plugins
+      file:
+        path: "/root/.ansible/plugins/callback"
+        state: directory
+        mode: "0755"
+
+    - name: Check if JSON callback plugin exists
+      stat:
+        path: "{{ site_path }}/ansible/callback_plugins/json_cb.py"
+      register: json_cb_file
+
+    - name: Copy JSON callback plugin
+      copy:
+        src: callback_plugins/json_cb.py
+        dest: "/root/.ansible/plugins/callback/json_cb.py"
+        mode: "0644"
+      when: json_cb_file.stat.exists | default(false)
+
+    - name: Create sudoers file for deploy operations
+      template:
+        src: fastdeploy_sudoers.template.j2
+        dest: /etc/sudoers.d/fastdeploy_macmini
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    - name: Create local Ansible inventory
+      template:
+        src: hosts.yml.template.j2
+        dest: "{{ site_path }}/ansible/inventory/hosts.yml"
+        mode: '0600'
+        owner: "{{ username }}"
+        group: "{{ username }}"
+
+    - name: Create uvicorn start script
+      template:
+        src: deploy.py.template.j2
+        dest: "{{ site_path }}/bin/deploy.py"
+        mode: '0755'
+        owner: "{{ username }}"
+        group: "{{ username }}"
+
+    - name: Create FastDeploy service directory
+      file:
+        path: "{{ services_path }}/fastdeploy"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: "0755"
+
+    - name: Create deploy script for FastDeploy service
+      template:
+        src: fastdeploy_staging_deploy.sh.template.j2
+        dest: "{{ services_path }}/fastdeploy/deploy.sh"
+        mode: '0500'
+        owner: "{{ username }}"
+        group: "{{ username }}"
+
+    - name: Create service config for FastDeploy
+      template:
+        src: fastdeploy_staging_config.json.template.j2
+        dest: "{{ services_path }}/fastdeploy/config.json"
+        mode: '0400'
+        owner: "{{ username }}"
+        group: "{{ username }}"
+
+    - name: Create initial admin user
+      shell: |
+        set -a && source {{ site_path }}/.env && set +a
+        {{ python }} commands.py createuser
+      args:
+        chdir: "{{ site_path }}"
+        executable: /bin/bash
+      environment:
+        INITIAL_PASSWORD_HASH: "{{ initial_user_password_hash }}"
+        INITIAL_USER_NAME: "{{ initial_user_name }}"
+      become_user: "{{ username }}"
+
+    - name: Sync services from filesystem to database
+      shell: |
+        set -a && source {{ site_path }}/.env && set +a
+        {{ python }} commands.py syncservices
+      args:
+        chdir: "{{ site_path }}"
+        executable: /bin/bash
+      become_user: "{{ username }}"
+
+    - name: Create systemd service for FastDeploy
+      template:
+        src: deploy.macmini.service.j2
+        dest: "{{ systemd_unit_path }}"
+        mode: '0644'
+      notify:
+        - reload systemd
+        - restart fastdeploy
+
+    - name: Ensure Traefik dynamic directory exists
+      file:
+        path: /etc/traefik/dynamic
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy FastDeploy Traefik configuration
+      template:
+        src: deploy.macmini.traefik.j2
+        dest: "/etc/traefik/dynamic/fastdeploy.yml"
+        owner: root
+        group: root
+        mode: '0644'
+      notify: reload traefik config
+
+    - name: Enable and start FastDeploy service
+      systemd:
+        name: fastdeploy
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: restart fastdeploy
+      systemd:
+        name: fastdeploy
+        state: restarted
+        enabled: yes
+
+    - name: reload traefik config
+      debug:
+        msg: "Traefik will automatically reload the configuration"

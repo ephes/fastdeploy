@@ -222,6 +222,11 @@ deploy-production:
     @read _
     cd ansible && ansible-playbook deploy.yml --limit production
 
+# Deploy to macmini environment
+deploy-macmini:
+    @echo "Deploying fastDeploy to macmini..."
+    cd ansible && ansible-playbook -i inventory/hosts-macmini.yml deploy-macmini.yml --vault-password-file=.vault_password
+
 # === Utilities ===
 
 # Run pre-commit hooks on all files

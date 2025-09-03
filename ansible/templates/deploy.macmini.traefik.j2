@@ -1,0 +1,55 @@
+http:
+  routers:
+    fastdeploy-router:
+      rule: "Host(`deploy.home.xn--wersdrfer-47a.de`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect
+        - csrf
+      service: fastdeploy
+
+    fastdeploy-secure-router:
+      rule: "Host(`deploy.home.xn--wersdrfer-47a.de`)"
+      entryPoints:
+        - web-secure
+      middlewares:
+        - csrf
+        - default-headers
+        - gzip
+      service: fastdeploy
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: "deploy.home.xn--wersdrfer-47a.de"
+
+  middlewares:
+    redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    csrf:
+      headers:
+        hostsProxyHeaders: ["X-CSRFToken"]
+
+    default-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 15552000
+        customFrameOptionsValue: SAMEORIGIN
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+
+    gzip:
+      compress: {}
+
+  services:
+    fastdeploy:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:{{ app_port }}

@@ -1,0 +1,6 @@
+all:
+  hosts:
+    macmini:
+      ansible_host: macmini.tailde2ec.ts.net
+      ansible_user: root
+      ansible_python_interpreter: /usr/bin/python3

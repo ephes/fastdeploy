@@ -1,0 +1,40 @@
+# FastDeploy service for macmini
+# /etc/systemd/system/fastdeploy.service
+[Unit]
+Description=FastDeploy Service on macmini
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+WorkingDirectory={{ site_path }}
+User={{ username }}
+Group={{ username }}
+
+# Environment variables
+Environment="PATH={{ venv_bin }}:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile={{ site_path }}/.env
+
+# Start command
+ExecStart={{ site_path }}/.venv/bin/python -m uvicorn deploy.entrypoints.fastapi_app:app --port {{ app_port }} --host 127.0.0.1
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Note: Security hardening removed as it prevents execution on some systems
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fastdeploy
+
+[Install]
+WantedBy=multi-user.target
