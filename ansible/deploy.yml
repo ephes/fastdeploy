@@ -1,19 +1,19 @@
 - hosts: staging
   vars:
-    - username: deploy
-    - home_path: "/home/{{ username }}"
-    - site_path: "{{ home_path }}/site"
-    - services_path: "{{ site_path }}/services"
-    - global_python: python3.12
-    - uv_path: "/usr/local/bin/uv"
-    - venv_bin: "{{ site_path }}/venv/bin"
-    - ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
-    - ansible_plugin_dir: "/root/.ansible/plugins/callback"
-    - python: "{{ venv_bin }}/python"
-    - ansible_python: "{{ ansible_venv_bin }}/python"
-    - pip_sync: "{{ venv_bin }}/pip-sync"
-    - default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-    - initial_user_name: jochen
+    username: deploy
+    home_path: "/home/{{ username }}"
+    site_path: "{{ home_path }}/site"
+    services_path: "{{ site_path }}/services"
+    global_python: python3.12
+    uv_path: "/usr/local/bin/uv"
+    venv_bin: "{{ site_path }}/venv/bin"
+    ansible_venv_bin: "{{ home_path }}/ansible_venv/bin"
+    ansible_plugin_dir: "/root/.ansible/plugins/callback"
+    python: "{{ venv_bin }}/python"
+    ansible_python: "{{ ansible_venv_bin }}/python"
+    pip_sync: "{{ venv_bin }}/pip-sync"
+    default_path: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    initial_user_name: jochen
 
   tasks:
     - name: "Include secret vars"
