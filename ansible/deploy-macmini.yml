@@ -19,7 +19,6 @@
     postgres_user: fastdeploy
     postgres_version: 17
     deploy_environment: "macmini"
-    api_url: "https://deploy.home.wersdörfer.de"
     systemd_unit_path: "/etc/systemd/system/fastdeploy.service"
 
   tasks:
@@ -211,6 +210,8 @@
       become_user: "{{ username }}"
       environment:
         NODE_ENV: production
+        VITE_API_BASE_PROD: "{{ api_url }}"
+        VITE_WEBSOCKET_URL_PROD: "wss://{{ api_url | regex_replace('^https?://', '') }}/deployments/ws"
 
     - name: Create Python virtual environment
       shell: "{{ uv_path }} venv --python {{ global_python }}"

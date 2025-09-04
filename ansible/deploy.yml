@@ -130,6 +130,8 @@
       become_user: "{{ username }}"
       environment:
         PATH: "{{ default_path }}"
+        VITE_API_BASE_PROD: "{{ api_url }}"
+        VITE_WEBSOCKET_URL_PROD: "wss://{{ api_url | regex_replace('^https?://', '') }}/deployments/ws"
 
     - name: Create virtualenv for python
       shell: "{{uv_path}} venv -p {{ global_python }} {{ site_path }}/.venv"

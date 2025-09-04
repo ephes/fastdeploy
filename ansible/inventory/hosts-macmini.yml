@@ -4,3 +4,4 @@ all:
       ansible_host: macmini.tailde2ec.ts.net
       ansible_user: root
       ansible_python_interpreter: /usr/bin/python3
+      api_url: "https://deploy.home.xn--wersdrfer-47a.de"
