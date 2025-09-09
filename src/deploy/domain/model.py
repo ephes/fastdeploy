@@ -200,6 +200,10 @@ class Service(EventsMixin):
 
     def get_deploy_script(self) -> str:
         deploy_script = self.data.get("deploy_script", "deploy.sh")
+        # If it's an absolute path, return as-is
+        if deploy_script.startswith("/"):
+            return deploy_script
+        # Otherwise, treat as relative path (original behavior for backward compatibility)
         deploy_script = deploy_script.replace("/", "")
         return f"{self.name}/{deploy_script}"
 

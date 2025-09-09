@@ -108,7 +108,11 @@ class DeployTask(BaseSettings):
 
     async def deploy_steps(self):
         sudo_command = f"sudo -u {settings.sudo_user}"
-        deploy_command = str(settings.services_root / self.deploy_script)
+        # Handle absolute vs relative paths
+        if self.deploy_script.startswith("/"):
+            deploy_command = self.deploy_script
+        else:
+            deploy_command = str(settings.services_root / self.deploy_script)
         command = f"{sudo_command} --preserve-env {deploy_command}"
         env = os.environ.copy()
         env["PATH"] = self.path_for_deploy
