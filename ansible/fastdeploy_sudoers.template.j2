@@ -1,4 +1,7 @@
-deploy	ALL = (root) NOPASSWD:SETENV: {{ services_path }}/fastdeploy/deploy.sh
+# Allow deploy user to run deployment script as root without password
+# NOTE: SETENV removed for security - using secure config files instead
+deploy	ALL = (root) NOPASSWD: {{ services_path }}/fastdeploy/deploy.sh
 
+# Allow deploy user to restart the service
 Cmnd_Alias RESTART_CMDS = /usr/bin/systemctl start deploy, /usr/bin/systemctl stop deploy
 deploy ALL=(ALL) NOPASSWD: RESTART_CMDS

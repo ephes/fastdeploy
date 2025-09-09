@@ -1,4 +1,3 @@
-import json
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -166,8 +165,10 @@ async def test_deploy_service_with_context(popen, app, valid_service_token_in_db
 
     # assert subprocess.Popen was called correctly
     assert popen.call_args.args[0][-1] == "deploy.tasks"
-    context_from_popen = json.loads(popen.call_args.kwargs["env"]["CONTEXT"])
-    assert context_from_popen == my_context
+    # Context is now passed via secure config file, not environment
+    # Check that DEPLOY_CONFIG_FILE is in environment instead of CONTEXT
+    assert "DEPLOY_CONFIG_FILE" in popen.call_args.kwargs["env"]
+    assert "CONTEXT" not in popen.call_args.kwargs["env"]  # Should not be in env for security
 
     # assert response is correct
     assert response.status_code == 200
