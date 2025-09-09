@@ -61,6 +61,43 @@ createdb deploy_test
 pg_dump deploy | psql deploy_test
 ```
 
+## Configuration
+
+### Environment Variables
+
+fastDeploy uses environment variables for configuration. Create a `.env` file in the project root:
+
+```shell
+# Required
+SECRET_KEY=your-secret-key-here
+PATH_FOR_DEPLOY=/path/to/deploy
+DATABASE_URL=postgresql+asyncpg:///deploy
+
+# Deployment configuration
+SUDO_USER=deploy  # User to run deployment scripts as (default: jochen)
+
+# API configuration  
+API_URL=http://localhost:8000
+```
+
+### Service Configuration
+
+Services can use either relative or absolute paths for their deployment scripts:
+
+```json
+{
+  "name": "myservice",
+  "deploy_script": "deploy.sh"  // Relative path (default)
+}
+
+{
+  "name": "myservice",
+  "deploy_script": "/home/deploy/runners/myservice/deploy.py"  // Absolute path (supported)
+}
+```
+
+When using absolute paths, ensure the `SUDO_USER` has appropriate permissions and sudoers rules are configured correctly.
+
 ## Development
 
 ### Running the development server
