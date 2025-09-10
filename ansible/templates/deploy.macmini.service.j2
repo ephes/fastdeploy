@@ -29,7 +29,25 @@ TimeoutStopSec=30
 LimitNOFILE=65536
 LimitNPROC=4096
 
-# Note: Security hardening removed as it prevents execution on some systems
+# Progressive security hardening - Phase 1
+# These settings provide basic security without breaking functionality
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+
+# Filesystem protections - moderate level
+ProtectSystem=full
+ProtectHome=read-only
+
+# Network - allow all needed families
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Memory limits
+MemoryMax=2G
 
 # Logging
 StandardOutput=journal

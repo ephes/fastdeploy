@@ -1,0 +1,123 @@
+# Hardened systemd service file for FastDeploy
+# This file implements security best practices to minimize attack surface
+# Ansible template version
+[Unit]
+Description=FastDeploy Service (Hardened) - {{ inventory_hostname }}
+After=network.target postgresql.service
+Wants=network-online.target
+Documentation=https://github.com/{{ github_org | default('yourusername') }}/fastdeploy
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+WorkingDirectory={{ deploy_working_directory | default('/home/deploy/site') }}
+User={{ deploy_user | default('deploy') }}
+Group={{ deploy_group | default('deploy') }}
+
+# Main service execution
+ExecStart={{ deploy_python_path | default('/home/deploy/site/bin/python') }} -m deploy.entrypoints.fastapi_app:app --port {{ deploy_port | default(9999) }} --host {{ deploy_host | default('127.0.0.1') }}
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Resource limits
+LimitNOFILE={{ deploy_file_limit | default(65536) }}
+LimitNPROC={{ deploy_proc_limit | default(4096) }}
+TasksMax={{ deploy_tasks_max | default(100) }}
+
+# Security hardening - Filesystem protections
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# Allow writes to necessary paths
+ReadWritePaths={{ deploy_write_paths | default('/home/deploy/site/var /home/deploy/site/logs /tmp') }}
+{% if deploy_extra_write_paths is defined %}
+{% for path in deploy_extra_write_paths %}
+ReadWritePaths={{ path }}
+{% endfor %}
+{% endif %}
+# Read-only paths for code
+ReadOnlyPaths={{ deploy_readonly_paths | default('/home/deploy/site/bin /home/deploy/site/src') }}
+
+# Security hardening - User/privilege protections
+NoNewPrivileges=yes
+{% if deploy_private_users | default(true) %}
+PrivateUsers=yes
+{% endif %}
+RemoveIPC=yes
+PrivateMounts=yes
+
+# Security hardening - Kernel protections
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+
+# Security hardening - Device access restrictions
+PrivateDevices=yes
+DevicePolicy=closed
+LockPersonality=yes
+
+# Security hardening - Network restrictions
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+{% if deploy_restrict_network | default(false) %}
+IPAddressDeny=any
+IPAddressAllow=localhost
+{% for ip in deploy_allowed_ips | default([]) %}
+IPAddressAllow={{ ip }}
+{% endfor %}
+{% endif %}
+
+# Security hardening - Namespace restrictions
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+
+# Security hardening - System call filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @swap @obsolete @mount @clock @debug @raw-io @module @cpu-emulation
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+
+# Security hardening - Capability restrictions
+{% if deploy_port | default(9999) < 1024 %}
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+{% else %}
+CapabilityBoundingSet=
+{% endif %}
+
+# Security hardening - Memory protections
+MemoryDenyWriteExecute=yes
+MemoryMax={{ deploy_memory_max | default('2G') }}
+MemoryHigh={{ deploy_memory_high | default('1G') }}
+
+# Security hardening - Misc restrictions
+UMask=0077
+KeyringMode=private
+
+# Environment configuration
+Environment="LANG=en_US.UTF-8"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONDONTWRITEBYTECODE=1"
+{% if deploy_environment_file is defined %}
+EnvironmentFile={{ deploy_environment_file }}
+{% endif %}
+{% for key, value in deploy_environment | default({}) | dict2items %}
+Environment="{{ key }}={{ value }}"
+{% endfor %}
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fastdeploy-{{ inventory_hostname }}
+
+[Install]
+WantedBy=multi-user.target

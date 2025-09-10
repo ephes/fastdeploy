@@ -1,15 +1,56 @@
 # Contents of /etc/systemd/system/multi-user.target.wants/deploy.service
+# Progressive hardening - compatible with existing deployments
 [Unit]
-Description=Small Deploy Service
-After=network.target
+Description=FastDeploy Service
+After=network.target postgresql.service
+Wants=network-online.target
 
 [Service]
 Type=simple
 Restart=always
+RestartSec=5
 WorkingDirectory=/home/deploy/site
 User=deploy
+Group=deploy
 ExecStart=/home/deploy/site/bin/deploy.py deploy.entrypoints.fastapi_app:app --port 9999 --host 127.0.0.1
-KillMode=process
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Basic security hardening - Phase 1 (Compatible)
+# These should work with most deployments
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+
+# Filesystem protections - less restrictive
+ProtectSystem=full
+ProtectHome=read-only
+
+# Network - allow all for compatibility
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Memory protections
+MemoryMax=2G
+
+# Environment
+Environment="LANG=en_US.UTF-8"
+Environment="PYTHONUNBUFFERED=1"
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fastdeploy
 
 [Install]
 WantedBy=multi-user.target

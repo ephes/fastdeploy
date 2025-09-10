@@ -1,0 +1,103 @@
+# Hardened systemd service file for FastDeploy
+# This file implements security best practices to minimize attack surface
+[Unit]
+Description=FastDeploy Service (Hardened)
+After=network.target postgresql.service
+Wants=network-online.target
+Documentation=https://github.com/yourusername/fastdeploy
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+WorkingDirectory=/home/deploy/site
+User=deploy
+Group=deploy
+
+# Main service execution
+ExecStart=/home/deploy/site/bin/deploy.py deploy.entrypoints.fastapi_app:app --port 9999 --host 127.0.0.1
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+TasksMax=100
+
+# Security hardening - Filesystem protections
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/home/deploy/site/var /home/deploy/site/logs /tmp
+ReadOnlyPaths=/home/deploy/site/bin /home/deploy/site/src
+
+# Security hardening - User/privilege protections
+NoNewPrivileges=yes
+PrivateUsers=yes
+RemoveIPC=yes
+PrivateMounts=yes
+
+# Security hardening - Kernel protections
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+
+# Security hardening - Device access restrictions
+PrivateDevices=yes
+DevicePolicy=closed
+LockPersonality=yes
+
+# Security hardening - Network restrictions
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+# Add specific IPs if external access needed:
+# IPAddressAllow=10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+
+# Security hardening - Namespace restrictions
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+
+# Security hardening - System call filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @swap @obsolete @mount @clock @debug @raw-io @module @cpu-emulation
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+
+# Security hardening - Capability restrictions
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Security hardening - Memory protections
+MemoryDenyWriteExecute=yes
+MemoryMax=2G
+MemoryHigh=1G
+
+# Security hardening - Misc restrictions
+UMask=0077
+KeyringMode=private
+ProtectClocks=yes
+
+# Environment configuration
+Environment="LANG=en_US.UTF-8"
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONDONTWRITEBYTECODE=1"
+# Add database URL and other configs as needed:
+# EnvironmentFile=/home/deploy/site/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fastdeploy
+
+[Install]
+WantedBy=multi-user.target
