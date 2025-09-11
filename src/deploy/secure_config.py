@@ -5,6 +5,7 @@ Replaces environment variable passing with temporary secure files.
 """
 
 import atexit
+import contextlib
 import json
 import logging
 import os
@@ -43,9 +44,10 @@ class SecureConfig:
         Initialize secure config handler.
 
         Args:
-            config_dir: Directory for config files. Defaults to system temp.
+            config_dir: Directory for config files. Defaults to /var/tmp for systemd PrivateTmp compatibility.
         """
-        self.config_dir = config_dir or Path(tempfile.gettempdir())
+        # Use /var/tmp instead of /tmp to avoid systemd PrivateTmp isolation
+        self.config_dir = config_dir or Path("/var/tmp")
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
     def create_deployment_config(
@@ -92,8 +94,9 @@ class SecureConfig:
         fd, temp_path = tempfile.mkstemp(prefix=f"deploy_{deployment_id}_", suffix=".json", dir=str(self.config_dir))
 
         try:
-            # Set restrictive permissions BEFORE writing data
-            os.fchmod(fd, 0o600)  # rw------- (owner read/write only)
+            # Set permissions to be secure - owner and group can read
+            # The subprocess runs as deploy user who is in the fastdeploy group
+            os.fchmod(fd, 0o640)  # rw-r----- (owner read/write, group read)
 
             # Write configuration
             with os.fdopen(fd, "w") as f:
@@ -107,13 +110,11 @@ class SecureConfig:
 
         except Exception as e:
             # Clean up on error
-            try:
+            with contextlib.suppress(Exception):
                 os.close(fd)
-            except:
-                pass
             if Path(temp_path).exists():
                 Path(temp_path).unlink()
-            raise RuntimeError(f"Failed to create secure config: {e}")
+            raise RuntimeError(f"Failed to create secure config: {e}") from e
 
     def read_deployment_config(self, config_path: Path) -> dict[str, Any]:
         """
@@ -136,12 +137,15 @@ class SecureConfig:
         stat_info = config_path.stat()
         mode = stat_info.st_mode & 0o777
 
-        if mode != 0o600:
-            raise PermissionError(f"Config file {config_path} has insecure permissions: {oct(mode)} (expected 0o600)")
+        if mode not in (0o600, 0o640):
+            raise PermissionError(
+                f"Config file {config_path} has insecure permissions: {oct(mode)} (expected 0o600 or 0o640)"
+            )
 
-        # Verify ownership (should be current user)
-        if stat_info.st_uid != os.getuid():
-            raise PermissionError(f"Config file {config_path} not owned by current user")
+        # Verify ownership (should be current user or readable via group)
+        # Allow files owned by another user if we can read them (via group permissions)
+        if stat_info.st_uid != os.getuid() and not os.access(config_path, os.R_OK):
+            raise PermissionError(f"Config file {config_path} not readable by current user")
 
         with open(config_path) as f:
             return json.load(f)

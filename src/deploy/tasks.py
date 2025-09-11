@@ -175,13 +175,15 @@ class DeployTask(BaseSettings):
                 limit=MAX_ASYNCIO_STDOUT_SIZE,
                 env=env,
             )
+
             while True:
-                print("proc: ", proc.stdout)
                 started = datetime.now(timezone.utc)
-                data = await proc.stdout.readline()  # type: ignore
-                # FIXME log returned data properly
-                # print("from deploy script:", data.decode("utf-8"))
-                if len(data) == 0:
+                data = await proc.stdout.readline()
+                if not data:
+                    break
+
+                # Check if process is still alive
+                if proc.returncode is not None:
                     break
 
                 decoded = data.decode("UTF-8")
@@ -197,6 +199,8 @@ class DeployTask(BaseSettings):
                     continue
                 step_result["started"] = started
                 await self.finish_step(step_result)
+
+            await proc.wait()
 
         # Cleanup config file after deployment
         finally:

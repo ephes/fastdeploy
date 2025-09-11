@@ -62,10 +62,10 @@ class TestSecureConfig:
         assert config_path.exists()
         assert config_path.parent == temp_dir
 
-        # Verify secure permissions (0600)
+        # Verify secure permissions (0640 for group access)
         stat_info = config_path.stat()
         mode = stat_info.st_mode & 0o777
-        assert mode == 0o600, f"Expected 0o600 permissions, got {oct(mode)}"
+        assert mode == 0o640, f"Expected 0o640 permissions, got {oct(mode)}"
 
         # Verify ownership
         assert stat_info.st_uid == os.getuid()
@@ -137,26 +137,27 @@ class TestSecureConfig:
         assert "insecure permissions" in str(exc_info.value)
         assert "0o644" in str(exc_info.value)
 
-    def test_read_deployment_config_wrong_owner(self, secure_config, temp_dir):
-        """Test that reading fails if file is not owned by current user."""
-        config_file = temp_dir / "wrong_owner.json"
+    def test_read_deployment_config_unreadable_file(self, secure_config, temp_dir):
+        """Test that reading fails if file is not readable by current user."""
+        config_file = temp_dir / "unreadable.json"
 
         # Create with correct permissions
-        fd = os.open(str(config_file), os.O_CREAT | os.O_WRONLY, 0o600)
+        fd = os.open(str(config_file), os.O_CREAT | os.O_WRONLY, 0o640)
         with os.fdopen(fd, "w") as f:
             json.dump({"key": "value"}, f)
 
-        # Mock the stat to return different uid
-        with patch.object(Path, "stat") as mock_stat:
+        # Mock the stat and os.access to simulate unreadable file
+        with patch.object(Path, "stat") as mock_stat, patch("os.access") as mock_access:
             mock_stat_result = MagicMock()
-            mock_stat_result.st_mode = 0o100600  # Regular file with 0600
+            mock_stat_result.st_mode = 0o100640  # Regular file with 0640
             mock_stat_result.st_uid = os.getuid() + 1  # Different user
             mock_stat.return_value = mock_stat_result
+            mock_access.return_value = False  # Not readable
 
             with pytest.raises(PermissionError) as exc_info:
                 secure_config.read_deployment_config(config_file)
 
-            assert "not owned by current user" in str(exc_info.value)
+            assert "not readable by current user" in str(exc_info.value)
 
     def test_read_deployment_config_file_not_found(self, secure_config, temp_dir):
         """Test that reading fails if file doesn't exist."""
@@ -330,7 +331,7 @@ class TestIntegration:
 
         # Verify creation
         assert config_path.exists()
-        assert (config_path.stat().st_mode & 0o777) == 0o600
+        assert (config_path.stat().st_mode & 0o777) == 0o640
 
         # Simulate deployment process reading config
         with patch.dict(os.environ, {"DEPLOY_CONFIG_FILE": str(config_path)}):
@@ -369,7 +370,7 @@ class TestIntegration:
         # Verify each config is isolated and secure
         for deployment_id, config_path in configs.items():
             assert config_path.exists()
-            assert (config_path.stat().st_mode & 0o777) == 0o600
+            assert (config_path.stat().st_mode & 0o777) == 0o640
 
             # Read and verify content
             data = secure_config.read_deployment_config(config_path)

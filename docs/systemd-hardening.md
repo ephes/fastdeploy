@@ -21,6 +21,46 @@ Maximum security for high-risk environments. May require additional configuratio
 - ✅ Template with hardening in `ansible/templates/deploy.macmini.service.j2`
 - ✅ Maximum hardening available in `ansible/deploy-hardened.service`
 - ✅ Ansible template for customization in `ansible/templates/fastdeploy-hardened.service.j2`
+- ✅ **Production Issue Resolved**: Deployment subprocess architecture incompatible with `NoNewPrivileges=true`
+
+## Critical Compatibility Issues Discovered
+
+### FastDeploy Subprocess Architecture Conflict (September 2025)
+
+**Issue**: FastDeploy's deployment architecture requires privilege escalation through `sudo`, which conflicts with strict systemd hardening.
+
+**Architecture**:
+```
+FastDeploy Service (fastdeploy user)
+    ↓ creates subprocess
+Deployment Process
+    ↓ sudo -u deploy
+Deploy User (deploy user)
+    ↓ executes
+Ansible/Shell Commands
+```
+
+**Root Cause**: `NoNewPrivileges=true` prevents any process from gaining additional privileges, even through legitimate tools like `sudo`. This caused deployment subprocesses to fail silently with:
+```
+"The 'no new privileges' flag is set, which prevents sudo from running as root"
+```
+
+**Resolution**: FastDeploy systemd service **must** use:
+```ini
+NoNewPrivileges=false
+PrivateTmp=false
+```
+
+**Security Implications**:
+- FastDeploy service can gain privileges through sudo (required for operation)
+- Subprocess isolation is reduced due to shared temp directory access
+- This is an architectural requirement, not a security weakness
+
+### Related Permission Issues Fixed
+
+1. **Config File Permissions**: Changed from `0o600` to `0o640` to allow group access
+2. **Cross-User File Access**: Updated validation from strict UID checking to readability verification
+3. **Temp Directory Isolation**: Moved from `/tmp` to `/var/tmp` and disabled `PrivateTmp`
 
 ## Security Features by Category
 
@@ -28,10 +68,12 @@ Maximum security for high-risk environments. May require additional configuratio
 
 #### Basic Level
 ```ini
-PrivateTmp=yes          # Isolated /tmp directory
+# PrivateTmp=false       # DISABLED for FastDeploy - subprocess needs shared temp access
 ProtectSystem=full      # /usr, /boot, /efi read-only
 ProtectHome=read-only   # Home directories read-only
 ```
+
+**⚠️ Critical Note**: FastDeploy **cannot** use `PrivateTmp=true` because deployment subprocesses need access to shared configuration files in `/var/tmp`.
 
 #### Maximum Level
 ```ini
@@ -44,10 +86,12 @@ ReadOnlyPaths=/home/deploy/site/bin /home/deploy/site/src
 
 #### All Levels
 ```ini
-NoNewPrivileges=yes     # Prevent privilege escalation
+# NoNewPrivileges=false  # REQUIRED for FastDeploy - subprocess needs sudo
 User=deploy             # Run as non-root user
 Group=deploy            # Run with non-root group
 ```
+
+**⚠️ Critical Note**: FastDeploy **cannot** use `NoNewPrivileges=true` due to its subprocess architecture requiring `sudo -u deploy` for security isolation.
 
 #### Maximum Level Additional
 ```ini
@@ -156,6 +200,42 @@ sudo systemctl restart fastdeploy
 
 ## Troubleshooting
 
+### Critical Issue: Deployments Succeed but No Steps Execute
+
+**Symptoms**:
+- Deployment shows as "SUCCEEDED" in FastDeploy UI
+- No deployment steps are created or executed
+- Database shows deployment record but no associated steps
+- No error messages in logs
+
+**Root Cause**: `NoNewPrivileges=true` silently blocks subprocess `sudo` usage
+
+**Diagnosis Steps**:
+1. **Check deployment subprocess logs**:
+   ```bash
+   journalctl -u fastdeploy -f
+   # Look for: "The 'no new privileges' flag is set, which prevents sudo from running as root"
+   ```
+
+2. **Add debug logging** to `src/deploy/tasks.py`:
+   ```python
+   # Temporary debug logging in deploy_steps()
+   print(f"DEBUG: Creating subprocess with command: {command}")
+   print(f"DEBUG: Subprocess created successfully with PID: {proc.pid}")
+   ```
+
+3. **Test subprocess manually**:
+   ```bash
+   sudo -u fastdeploy sudo -u deploy echo "test"
+   # Should work from shell but fail from systemd service
+   ```
+
+**Solution**: Update systemd service configuration:
+```ini
+NoNewPrivileges=false
+PrivateTmp=false
+```
+
 ### Common Issues and Solutions
 
 #### 1. Service Fails to Start
@@ -164,17 +244,22 @@ sudo systemctl restart fastdeploy
 systemd-analyze security fastdeploy.service
 ```
 
-#### 2. Permission Denied Errors
+#### 2. Subprocess Permission Issues (FastDeploy Specific)
+- **Config files not readable by deploy user**: Change permissions to `0o640`
+- **PrivateTmp isolation**: Disable `PrivateTmp` and use `/var/tmp` for config files
+- **Sudo blocking**: Ensure `NoNewPrivileges=false` for deployment subprocess architecture
+
+#### 3. Permission Denied Errors
 - Check `ReadWritePaths` includes all directories the service needs to write to
 - Verify `ProtectSystem` level is appropriate
 - Consider disabling `PrivateUsers` if UID mapping issues occur
 
-#### 3. Network Connection Issues
+#### 4. Network Connection Issues
 - Remove `IPAddressDeny` restrictions
 - Check `RestrictAddressFamilies` includes needed protocols
 - Verify firewall rules aren't conflicting
 
-#### 4. Database Connection Failures
+#### 5. Database Connection Failures
 - Ensure `PrivateNetwork=no` (not set means no)
 - Check `RestrictAddressFamilies` includes AF_UNIX for local sockets
 - Verify database socket path is accessible

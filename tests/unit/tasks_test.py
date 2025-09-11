@@ -29,7 +29,7 @@ class Client:
     async def put(self, url, json=None):
         return Response({})
 
-    async def post(self, url, json={}):
+    async def post(self, url, json=None):
         if self.raise_connect_error:
             raise httpx.HTTPStatusError(
                 "connection error",
@@ -69,6 +69,7 @@ class DeployProc:
     def __init__(self, stdout_lines: list):
         self._stdout_lines = stdout_lines
         self.waited_for_connection = False
+        self.returncode = None
 
     @property
     def subprocess(self):
@@ -90,6 +91,10 @@ class DeployProc:
 
     async def sleep(self, duration):
         self.waited_for_connection = True
+
+    async def wait(self):
+        """Mock wait method for process completion."""
+        pass
 
 
 @pytest.mark.parametrize(
