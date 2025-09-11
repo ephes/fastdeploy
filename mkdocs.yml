@@ -30,6 +30,9 @@ nav:
   - Endpoints: endpoints.md
   - Authentication: auth.md
   - Command Line Interface: cli.md
+  - Deployment: deployment.md
+  - Test Dummy Service: test-dummy.md
+  - Security: systemd-hardening.md
 
 plugins:
   - render_swagger
