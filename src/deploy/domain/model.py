@@ -203,8 +203,10 @@ class Service(EventsMixin):
         # If it's an absolute path, return as-is
         if deploy_script.startswith("/"):
             return deploy_script
-        # Otherwise, treat as relative path (original behavior for backward compatibility)
-        deploy_script = deploy_script.replace("/", "")
+        # If it already contains the service name prefix, return as-is
+        if deploy_script.startswith(f"{self.name}/"):
+            return deploy_script
+        # Otherwise, prepend service name for backward compatibility
         return f"{self.name}/{deploy_script}"
 
 

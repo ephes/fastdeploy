@@ -54,6 +54,7 @@ async def deploy_service(api_url: str, token: str, dry_run: bool = False) -> dic
     """Deploy a service using service token."""
     async with httpx.AsyncClient() as client:
         request_body = {"env": {}}
+        # Note: dry_run parameter available but not currently used by API
 
         response = await client.post(
             f"{api_url}/deployments/",
@@ -165,6 +166,7 @@ def get_password_from_1password(username: str) -> str | None:
     """Get password from 1Password CLI for fastdeploy entry."""
     try:
         # Try to get password from 1Password CLI
+        # Note: username parameter available for future user-specific entries
         result = subprocess.run(
             ["op", "item", "get", "fastdeploy", "--field", "password", "--format", "json"],
             capture_output=True,
