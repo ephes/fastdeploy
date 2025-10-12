@@ -2,6 +2,10 @@
 
 A deployment automation platform that enables both technical and non-technical users to deploy web applications via API or web interface. Features real-time deployment monitoring through WebSockets and manages infrastructure using Ansible playbooks.
 
+## 📚 Full Documentation
+
+**[Read the full documentation on Read the Docs](https://fastdeploy-ephes.readthedocs.io/en/latest/)**
+
 ## Requirements
 
 - Python 3.10+ (fully compatible with Python 3.13)
@@ -148,8 +152,6 @@ just pre-commit          # Run hooks on all files
 ```
 
 ## Documentation
-
-Documentation is available at [https://fastdeploy-ephes.readthedocs.io/](https://fastdeploy-ephes.readthedocs.io/en/latest/)
 
 This project uses [mkdocs.org](https://www.mkdocs.org) with [material theme](https://squidfunk.github.io/mkdocs-material/) for documentation.
 
