@@ -13,17 +13,17 @@
   "dependencies": {
     "mande": "^2.0.9",
     "pinia": "^3.0.3",
-    "uuid": "^11.1.0",
+    "uuid": "^13",
     "vue": "^3.5.12",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
-    "@types/node": "^22.18.0",
+    "@types/node": "^24",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vitest/ui": "^3.2.4",
     "@vue/test-utils": "^2.4.6",
-    "happy-dom": "^18.0.1",
+    "happy-dom": "^20",
     "typescript": "^5.9.2",
     "vite": "^7.1.4",
     "vitest": "^3.2.4",
