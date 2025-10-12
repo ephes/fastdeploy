@@ -76,7 +76,7 @@ DATABASE_URL=postgresql+asyncpg:///deploy
 # Deployment configuration
 SUDO_USER=deploy  # User to run deployment scripts as (default: jochen)
 
-# API configuration  
+# API configuration
 API_URL=http://localhost:8000
 ```
 
@@ -148,6 +148,8 @@ just pre-commit          # Run hooks on all files
 ```
 
 ## Documentation
+
+Documentation is available at [https://fastdeploy-ephes.readthedocs.io/](https://fastdeploy-ephes.readthedocs.io/en/latest/)
 
 This project uses [mkdocs.org](https://www.mkdocs.org) with [material theme](https://squidfunk.github.io/mkdocs-material/) for documentation.
 
