@@ -14,20 +14,19 @@
     "mande": "^2.0.9",
     "pinia": "^3.0.3",
     "uuid": "^13",
-    "vue": "^3.5.12",
-    "vue-router": "^4.5.1"
+    "vue": "^3.5.22",
+    "vue-router": "^4.6.3"
   },
   "devDependencies": {
-    "@types/node": "^24",
-    "@types/uuid": "^10.0.0",
+    "@types/node": "^24.9.2",
     "@vitejs/plugin-vue": "^6.0.1",
-    "@vitest/ui": "^3.2.4",
+    "@vitest/ui": "^4.0.6",
     "@vue/test-utils": "^2.4.6",
-    "happy-dom": "^20",
-    "typescript": "^5.9.2",
-    "vite": "^7.1.4",
-    "vitest": "^3.2.4",
-    "vue-tsc": "^3.0.6"
+    "happy-dom": "^20.0.10",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12",
+    "vitest": "^4.0.6",
+    "vue-tsc": "^3.1.2"
   },
   "prettier": {
     "vueIndentScriptAndStyle": true
