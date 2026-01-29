@@ -66,8 +66,10 @@ class DeployProc:
     PIPE = None
     STDOUT = None
 
-    def __init__(self, stdout_lines: list):
+    def __init__(self, stdout_lines: list, exit_after_line: int | None = None):
         self._stdout_lines = stdout_lines
+        self._lines_read = 0
+        self._exit_after_line = exit_after_line
         self.waited_for_connection = False
         self.returncode = None
 
@@ -85,6 +87,10 @@ class DeployProc:
     async def readline(self):
         if (line := self._stdout_lines.pop(0)) is None:
             return ""
+        self._lines_read += 1
+        # Simulate process exiting while buffered data remains
+        if self._exit_after_line is not None and self._lines_read >= self._exit_after_line:
+            self.returncode = 0
         if line == "decodeerror":
             return line.encode("utf8")
         return json.dumps(line).encode("utf8")
@@ -140,3 +146,31 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_posted, tas
         base_step = {field: step[field] for field in ["id", "name"]}
         post_calls.append(base_step)
     assert post_calls == steps_posted
+
+
+async def test_deploy_steps_drains_stdout_after_process_exits(task):
+    """
+    Regression test: ensure all buffered stdout is processed even when
+    the subprocess exits quickly.
+
+    This tests the fix for a race condition where the loop checked
+    proc.returncode after readline() but before processing the data,
+    causing output to be discarded when the process exited while
+    buffered data remained in stdout.
+    """
+    stdout_lines = [
+        {"name": "step1", "state": "running"},
+        {"name": "step2", "state": "running"},
+        {"name": "step3", "state": "running"},
+        {"name": "step4", "state": "success"},
+        None,  # EOF sentinel
+    ]
+    # Process exits after reading line 1, but lines 2-4 are still buffered
+    mock_proc = DeployProc(stdout_lines, exit_after_line=1)
+
+    with patch("deploy.tasks.asyncio", new=mock_proc):
+        await task.deploy_steps()
+
+    # All 4 steps should be posted, not just the first one
+    posted_names = [step["name"] for step in task.client.post_calls]
+    assert posted_names == ["step1", "step2", "step3", "step4"]
