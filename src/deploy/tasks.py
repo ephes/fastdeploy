@@ -182,9 +182,10 @@ class DeployTask(BaseSettings):
                 if not data:
                     break
 
-                # Check if process is still alive
-                if proc.returncode is not None:
-                    break
+                # Note: Do NOT check proc.returncode here. The process may have
+                # exited but there can still be buffered data in stdout. The loop
+                # will exit when readline() returns empty data (EOF), which only
+                # happens after all buffered output has been read.
 
                 decoded = data.decode("UTF-8")
                 try:
