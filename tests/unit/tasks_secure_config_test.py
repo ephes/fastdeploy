@@ -6,6 +6,7 @@ Tests for tasks.py using secure configuration files instead of environment varia
 import json
 import os
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,6 +36,7 @@ class TestGetDeployEnvironmentSecure:
             mock_settings.steps_url = "https://api/steps"
             mock_settings.deployment_finish_url = "https://api/finish"
             mock_settings.path_for_deploy = "/usr/bin:/bin"
+            mock_settings.deployment_access_token_expire_minutes = 480
 
             result = get_deploy_environment(deployment, deploy_script)
 
@@ -45,6 +47,26 @@ class TestGetDeployEnvironmentSecure:
         assert "DEPLOYMENT_FINISH_URL" in result
         assert "CONTEXT" in result
         assert "PATH_FOR_DEPLOY" in result
+
+    def test_get_deploy_environment_uses_configured_deployment_token_ttl(self):
+        deployment = Deployment(
+            id="test-ttl", service_id=1, origin="test", user="testuser", context={"env": {"KEY": "value"}}
+        )
+
+        with patch("deploy.tasks.settings") as mock_settings:
+            mock_settings.steps_url = "https://api/steps"
+            mock_settings.deployment_finish_url = "https://api/finish"
+            mock_settings.path_for_deploy = "/usr/bin:/bin"
+            mock_settings.deployment_access_token_expire_minutes = 480
+
+            with patch("deploy.tasks.create_access_token") as mock_create_access_token:
+                mock_create_access_token.return_value = "token"
+                get_deploy_environment(deployment, "/path/to/deploy.sh")
+
+        mock_create_access_token.assert_called_once_with(
+            payload={"type": "deployment", "deployment": "test-ttl"},
+            expires_delta=timedelta(minutes=480),
+        )
 
     def test_no_sensitive_data_in_environment(self):
         """Test that sensitive data is not added to os.environ."""
@@ -58,6 +80,7 @@ class TestGetDeployEnvironmentSecure:
             mock_settings.steps_url = "https://api/steps"
             mock_settings.deployment_finish_url = "https://api/finish"
             mock_settings.path_for_deploy = "/usr/bin"
+            mock_settings.deployment_access_token_expire_minutes = 480
 
             get_deploy_environment(deployment, "/deploy.sh")
 

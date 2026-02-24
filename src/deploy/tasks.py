@@ -65,7 +65,10 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
         "type": "deployment",
         "deployment": deployment.id,
     }
-    access_token = create_access_token(payload=payload, expires_delta=timedelta(minutes=30))
+    access_token = create_access_token(
+        payload=payload,
+        expires_delta=timedelta(minutes=settings.deployment_access_token_expire_minutes),
+    )
     environment = {
         "ACCESS_TOKEN": access_token,
         "DEPLOY_SCRIPT": deploy_script,
