@@ -66,12 +66,17 @@ class DeployProc:
     PIPE = None
     STDOUT = None
 
-    def __init__(self, stdout_lines: list, exit_after_line: int | None = None):
+    def __init__(
+        self,
+        stdout_lines: list,
+        returncode: int = 0,
+        exit_after_line: int | None = None,
+    ):
         self._stdout_lines = stdout_lines
         self._lines_read = 0
         self._exit_after_line = exit_after_line
         self.waited_for_connection = False
-        self.returncode = None
+        self.returncode = returncode
 
     @property
     def subprocess(self):
@@ -100,7 +105,7 @@ class DeployProc:
 
     async def wait(self):
         """Mock wait method for process completion."""
-        pass
+        return self.returncode
 
 
 @pytest.mark.parametrize(
@@ -146,6 +151,12 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_posted, tas
         base_step = {field: step[field] for field in ["id", "name"]}
         post_calls.append(base_step)
     assert post_calls == steps_posted
+async def test_task_run_deploy_marks_failure_on_nonzero_exit(task):
+    with patch("deploy.tasks.asyncio", new=DeployProc([None], returncode=126)):
+        with pytest.raises(RuntimeError, match="deploy script exited with code 126"):
+            await task.run_deploy()
+
+    assert any(step["name"] == "failed step" for step in task.client.post_calls)
 
 
 async def test_deploy_steps_drains_stdout_after_process_exits(task):

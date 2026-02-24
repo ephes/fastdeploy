@@ -201,6 +201,7 @@ class TestDeployTaskSecure:
 
         mock_proc = AsyncMock()
         mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.wait = AsyncMock(return_value=0)
 
         with patch("deploy.tasks.settings") as mock_settings:
             mock_settings.sudo_user = "deploy"
@@ -236,6 +237,7 @@ class TestDeployTaskSecure:
 
         mock_proc = AsyncMock()
         mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.wait = AsyncMock(return_value=0)
 
         config_file_path = None
 
@@ -319,6 +321,7 @@ class TestSecurityVerification:
         """Verify sudo is called without --preserve-env."""
         mock_proc = AsyncMock()
         mock_proc.stdout.readline = AsyncMock(return_value=b"")
+        mock_proc.wait = AsyncMock(return_value=0)
         mock_create_subprocess.return_value = mock_proc
 
         task = DeployTask(

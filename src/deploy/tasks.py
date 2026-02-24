@@ -203,7 +203,9 @@ class DeployTask(BaseSettings):
                 step_result["started"] = started
                 await self.finish_step(step_result)
 
-            await proc.wait()
+            return_code = await proc.wait()
+            if return_code != 0:
+                raise RuntimeError(f"deploy script exited with code {return_code}")
 
         # Cleanup config file after deployment
         finally:
