@@ -185,10 +185,9 @@ class DeployTask(BaseSettings):
                 if not data:
                     break
 
-                # Note: Do NOT check proc.returncode here. The process may have
-                # exited but there can still be buffered data in stdout. The loop
-                # will exit when readline() returns empty data (EOF), which only
-                # happens after all buffered output has been read.
+                # Do NOT check proc.returncode here. The process may have exited
+                # but still have buffered stdout data that must be processed.
+                # readline() returns empty only after all buffered output is read.
 
                 decoded = data.decode("UTF-8")
                 try:
