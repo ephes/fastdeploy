@@ -36,7 +36,7 @@ async def test_get_deployments_happy(app, deployment_in_db, valid_access_token_i
 
 @pytest.mark.db("in_memory")
 async def test_get_deployments_reconciles_orphaned_unfinished(app, uow, service_in_db, valid_access_token_in_db):
-    started = datetime.now(timezone.utc)
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
     async with uow:
         deployment = model.Deployment(
             service_id=service_in_db.id,
@@ -76,7 +76,7 @@ async def test_get_deployments_reconciles_orphaned_unfinished(app, uow, service_
 
 @pytest.mark.db("in_memory")
 async def test_get_deployments_does_not_reconcile_running(app, uow, service_in_db, valid_access_token_in_db):
-    started = datetime.now(timezone.utc)
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
     async with uow:
         deployment = model.Deployment(
             service_id=service_in_db.id,
@@ -170,7 +170,7 @@ async def test_get_deployment_details_happy(app, uow, service, valid_service_tok
 async def test_get_deployment_details_reconciles_orphaned_unfinished(
     app, uow, service_in_db, valid_service_token_in_db
 ):
-    started = datetime.now(timezone.utc)
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
     async with uow:
         deployment = model.Deployment(
             service_id=service_in_db.id,
@@ -205,6 +205,87 @@ async def test_get_deployment_details_reconciles_orphaned_unfinished(
         [updated] = await uow.deployments.get(deployment.id)
     assert updated.finished is not None
 
+
+@pytest.mark.db("in_memory")
+async def test_get_deployment_details_does_not_reconcile_brand_new_without_steps(
+    app, uow, service_in_db, valid_service_token_in_db
+):
+    started = datetime.now(timezone.utc)
+    async with uow:
+        deployment = model.Deployment(
+            service_id=service_in_db.id,
+            origin="frontend",
+            user="asdf",
+            started=started,
+            finished=None,
+        )
+        await uow.deployments.add(deployment)
+        await uow.commit()
+
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=deployment.id), headers=headers
+        )
+
+    assert response.status_code == 200
+    assert response.json()["finished"] is None
+
+
+@pytest.mark.db("in_memory")
+async def test_get_deployments_does_not_reconcile_brand_new_without_steps(
+    app, uow, service_in_db, valid_access_token_in_db
+):
+    started = datetime.now(timezone.utc)
+    async with uow:
+        deployment = model.Deployment(
+            service_id=service_in_db.id,
+            origin="frontend",
+            user="asdf",
+            started=started,
+            finished=None,
+        )
+        await uow.deployments.add(deployment)
+        await uow.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployments"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 200
+    deployments = response.json()
+    fresh = next(d for d in deployments if d["id"] == deployment.id)
+    assert fresh["finished"] is None
+
+
+@pytest.mark.db("in_memory")
+async def test_get_deployments_reconciles_old_without_steps(
+    app, uow, service_in_db, valid_access_token_in_db
+):
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
+    async with uow:
+        deployment = model.Deployment(
+            service_id=service_in_db.id,
+            origin="frontend",
+            user="asdf",
+            started=started,
+            finished=None,
+        )
+        await uow.deployments.add(deployment)
+        await uow.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployments"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 200
+    deployments = response.json()
+    reconciled = next(d for d in deployments if d["id"] == deployment.id)
+    assert reconciled["finished"] is not None
 
 # test finish_deployment endpoint
 

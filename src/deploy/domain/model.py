@@ -364,6 +364,9 @@ class Deployment(EventsMixin):
         Set finished timestamp, record finished event and
         return all steps that have to be removed.
         """
+        if self.finished is not None:
+            return []
+
         self.finished = datetime.now(timezone.utc)
         self.record(events_module.DeploymentFinished)
 

@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     token_sign_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     deployment_access_token_expire_minutes: int = 480
+    deployment_orphan_reconcile_delay_seconds: int = 300
     database_url: str = "postgresql+asyncpg:///deploy"
     db_engine: typing.Any = None
     secret_key: str = Field(...)

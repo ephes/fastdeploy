@@ -53,6 +53,27 @@ async def test_deployment_process_known_running_step(deployment):
     assert [finished_step] == modified_steps
 
 
+async def test_deployment_finish_is_idempotent():
+    started = datetime.now(timezone.utc) - timedelta(days=1)
+    deployment = model.Deployment(
+        id=1,
+        service_id=1,
+        origin="GitHub",
+        user="foobar",
+        started=started,
+        finished=None,
+        steps=[model.Step(id=1, name="step-1", deployment_id=1, state="running")],
+    )
+
+    removed_once = deployment.finish()
+    finished_once = deployment.finished
+    removed_twice = deployment.finish()
+
+    assert len(removed_once) == 1
+    assert removed_twice == []
+    assert deployment.finished == finished_once
+
+
 class ModelWithEvents(model.EventsMixin):
     def model_dump(self):
         return {"id": 1, "name": "test"}
