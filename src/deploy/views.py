@@ -6,6 +6,24 @@ from .adapters.filesystem import AbstractFilesystem
 from .domain import model
 from .service_layer import unit_of_work
 
+OPEN_STEP_STATES = {"pending", "running"}
+
+
+def _normalize_repo_rows(rows):
+    """
+    Convert repository return values to plain model instances.
+
+    SQL repositories return tuples `(model,)`; in-memory repositories
+    often return model instances directly.
+    """
+    models = []
+    for row in rows:
+        if isinstance(row, tuple):
+            models.append(row[0])
+        else:
+            models.append(row)
+    return models
+
 
 async def get_user_by_name(name: str, uow: unit_of_work.AbstractUnitOfWork) -> model.User:
     async with uow:
@@ -80,7 +98,7 @@ async def get_all_deployments(uow: unit_of_work.AbstractUnitOfWork) -> list[mode
     """Get a list of all deployments in the database."""
     async with uow:
         deployments = await uow.deployments.list()
-    return [deployment for (deployment,) in deployments]
+    return _normalize_repo_rows(deployments)
 
 
 async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.AbstractUnitOfWork) -> model.Deployment:
@@ -90,6 +108,45 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
         steps = await uow.steps.get_steps_by_deployment(deployment_id)
         deployment.steps = [s for (s,) in steps]
     return deployment
+
+
+def deployment_has_open_steps(steps: list[model.Step]) -> bool:
+    """Return True if any step indicates the deployment is still active."""
+    return any(step.state in OPEN_STEP_STATES for step in steps)
+
+
+async def get_orphaned_unfinished_deployment_ids(
+    uow: unit_of_work.AbstractUnitOfWork,
+) -> list[int]:
+    """
+    Return unfinished deployments that have no running/pending steps.
+
+    These deployments are safe to reconcile by calling FinishDeployment.
+    """
+    orphaned_ids: list[int] = []
+    async with uow:
+        deployments = _normalize_repo_rows(await uow.deployments.list())
+        for deployment in deployments:
+            if deployment.id is None or deployment.finished is not None:
+                continue
+            steps = await uow.steps.get_steps_by_deployment(deployment.id)
+            deployment_steps = _normalize_repo_rows(steps)
+            if not deployment_has_open_steps(deployment_steps):
+                orphaned_ids.append(deployment.id)
+    return orphaned_ids
+
+
+async def is_orphaned_unfinished_deployment(
+    deployment_id: int,
+    uow: unit_of_work.AbstractUnitOfWork,
+) -> bool:
+    """
+    Return True if deployment is unfinished and has no running/pending steps.
+    """
+    deployment = await get_deployment_with_steps(deployment_id, uow)
+    if deployment.finished is not None:
+        return False
+    return not deployment_has_open_steps(deployment.steps)
 
 
 async def all_deployed_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.DeployedService]:

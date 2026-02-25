@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -32,6 +32,86 @@ async def test_get_deployments_happy(app, deployment_in_db, valid_access_token_i
     result = response.json()
     deployment_from_api = model.Deployment(**result[0])
     assert deployment_from_api == deployment_in_db
+
+
+@pytest.mark.db("in_memory")
+async def test_get_deployments_reconciles_orphaned_unfinished(app, uow, service_in_db, valid_access_token_in_db):
+    started = datetime.now(timezone.utc)
+    async with uow:
+        deployment = model.Deployment(
+            service_id=service_in_db.id,
+            origin="frontend",
+            user="asdf",
+            started=started,
+            finished=None,
+        )
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        step = model.Step(
+            name="finished step",
+            deployment_id=deployment.id,
+            state="success",
+            started=started,
+            finished=started,
+            message="ok",
+        )
+        await uow.steps.add(step)
+        await uow.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployments"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 200
+    deployments = response.json()
+    reconciled = next(d for d in deployments if d["id"] == deployment.id)
+    assert reconciled["finished"] is not None
+
+    async with uow:
+        [updated] = await uow.deployments.get(deployment.id)
+    assert updated.finished is not None
+
+
+@pytest.mark.db("in_memory")
+async def test_get_deployments_does_not_reconcile_running(app, uow, service_in_db, valid_access_token_in_db):
+    started = datetime.now(timezone.utc)
+    async with uow:
+        deployment = model.Deployment(
+            service_id=service_in_db.id,
+            origin="frontend",
+            user="asdf",
+            started=started,
+            finished=None,
+        )
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        step = model.Step(
+            name="running step",
+            deployment_id=deployment.id,
+            state="running",
+            started=started,
+            finished=None,
+            message="",
+        )
+        await uow.steps.add(step)
+        await uow.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployments"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 200
+    deployments = response.json()
+    running = next(d for d in deployments if d["id"] == deployment.id)
+    assert running["finished"] is None
+
+    async with uow:
+        [updated] = await uow.deployments.get(deployment.id)
+    assert updated.finished is None
 
 
 # test get_deployment_details endpoint
@@ -84,6 +164,46 @@ async def test_get_deployment_details_happy(app, uow, service, valid_service_tok
     assert response.status_code == 200
     data = response.json()
     assert len(data["steps"]) > 0
+
+
+@pytest.mark.db("in_memory")
+async def test_get_deployment_details_reconciles_orphaned_unfinished(
+    app, uow, service_in_db, valid_service_token_in_db
+):
+    started = datetime.now(timezone.utc)
+    async with uow:
+        deployment = model.Deployment(
+            service_id=service_in_db.id,
+            origin="frontend",
+            user="asdf",
+            started=started,
+            finished=None,
+        )
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        step = model.Step(
+            name="finished step",
+            deployment_id=deployment.id,
+            state="success",
+            started=started,
+            finished=started,
+            message="ok",
+        )
+        await uow.steps.add(step)
+        await uow.commit()
+
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=deployment.id), headers=headers
+        )
+
+    assert response.status_code == 200
+    assert response.json()["finished"] is not None
+
+    async with uow:
+        [updated] = await uow.deployments.get(deployment.id)
+    assert updated.finished is not None
 
 
 # test finish_deployment endpoint

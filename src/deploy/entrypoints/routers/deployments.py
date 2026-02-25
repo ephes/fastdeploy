@@ -22,11 +22,27 @@ router = APIRouter(
 )
 
 
+async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = None) -> None:
+    """
+    Reconcile deployments stuck unfinished without active steps.
+    """
+    if deployment_id is None:
+        orphaned_ids = await views.get_orphaned_unfinished_deployment_ids(bus.uow)
+    else:
+        is_orphaned = await views.is_orphaned_unfinished_deployment(deployment_id, bus.uow)
+        orphaned_ids = [deployment_id] if is_orphaned else []
+
+    for orphaned_id in orphaned_ids:
+        cmd = commands.FinishDeployment(deployment_id=orphaned_id)
+        await bus.handle(cmd)
+
+
 @router.get("/", dependencies=[Depends(get_current_active_user)])
 async def get_deployments(bus: Bus = Depends()) -> list[Deployment]:
     """
     Get all deployments from database.
     """
+    await reconcile_orphaned_deployments(bus)
     deployments = await views.get_all_deployments(bus.uow)
     return [Deployment(**d.model_dump()) for d in deployments]
 
@@ -42,6 +58,7 @@ async def get_deployment_details(
     with a service token for the service which is associated with the deployment.
     """
     try:
+        await reconcile_orphaned_deployments(bus, deployment_id)
         deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
     except Exception as e:
         print(e)

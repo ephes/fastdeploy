@@ -243,8 +243,17 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
         super().__init__()
 
     async def _add(self, deployment):
+        if deployment.id is None:
+            self._deployments.append(deployment)
+            deployment.id = len(self._deployments)
+            return
+
+        for idx, existing in enumerate(self._deployments):
+            if existing.id == deployment.id:
+                self._deployments[idx] = deployment
+                return
+
         self._deployments.append(deployment)
-        deployment.id = len(self._deployments)
 
     async def get(self, deployment_id):
         return next((d,) for d in self._deployments if d.id == deployment_id)
