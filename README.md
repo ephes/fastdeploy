@@ -79,10 +79,13 @@ DATABASE_URL=postgresql+asyncpg:///deploy
 
 # Deployment configuration
 SUDO_USER=deploy  # User to run deployment scripts as (default: jochen)
+DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS=300  # Ignore very new deployments during orphan reconciliation
 
 # API configuration
 API_URL=http://localhost:8000
 ```
+
+`DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` adds a safety window before unfinished deployments are considered orphaned by reconciliation on read endpoints. Increase this if step creation is delayed in your environment.
 
 ### Service Configuration
 

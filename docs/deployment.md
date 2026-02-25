@@ -88,6 +88,8 @@ fastdeploy_source_path: /Users/jochen/projects/fastdeploy  # for rsync
 fastdeploy_git_repo: https://github.com/ephes/fastdeploy.git  # for git
 ```
 
+FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `300`) in its `.env`. This prevents brand-new deployments from being auto-finished before their steps are created.
+
 ## Service Registration
 
 Services are registered with FastDeploy using the `fastdeploy_register_service` role.
