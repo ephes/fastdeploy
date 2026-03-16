@@ -20,13 +20,23 @@ def _normalize_repo_rows(rows):
     SQL repositories return tuples `(model,)`; in-memory repositories
     often return model instances directly.
     """
-    models = []
-    for row in rows:
-        if isinstance(row, tuple):
-            models.append(row[0])
-        else:
-            models.append(row)
-    return models
+    return [_unwrap_repo_row(row) for row in rows]
+
+
+def _unwrap_repo_row(row):
+    """
+    Extract a mapped model from repository return values.
+
+    SQLAlchemy 2 may return `Row` wrappers for `result.one()` / `result.all()`
+    instead of plain tuples, even when the select only contains a single model.
+    """
+    if hasattr(row, "_mapping"):
+        values = tuple(row._mapping.values())
+        if len(values) == 1:
+            return values[0]
+    if isinstance(row, tuple):
+        return row[0]
+    return row
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
@@ -52,20 +62,20 @@ def deployment_is_too_new_for_reconciliation(
 
 async def get_user_by_name(name: str, uow: unit_of_work.AbstractUnitOfWork) -> model.User:
     async with uow:
-        [user] = await uow.users.get(name)
+        user = _unwrap_repo_row(await uow.users.get(name))
     return user
 
 
 async def service_by_name(name: str, uow: unit_of_work.AbstractUnitOfWork):
     async with uow:
-        service = await uow.services.get_by_name(name)
+        service = _unwrap_repo_row(await uow.services.get_by_name(name))
     return service
 
 
 async def all_synced_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.Service]:
     async with uow:
         from_db = await uow.services.list()
-    return [service for (service,) in from_db]
+    return _normalize_repo_rows(from_db)
 
 
 async def get_service_names(fs: AbstractFilesystem) -> list[str]:
@@ -90,7 +100,7 @@ async def get_steps_from_last_deployment(
     if last_successful_deployment_id is not None:
         # try to get steps from last successful deployment
         steps_from_db = await uow.steps.get_steps_by_deployment(last_successful_deployment_id)
-        steps.extend([s for (s,) in steps_from_db])
+        steps.extend(_normalize_repo_rows(steps_from_db))
     return steps
 
 
@@ -129,7 +139,7 @@ async def get_all_deployments(uow: unit_of_work.AbstractUnitOfWork) -> list[mode
 async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.AbstractUnitOfWork) -> model.Deployment:
     """Get a deployment with all steps."""
     async with uow:
-        [deployment] = await uow.deployments.get(deployment_id)
+        deployment = _unwrap_repo_row(await uow.deployments.get(deployment_id))
         steps = await uow.steps.get_steps_by_deployment(deployment_id)
         deployment.steps = _normalize_repo_rows(steps)
     return deployment
@@ -183,4 +193,4 @@ async def all_deployed_services(uow: unit_of_work.AbstractUnitOfWork) -> list[mo
     """Get a list of all deployed services."""
     async with uow:
         deployed = await uow.deployed_services.list()
-    return [dservice for (dservice,) in deployed]
+    return _normalize_repo_rows(deployed)
