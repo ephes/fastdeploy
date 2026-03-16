@@ -70,7 +70,7 @@ async def test_get_deployments_reconciles_orphaned_unfinished(app, uow, service_
     assert reconciled["finished"] is not None
 
     async with uow:
-        [updated] = await uow.deployments.get(deployment.id)
+        updated = await uow.deployments.get(deployment.id)
     assert updated.finished is not None
 
 
@@ -110,7 +110,7 @@ async def test_get_deployments_does_not_reconcile_running(app, uow, service_in_d
     assert running["finished"] is None
 
     async with uow:
-        [updated] = await uow.deployments.get(deployment.id)
+        updated = await uow.deployments.get(deployment.id)
     assert updated.finished is None
 
 
@@ -202,7 +202,7 @@ async def test_get_deployment_details_reconciles_orphaned_unfinished(
     assert response.json()["finished"] is not None
 
     async with uow:
-        [updated] = await uow.deployments.get(deployment.id)
+        updated = await uow.deployments.get(deployment.id)
     assert updated.finished is not None
 
 
@@ -398,5 +398,5 @@ async def test_deploy_service_happy(popen, app, uow, publisher, valid_service_to
 
     # make sure deployment was added to service in database
     async with uow:
-        [deployment] = await uow.deployments.get(deployment_from_api["id"])
+        deployment = await uow.deployments.get(deployment_from_api["id"])
     assert deployment.service_id == service_in_db.id

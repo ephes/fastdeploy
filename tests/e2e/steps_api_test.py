@@ -102,7 +102,7 @@ async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy
 
     # make sure step was persisted
     async with uow:
-        [[step]] = await uow.steps.list()
+        [step] = await uow.steps.list()
         assert step.name == step_result.name
 
 

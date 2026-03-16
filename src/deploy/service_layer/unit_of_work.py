@@ -153,8 +153,8 @@ class InMemoryUnitOfWork(AbstractUnitOfWork):
         self.session = DoNothingSession()
         self.services = repository.InMemoryServiceRepository()
         self.users = repository.InMemoryUserRepository()
-        self.deployments = repository.InMemoryDeploymentRepository()
         self.steps = repository.InMemoryStepRepository()
+        self.deployments = repository.InMemoryDeploymentRepository(self.steps)
         self.deployed_services = repository.InMemoryDeployedServiceRepository()
         self.committed = False
 

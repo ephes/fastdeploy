@@ -1,7 +1,6 @@
 import abc
 
 from sqlalchemy import delete, select, text
-from sqlalchemy.orm.exc import NoResultFound
 
 from ..domain import model
 
@@ -27,15 +26,15 @@ class AbstractServiceRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get(self, service_id: int) -> tuple[model.Service]:
+    async def get(self, service_id: int) -> model.Service:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get_by_name(self, name: str) -> tuple[model.Service]:
+    async def get_by_name(self, name: str) -> model.Service:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[tuple[model.Service]]:
+    async def list(self) -> list[model.Service]:
         raise NotImplementedError
 
 
@@ -47,19 +46,19 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
     async def _add(self, service: model.Service):
         self.session.add(service)
 
-    async def get(self, service_id) -> tuple[model.Service]:
+    async def get(self, service_id) -> model.Service:
         stmt = select(model.Service).where(model.Service.id == service_id)
         result = await self.session.execute(stmt)
-        return result.one()
+        return result.scalar_one()
 
-    async def get_by_name(self, name) -> tuple[model.Service]:
+    async def get_by_name(self, name) -> model.Service:
         stmt = select(model.Service).where(model.Service.name == name)
         result = await self.session.execute(stmt)
-        return result.one()
+        return result.scalar_one()
 
-    async def list(self):
+    async def list(self) -> list[model.Service]:
         result = await self.session.execute(select(model.Service))
-        return result.all()
+        return result.scalars().all()
 
     async def _delete(self, service):
         stmt = delete(model.Service).where(model.Service.id == service.id)
@@ -81,13 +80,13 @@ class InMemoryServiceRepository(AbstractServiceRepository):
             self._services[service.id - 1] = service
 
     async def get(self, service_id):
-        return next((s,) for s in self._services if s.id == service_id)
+        return next(s for s in self._services if s.id == service_id)
 
     async def get_by_name(self, name):
-        return next((s,) for s in self._services if s.name == name)
+        return next(s for s in self._services if s.name == name)
 
     async def list(self):
-        return [(s,) for s in self._services]
+        return list(self._services)
 
     async def _delete(self, service):
         self._services = [s for s in self._services if s.id != service.id]
@@ -106,11 +105,11 @@ class AbstractUserRepository(abc.ABC):
         self.seen.add(user)
 
     @abc.abstractmethod
-    async def get(self, name) -> tuple[model.User]:
+    async def get(self, name) -> model.User:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[tuple[model.User]]:
+    async def list(self) -> list[model.User]:
         raise NotImplementedError
 
 
@@ -125,11 +124,11 @@ class SqlAlchemyUserRepository(AbstractUserRepository):
     async def get(self, name):
         stmt = select(model.User).where(model.User.name == name)
         result = await self.session.execute(stmt)
-        return result.one()
+        return result.scalar_one()
 
     async def list(self):
         result = await self.session.execute(select(model.User))
-        return result.all()
+        return result.scalars().all()
 
 
 class InMemoryUserRepository(AbstractUserRepository):
@@ -142,10 +141,10 @@ class InMemoryUserRepository(AbstractUserRepository):
         user.id = len(self._users)
 
     async def get(self, name):
-        return next((u,) for u in self._users if u.name == name)
+        return next(u for u in self._users if u.name == name)
 
     async def list(self):
-        return self._users
+        return list(self._users)
 
 
 class AbstractDeploymentRepository(abc.ABC):
@@ -161,15 +160,15 @@ class AbstractDeploymentRepository(abc.ABC):
         self.seen.add(deployment)
 
     @abc.abstractmethod
-    async def get(self, deployment_id: int) -> tuple[model.Deployment]:
+    async def get(self, deployment_id: int) -> model.Deployment:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get_by_service(self, service_id: int) -> list[tuple[model.Deployment]]:
+    async def get_by_service(self, service_id: int) -> list[model.Deployment]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[tuple[model.Deployment]]:
+    async def list(self) -> list[model.Deployment]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -188,17 +187,17 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
     async def get(self, deployment_id):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
         result = await self.session.execute(stmt)
-        return result.one()
+        return result.scalar_one()
 
     async def get_by_service(self, service_id):
         stmt = select(model.Deployment).where(model.Deployment.service_id == service_id)
         result = await self.session.execute(stmt)
-        return result.all()
+        return result.scalars().all()
 
     async def list(self):
         stmt = select(model.Deployment)
         result = await self.session.execute(stmt)
-        return result.all()
+        return result.scalars().all()
 
     async def get_last_successful_deployment_id(self, service_id):
         """
@@ -224,22 +223,17 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
             group by step.deployment_id, deployment.started
             having count(step.id) > 0
             order by deployment.started desc
+            limit 1
         """
         )
         result = await self.session.execute(statement, {"service_id": service_id})
-        try:
-            # [last_successful] = result.first()
-            last_successful = result.first()
-            if last_successful is not None:
-                [last_successful] = last_successful
-            return last_successful
-        except NoResultFound:
-            return None
+        return result.scalar_one_or_none()
 
 
 class InMemoryDeploymentRepository(AbstractDeploymentRepository):
-    def __init__(self) -> None:
+    def __init__(self, step_repository=None) -> None:
         self._deployments: list[model.Deployment] = []
+        self.step_repository = step_repository
         super().__init__()
 
     async def _add(self, deployment):
@@ -256,28 +250,41 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
         self._deployments.append(deployment)
 
     async def get(self, deployment_id):
-        return next((d,) for d in self._deployments if d.id == deployment_id)
+        return next(d for d in self._deployments if d.id == deployment_id)
 
     async def get_by_service(self, service_id):
-        return [(d,) for d in self._deployments if d.service_id == service_id]
+        return [d for d in self._deployments if d.service_id == service_id]
 
     async def get_last_successful_deployment_id(self, service_id):
-        # failed_deployments = set()
-        # for step in self._steps:
-        #     if step.state != "success":
-        #         failed_deployments.add(step.deployment_id)
         last_successful = None
-        # FIXME dunno how to implement this
-        # for deployment in self.deployments:
-        #     is_for_service = deployment.service_id == service_id
-        #     is_successful = deployment.id not in failed_deployments and deployment.finished is not None
-        #     if is_successful and is_for_service:
-        #         if last_successful is None or deployment.finished > last_successful.finished:
-        #             last_successful = deployment.id
-        return last_successful
+        if self.step_repository is None:
+            return last_successful
+
+        for deployment in self._deployments:
+            if deployment.service_id != service_id or deployment.finished is None or deployment.id is None:
+                continue
+
+            steps = await self.step_repository.get_steps_by_deployment(deployment.id)
+            successful_steps = [step for step in steps if step.state == "success"]
+            failed_steps = [step for step in steps if step.state != "success"]
+            if not successful_steps or len(failed_steps) > 1:
+                continue
+
+            if last_successful is None:
+                last_successful = deployment
+                continue
+
+            if deployment.started is not None and (
+                last_successful.started is None or deployment.started > last_successful.started
+            ):
+                last_successful = deployment
+
+        if last_successful is None:
+            return None
+        return last_successful.id
 
     async def list(self):
-        return self._deployments
+        return list(self._deployments)
 
 
 class AbstractStepRepository(abc.ABC):
@@ -293,7 +300,7 @@ class AbstractStepRepository(abc.ABC):
         self.seen.add(step)
 
     @abc.abstractmethod
-    async def get(self, step_id: int) -> tuple[model.Step]:
+    async def get(self, step_id: int) -> model.Step:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -305,11 +312,11 @@ class AbstractStepRepository(abc.ABC):
         self.seen.add(step)
 
     @abc.abstractmethod
-    async def get_steps_by_deployment(self, deployment_id: int) -> list[tuple[model.Step]]:
+    async def get_steps_by_deployment(self, deployment_id: int) -> list[model.Step]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[tuple[model.Step]]:
+    async def list(self) -> list[model.Step]:
         # list has to be after get_steps_by_deployment otherwise
         # type annotation wont work, duh :/ - maybe a bug in pylance..
         raise NotImplementedError
@@ -326,12 +333,12 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
     async def get(self, step_id):
         stmt = select(model.Step).where(model.Step.id == step_id)
         result = await self.session.execute(stmt)
-        return result.one()
+        return result.scalar_one()
 
     async def list(self):
         stmt = select(model.Step)
         result = await self.session.execute(stmt)
-        return result.all()
+        return result.scalars().all()
 
     async def _delete(self, step):
         await self.session.delete(step)
@@ -339,7 +346,7 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
     async def get_steps_by_deployment(self, deployment_id):
         stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)
         result = await self.session.execute(stmt)
-        return result.all()
+        return result.scalars().all()
 
 
 class InMemoryStepRepository(AbstractStepRepository):
@@ -352,16 +359,16 @@ class InMemoryStepRepository(AbstractStepRepository):
         step.id = len(self._steps)
 
     async def get(self, step_id):
-        return next((s,) for s in self._steps if s.id == step_id)
+        return next(s for s in self._steps if s.id == step_id)
 
     async def list(self):
-        return [(s,) for s in self._steps]
+        return list(self._steps)
 
     async def _delete(self, step):
         self._steps.remove(step)
 
     async def get_steps_by_deployment(self, deployment_id):
-        return ((s,) for s in self._steps if s.deployment_id == deployment_id)
+        return [s for s in self._steps if s.deployment_id == deployment_id]
 
 
 class AbstractDeployedServiceRepository(abc.ABC):
@@ -381,7 +388,7 @@ class AbstractDeployedServiceRepository(abc.ABC):
     #     raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[tuple[model.DeployedService]]:
+    async def list(self) -> list[model.DeployedService]:
         raise NotImplementedError
 
 
@@ -397,7 +404,7 @@ class SqlAlchemyDeployedServiceRepository(AbstractDeployedServiceRepository):
     async def list(self):
         stmt = select(model.DeployedService)
         result = await self.session.execute(stmt)
-        return result.all()
+        return result.scalars().all()
 
 
 class InMemoryDeployedServiceRepository(AbstractDeployedServiceRepository):
@@ -410,4 +417,4 @@ class InMemoryDeployedServiceRepository(AbstractDeployedServiceRepository):
         deployed_service.id = len(self._deployed_services)
 
     async def list(self):
-        return [(d,) for d in self._deployed_services]
+        return list(self._deployed_services)

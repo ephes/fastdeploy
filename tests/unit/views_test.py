@@ -62,11 +62,6 @@ async def test_get_steps_to_do_from_service_steps_from_last_deployment(uow, serv
     assert steps[0].name == "step from database"
 
 
-class FakeRow:
-    def __init__(self, value):
-        self._mapping = {"value": value}
-
-
 class FakeRepo:
     def __init__(self, get_result=None, list_result=None):
         self._get_result = get_result
@@ -84,8 +79,8 @@ class FakeRepo:
 
 class FakeUow:
     def __init__(self, deployment, steps):
-        self.deployments = FakeRepo(get_result=FakeRow(deployment))
-        self.steps = FakeRepo(list_result=[FakeRow(step) for step in steps])
+        self.deployments = FakeRepo(get_result=deployment)
+        self.steps = FakeRepo(list_result=steps)
         self.services = FakeRepo(list_result=[])
         self.deployed_services = FakeRepo(list_result=[])
 
@@ -96,7 +91,7 @@ class FakeUow:
         return None
 
 
-async def test_get_deployment_with_steps_unwraps_sqlalchemy_style_rows():
+async def test_get_deployment_with_steps_returns_plain_models_from_repository():
     deployment = model.Deployment(
         id=1,
         service_id=1,
@@ -126,12 +121,3 @@ async def test_get_deployment_with_steps_unwraps_sqlalchemy_style_rows():
     )
     assert {step.name for step in modified_steps} == {"init", "backup"}
     assert next(step for step in modified_steps if step.name == "backup").state == "running"
-
-
-async def test_normalize_repo_rows_unwraps_sqlalchemy_style_rows():
-    service = model.Service(id=1, name="echoport-backup", data={})
-    deployed_service = model.DeployedService(id=1, deployment_id=1, config={"foo": "bar"})
-
-    normalized = views._normalize_repo_rows([FakeRow(service), FakeRow(deployed_service)])
-
-    assert normalized == [service, deployed_service]

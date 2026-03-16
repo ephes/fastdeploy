@@ -96,7 +96,7 @@ async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
         raise ValueError("no service name")
 
     async with uow as uow:
-        [service] = await uow.services.get_by_name(servicename)
+        service = await uow.services.get_by_name(servicename)
 
     service.origin = payload.get("origin", "")
     service.user = payload.get("user", "")
@@ -116,7 +116,7 @@ async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployme
         raise ValueError("no deployment id")
 
     async with uow as uow:
-        [deployment] = await uow.deployments.get(deployment_id)
+        deployment = await uow.deployments.get(deployment_id)
     return deployment
 
 

@@ -20,7 +20,7 @@ async def create_user(command: commands.CreateUser, uow: AbstractUnitOfWork):
 
 async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
     async with uow:
-        [service] = await uow.services.get(command.service_id)
+        service = await uow.services.get(command.service_id)
         await uow.services.delete(service)
         service.delete()
         await uow.commit()
@@ -69,7 +69,7 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     """
     # get the service that we are deploying from database
     async with uow:
-        [service] = await uow.services.get(command.service_id)
+        service = await uow.services.get(command.service_id)
 
     # look up the deployment steps from last deployment / service.data / default
     # and create new deployment

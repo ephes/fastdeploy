@@ -52,7 +52,7 @@ async def test_sync_services_integration(bus, uow, service_in_fs, service_in_db)
     cmd = commands.SyncServices()
     await bus.handle(cmd)
     async with uow:
-        [[service]] = await uow.services.list()
+        [service] = await uow.services.list()
 
     # make sure service_in_db is deleted
     assert service.name != service_in_db.name

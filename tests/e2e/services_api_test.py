@@ -101,7 +101,7 @@ async def test_delete_service_happy(app, service_in_db, valid_access_token_in_db
     # make sure service_in_db is not in db anymore
     async with uow as uow:
         with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
-            [service] = await uow.services.get(service_in_db.id)
+            await uow.services.get(service_in_db.id)
 
     # FIXME: make sure deployments for this service are also removed
     # maybe just listen to the service delete event and run cleanup
@@ -137,5 +137,5 @@ async def test_sync_services_happy(app, uow, valid_access_token_in_db, service_i
     result = response.json()
     assert result == {"detail": "Services synced"}
     async with uow:
-        [service] = await uow.services.get_by_name(service_in_fs.name)
+        service = await uow.services.get_by_name(service_in_fs.name)
     assert service.name == service_in_fs.name
