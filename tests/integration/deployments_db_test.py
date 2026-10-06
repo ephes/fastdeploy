@@ -173,7 +173,7 @@ def catchall_handler(bus):
     class CatchallHandler:
         def __init__(self):
             self.events: list[events.Event] = []
-            for event_type, handlers in bus.event_handlers.items():
+            for handlers in bus.event_handlers.values():
                 handlers.append(self)
 
         async def __call__(self, event: events.Event):
@@ -234,8 +234,7 @@ async def test_what_happens_to_first_unknown_step(popen, bus, service_in_db, cat
 
     unknown_deleted_event = None
     for event in catchall_handler.events:
-        if isinstance(event, events.StepDeleted):
-            if unknown_step.name == event.name:
-                unknown_deleted_event = event
-                break
+        if isinstance(event, events.StepDeleted) and unknown_step.name == event.name:
+            unknown_deleted_event = event
+            break
     assert unknown_deleted_event is not None

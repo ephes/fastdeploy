@@ -102,8 +102,6 @@ class TestRunDeploySecure:
         mock_secure_config.create_deployment_config.return_value = mock_config_path
         mock_secure_config_class.return_value = mock_secure_config
 
-        deployment = Deployment(id="test-789", service_id=1, origin="test", user="testuser", context={"app": "myapp"})
-
         environment = {
             "ACCESS_TOKEN": "secret-token",
             "DEPLOY_SCRIPT": "/deploy.sh",
@@ -162,30 +160,32 @@ class TestDeployTaskSecure:
     @pytest.mark.asyncio
     async def test_deploy_task_reads_from_config_file(self, secure_config_file):
         """Test that DeployTask can read configuration from secure file."""
-        with patch.dict(os.environ, {"DEPLOY_CONFIG_FILE": str(secure_config_file)}):
-            with patch("deploy.tasks.get_config_from_env") as mock_get_config:
-                mock_get_config.return_value = {
-                    "access_token": "test-token",
-                    "deploy_script": "/test/deploy.sh",
-                    "steps_url": "https://api/steps",
-                    "deployment_finish_url": "https://api/finish",
-                    "context": {"env": {"TEST": "value"}},
-                    "path_for_deploy": "/usr/bin:/bin",
-                }
+        with (
+            patch.dict(os.environ, {"DEPLOY_CONFIG_FILE": str(secure_config_file)}),
+            patch("deploy.tasks.get_config_from_env") as mock_get_config,
+        ):
+            mock_get_config.return_value = {
+                "access_token": "test-token",
+                "deploy_script": "/test/deploy.sh",
+                "steps_url": "https://api/steps",
+                "deployment_finish_url": "https://api/finish",
+                "context": {"env": {"TEST": "value"}},
+                "path_for_deploy": "/usr/bin:/bin",
+            }
 
-                # Create DeployTask from config
-                task = DeployTask(
-                    deploy_script="/test/deploy.sh",
-                    access_token="test-token",
-                    steps_url="https://api/steps",
-                    deployment_finish_url="https://api/finish",
-                    context=DeploymentContext(env={"TEST": "value"}),
-                    path_for_deploy="/usr/bin:/bin",
-                )
+            # Create DeployTask from config
+            task = DeployTask(
+                deploy_script="/test/deploy.sh",
+                access_token="test-token",
+                steps_url="https://api/steps",
+                deployment_finish_url="https://api/finish",
+                context=DeploymentContext(env={"TEST": "value"}),
+                path_for_deploy="/usr/bin:/bin",
+            )
 
-                assert task.access_token == "test-token"
-                assert task.deploy_script == "/test/deploy.sh"
-                assert task.context.env == {"TEST": "value"}
+            assert task.access_token == "test-token"
+            assert task.deploy_script == "/test/deploy.sh"
+            assert task.context.env == {"TEST": "value"}
 
     @pytest.mark.asyncio
     async def test_deploy_steps_no_preserve_env(self):
@@ -290,30 +290,32 @@ class TestSecurityVerification:
 
     def test_no_secrets_in_process_args(self):
         """Verify secrets don't appear in process arguments."""
-        with patch("deploy.tasks.subprocess.Popen") as mock_popen:
-            with patch("deploy.tasks.SecureConfig") as mock_secure_config_class:
-                mock_secure_config = MagicMock()
-                mock_secure_config.create_deployment_config.return_value = Path("/tmp/config.json")
-                mock_secure_config_class.return_value = mock_secure_config
+        with (
+            patch("deploy.tasks.subprocess.Popen") as mock_popen,
+            patch("deploy.tasks.SecureConfig") as mock_secure_config_class,
+        ):
+            mock_secure_config = MagicMock()
+            mock_secure_config.create_deployment_config.return_value = Path("/tmp/config.json")
+            mock_secure_config_class.return_value = mock_secure_config
 
-                environment = {
-                    "ACCESS_TOKEN": "super-secret-token",
-                    "CONTEXT": '{"password": "secret123"}',
-                }
+            environment = {
+                "ACCESS_TOKEN": "super-secret-token",
+                "CONTEXT": '{"password": "secret123"}',
+            }
 
-                run_deploy(environment)
+            run_deploy(environment)
 
-                # Check subprocess arguments
-                call_args = mock_popen.call_args[0][0]  # Command list
-                call_env = mock_popen.call_args[1]["env"]
+            # Check subprocess arguments
+            call_args = mock_popen.call_args[0][0]  # Command list
+            call_env = mock_popen.call_args[1]["env"]
 
-                # Secrets should not be in command arguments
-                assert "super-secret-token" not in str(call_args)
-                assert "secret123" not in str(call_args)
+            # Secrets should not be in command arguments
+            assert "super-secret-token" not in str(call_args)
+            assert "secret123" not in str(call_args)
 
-                # Secrets should not be in environment
-                assert "super-secret-token" not in str(call_env.values())
-                assert "secret123" not in str(call_env.values())
+            # Secrets should not be in environment
+            assert "super-secret-token" not in str(call_env.values())
+            assert "secret123" not in str(call_env.values())
 
     @pytest.mark.asyncio
     @patch("deploy.tasks.asyncio.create_subprocess_shell")

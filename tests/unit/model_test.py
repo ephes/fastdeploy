@@ -108,3 +108,20 @@ async def test_events_mixin_events_are_consumable_by_unit_of_work():
 
     uow = Uow()
     assert list(uow.collect_new_events()) == [events.UserCreated(**ModelWithEvents().model_dump())]
+
+
+async def test_default_containers_are_not_shared_between_instances():
+    first = model.Deployment(service_id=1, origin="GitHub", user="foobar")
+    second = model.Deployment(service_id=1, origin="GitHub", user="foobar")
+    first.steps.append(model.Step(name="step"))
+    first.context["key"] = "value"
+    assert second.steps == []
+    assert second.context == {}
+
+    first_service, second_service = model.Service(name="a"), model.Service(name="b")
+    first_service.data["key"] = "value"
+    assert second_service.data == {}
+
+    first_deployed, second_deployed = model.DeployedService(deployment_id=1), model.DeployedService(deployment_id=2)
+    first_deployed.config["key"] = "value"
+    assert second_deployed.config == {}

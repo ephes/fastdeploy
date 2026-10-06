@@ -19,7 +19,7 @@ async def bootstrap(
     start_orm: bool = True,
     uow: unit_of_work.AbstractUnitOfWork | None = None,
     connection_manager: Any = connection_manager,
-    fs: filesystem.AbstractFilesystem = filesystem.Filesystem(settings.services_root),
+    fs: filesystem.AbstractFilesystem = filesystem.Filesystem(settings.services_root),  # noqa: B008 -- import-time default is intended, callers/tests override it
     notifications: AbstractNotifications | None = None,
     publish: Callable | None = None,
     create_db_and_tables: bool = True,

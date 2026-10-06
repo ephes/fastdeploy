@@ -263,9 +263,7 @@ async def test_get_deployments_does_not_reconcile_brand_new_without_steps(
 
 
 @pytest.mark.db("in_memory")
-async def test_get_deployments_reconciles_old_without_steps(
-    app, uow, service_in_db, valid_access_token_in_db
-):
+async def test_get_deployments_reconciles_old_without_steps(app, uow, service_in_db, valid_access_token_in_db):
     started = datetime.now(timezone.utc) - timedelta(minutes=10)
     async with uow:
         deployment = model.Deployment(
@@ -288,6 +286,7 @@ async def test_get_deployments_reconciles_old_without_steps(
     deployments = response.json()
     reconciled = next(d for d in deployments if d["id"] == deployment.id)
     assert reconciled["finished"] is not None
+
 
 # test finish_deployment endpoint
 

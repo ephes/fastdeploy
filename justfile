@@ -1,5 +1,8 @@
 # Justfile for fastDeploy project development
 
+# Pinned ruff version, keep in sync with .pre-commit-config.yaml
+ruff := "uvx ruff@0.14.0"
+
 # Default recipe - show available commands
 default:
     @just --list
@@ -162,15 +165,15 @@ typecheck:
 # Run linting
 lint:
     @echo "Running ruff linter..."
-    uv run ruff check src/deploy tests
+    {{ruff}} check src/deploy tests
     @echo "Running ruff formatter..."
-    uv run ruff format --check src/deploy tests
+    {{ruff}} format --check src/deploy tests
 
 # Fix linting issues
 lint-fix:
     @echo "Fixing linting issues..."
-    uv run ruff check --fix src/deploy tests
-    uv run ruff format src/deploy tests
+    {{ruff}} check --fix src/deploy tests
+    {{ruff}} format src/deploy tests
 
 # === Documentation ===
 

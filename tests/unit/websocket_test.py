@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from typing import ClassVar
 from uuid import uuid4
 
 import pytest
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.asyncio
 @pytest.fixture
 def stub_websocket():
     class StubWebsocket:
-        sent = []
+        sent: ClassVar[list] = []
         has_accepted = False
 
         async def send_json(self, message):

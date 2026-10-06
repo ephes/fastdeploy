@@ -28,7 +28,7 @@ async def process_step_result(
         await bus.handle(cmd)
     except Exception as e:
         print(e)
-        raise HTTPException(status_code=400, detail="Something went wrong")
+        raise HTTPException(status_code=400, detail="Something went wrong") from e
     return {"detail": "step processed"}
 
 

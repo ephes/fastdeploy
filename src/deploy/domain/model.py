@@ -97,7 +97,7 @@ class Step(EventsMixin):
     deployment_id: int | None
 
     def __init__(
-        self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None, **kwargs
+        self, *, id=None, name, started=None, finished=None, state="pending", message="", deployment_id=None, **_kwargs
     ):
         self.id = id
         self.name = name
@@ -170,10 +170,10 @@ class Service(EventsMixin):
     user: str = ""  # str instead of fk because of transport via service token
     origin: str = ""
 
-    def __init__(self, *, id=None, name: str = "", data={}):
+    def __init__(self, *, id=None, name: str = "", data: dict | None = None):
         self.id = id
         self.name = name
-        self.data = data
+        self.data = data if data is not None else {}
 
     def __repr__(self):
         return f"Service(id={self.id}, name={self.name})"
@@ -249,8 +249,8 @@ class Deployment(EventsMixin):
         user: str,
         started: datetime | None = None,
         finished: datetime | None = None,
-        context: dict = {},
-        steps: list[Step] = [],
+        context: dict | None = None,
+        steps: list[Step] | None = None,
     ):
         self.id = id
         self.service_id = service_id
@@ -258,8 +258,8 @@ class Deployment(EventsMixin):
         self.user = user
         self.started = started
         self.finished = finished
-        self.context = context
-        self.steps = steps
+        self.context = context if context is not None else {}
+        self.steps = steps if steps is not None else []
 
     def model_dump(self):
         if not hasattr(self, "steps"):
@@ -497,10 +497,10 @@ class DeployedService(EventsMixin):
     deployment_id: int
     config: dict
 
-    def __init__(self, *, id=None, deployment_id: int, config: dict = {}):
+    def __init__(self, *, id=None, deployment_id: int, config: dict | None = None):
         self.id = id
         self.deployment_id = deployment_id
-        self.config = config
+        self.config = config if config is not None else {}
 
     def model_dump(self):
         return {

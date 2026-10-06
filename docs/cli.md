@@ -50,7 +50,7 @@ just dev            # Start all services
 - `just typecheck` - Run mypy type checker
 
 ### Code Quality
-- `just lint` - Check code style with ruff
+- `just lint` - Check code style with ruff (pinned version run via `uvx`, matching pre-commit)
 - `just lint-fix` - Fix code style issues
 - `just pre-commit` - Run pre-commit hooks on all files
 - `just pre-commit-install` - Install pre-commit hooks

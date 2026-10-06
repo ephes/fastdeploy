@@ -157,7 +157,7 @@ mounts, so a clean checkout can run `just test-python` directly.
 # Type checking
 just typecheck            # or: uv run mypy deploy
 
-# Linting and formatting (using ruff)
+# Linting and formatting (using the pinned ruff version via uvx)
 just lint                 # Check code style
 just lint-fix            # Fix code style issues
 

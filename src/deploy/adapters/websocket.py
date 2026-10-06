@@ -187,7 +187,7 @@ class ConnectionManager:
             except Exception:  # one broken connection must not stop the broadcast
                 logger.info("broadcast to websocket client %s failed", client_id, exc_info=True)
 
-    async def publish(self, channel, event):
+    async def publish(self, channel, event):  # noqa: ARG002 -- channel is part of the publisher interface; all clients get every event
         await self.broadcast(event)
 
 

@@ -151,10 +151,14 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_posted, tas
         base_step = {field: step[field] for field in ["id", "name"]}
         post_calls.append(base_step)
     assert post_calls == steps_posted
+
+
 async def test_task_run_deploy_marks_failure_on_nonzero_exit(task):
-    with patch("deploy.tasks.asyncio", new=DeployProc([None], returncode=126)):
-        with pytest.raises(RuntimeError, match="deploy script exited with code 126"):
-            await task.run_deploy()
+    with (
+        patch("deploy.tasks.asyncio", new=DeployProc([None], returncode=126)),
+        pytest.raises(RuntimeError, match="deploy script exited with code 126"),
+    ):
+        await task.run_deploy()
 
     assert any(step["name"] == "failed step" for step in task.client.post_calls)
 

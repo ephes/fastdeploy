@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any
 
 from ..adapters import filesystem, websocket
 from ..domain import commands, events
@@ -8,7 +8,7 @@ from . import unit_of_work
 
 logger = logging.getLogger(__name__)
 
-Message = Union[commands.Command, events.Event]
+Message = commands.Command | events.Event
 
 
 class MessageBus:

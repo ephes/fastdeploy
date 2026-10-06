@@ -30,7 +30,7 @@ async def get_current_active_user(
     try:
         return await user_from_token(token, bus.uow)
     except Exception:
-        raise CREDENTIALS_EXCEPTION
+        raise CREDENTIALS_EXCEPTION from None
 
 
 async def get_current_active_service(
@@ -40,7 +40,7 @@ async def get_current_active_service(
     try:
         return await service_from_token(token, bus.uow)
     except Exception:
-        raise CREDENTIALS_EXCEPTION
+        raise CREDENTIALS_EXCEPTION from None
 
 
 async def get_current_active_deployment(
@@ -50,11 +50,11 @@ async def get_current_active_deployment(
     try:
         return await deployment_from_token(token, bus.uow)
     except Exception:
-        raise CREDENTIALS_EXCEPTION
+        raise CREDENTIALS_EXCEPTION from None
 
 
 async def get_current_config(token: str = Depends(OAUTH2_SCHEME)):
     try:
         return await config_from_token(token)
     except Exception:
-        raise CREDENTIALS_EXCEPTION
+        raise CREDENTIALS_EXCEPTION from None

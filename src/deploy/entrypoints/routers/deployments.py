@@ -62,7 +62,7 @@ async def get_deployment_details(
         deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
     except Exception as e:
         print(e)
-        raise HTTPException(status_code=404, detail="Deployment not found")
+        raise HTTPException(status_code=404, detail="Deployment not found") from e
     if service.id != deployment.service_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -88,15 +88,15 @@ async def finish_deployment(
     cmd = commands.FinishDeployment(deployment_id=deployment.id)
     try:
         await bus.handle(cmd)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Deployment not found")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Deployment not found") from e
     return {"detail": f"Deployment {deployment.id} finished"}
 
 
 @router.post("/", responses={409: {"description": "Another deployment of this service is still running"}})
 async def start_deployment(
     request: Request,
-    context: DeploymentContext = DeploymentContext(env={}),
+    context: DeploymentContext = DeploymentContext(env={}),  # noqa: B008 -- FastAPI copies body defaults per request
     service: model.Service = Depends(get_current_active_service),
     bus: Bus = Depends(),
 ) -> DeploymentWithDetailsUrl:
@@ -136,8 +136,8 @@ async def start_deployment(
                 "deployment_id": e.deployment_id,
             },
         ) from e
-    except Exception:
-        raise HTTPException(status_code=400, detail="Something went wrong")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Something went wrong") from e
 
     started_event = handle_deployment_started.event
     # convert to string because url_for returns a URL and pydantic does not like that

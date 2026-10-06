@@ -38,8 +38,8 @@ async def delete_service(service_id: int, bus: Bus = Depends()) -> dict:
     cmd = commands.DeleteService(service_id=service_id)
     try:
         await bus.handle(cmd)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Service does not exist")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="Service does not exist") from e
     return {"detail": f"Service {service_id} deleted"}
 
 

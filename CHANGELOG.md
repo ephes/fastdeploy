@@ -46,6 +46,11 @@ Unreleased
 ### Development
 - The Python test suite runs on a clean checkout without a frontend build: the test setup creates
   the git-ignored `frontend/dist` directory that the app mounts at import time.
+- `just lint` / `just lint-fix` run the pinned ruff 0.14.0 via `uvx` (same version as the
+  pre-commit hook) instead of expecting ruff in the virtualenv, and the code base is lint- and
+  format-clean. FastAPI `Depends`/`Query` defaults are whitelisted for bugbear's B008. Domain
+  models no longer share mutable default arguments (`context`, `steps`, `data`, `config`) between
+  instances, and the service cascade test now actually asserts that deployments are deleted.
 
 0.2.0 - 2025-09-01
 ==================
