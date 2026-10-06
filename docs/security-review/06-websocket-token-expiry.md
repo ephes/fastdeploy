@@ -3,6 +3,17 @@
 ## Issue Title
 **WebSocket connections are forcibly closed on JWT token expiry without graceful re-authentication mechanism**
 
+## Status (2026-10-06)
+
+**Partially addressed.** Server-side expiry handling was hardened together with the websocket
+authentication fixes: there is at most one expiry timer per connection, a successful
+re-authentication on the same connection (same user) cancels and replaces it, and disconnecting
+cancels it, so a stale timer can no longer close a re-authenticated session or a newer connection
+reusing the client id. Failed authentication now closes the connection (code `1008`) and releases
+it. **Still open:** pre-expiry warning message, grace period, client-side token refresh and
+exponential-backoff reconnect (Priorities 1.1, 2 and 3 below). The code excerpts below show the
+implementation at the time of the review.
+
 ## Issue Description
 
 The current WebSocket implementation in fastDeploy abruptly closes connections when JWT tokens expire, resulting in poor user experience and potential loss of real-time deployment monitoring during critical operations.

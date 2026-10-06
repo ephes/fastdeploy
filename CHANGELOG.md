@@ -8,6 +8,24 @@ Unreleased
   deployments of the service do not block (they are finished as part of a successful start), and deployments older than the deployment token
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
+### Security
+- Websocket authentication hardening (`/deployments/ws/{client_id}`): any failed authentication
+  (including a valid service, deployment or config token, or a token for a deleted user) now sends
+  an authentication failure and closes the connection (code `1008`) instead of leaving it
+  registered. Connection cleanup runs on every exit path, so rejected or server-closed sockets no
+  longer accumulate in memory.
+- A client id that is still connected can no longer be taken over: a second connection with the
+  same id is refused, the id is bound to the authenticated user for the connection's lifetime
+  (re-authenticating as another user closes the connection), and the "client left" broadcast no
+  longer includes the client id. Only authenticated connections receive or trigger broadcasts.
+- Each connection has at most one session expiry timer; re-authentication replaces it and
+  disconnecting cancels it, so stale timers no longer close re-authenticated sessions or a newer
+  connection reusing the id.
+
+### Development
+- The Python test suite runs on a clean checkout without a frontend build: the test setup creates
+  the git-ignored `frontend/dist` directory that the app mounts at import time.
+
 0.2.0 - 2025-09-01
 ==================
 

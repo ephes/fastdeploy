@@ -236,8 +236,11 @@ by a database row lock on the service, so exactly one of them succeeds.
 **Authentication**: Send token after connection
 
 **Connection Flow**:
-1. Connect to `ws://host/deployments/ws/<uuid>`
-2. Send authentication message:
+1. Connect to `ws://host/deployments/ws/<uuid>` with a fresh random UUID as client id. A client id
+   can only be used by one live connection: connecting with an id that is still connected is refused
+   (handshake rejected / close code `1008`) and does not affect the existing connection. The id can
+   be reused once its connection is closed.
+2. Send authentication message (a **user** access token from `POST /token`):
    ```json
    {"access_token": "<jwt_token>"}
    ```
@@ -245,7 +248,13 @@ by a database row lock on the service, so exactly one of them succeeds.
    ```json
    {"type": "authentication", "status": "success"}
    ```
-4. Receive real-time events:
+   On failure (invalid or expired token, a service/deployment/config token, or a user that no
+   longer exists) the server sends `{"type": "authentication", "status": "failure"}` and closes
+   the connection with code `1008`. Reconnect with a new token to try again.
+4. Optionally re-authenticate on the same connection by sending a new access token for the
+   **same** user; this replaces the session expiry. A token for a different user is rejected and
+   closes the connection.
+5. Receive real-time events (only authenticated connections receive broadcasts):
    ```json
    {
      "type": "step|deployment|service",

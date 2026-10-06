@@ -141,6 +141,10 @@ uv run pytest             # Python tests
 cd frontend && npm test   # Frontend tests (Vitest)
 ```
 
+The Python tests need the `deploy_test` PostgreSQL database (see above). They do not need a
+frontend build: the test setup creates the empty, git-ignored `frontend/dist` directory the app
+mounts, so a clean checkout can run `just test-python` directly.
+
 ### Code quality
 
 ```shell

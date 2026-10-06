@@ -1,4 +1,12 @@
+# ruff: noqa: E402  (frontend/dist must exist before the app is imported)
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+# The FastAPI app mounts the built frontend from "frontend/dist" (relative to
+# the working directory) at import time and refuses to start when it is
+# missing. A clean checkout has no frontend build, so create the empty
+# directory before the app is imported. It is git-ignored.
+Path("frontend/dist").mkdir(parents=True, exist_ok=True)
 
 import pytest
 import pytest_asyncio
