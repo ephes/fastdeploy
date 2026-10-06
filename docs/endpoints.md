@@ -179,6 +179,10 @@ by a database row lock on the service, so exactly one of them succeeds.
 ### GET /deployments/{deployment_id}
 **Purpose**: Get deployment details with steps
 **Authentication**: Service token required (must match deployment's service)
+**Errors**: `404 {"detail": "Deployment not found"}` both for an unknown id and for a deployment of
+another service, so the response does not reveal which ids exist. An orphaned unfinished deployment
+(no running/pending steps, older than `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS`) is finished on read,
+but only after the ownership check.
 **Response**:
 ```json
 {
@@ -228,6 +232,7 @@ by a database row lock on the service, so exactly one of them succeeds.
 **Purpose**: List steps for a deployment
 **Authentication**: User token required
 **Query Parameters**: `?deployment_id=1`
+**Errors**: `404 {"detail": "Deployment not found"}` for an unknown deployment id
 **Response**:
 ```json
 [
@@ -328,18 +333,14 @@ All endpoints may return these standard error responses:
   {"detail": "Could not validate credentials"}
   ```
 
-- **403 Forbidden**: Token lacks required permissions
-  ```json
-  {"detail": "Wrong service token"}
-  ```
-
 - **409 Conflict** (`POST /deployments/`): Another deployment of the service is still running;
   `detail.deployment_id` names it
 
 - **409 Conflict** (`POST /services/sync`): The sync would delete all or more than half of the
   services; `detail.would_delete` lists them. Retry with `force=true` if that is intended
 
-- **404 Not Found**: Resource does not exist
+- **404 Not Found**: Resource does not exist, or (`GET /deployments/{deployment_id}`) belongs to
+  another service
   ```json
   {"detail": "Service not found"}
   ```

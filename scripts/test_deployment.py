@@ -156,8 +156,8 @@ async def monitor_deployment_with_steps(api_url: str, service_token: str, deploy
                 print("❌ Authentication failed during monitoring")
                 print("Service token may have expired or be invalid")
                 return False
-            if e.response.status_code == 403:
-                print("❌ Service token doesn't have permission for this deployment")
+            if e.response.status_code == 404:
+                print("❌ Deployment not found, or the service token is for another service")
                 return False
             raise
 

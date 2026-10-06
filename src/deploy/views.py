@@ -4,6 +4,8 @@ Readonly views.
 
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import NoResultFound
+
 from .adapters.filesystem import AbstractFilesystem
 from .config import settings
 from .domain import model
@@ -113,10 +115,21 @@ async def get_all_deployments(uow: unit_of_work.AbstractUnitOfWork) -> list[mode
     return deployments
 
 
+class DeploymentNotFound(Exception):
+    """Raised when there is no deployment with the requested id."""
+
+    def __init__(self, deployment_id: int):
+        super().__init__(f"Deployment {deployment_id} not found")
+        self.deployment_id = deployment_id
+
+
 async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.AbstractUnitOfWork) -> model.Deployment:
-    """Get a deployment with all steps."""
+    """Get a deployment with all steps. Raises DeploymentNotFound for an unknown id."""
     async with uow:
-        deployment = await uow.deployments.get(deployment_id)
+        try:
+            deployment = await uow.deployments.get(deployment_id)
+        except NoResultFound as e:
+            raise DeploymentNotFound(deployment_id) from e
         deployment.steps = await uow.steps.get_steps_by_deployment(deployment_id)
     return deployment
 

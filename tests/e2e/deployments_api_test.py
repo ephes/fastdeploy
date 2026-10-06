@@ -144,8 +144,48 @@ async def test_get_deployment_details_wrong_service(app, uow, valid_service_toke
             app.url_path_for("get_deployment_details", deployment_id=deployment.id), headers=headers
         )
 
-    assert response.status_code == 403
-    assert response.json() == {"detail": "Wrong service token"}
+    # same response as for an unknown id, so foreign ids are not revealed
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Deployment not found"}
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_get_deployment_details_foreign_token_does_not_reconcile_orphan(app, uow, valid_service_token_in_db):
+    """A service token must not be able to finish an orphaned deployment of another service."""
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
+    service = model.Service(name="another service")
+    async with uow:
+        await uow.services.add(service)
+        await uow.commit()
+        assert isinstance(service.id, int)
+        deployment = model.Deployment(
+            service_id=service.id, origin="frontend", user="asdf", started=started, finished=None
+        )
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        step = model.Step(
+            name="finished step",
+            deployment_id=deployment.id,
+            state="success",
+            started=started,
+            finished=started,
+            message="ok",
+        )
+        await uow.steps.add(step)
+        await uow.commit()
+    deployment_id = deployment.id
+
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=deployment_id), headers=headers
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Deployment not found"}
+    async with uow:
+        unchanged = await uow.deployments.get(deployment_id)
+    assert unchanged.finished is None
 
 
 async def test_get_deployment_details_happy(app, uow, service, valid_service_token_in_db):

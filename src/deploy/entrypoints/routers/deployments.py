@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ... import views
@@ -15,6 +17,8 @@ from ..helper_models import (
     DeploymentWithSteps,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/deployments",
     tags=["deployments"],
@@ -22,9 +26,11 @@ router = APIRouter(
 )
 
 
-async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = None) -> None:
+async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = None) -> list[int]:
     """
-    Reconcile deployments stuck unfinished without active steps.
+    Reconcile deployments stuck unfinished without active steps. Returns the ids of
+    the deployments that were finished. Callers must check that the caller may access
+    `deployment_id` before, because this writes.
     """
     if deployment_id is None:
         orphaned_ids = await views.get_orphaned_unfinished_deployment_ids(bus.uow)
@@ -35,6 +41,7 @@ async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = N
     for orphaned_id in orphaned_ids:
         cmd = commands.FinishDeployment(deployment_id=orphaned_id)
         await bus.handle(cmd)
+    return orphaned_ids
 
 
 @router.get("/", dependencies=[Depends(get_current_active_user)])
@@ -56,22 +63,22 @@ async def get_deployment_details(
     """
     Fetch details of a deployment including the steps. Needs to be authenticated
     with a service token for the service which is associated with the deployment.
+    Unknown deployments and deployments of other services both return 404, so the
+    response does not reveal whether a deployment id exists.
     """
+    not_found = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
     try:
-        await reconcile_orphaned_deployments(bus, deployment_id)
         deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=404, detail="Deployment not found") from e
-    if service.id != deployment.service_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Wrong service token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    # steps = [Step(**s.dict()) for s in deployment.steps]
-    deployment_with_steps = DeploymentWithSteps(**deployment.model_dump())
-    return deployment_with_steps
+    except views.DeploymentNotFound as e:
+        raise not_found from e
+    if service.id is None or service.id != deployment.service_id:
+        logger.info("service %s requested deployment %s of another service", service.id, deployment_id)
+        raise not_found
+
+    # Only reconcile (which writes) after the ownership check.
+    if await reconcile_orphaned_deployments(bus, deployment_id):
+        deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
+    return DeploymentWithSteps(**deployment.model_dump())
 
 
 @router.put("/finish/")

@@ -29,6 +29,11 @@ Unreleased
   converted to text instead of being rejected with 422.
 
 ### Security
+- `GET /deployments/{deployment_id}` checks that the deployment belongs to the token's service before
+  reconciling an orphaned deployment, so a service token can no longer finish another service's
+  deployment by reading it. A deployment of another service now returns the same `404 Deployment not
+  found` as an unknown id (was `403 Wrong service token`), so the endpoint no longer reveals which ids
+  exist. `GET /steps/?deployment_id=` returns 404 instead of 500 for an unknown deployment.
 - Websocket authentication hardening (`/deployments/ws/{client_id}`): any failed authentication
   (including a valid service, deployment or config token, or a token for a deleted user) now sends
   an authentication failure and closes the connection (code `1008`) instead of leaving it

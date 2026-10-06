@@ -138,3 +138,15 @@ async def test_get_steps_by_deployment_happy(app, step_in_db, valid_access_token
     steps_by_deployment = response.json()
     assert steps_by_deployment[0]["id"] == step_in_db.id
     assert "deployment_id" in steps_by_deployment[0]
+
+
+async def test_get_steps_by_deployment_unknown_deployment(app, valid_access_token_in_db):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_steps_by_deployment"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+            params={"deployment_id": 666},
+        )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Deployment not found"}
