@@ -109,6 +109,23 @@ python commands.py syncservices
 python commands.py syncservices --force  # allow deleting all or most services
 ```
 
+## issueservicetoken
+
+Issues a recorded, revocable service token and prints it once. `--service` and
+`--user` must exist, `--days` must be between 1 and `SERVICE_TOKEN_MAX_EXPIRE_DAYS`
+(default 90), and `--origin` (default `cli`) is recorded with the token. Only the
+token is written to stdout, so a script can capture it; the token id (`jti`) and
+expiry go to stderr. If the token cannot be issued, the reason goes to stderr and
+the command exits with status 1. Run it with the deployed `.env` (on a host:
+`cd /home/fastdeploy/site && sudo -u fastdeploy .venv/bin/python commands.py ...`).
+
+```shell
+python commands.py issueservicetoken --service echoport --user admin --days 90 --origin ops-control
+```
+
+The token cannot be shown again; issue a new one (and revoke the old one) if it
+is lost.
+
 ## listservicetokens / revokeservicetoken
 
 `listservicetokens` lists the issued service tokens with their id (`jti`),

@@ -35,7 +35,7 @@ from rich import print as rprint  # noqa
 from rich.prompt import Prompt  # noqa
 
 from deploy.adapters.filesystem import working_directory  # noqa
-from deploy.auth import get_password_hash  # noqa
+from deploy.auth import ServiceTokenIssueRefused, get_password_hash, issue_service_token_for_existing  # noqa
 from deploy.bootstrap import get_bus_for_cli  # noqa
 from deploy.config import settings  # noqa
 from deploy.domain import commands, events  # noqa
@@ -142,6 +142,44 @@ def listservicetokens():
             f"{token.jti}  service={token.service} user={token.user} origin={token.origin} "
             f"expires={token.expires_at.isoformat()} {state}"
         )
+
+
+async def _issueservicetoken(service: str, origin: str, user: str, days: int):
+    bus = await get_bus_for_cli()
+    try:
+        return await issue_service_token_for_existing(
+            service=service, origin=origin, user=user, days=days, uow=bus.uow
+        )
+    finally:
+        await bus.uow.close()
+
+
+@cli.command()
+def issueservicetoken(
+    service: str = typer.Option(..., "--service", help="Name of the service the token may deploy."),
+    user: str = typer.Option(..., "--user", help="Existing fastdeploy user the token is issued for."),
+    days: int = typer.Option(..., "--days", help="Lifetime in days (at most SERVICE_TOKEN_MAX_EXPIRE_DAYS)."),
+    origin: str = typer.Option("cli", "--origin", help="Free-form origin recorded with the token."),
+):
+    """
+    Issue a recorded, revocable service token and print it once.
+
+    Only the token is written to stdout (so scripts can capture it); its id
+    (jti) and expiry go to stderr. Revoke it with "revokeservicetoken <jti>".
+    Exits with code 1 if the user or service does not exist or --days is
+    outside 1..SERVICE_TOKEN_MAX_EXPIRE_DAYS.
+    """
+    try:
+        token, record = asyncio.run(_issueservicetoken(service, origin, user, days))
+    except ServiceTokenIssueRefused as e:
+        typer.echo(f"service token not issued: {e}", err=True)
+        sys.exit(1)
+    typer.echo(
+        f"issued service token {record.jti} (service {record.service}, user {record.user}, "
+        f"origin {record.origin}) expiring {record.expires_at.isoformat()}",
+        err=True,
+    )
+    typer.echo(token)
 
 
 async def _revokeservicetoken(jti: str):

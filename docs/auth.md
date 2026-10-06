@@ -27,7 +27,8 @@ fastDeploy uses JWT-based authentication with four distinct token types, each pr
 
 **Purpose**: Authenticate services for initiating deployments
 
-**Obtaining**: POST to `/service-token` with user token authentication
+**Obtaining**: POST to `/service-token` with user token authentication, or on the server with
+`python commands.py issueservicetoken --service S --user U --days N [--origin O]` (prints only the token).
 
 **Payload Structure**:
 ```json
@@ -55,6 +56,21 @@ revoked. They are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set 
 (ISO 8601, for example `2026-11-01T00:00:00+00:00`; without a timezone UTC is assumed). Until then
 they are still accepted if the user who obtained them exists. Use the window to replace them with
 new tokens, then unset the setting.
+
+**Legacy token cutover**: every token issued before revocation support (for example Echoport's
+`FASTDEPLOY_SERVICE_TOKEN` and the tokens that playbooks minted with `create_access_token`) has no
+`jti`. Deploying this release without a grace period makes all of them fail at once. Order:
+
+1. Pick the end of the grace period (an ISO 8601 timestamp with offset) and set
+   `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` in the deployed `.env`. With the ops-library
+   `fastdeploy_deploy` role (2.31.6 or later) set `fastdeploy_legacy_service_tokens_accepted_until`;
+   a hand edit on the host is overwritten by the next deploy.
+2. Deploy. Legacy tokens keep working until that point in time.
+3. Re-issue every token in use with `python commands.py issueservicetoken` (or `POST /service-token`),
+   store each new token where the old one was, roll out the consumers, and check that each still
+   triggers deployments. `python commands.py listservicetokens` shows what was issued.
+4. Before the grace period ends, unset the setting (set the role variable back to empty) and deploy
+   again. After that, or once the timestamp has passed, tokens without `jti` are rejected with 401.
 
 **Permitted Operations**:
 - Start deployments for the specified service

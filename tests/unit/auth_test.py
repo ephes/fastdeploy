@@ -4,10 +4,12 @@ import pytest
 from sqlalchemy.orm.exc import NoResultFound
 
 from deploy.auth import (
+    ServiceTokenIssueRefused,
     authenticate_user,
     create_access_token,
     deployment_from_token,
     issue_service_token,
+    issue_service_token_for_existing,
     service_from_token,
     token_to_payload,
     user_from_token,
@@ -310,3 +312,79 @@ async def test_purged_service_token_is_rejected(bus, service_in_db, user_in_db, 
     assert await bus.handle(commands.PurgeServiceTokens(retention_days=30)) == 1
     with pytest.raises(ValueError, match="unknown service token"):
         await service_from_token(token, uow)
+
+
+async def issue_for_existing(uow, service, user, days=30, origin="ops"):
+    return await issue_service_token_for_existing(service=service, origin=origin, user=user, days=days, uow=uow)
+
+
+async def test_issue_service_token_for_existing_is_accepted_and_listed(service_in_db, user_in_db, uow, monkeypatch):
+    # the token must work without any legacy grace period
+    monkeypatch.setattr(settings, "legacy_service_tokens_accepted_until", None)
+    token, record = await issue_for_existing(uow, service_in_db.name, user_in_db.name, days=30)
+    payload = token_to_payload(token)
+    assert payload["jti"] == record.jti
+    expires_at = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    expected = datetime.now(timezone.utc) + timedelta(days=30)
+    assert abs((expected - expires_at).total_seconds()) < 5
+    verified_service = await service_from_token(token, uow)
+    assert verified_service == service_in_db
+    assert verified_service.origin == "ops"
+    async with uow:
+        listed = {t.jti: t for t in await uow.service_tokens.list()}
+    assert record.jti in listed
+    assert listed[record.jti].revoked_at is None
+
+
+async def test_issue_service_token_for_existing_can_be_revoked(bus, service_in_db, user_in_db, uow):
+    token, record = await issue_for_existing(uow, service_in_db.name, user_in_db.name)
+    await bus.handle(commands.RevokeServiceToken(jti=record.jti))
+    with pytest.raises(ValueError, match="revoked"):
+        await service_from_token(token, uow)
+
+
+@pytest.mark.parametrize("days", [0, -1, 91])
+async def test_issue_service_token_for_existing_refuses_days_out_of_range(
+    days, service_in_db, user_in_db, uow, monkeypatch
+):
+    monkeypatch.setattr(settings, "service_token_max_expire_days", 90)
+    with pytest.raises(ServiceTokenIssueRefused, match="between 1 and 90"):
+        await issue_for_existing(uow, service_in_db.name, user_in_db.name, days=days)
+    async with uow:
+        assert await uow.service_tokens.list() == []
+
+
+async def test_issue_service_token_for_existing_accepts_configured_max(service_in_db, user_in_db, uow, monkeypatch):
+    monkeypatch.setattr(settings, "service_token_max_expire_days", 7)
+    await issue_for_existing(uow, service_in_db.name, user_in_db.name, days=7)
+    with pytest.raises(ServiceTokenIssueRefused, match="between 1 and 7"):
+        await issue_for_existing(uow, service_in_db.name, user_in_db.name, days=8)
+
+
+async def test_issue_service_token_for_existing_refuses_unknown_user(service_in_db, uow):
+    with pytest.raises(ServiceTokenIssueRefused, match="unknown user 'nobody'"):
+        await issue_for_existing(uow, service_in_db.name, "nobody")
+    async with uow:
+        assert await uow.service_tokens.list() == []
+
+
+async def test_issue_service_token_for_existing_refuses_unknown_service(user_in_db, uow):
+    with pytest.raises(ServiceTokenIssueRefused, match="unknown service 'nothing'"):
+        await issue_for_existing(uow, "nothing", user_in_db.name)
+    async with uow:
+        assert await uow.service_tokens.list() == []
+
+
+async def test_issue_service_token_for_existing_refuses_empty_origin(service_in_db, user_in_db, uow):
+    with pytest.raises(ServiceTokenIssueRefused, match="origin"):
+        await issue_for_existing(uow, service_in_db.name, user_in_db.name, origin=" ")
+
+
+@pytest.mark.db("in_memory")
+async def test_issue_service_token_for_existing_in_memory(service_in_db, user_in_db, uow):
+    token, _ = await issue_for_existing(uow, service_in_db.name, user_in_db.name)
+    assert (await service_from_token(token, uow)) == service_in_db
+    with pytest.raises(ServiceTokenIssueRefused, match="unknown user"):
+        await issue_for_existing(uow, service_in_db.name, "nobody")
+    with pytest.raises(ServiceTokenIssueRefused, match="unknown service"):
+        await issue_for_existing(uow, "nothing", user_in_db.name)

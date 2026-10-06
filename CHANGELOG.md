@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Features
+- `python commands.py issueservicetoken --service S --user U --days N [--origin O]` issues a recorded,
+  revocable service token (with `jti`) from the command line, so playbooks and operators can replace
+  legacy tokens without a web login. `--days` is capped by `SERVICE_TOKEN_MAX_EXPIRE_DAYS`; the user
+  and the service must exist. Only the token is printed on stdout (its `jti` and expiry go to stderr);
+  a refusal exits with status 1. See the legacy token cutover in [docs/auth.md](docs/auth.md).
 - Single-flight deployments per service: `POST /deployments/` returns `409 Conflict` with the running
   deployment id while the service already has an active deployment, instead of spawning a second
   concurrent deploy. Check and insert are serialized by a database row lock on the service, orphaned

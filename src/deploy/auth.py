@@ -119,6 +119,34 @@ async def issue_service_token(
     return token, record
 
 
+class ServiceTokenIssueRefused(ValueError):
+    """Raised when a service token cannot be issued for the given arguments."""
+
+
+async def issue_service_token_for_existing(
+    *, service: str, origin: str, user: str, days: int, uow: AbstractUnitOfWork
+) -> tuple[str, ServiceToken]:
+    """
+    Issue a recorded (revocable) service token after checking that the
+    lifetime is within ``service_token_max_expire_days`` and that the user
+    and the service exist. Used by ``commands.py issueservicetoken``.
+    """
+    max_days = settings.service_token_max_expire_days
+    if not 1 <= days <= max_days:
+        raise ServiceTokenIssueRefused(f"days must be between 1 and {max_days} (SERVICE_TOKEN_MAX_EXPIRE_DAYS)")
+    if not origin.strip():
+        raise ServiceTokenIssueRefused("origin must not be empty")
+    async with uow:
+        # both tables are small; listing avoids repository specific "not found" exceptions
+        if not any(u.name == user for u in await uow.users.list()):
+            raise ServiceTokenIssueRefused(f"unknown user {user!r}")
+        if not any(s.name == service for s in await uow.services.list()):
+            raise ServiceTokenIssueRefused(f"unknown service {service!r}")
+    return await issue_service_token(
+        service=service, origin=origin, user=user, expires_delta=timedelta(days=days), uow=uow
+    )
+
+
 def legacy_service_tokens_accepted(now: datetime) -> bool:
     """Service tokens without a jti are only accepted until the configured point in time."""
     until = settings.legacy_service_tokens_accepted_until
