@@ -42,6 +42,11 @@ Unreleased
   finishing concurrently is never marked as orphaned.
 
 ### Security
+- Frontend dependencies refreshed to clear all 20 `npm audit` advisories (2 critical, 15 high,
+  3 moderate) without major upgrades: `npm audit fix` updates `vue` to 3.5.43, `vite` to 7.3.7 and
+  their transitive packages (`rollup`, `postcss`, `nanoid`, `uuid`, `happy-dom` and others), and the
+  `vitest`/`@vitest/ui` floors move to `^4.1.11`, since `npm audit fix` cannot move that pair on its
+  own (`@vitest/ui` pins its exact `vitest` version). `npm audit` now reports 0 vulnerabilities.
 - `GET /deployments/{deployment_id}` checks that the deployment belongs to the token's service before
   reconciling an orphaned deployment, so a service token can no longer finish another service's
   deployment by reading it. A deployment of another service now returns the same `404 Deployment not
