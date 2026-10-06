@@ -3,6 +3,16 @@ import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
 /**
+ * Details of a services sync the backend refused (409 Conflict) because
+ * it would delete all or most services. A forced sync overrides it.
+ */
+export interface SyncRefusal {
+  message: string;
+  wouldDelete: string[];
+  total: number;
+}
+
+/**
  * This store is used to store information about services. And
  * to add new services. And to retrieve service tokens which can
  * be used to start deployments.
@@ -23,6 +33,15 @@ export const useServices = defineStore("services", {
        * a service token.
        */
       serviceTokenErrorMessage: "",
+      /**
+       * Set when the backend refused a services sync because it would
+       * delete all or most services. Cleared on the next sync attempt.
+       */
+      syncRefusal: null as SyncRefusal | null,
+      /**
+       * Error message of a failed services sync (other than a refusal).
+       */
+      syncErrorMessage: "",
       /**
        * List of available service names.
        */
@@ -74,16 +93,38 @@ export const useServices = defineStore("services", {
     },
     /**
      * Sync services between filesystem and database on the backend.
+     *
+     * The backend refuses (409 Conflict) a sync that would delete all
+     * or most services. The refusal is stored in `syncRefusal` so it can
+     * be shown to the user, who may then retry with `force` set.
+     *
+     * @param force {boolean} - Delete services even if the sync would remove all or most of them
+     * @returns synced {boolean} - Whether the sync succeeded
      */
-    async syncServices() {
-      this.client
-        .post("/services/sync")
-        .then(() => {
-          console.log("Services synced");
-        })
-        .catch((err) => {
-          console.log("Error syncing services", err)
-        });
+    async syncServices(force: boolean = false): Promise<boolean> {
+      this.syncRefusal = null;
+      this.syncErrorMessage = "";
+      try {
+        await this.client.post(
+          "/services/sync",
+          undefined,
+          force ? { query: { force: "true" } } : {}
+        );
+        return true;
+      } catch (err: any) {
+        const detail = err?.body?.detail;
+        if (err?.response?.status === 409 && detail && typeof detail === "object") {
+          this.syncRefusal = {
+            message: String(detail.message ?? "Services sync refused"),
+            wouldDelete: Array.isArray(detail.would_delete) ? detail.would_delete.map(String) : [],
+            total: Number(detail.total ?? 0),
+          };
+        } else {
+          const reason = typeof detail === "string" ? detail : err?.message;
+          this.syncErrorMessage = `Services sync failed${reason ? ": " + reason : ""}`;
+        }
+        return false;
+      }
     },
     /**
      * Delete a service from the store. This is called by the event

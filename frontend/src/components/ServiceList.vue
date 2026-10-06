@@ -10,6 +10,17 @@ const serviceStore = useServices();
 const deploymentStore = useDeployments();
 const router = useRouter();
 
+async function forceSync() {
+  const refusal = serviceStore.syncRefusal;
+  const count = refusal ? refusal.wouldDelete.length : 0;
+  const confirmed = window.confirm(
+    `Force the services sync? This deletes ${count} service(s) together with their deployment history.`
+  );
+  if (confirmed) {
+    await serviceStore.syncServices(true);
+  }
+}
+
 async function startDeployment(serviceName: string) {
   const deployment: Deployment = await deploymentStore.startDeployment(serviceName);
   router.push({ name: 'deployment-detail', params: { id: deployment.id } });
@@ -21,6 +32,17 @@ async function startDeployment(serviceName: string) {
     <h1>Services</h1>
     <div v-if="serviceStore.getAvailableServiceNames.length">
       <button @click="serviceStore.syncServices()">sync</button>
+    </div>
+    <div v-if="serviceStore.syncRefusal" class="sync-refusal" role="alert">
+      <p>Services sync refused: {{ serviceStore.syncRefusal.message }}</p>
+      <p v-if="serviceStore.syncRefusal.wouldDelete.length">
+        Services that would be deleted: {{ serviceStore.syncRefusal.wouldDelete.join(", ") }}
+      </p>
+      <button @click="forceSync()">force sync</button>
+      <button @click="serviceStore.syncRefusal = null">dismiss</button>
+    </div>
+    <div v-if="serviceStore.syncErrorMessage" class="sync-error" role="alert">
+      {{ serviceStore.syncErrorMessage }}
     </div>
     <br />
     <table class="service-list">
@@ -67,5 +89,9 @@ button {
 }
 th,td {
   padding: 0.5em;
+}
+.sync-refusal,
+.sync-error {
+  color: #b00020;
 }
 </style>

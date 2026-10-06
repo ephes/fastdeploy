@@ -17,6 +17,9 @@ Unreleased
   response and CLI output list the updated, deleted and skipped services. Deploy note: the Ansible
   deploy runs `syncservices`, so a deploy with an empty or mostly removed services directory now
   fails at that task instead of deleting the services.
+- The web frontend shows a refused services sync (409) instead of only logging it: the refusal
+  message and the services that would be deleted are displayed, with a "force sync" button that
+  retries with `force=true` after confirmation. Other sync failures are shown as well.
 
 ### Security
 - Websocket authentication hardening (`/deployments/ws/{client_id}`): any failed authentication
