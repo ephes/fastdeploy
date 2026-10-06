@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .. import views
 from ..adapters.filesystem import AbstractFilesystem
@@ -100,6 +100,18 @@ async def revoke_service_token(command: commands.RevokeServiceToken, uow: Abstra
         await uow.service_tokens.add(service_token)
         await uow.commit()
     return service_token
+
+
+async def purge_service_tokens(command: commands.PurgeServiceTokens, uow: AbstractUnitOfWork) -> int:
+    """
+    Delete records of service tokens that expired or were revoked more than
+    ``retention_days`` ago. Returns the number of deleted records.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=command.retention_days)
+    async with uow:
+        deleted = await uow.service_tokens.delete_stale(cutoff)
+        await uow.commit()
+    return deleted
 
 
 async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUnitOfWork):
@@ -236,6 +248,7 @@ COMMAND_HANDLERS = {
     commands.DeleteService: delete_service,
     commands.SyncServices: sync_services,
     commands.RevokeServiceToken: revoke_service_token,
+    commands.PurgeServiceTokens: purge_service_tokens,
     commands.StartDeployment: start_deployment,
     commands.FinishDeployment: finish_deployment,
     commands.ProcessStep: process_step,

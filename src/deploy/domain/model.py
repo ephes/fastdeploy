@@ -563,6 +563,16 @@ class ServiceToken:
     def revoked(self) -> bool:
         return self.revoked_at is not None
 
+    def is_stale(self, cutoff: datetime) -> bool:
+        """
+        A record is stale when the token expired before ``cutoff`` or was
+        revoked before ``cutoff``. Stale records can be deleted: a token
+        without record is rejected just like an expired or revoked one.
+        """
+        if self.expires_at < cutoff:
+            return True
+        return self.revoked_at is not None and self.revoked_at < cutoff
+
     def revoke(self, now: datetime) -> None:
         """Revoke the token. Revoking an already revoked token keeps the first timestamp."""
         if self.revoked_at is None:

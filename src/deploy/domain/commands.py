@@ -30,6 +30,10 @@ class RevokeServiceToken(Command):
     jti: str
 
 
+class PurgeServiceTokens(Command):
+    retention_days: int
+
+
 class FinishDeployment(Command):
     deployment_id: int
 

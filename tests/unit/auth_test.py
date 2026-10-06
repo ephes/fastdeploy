@@ -229,3 +229,84 @@ async def test_deployment_from_token_happy(deployment_in_db, uow):
     token = create_access_token(payload=payload)
     verified_deployment = await deployment_from_token(token, uow)
     assert verified_deployment == deployment_in_db
+
+
+def token_record(jti, *, expired_days_ago=None, revoked_days_ago=None, now=None):
+    now = now or datetime.now(timezone.utc)
+    expires_at = now - timedelta(days=expired_days_ago) if expired_days_ago is not None else now + timedelta(days=1)
+    revoked_at = now - timedelta(days=revoked_days_ago) if revoked_days_ago is not None else None
+    return model.ServiceToken(
+        jti=jti,
+        service="fastdeploy",
+        user="user",
+        issued_at=now - timedelta(days=100),
+        expires_at=expires_at,
+        revoked_at=revoked_at,
+    )
+
+
+async def assert_purge_deletes_only_stale_records(bus, uow):
+    records = [
+        token_record("active"),
+        token_record("expired-recently", expired_days_ago=5),
+        token_record("expired-long-ago", expired_days_ago=31),
+        token_record("revoked-recently", revoked_days_ago=5),
+        token_record("revoked-long-ago", revoked_days_ago=31),
+    ]
+    async with uow:
+        for record in records:
+            await uow.service_tokens.add(record)
+        await uow.commit()
+
+    deleted = await bus.handle(commands.PurgeServiceTokens(retention_days=30))
+
+    assert deleted == 2
+    async with uow:
+        remaining = {token.jti for token in await uow.service_tokens.list()}
+    assert remaining == {"active", "expired-recently", "revoked-recently"}
+
+
+async def test_purge_service_tokens_deletes_only_stale_records(bus, uow):
+    await assert_purge_deletes_only_stale_records(bus, uow)
+
+
+@pytest.mark.db("in_memory")
+async def test_purge_service_tokens_deletes_only_stale_records_in_memory(bus, uow):
+    await assert_purge_deletes_only_stale_records(bus, uow)
+
+
+async def test_service_token_is_stale():
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=30)
+    assert not token_record("active", now=now).is_stale(cutoff)
+    assert not token_record("expired", expired_days_ago=29, now=now).is_stale(cutoff)
+    assert token_record("expired", expired_days_ago=31, now=now).is_stale(cutoff)
+    assert not token_record("revoked", revoked_days_ago=29, now=now).is_stale(cutoff)
+    assert token_record("revoked", revoked_days_ago=31, now=now).is_stale(cutoff)
+
+
+async def test_issue_service_token_purges_stale_records(user_in_db, uow, monkeypatch):
+    monkeypatch.setattr(settings, "service_token_retention_days", 30)
+    async with uow:
+        await uow.service_tokens.add(token_record("expired-long-ago", expired_days_ago=31))
+        await uow.service_tokens.add(token_record("revoked-recently", revoked_days_ago=5))
+        await uow.commit()
+
+    _, record = await issue(uow, service="fastdeploy", user=user_in_db.name)
+
+    async with uow:
+        remaining = {token.jti for token in await uow.service_tokens.list()}
+    assert remaining == {"revoked-recently", record.jti}
+
+
+async def test_purged_service_token_is_rejected(bus, service_in_db, user_in_db, uow):
+    token, record = await issue(uow, service=service_in_db.name, user=user_in_db.name)
+    await bus.handle(commands.RevokeServiceToken(jti=record.jti))
+    async with uow:
+        stored = await uow.service_tokens.get_by_jti(record.jti)
+        stored.revoked_at = datetime.now(timezone.utc) - timedelta(days=31)
+        await uow.service_tokens.add(stored)
+        await uow.commit()
+    assert await bus.handle(commands.PurgeServiceTokens(retention_days=30)) == 1
+    with pytest.raises(ValueError, match="unknown service token"):
+        await service_from_token(token, uow)

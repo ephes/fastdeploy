@@ -165,6 +165,33 @@ def revokeservicetoken(jti: str):
     rprint(f"revoked service token {jti} (service {token.service}, user {token.user}) at {token.revoked_at}")
 
 
+async def _purgeservicetokens(retention_days: int):
+    bus = await get_bus_for_cli()
+    try:
+        return await bus.handle(commands.PurgeServiceTokens(retention_days=retention_days))
+    finally:
+        await bus.uow.close()
+
+
+@cli.command()
+def purgeservicetokens(
+    older_than_days: int | None = typer.Option(
+        None,
+        "--older-than-days",
+        min=1,
+        help="Retention in days (default: SERVICE_TOKEN_RETENTION_DAYS).",
+        show_default=False,
+    ),
+):
+    """
+    Delete records of service tokens that expired or were revoked more than
+    --older-than-days days ago. Such tokens are rejected anyway.
+    """
+    retention_days = older_than_days if older_than_days is not None else settings.service_token_retention_days
+    deleted = asyncio.run(_purgeservicetokens(retention_days))
+    rprint(f"deleted {deleted} service token record(s) expired or revoked more than {retention_days} days ago")
+
+
 @cli.command()
 def update(upgrade: bool = typer.Option(True, "--upgrade/--no-upgrade")):
     """

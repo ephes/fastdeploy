@@ -38,7 +38,10 @@ a deployment for this service on push to a particular branch.
 Every issued service token is recorded in the ServiceToken table with its
 id (`jti`, also contained in the token), service, origin, the user who
 obtained it, issue and expiry time and, once revoked, the revocation time.
-Only recorded, unrevoked tokens are accepted.
+Only recorded, unrevoked tokens are accepted. Records of tokens that expired
+or were revoked more than `SERVICE_TOKEN_RETENTION_DAYS` (default 30) days ago
+are deleted whenever a new service token is issued, or explicitly with
+`python commands.py purgeservicetokens`.
 
 ## Deployment
 

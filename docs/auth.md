@@ -44,6 +44,12 @@ is not revoked and the user who obtained it still exists. Revoke a token with
 is issued and is also readable from the token payload. Revocation does not affect deployments that
 are already running (they use their own deployment token).
 
+**Cleanup**: Every issued token adds a record (the web frontend issues a 1-day token per deployment).
+Records of tokens that expired or were revoked more than `SERVICE_TOKEN_RETENTION_DAYS` (default 30)
+days ago are deleted whenever a new service token is issued. To clean up explicitly (for example from
+a cron job), run `python commands.py purgeservicetokens [--older-than-days N]`. A deleted record's
+token is rejected as unknown, just like an expired or revoked one.
+
 **Legacy tokens**: Service tokens issued before revocation support have no `jti` and cannot be
 revoked. They are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set to a point in time
 (ISO 8601, for example `2026-11-01T00:00:00+00:00`; without a timezone UTC is assumed). Until then

@@ -121,6 +121,18 @@ python commands.py listservicetokens
 python commands.py revokeservicetoken <jti>
 ```
 
+## purgeservicetokens
+
+Deletes the records of service tokens that expired or were revoked more than
+`--older-than-days` days ago (default: `SERVICE_TOKEN_RETENTION_DAYS`, 30).
+Such tokens are rejected anyway. The same cleanup also runs whenever a new
+service token is issued.
+
+```shell
+python commands.py purgeservicetokens
+python commands.py purgeservicetokens --older-than-days 7
+```
+
 ## createuser
 
 Creates a new user in the system. Username and password can be set via environment variables (useful for automation with Ansible) or interactively via the command line.

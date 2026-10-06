@@ -45,6 +45,10 @@ Unreleased
 - Each connection has at most one session expiry timer; re-authentication replaces it and
   disconnecting cancels it, so stale timers no longer close re-authenticated sessions or a newer
   connection reusing the id.
+- Service token records no longer accumulate: records of tokens that expired or were revoked more
+  than `SERVICE_TOKEN_RETENTION_DAYS` (default 30) days ago are deleted whenever a service token is
+  issued, and on demand with `python commands.py purgeservicetokens [--older-than-days N]`.
+
 
 ### Development
 - The Python test suite runs on a clean checkout without a frontend build: the test setup creates

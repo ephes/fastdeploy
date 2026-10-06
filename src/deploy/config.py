@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # cannot be revoked. They are rejected unless this is set to a point in time
     # (ISO 8601 with timezone) until which they are still accepted.
     legacy_service_tokens_accepted_until: datetime | None = None
+    # Expired service token records and revoked ones are deleted once their
+    # expiry / revocation is older than this many days (on token issue and
+    # via "commands.py purgeservicetokens").
+    service_token_retention_days: int = Field(30, ge=1)
     database_url: str = "postgresql+asyncpg:///deploy"
     db_engine: typing.Any = None
     secret_key: str = Field(...)

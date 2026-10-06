@@ -1,6 +1,7 @@
 import abc
+from datetime import datetime
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import and_, delete, or_, select, text
 
 from ..domain import model
 
@@ -472,6 +473,14 @@ class AbstractServiceTokenRepository(abc.ABC):
     async def list(self) -> list[model.ServiceToken]:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def delete_stale(self, cutoff: datetime) -> int:
+        """
+        Delete records of tokens that expired or were revoked before
+        ``cutoff`` and return how many were deleted.
+        """
+        raise NotImplementedError
+
 
 class SqlAlchemyServiceTokenRepository(AbstractServiceTokenRepository):
     def __init__(self, session):
@@ -492,18 +501,36 @@ class SqlAlchemyServiceTokenRepository(AbstractServiceTokenRepository):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def delete_stale(self, cutoff):
+        token = model.ServiceToken
+        stmt = (
+            delete(token)
+            .where(or_(token.expires_at < cutoff, and_(token.revoked_at.is_not(None), token.revoked_at < cutoff)))
+            .execution_options(synchronize_session=False)
+        )
+        result = await self.session.execute(stmt)
+        return result.rowcount or 0
+
 
 class InMemoryServiceTokenRepository(AbstractServiceTokenRepository):
     def __init__(self) -> None:
         self._service_tokens: list[model.ServiceToken] = []
+        self._last_id = 0
 
     async def add(self, service_token):
         if service_token.id is None:
             self._service_tokens.append(service_token)
-            service_token.id = len(self._service_tokens)
+            self._last_id += 1
+            service_token.id = self._last_id
 
     async def get_by_jti(self, jti, for_update=False):  # noqa: ARG002
         return next((t for t in self._service_tokens if t.jti == jti), None)
 
     async def list(self):
         return list(self._service_tokens)
+
+    async def delete_stale(self, cutoff):
+        kept = [t for t in self._service_tokens if not t.is_stale(cutoff)]
+        deleted = len(self._service_tokens) - len(kept)
+        self._service_tokens = kept
+        return deleted

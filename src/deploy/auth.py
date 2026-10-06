@@ -102,6 +102,9 @@ async def issue_service_token(
     )
     async with uow:
         await uow.service_tokens.add(record)
+        # opportunistic cleanup: every issued token adds a row (the frontend
+        # issues a 1-day token per deployment), so drop long dead records here
+        await uow.service_tokens.delete_stale(issued_at - timedelta(days=settings.service_token_retention_days))
         await uow.commit()
     payload = {
         "type": "service",
