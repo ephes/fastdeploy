@@ -3,6 +3,7 @@ This module contains a collection of authentication related
 functions.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt  # type: ignore
@@ -10,7 +11,7 @@ from passlib.context import CryptContext  # type: ignore
 
 from . import views
 from .config import settings
-from .domain.model import Deployment, Service, User
+from .domain.model import Deployment, Service, ServiceToken, User
 from .service_layer.unit_of_work import AbstractUnitOfWork
 
 PWD_CONTEXT = CryptContext(schemes=[settings.password_hash_algorithm], deprecated="auto")
@@ -83,9 +84,55 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
     return await views.get_user_by_name(username, uow)
 
 
+async def issue_service_token(
+    *, service: str, origin: str, user: str, expires_delta: timedelta, uow: AbstractUnitOfWork
+) -> tuple[str, ServiceToken]:
+    """
+    Record a new service token and return the signed JWT for it. The JWT
+    carries the record's ``jti``, so the token can be revoked later.
+    """
+    issued_at = datetime.now(timezone.utc)
+    record = ServiceToken(
+        jti=uuid.uuid4().hex,
+        service=service,
+        origin=origin,
+        user=user,
+        issued_at=issued_at,
+        expires_at=issued_at + expires_delta,
+    )
+    async with uow:
+        await uow.service_tokens.add(record)
+        await uow.commit()
+    payload = {
+        "type": "service",
+        "service": service,
+        "origin": origin,
+        "user": user,
+        "jti": record.jti,
+    }
+    token = jwt.encode(
+        {**payload, "exp": record.expires_at}, settings.secret_key, algorithm=settings.token_sign_algorithm
+    )
+    return token, record
+
+
+def legacy_service_tokens_accepted(now: datetime) -> bool:
+    """Service tokens without a jti are only accepted until the configured point in time."""
+    until = settings.legacy_service_tokens_accepted_until
+    if until is None:
+        return False
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    return now < until
+
+
 async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
     """
     Turn a JWT token into a Service model.
+
+    The token has to be a recorded, unrevoked service token (or a legacy
+    token without ``jti`` while those are still accepted) and the user who
+    obtained it has to exist.
     """
     payload = token_to_payload(token)
     if payload.get("type") != "service":
@@ -95,11 +142,29 @@ async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
     if servicename is None:
         raise ValueError("no service name")
 
+    username = payload.get("user")
+    if not username:
+        raise ValueError("no user name")
+
+    jti = payload.get("jti")
+    if jti is None and not legacy_service_tokens_accepted(datetime.now(timezone.utc)):
+        raise ValueError("legacy service token without jti is no longer accepted")
+
     async with uow as uow:
+        if jti is not None:
+            record = await uow.service_tokens.get_by_jti(jti)
+            if record is None:
+                raise ValueError("unknown service token")
+            if record.revoked:
+                raise ValueError("service token has been revoked")
+            if record.service != servicename or record.user != username:
+                raise ValueError("service token does not match its record")
+        # raises if the user who obtained the token has been deleted
+        await uow.users.get(username)
         service = await uow.services.get_by_name(servicename)
 
     service.origin = payload.get("origin", "")
-    service.user = payload.get("user", "")
+    service.user = username
     return service
 
 

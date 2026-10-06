@@ -517,3 +517,71 @@ class DeployedService(EventsMixin):
 
     def __hash__(self):
         return hash(self.deployment_id)
+
+
+class ServiceToken:
+    """
+    Record of an issued service token. The token itself is a JWT carrying
+    the ``jti`` of this record. A token is only accepted while its record
+    exists and has not been revoked.
+    """
+
+    id: int | None
+    jti: str
+    service: str
+    origin: str
+    user: str
+    issued_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None
+
+    def __init__(
+        self,
+        *,
+        id=None,
+        jti: str,
+        service: str,
+        origin: str = "",
+        user: str,
+        issued_at: datetime,
+        expires_at: datetime,
+        revoked_at: datetime | None = None,
+    ):
+        self.id = id
+        self.jti = jti
+        self.service = service
+        self.origin = origin
+        self.user = user
+        self.issued_at = issued_at
+        self.expires_at = expires_at
+        self.revoked_at = revoked_at
+
+    def __repr__(self):
+        return f"ServiceToken(jti={self.jti}, service={self.service}, user={self.user})"
+
+    @property
+    def revoked(self) -> bool:
+        return self.revoked_at is not None
+
+    def revoke(self, now: datetime) -> None:
+        """Revoke the token. Revoking an already revoked token keeps the first timestamp."""
+        if self.revoked_at is None:
+            self.revoked_at = now
+
+    def model_dump(self):
+        return {
+            "id": self.id,
+            "jti": self.jti,
+            "service": self.service,
+            "origin": self.origin,
+            "user": self.user,
+            "issued_at": self.issued_at,
+            "expires_at": self.expires_at,
+            "revoked_at": self.revoked_at,
+        }
+
+
+class ServiceTokenNotFound(Exception):
+    def __init__(self, jti: str):
+        self.jti = jti
+        super().__init__(f"Service token {jti} not found")

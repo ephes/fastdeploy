@@ -33,6 +33,13 @@ set it's origin to GitHub and then store it in the secrets of a GitHub
 project which then runs an GitHub action that uses this token to start
 a deployment for this service on push to a particular branch.
 
+## Service Token
+
+Every issued service token is recorded in the ServiceToken table with its
+id (`jti`, also contained in the token), service, origin, the user who
+obtained it, issue and expiry time and, once revoked, the revocation time.
+Only recorded, unrevoked tokens are accepted.
+
 ## Deployment
 
 Deployments are what fastdeploy is all about. They have a service and
@@ -68,4 +75,5 @@ erDiagram
           SERVICE ||--o{ DEPLOYMENT : "gets deployed"
           DEPLOYMENT ||--o{ STEP : "consists of"
           DEPLOYMENT ||--|| DEPLOYED-SERVICE : "creates"
+          USER ||--o{ SERVICE-TOKEN : obtains
 ```

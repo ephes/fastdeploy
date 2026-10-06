@@ -39,7 +39,7 @@ from deploy.auth import get_password_hash  # noqa
 from deploy.bootstrap import get_bus_for_cli  # noqa
 from deploy.config import settings  # noqa
 from deploy.domain import commands, events  # noqa
-from deploy.domain.model import ServiceSyncRefused  # noqa
+from deploy.domain.model import ServiceSyncRefused, ServiceTokenNotFound  # noqa
 
 
 CWD = str(Path(__file__).parent.resolve())
@@ -120,6 +120,49 @@ def syncservices(
     for skipped in result.skipped:
         rprint(f"skipped: {skipped.name} ({skipped.reason})")
     rprint("services synced")
+
+
+async def _listservicetokens():
+    bus = await get_bus_for_cli()
+    try:
+        async with bus.uow as uow:
+            return await uow.service_tokens.list()
+    finally:
+        await bus.uow.close()
+
+
+@cli.command()
+def listservicetokens():
+    """
+    List issued service tokens (id, service, user, origin, expiry, revocation).
+    """
+    for token in asyncio.run(_listservicetokens()):
+        state = f"revoked {token.revoked_at.isoformat()}" if token.revoked_at else "active"
+        rprint(
+            f"{token.jti}  service={token.service} user={token.user} origin={token.origin} "
+            f"expires={token.expires_at.isoformat()} {state}"
+        )
+
+
+async def _revokeservicetoken(jti: str):
+    bus = await get_bus_for_cli()
+    try:
+        return await bus.handle(commands.RevokeServiceToken(jti=jti))
+    finally:
+        await bus.uow.close()
+
+
+@cli.command()
+def revokeservicetoken(jti: str):
+    """
+    Revoke a service token by its id (jti). Deployments can no longer be started with it.
+    """
+    try:
+        token = asyncio.run(_revokeservicetoken(jti))
+    except ServiceTokenNotFound:
+        rprint(f"[red]service token {jti} not found[/red]")
+        sys.exit(1)
+    rprint(f"revoked service token {jti} (service {token.service}, user {token.user}) at {token.revoked_at}")
 
 
 @cli.command()

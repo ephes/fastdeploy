@@ -31,10 +31,24 @@ fastDeploy uses JWT-based authentication with four distinct token types, each pr
 
 **Payload Structure**:
 ```json
-{"type": "service", "service": "<service_name>", "origin": "<origin>", "user": "<creator>", "exp": "<expiration>"}
+{"type": "service", "service": "<service_name>", "origin": "<origin>", "user": "<creator>", "jti": "<token id>", "exp": "<expiration>"}
 ```
 
-**Expiration Range**: 1-180 days (configurable)
+**Expiration Range**: 1 day by default, at most `SERVICE_TOKEN_MAX_EXPIRE_DAYS` (default 90)
+
+**Revocation**: Every issued service token is recorded in the `service_token` table with its id
+(`jti`), service, origin, user and expiry. A service token is only accepted while its record exists,
+is not revoked and the user who obtained it still exists. Revoke a token with
+`DELETE /service-token/{jti}` (any logged-in user) or `python commands.py revokeservicetoken <jti>`;
+`python commands.py listservicetokens` lists the issued tokens. The `jti` is returned when the token
+is issued and is also readable from the token payload. Revocation does not affect deployments that
+are already running (they use their own deployment token).
+
+**Legacy tokens**: Service tokens issued before revocation support have no `jti` and cannot be
+revoked. They are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set to a point in time
+(ISO 8601, for example `2026-11-01T00:00:00+00:00`; without a timezone UTC is assumed). Until then
+they are still accepted if the user who obtained them exists. Use the window to replace them with
+new tokens, then unset the setting.
 
 **Permitted Operations**:
 - Start deployments for the specified service

@@ -109,6 +109,18 @@ python commands.py syncservices
 python commands.py syncservices --force  # allow deleting all or most services
 ```
 
+## listservicetokens / revokeservicetoken
+
+`listservicetokens` lists the issued service tokens with their id (`jti`),
+service, user, origin, expiry and revocation state. `revokeservicetoken <jti>`
+revokes a service token, so deployments can no longer be started with it. It
+exits with status 1 if no token with this id was issued.
+
+```shell
+python commands.py listservicetokens
+python commands.py revokeservicetoken <jti>
+```
+
 ## createuser
 
 Creates a new user in the system. Username and password can be set via environment variables (useful for automation with Ansible) or interactively via the command line.

@@ -28,6 +28,17 @@ Unreleased
   same id is refused, the id is bound to the authenticated user for the connection's lifetime
   (re-authenticating as another user closes the connection), and the "client left" broadcast no
   longer includes the client id. Only authenticated connections receive or trigger broadcasts.
+- Service tokens can be revoked. Every issued service token carries a `jti` claim and is recorded
+  in the new `service_token` table (service, origin, user, issue/expiry time, revocation time).
+  Unknown or revoked token ids and tokens of deleted users are rejected with 401. Revoke via
+  `DELETE /service-token/{jti}` or `python commands.py revokeservicetoken <jti>`; list with
+  `python commands.py listservicetokens`. `POST /service-token` now also returns `jti` and
+  `expires_at`. The maximum lifetime is lowered from 180 to 90 days (`SERVICE_TOKEN_MAX_EXPIRE_DAYS`)
+  and the web frontend now suggests 7 instead of 30 days.
+- Deploy note: legacy service tokens without `jti` (all tokens issued before this release, e.g. in
+  CI secrets) are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set (ISO 8601) to give
+  a time-limited transition window. The `service_token` table is created automatically on startup
+  (`create_all`), no manual migration is needed.
 - Each connection has at most one session expiry timer; re-authentication replaces it and
   disconnecting cancels it, so stale timers no longer close re-authenticated sessions or a newer
   connection reusing the id.

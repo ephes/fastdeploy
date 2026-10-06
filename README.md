@@ -81,6 +81,10 @@ DATABASE_URL=postgresql+asyncpg:///deploy
 SUDO_USER=deploy  # User to run deployment scripts as (default: jochen)
 DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS=300  # Ignore very new deployments during orphan reconciliation
 
+# Service tokens
+SERVICE_TOKEN_MAX_EXPIRE_DAYS=90  # Longest lifetime a service token can be issued with
+# LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL=2026-11-01T00:00:00+00:00  # Accept tokens without jti until then
+
 # API configuration
 API_URL=http://localhost:8000
 ```
@@ -88,6 +92,8 @@ API_URL=http://localhost:8000
 `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` adds a safety window before unfinished deployments are considered orphaned by reconciliation on read endpoints and before starting a new deployment. Increase this if step creation is delayed in your environment.
 
 Only one deployment per service runs at a time: `POST /deployments/` returns `409 Conflict` (naming the running deployment id) while the service has an active deployment. See [docs/endpoints.md](docs/endpoints.md#post-deployments).
+
+Service tokens can be revoked via `DELETE /service-token/{jti}` or `python commands.py revokeservicetoken <jti>`. Tokens issued before revocation support (without `jti`) are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set. See [docs/auth.md](docs/auth.md#service-token).
 
 ### Service Configuration
 

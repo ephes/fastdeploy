@@ -11,7 +11,7 @@ const service: ServiceWithId | undefined = serviceStore.services[Number(route.pa
 
 serviceStore.serviceTokenErrorMessage = "";
 const origin = ref('');
-const expirationInDays = ref(30);
+const expirationInDays = ref(7);
 const serviceToken = ref('' as string | null);
 
 async function getServiceToken() {
@@ -35,7 +35,7 @@ async function getServiceToken() {
                 placeholder="expirationInDays"
                 type="number"
                 min="1"
-                max="180"
+                max="90"
             />
             <button @click="getServiceToken()">Get Service Token</button>
             <div v-if="serviceToken">

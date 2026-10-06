@@ -129,7 +129,7 @@ export const useServices = defineStore("services", {
      *
      * @param serviceName {string} - The name of the service for the service token
      * @param origin {string} - The origin of the service token (frontend, github)
-     * @param expirationInDays {number} - The expiration of the service token in days (0 - 180)
+     * @param expirationInDays {number} - The expiration of the service token in days (1 - 90 by default)
      * @returns serviceToken {string | null} - The service token or null on error
      */
     async fetchServiceToken(

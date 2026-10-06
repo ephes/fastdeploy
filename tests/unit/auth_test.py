@@ -7,12 +7,14 @@ from deploy.auth import (
     authenticate_user,
     create_access_token,
     deployment_from_token,
+    issue_service_token,
     service_from_token,
     token_to_payload,
     user_from_token,
     verify_password,
 )
 from deploy.config import settings
+from deploy.domain import commands, model
 
 pytestmark = pytest.mark.asyncio
 
@@ -87,18 +89,119 @@ async def test_service_from_token_value_error(payload, uow):
         await service_from_token(token, uow)
 
 
-async def test_service_from_token_not_in_db(uow):
-    payload = {"type": "service", "service": "fastdeploy", "exp": 123}
-    token = create_access_token(payload=payload)
+async def issue(uow, service="fastdeploy", user="user", minutes=5):
+    return await issue_service_token(
+        service=service, origin="GitHub", user=user, expires_delta=timedelta(minutes=minutes), uow=uow
+    )
+
+
+async def test_service_from_token_not_in_db(user_in_db, uow):
+    token, _ = await issue(uow, service="fastdeploy", user=user_in_db.name)
     with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
         await service_from_token(token, uow)
 
 
-async def test_service_from_token_happy(service_in_db, uow):
-    payload = {"type": "service", "service": service_in_db.name, "origin": "GitHub", "exp": 123}
-    token = create_access_token(payload=payload)
+async def test_service_from_token_happy(service_in_db, user_in_db, uow):
+    token, record = await issue(uow, service=service_in_db.name, user=user_in_db.name)
+    assert token_to_payload(token)["jti"] == record.jti
     verified_service = await service_from_token(token, uow)
     assert verified_service == service_in_db
+    assert verified_service.origin == "GitHub"
+    assert verified_service.user == user_in_db.name
+
+
+async def test_issue_service_token_records_token(user_in_db, uow):
+    token, record = await issue(uow, service="fastdeploy", user=user_in_db.name, minutes=60)
+    async with uow:
+        stored = await uow.service_tokens.get_by_jti(record.jti)
+    assert stored is not None
+    assert (stored.service, stored.user, stored.origin, stored.revoked_at) == (
+        "fastdeploy",
+        user_in_db.name,
+        "GitHub",
+        None,
+    )
+    expires_at = datetime.fromtimestamp(token_to_payload(token)["exp"], tz=timezone.utc)
+    assert abs((stored.expires_at - expires_at).total_seconds()) < 1
+
+
+async def test_service_from_token_unknown_jti(service_in_db, user_in_db, uow):
+    payload = {"type": "service", "service": service_in_db.name, "user": user_in_db.name, "jti": "unknown"}
+    token = create_access_token(payload=payload, expires_delta=timedelta(minutes=5))
+    with pytest.raises(ValueError, match="unknown service token"):
+        await service_from_token(token, uow)
+
+
+async def test_service_from_token_revoked(bus, service_in_db, user_in_db, uow):
+    token, record = await issue(uow, service=service_in_db.name, user=user_in_db.name)
+    await bus.handle(commands.RevokeServiceToken(jti=record.jti))
+    with pytest.raises(ValueError, match="revoked"):
+        await service_from_token(token, uow)
+
+
+async def test_revoke_unknown_service_token(bus):
+    with pytest.raises(model.ServiceTokenNotFound):
+        await bus.handle(commands.RevokeServiceToken(jti="unknown"))
+
+
+async def test_service_from_token_record_mismatch(service_in_db, user_in_db, uow):
+    _, record = await issue(uow, service="other-service", user=user_in_db.name)
+    payload = {"type": "service", "service": service_in_db.name, "user": user_in_db.name, "jti": record.jti}
+    token = create_access_token(payload=payload, expires_delta=timedelta(minutes=5))
+    with pytest.raises(ValueError, match="does not match"):
+        await service_from_token(token, uow)
+
+
+async def test_service_from_token_deleted_user(service_in_db, uow):
+    # the record exists, but the user who obtained the token does not (anymore)
+    token, _ = await issue(uow, service=service_in_db.name, user="deleted-user")
+    with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
+        await service_from_token(token, uow)
+
+
+def legacy_token(service_name, user_name="user"):
+    payload = {"type": "service", "service": service_name, "origin": "GitHub", "user": user_name}
+    return create_access_token(payload=payload, expires_delta=timedelta(minutes=5))
+
+
+async def test_service_from_token_legacy_rejected_by_default(service_in_db, user_in_db, uow, monkeypatch):
+    monkeypatch.setattr(settings, "legacy_service_tokens_accepted_until", None)
+    with pytest.raises(ValueError, match="legacy"):
+        await service_from_token(legacy_token(service_in_db.name, user_in_db.name), uow)
+
+
+async def test_service_from_token_legacy_accepted_until(service_in_db, user_in_db, uow, monkeypatch):
+    now = datetime.now(timezone.utc)
+    monkeypatch.setattr(settings, "legacy_service_tokens_accepted_until", now + timedelta(days=1))
+    verified_service = await service_from_token(legacy_token(service_in_db.name, user_in_db.name), uow)
+    assert verified_service == service_in_db
+
+    monkeypatch.setattr(settings, "legacy_service_tokens_accepted_until", now - timedelta(seconds=1))
+    with pytest.raises(ValueError, match="legacy"):
+        await service_from_token(legacy_token(service_in_db.name, user_in_db.name), uow)
+
+
+async def test_service_from_token_legacy_naive_datetime_is_utc(service_in_db, user_in_db, uow, monkeypatch):
+    until = (datetime.now(timezone.utc) + timedelta(hours=1)).replace(tzinfo=None)
+    monkeypatch.setattr(settings, "legacy_service_tokens_accepted_until", until)
+    assert await service_from_token(legacy_token(service_in_db.name, user_in_db.name), uow) == service_in_db
+
+
+async def test_service_from_token_legacy_deleted_user(service_in_db, uow, monkeypatch):
+    monkeypatch.setattr(
+        settings, "legacy_service_tokens_accepted_until", datetime.now(timezone.utc) + timedelta(days=1)
+    )
+    with pytest.raises((NoResultFound, StopIteration, RuntimeError)):
+        await service_from_token(legacy_token(service_in_db.name, "deleted-user"), uow)
+
+
+async def test_service_from_token_without_user_is_rejected(service_in_db, uow, monkeypatch):
+    monkeypatch.setattr(
+        settings, "legacy_service_tokens_accepted_until", datetime.now(timezone.utc) + timedelta(days=1)
+    )
+    token = create_access_token({"type": "service", "service": service_in_db.name}, timedelta(minutes=5))
+    with pytest.raises(ValueError, match="no user name"):
+        await service_from_token(token, uow)
 
 
 @pytest.mark.parametrize(

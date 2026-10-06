@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from deploy.adapters import filesystem, orm
-from deploy.auth import create_access_token, get_password_hash
+from deploy.auth import create_access_token, get_password_hash, issue_service_token
 from deploy.bootstrap import bootstrap, get_bus
 from deploy.config import settings
 from deploy.domain import model
@@ -177,9 +177,16 @@ async def service_in_db(bus, service):
     return service
 
 
-@pytest.fixture
-def valid_service_token_in_db(service_in_db):
-    return create_access_token({"type": "service", "service": service_in_db.name}, timedelta(minutes=5))
+@pytest_asyncio.fixture(loop_scope="function")
+async def valid_service_token_in_db(bus, service_in_db, user_in_db):
+    token, _ = await issue_service_token(
+        service=service_in_db.name,
+        origin="GitHub",
+        user=user_in_db.name,
+        expires_delta=timedelta(minutes=5),
+        uow=bus.uow,
+    )
+    return token
 
 
 @pytest.fixture

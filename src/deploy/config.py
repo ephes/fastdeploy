@@ -1,4 +1,5 @@
 import typing
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import Field
@@ -17,6 +18,12 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     deployment_access_token_expire_minutes: int = 480
     deployment_orphan_reconcile_delay_seconds: int = 300
+    # Upper limit for the lifetime of a service token in days.
+    service_token_max_expire_days: int = 90
+    # Service tokens issued before revocation support have no "jti" claim and
+    # cannot be revoked. They are rejected unless this is set to a point in time
+    # (ISO 8601 with timezone) until which they are still accepted.
+    legacy_service_tokens_accepted_until: datetime | None = None
     database_url: str = "postgresql+asyncpg:///deploy"
     db_engine: typing.Any = None
     secret_key: str = Field(...)

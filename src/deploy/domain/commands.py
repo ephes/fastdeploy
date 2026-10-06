@@ -26,6 +26,10 @@ class SyncServices(Command):
     force: bool = False
 
 
+class RevokeServiceToken(Command):
+    jti: str
+
+
 class FinishDeployment(Command):
     deployment_id: int
 

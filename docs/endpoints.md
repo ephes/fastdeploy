@@ -25,13 +25,25 @@ username=<username>&password=<password>
 {
   "service": "<service_name>",
   "origin": "<origin_identifier>",
-  "expiration_in_days": 1-180
+  "expiration_in_days": 1
 }
 ```
+`expiration_in_days` defaults to 1 and may be at most `SERVICE_TOKEN_MAX_EXPIRE_DAYS` (default 90).
+The token is recorded with its id (`jti`) so it can be revoked.
+
 **Response**:
 ```json
-{"service_token": "<jwt>", "token_type": "bearer"}
+{"service_token": "<jwt>", "token_type": "bearer", "jti": "<token id>", "expires_at": "<datetime>"}
 ```
+
+### DELETE /service-token/{jti}
+**Purpose**: Revoke a service token. Deployments can no longer be started with it
+**Authentication**: User token required
+**Response** (revoking an already revoked token succeeds again and keeps the first time):
+```json
+{"detail": "Service token <jti> revoked", "jti": "<jti>", "revoked_at": "<datetime>"}
+```
+**404 Not Found**: no service token with this id was issued
 
 ### GET /users/me
 **Purpose**: Get current authenticated user
@@ -291,6 +303,7 @@ by a database row lock on the service, so exactly one of them succeeds.
 | `POST /token` | None (username/password) |
 | `GET /users/me` | User Token |
 | `POST /service-token` | User Token |
+| `DELETE /service-token/{jti}` | User Token |
 | `GET /services/*` | User Token |
 | `POST /services/sync` | User Token |
 | `DELETE /services/*` | User Token |

@@ -453,3 +453,57 @@ class InMemoryDeployedServiceRepository(AbstractDeployedServiceRepository):
 
     async def list(self):
         return list(self._deployed_services)
+
+
+class AbstractServiceTokenRepository(abc.ABC):
+    @abc.abstractmethod
+    async def add(self, service_token: model.ServiceToken) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_by_jti(self, jti: str, for_update: bool = False) -> model.ServiceToken | None:
+        """
+        Return the token record or None. With ``for_update`` the row is locked
+        until the current transaction ends.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def list(self) -> list[model.ServiceToken]:
+        raise NotImplementedError
+
+
+class SqlAlchemyServiceTokenRepository(AbstractServiceTokenRepository):
+    def __init__(self, session):
+        self.session = session
+
+    async def add(self, service_token):
+        self.session.add(service_token)
+
+    async def get_by_jti(self, jti, for_update=False):
+        stmt = select(model.ServiceToken).where(model.ServiceToken.jti == jti)
+        if for_update:
+            stmt = stmt.with_for_update()
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def list(self):
+        stmt = select(model.ServiceToken).order_by(model.ServiceToken.id)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+
+class InMemoryServiceTokenRepository(AbstractServiceTokenRepository):
+    def __init__(self) -> None:
+        self._service_tokens: list[model.ServiceToken] = []
+
+    async def add(self, service_token):
+        if service_token.id is None:
+            self._service_tokens.append(service_token)
+            service_token.id = len(self._service_tokens)
+
+    async def get_by_jti(self, jti, for_update=False):  # noqa: ARG002
+        return next((t for t in self._service_tokens if t.jti == jti), None)
+
+    async def list(self):
+        return list(self._service_tokens)

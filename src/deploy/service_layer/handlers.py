@@ -89,6 +89,19 @@ async def active_deployment_ids(service_id: int, uow: AbstractUnitOfWork, now: d
     return active
 
 
+async def revoke_service_token(command: commands.RevokeServiceToken, uow: AbstractUnitOfWork) -> model.ServiceToken:
+    """Revoke an issued service token by its id (jti)."""
+    async with uow:
+        # lock the row so concurrent revocations keep the first revoked_at
+        service_token = await uow.service_tokens.get_by_jti(command.jti, for_update=True)
+        if service_token is None:
+            raise model.ServiceTokenNotFound(command.jti)
+        service_token.revoke(datetime.now(timezone.utc))
+        await uow.service_tokens.add(service_token)
+        await uow.commit()
+    return service_token
+
+
 async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUnitOfWork):
     """
     Finish a deployment.
@@ -222,6 +235,7 @@ COMMAND_HANDLERS = {
     commands.CreateUser: create_user,
     commands.DeleteService: delete_service,
     commands.SyncServices: sync_services,
+    commands.RevokeServiceToken: revoke_service_token,
     commands.StartDeployment: start_deployment,
     commands.FinishDeployment: finish_deployment,
     commands.ProcessStep: process_step,

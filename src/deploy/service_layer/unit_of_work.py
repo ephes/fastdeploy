@@ -36,6 +36,7 @@ class AbstractUnitOfWork(abc.ABC):
     steps: repository.AbstractStepRepository
     session: AbstractSession
     deployed_services: repository.AbstractDeployedServiceRepository
+    service_tokens: repository.AbstractServiceTokenRepository
 
     async def __aenter__(self) -> AbstractUnitOfWork:
         return self
@@ -91,6 +92,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.deployments = repository.SqlAlchemyDeploymentRepository(self.session)
         self.steps = repository.SqlAlchemyStepRepository(self.session)
         self.deployed_services = repository.SqlAlchemyDeployedServiceRepository(self.session)
+        self.service_tokens = repository.SqlAlchemyServiceTokenRepository(self.session)
         return await super().__aenter__()
 
     async def __aexit__(self, *args):
@@ -156,6 +158,7 @@ class InMemoryUnitOfWork(AbstractUnitOfWork):
         self.steps = repository.InMemoryStepRepository()
         self.deployments = repository.InMemoryDeploymentRepository(self.steps)
         self.deployed_services = repository.InMemoryDeployedServiceRepository()
+        self.service_tokens = repository.InMemoryServiceTokenRepository()
         self.committed = False
 
     async def __aexit__(self, *args):

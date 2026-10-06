@@ -2,9 +2,10 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from deploy.auth import create_access_token
+from deploy.auth import create_access_token, issue_service_token
 from deploy.config import settings
 from deploy.domain import commands, events, model
 
@@ -341,10 +342,13 @@ async def test_deploy_invalid_access_token(app, invalid_service_token):
     assert response.json() == {"detail": "Could not validate credentials"}
 
 
-@pytest.fixture
-def valid_service_token(service):
+@pytest_asyncio.fixture(loop_scope="function")
+async def valid_service_token(bus, service, user_in_db):
     """Valid service token, but service is not in database."""
-    return create_access_token({"type": "service", "service": service.name}, timedelta(minutes=5))
+    token, _ = await issue_service_token(
+        service=service.name, origin="GitHub", user=user_in_db.name, expires_delta=timedelta(minutes=5), uow=bus.uow
+    )
+    return token
 
 
 async def test_deploy_service_not_found(app, valid_service_token):

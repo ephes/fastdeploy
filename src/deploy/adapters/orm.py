@@ -59,6 +59,20 @@ steps = Table(
 )
 
 
+service_tokens = Table(
+    "service_token",
+    metadata_obj,
+    Column("id", Integer, primary_key=True),
+    Column("jti", String(64), unique=True, nullable=False),
+    Column("service", String(255), nullable=False),
+    Column("origin", String(255), nullable=False, default=""),
+    Column("user", String(255), nullable=False),
+    Column("issued_at", DateTime(timezone=True), nullable=False),
+    Column("expires_at", DateTime(timezone=True), nullable=False),
+    Column("revoked_at", DateTime(timezone=True), nullable=True),
+)
+
+
 deployed_services = Table(
     "deployed_service",
     metadata_obj,
@@ -85,6 +99,7 @@ def start_mappers():
     mapper_registry.map_imperatively(model.Deployment, deployments)
     mapper_registry.map_imperatively(model.Service, services)
     mapper_registry.map_imperatively(model.DeployedService, deployed_services)
+    mapper_registry.map_imperatively(model.ServiceToken, service_tokens)
     MAPPERS_STARTED = True
     # Maybe define relationships?
     # steps_mapper = mapper_registry.map_imperatively(model.Step, steps)
