@@ -20,6 +20,13 @@ Unreleased
 - The web frontend shows a refused services sync (409) instead of only logging it: the refusal
   message and the services that would be deleted are displayed, with a "force sync" button that
   retries with `force=true` after confirmation. Other sync failures are shown as well.
+- The deploy task no longer leaves a deployment "active" (blocking new deploys of the service until the deployment
+  token expires) after a network error while reporting: posting a step retries connection errors and `5xx` with
+  exponential backoff and never aborts reading the deploy script output, a step that cannot be reported is logged to
+  stderr instead of being dropped silently, output lines that are not a JSON object are skipped, finishing the
+  deployment has its own retries, and a failure there no longer replaces the original deploy error. A failed deploy
+  whose failure step cannot be reported is not finished as an apparent success. A non-string `error_message` (for example an Ansible `msg` list) is
+  converted to text instead of being rejected with 422.
 
 ### Security
 - Websocket authentication hardening (`/deployments/ws/{client_id}`): any failed authentication

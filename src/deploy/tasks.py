@@ -102,7 +102,10 @@ class DeployTask(BaseSettings):
     deployment_finish_url: str
     context: DeploymentContext
     path_for_deploy: str
-    attempts: int = 3
+    attempts: int = 4
+    # Finishing the deployment gets more attempts: if it is lost, the deployment stays
+    # active and blocks new deployments of the service until it becomes stale.
+    finish_attempts: int = 6
     sleep_on_fail: float = 3.0
     client: Any = None
 
@@ -116,26 +119,77 @@ class DeployTask(BaseSettings):
             step.message = step.message[:MAX_STEP_MESSAGE_SIZE]
         return step
 
-    async def send_step(self, step_url, step):
-        step = self.limit_message_size(step)
-        for _ in range(self.attempts):
+    @staticmethod
+    def log(message: str) -> None:
+        """
+        Report problems of the deploy task on stderr. The task runs detached from the
+        API process, so stderr (for example the journal) is the only place left when
+        reporting to the API fails. Never log tokens or step messages here.
+        """
+        print(f"fastdeploy deploy task: {message}", file=sys.stderr, flush=True)
+
+    @staticmethod
+    def is_retryable(error: Exception) -> bool:
+        """Transport errors and server errors may go away (for example during an API restart), 4xx won't."""
+        if isinstance(error, httpx.TransportError):
+            return True
+        if isinstance(error, httpx.HTTPStatusError):
+            return error.response.status_code >= 500
+        return False
+
+    async def request_with_retries(self, method: str, url: str, *, attempts: int, **kwargs) -> None:
+        """
+        Send a request to the API, retrying transport errors and 5xx responses with
+        exponential backoff. Raises the last error when all attempts failed or the
+        error is not retryable.
+        """
+        for attempt in range(attempts):
             try:
-                r = await self.client.post(step_url, json=json.loads(step.json()))
+                r = await getattr(self.client, method)(url, **kwargs)
                 r.raise_for_status()
-                break
-            except httpx.HTTPStatusError:
-                await asyncio.sleep(self.sleep_on_fail)
+                return
+            except httpx.HTTPError as e:
+                if not self.is_retryable(e) or attempt == attempts - 1:
+                    raise
+                await asyncio.sleep(self.sleep_on_fail * 2**attempt)
+
+    async def send_step(self, step_url, step, attempts: int | None = None) -> bool:
+        """
+        Post a step to the API. Never raises on HTTP problems, so a failed post does not
+        abort reading the deploy script output. Returns whether the step was accepted.
+        """
+        step = self.limit_message_size(step)
+        attempts = self.attempts if attempts is None else attempts
+        try:
+            await self.request_with_retries("post", step_url, attempts=attempts, json=json.loads(step.json()))
+            return True
+        except httpx.HTTPError as e:
+            self.log(f"dropped step {step.name!r} ({step.state}): {type(e).__name__}: {e}")
+            return False
 
     async def finish_deployment(self) -> None:
-        r = await self.client.put(self.deployment_finish_url)
-        r.raise_for_status()
+        await self.request_with_retries("put", self.deployment_finish_url, attempts=self.finish_attempts)
 
-    async def finish_step(self, step_result):
+    @staticmethod
+    def as_text(value: Any) -> str:
+        """Step messages must be strings, but Ansible may report a list or dict as `msg`."""
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        try:
+            return json.dumps(value, default=str)
+        except (TypeError, ValueError):
+            return str(value)
+
+    async def finish_step(self, step_result, attempts: int | None = None) -> bool:
         step = Step(**step_result)
         step.finished = datetime.now(timezone.utc)
-        if len(step_result.get("error_message", "")) > 0:
-            step.message = step_result["error_message"]
-        await self.send_step(self.steps_url, step)
+        step.message = self.as_text(step.message)
+        error_message = self.as_text(step_result.get("error_message"))
+        if len(error_message) > 0:
+            step.message = error_message
+        return await self.send_step(self.steps_url, step, attempts=attempts)
 
     async def deploy_steps(self):
         """Run deployment steps with secure configuration."""
@@ -194,6 +248,9 @@ class DeployTask(BaseSettings):
                     step_result = json.loads(decoded)
                 except json.decoder.JSONDecodeError:
                     continue
+                if not isinstance(step_result, dict):
+                    # valid JSON, but not a step result (for example a list) -> skip
+                    continue
                 # if name is None there's something wrong -> skip
                 result_name = step_result.get("name")
                 if result_name is None:
@@ -201,7 +258,11 @@ class DeployTask(BaseSettings):
                     print("step result not posted: ", step_result)
                     continue
                 step_result["started"] = started
-                await self.finish_step(step_result)
+                try:
+                    await self.finish_step(step_result)
+                except Exception as e:
+                    # Keep draining stdout, otherwise the deploy script blocks on a full pipe.
+                    self.log(f"could not report step {result_name!r}: {type(e).__name__}: {e}")
 
             return_code = await proc.wait()
             if return_code != 0:
@@ -212,24 +273,48 @@ class DeployTask(BaseSettings):
             if "config_path" in locals():
                 secure_config.cleanup_config(config_path)
 
+    async def report_failure(self, error: BaseException) -> bool:
+        """
+        If the deployment fails, we need to finish it as failed and therefore have at
+        least one failed step, which we create here. We also append the exception
+        message to the step. Gets as many attempts as finishing the deployment. Never
+        raises, so the original error is preserved. Returns whether the failed step was
+        accepted by the API.
+        """
+        step_result = {
+            "name": "failed step",
+            "error_message": f"deployment failed: {str(error) or type(error).__name__}",
+            "state": "failure",
+            "started": datetime.now(timezone.utc),
+        }
+        try:
+            return await self.finish_step(step_result, attempts=self.finish_attempts)
+        except Exception as e:
+            self.log(f"could not report failed step: {type(e).__name__}: {e}")
+            return False
+
     async def run_deploy(self):
+        failed = False
+        failure_reported = False
         try:
             await self.deploy_steps()
-        except Exception as e:
-            # If some unknown exception happens, we need to finish the deployment
-            # as failed and therefore have at least one failed step. Which we create
-            # here. We also append the exception message to the step.
-            message = f"deployment failed: {e}"
-            step_result = {
-                "name": "failed step",
-                "error_message": message,
-                "state": "failure",
-                "started": datetime.now(timezone.utc),
-            }
-            await self.finish_step(step_result)
-            raise e
+        except BaseException as e:
+            failed = True
+            failure_reported = await self.report_failure(e)
+            raise
         finally:
-            await self.finish_deployment()
+            if failed and not failure_reported:
+                # Finishing now would remove the open steps and make the failed
+                # deployment look successful. Leave it unfinished instead: it stops
+                # blocking new deployments once it is stale.
+                self.log("not finishing the deployment, because its failure could not be reported")
+            else:
+                try:
+                    await self.finish_deployment()
+                except Exception as e:
+                    self.log(f"could not finish deployment: {type(e).__name__}: {e}")
+                    if not failed:
+                        raise
 
 
 async def run_deploy_task():  # pragma: no cover

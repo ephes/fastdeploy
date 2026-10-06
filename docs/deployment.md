@@ -92,6 +92,21 @@ FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `
 
 Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Orphaned unfinished deployments do not block (they are finished as part of a successful start; a rejected start changes nothing), and deployments older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` (default: `480`) do not block.
 
+The deploy task (the detached `python -m deploy.tasks` process that runs the deploy script) reports each step to
+`POST /steps/` and finally calls `PUT /deployments/finish/`. Connection errors and `5xx` responses are retried with
+exponential backoff (4 attempts per step, 6 for finishing the deployment, starting at 3 seconds), so a short API
+restart, for example while fastdeploy deploys itself, does not leave the deployment active. `4xx` responses are not
+retried. A step that still cannot be reported is dropped and logged to the task's stderr (the fastdeploy service
+journal), and the task keeps reading the deploy script output; lines that are not a JSON object with a `name` are
+skipped. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
+deployment is finished afterwards; if finishing fails after a failed deploy, the original error is kept. If the failed
+step cannot be reported at all, the deployment is left unfinished instead of being finished as an apparent success,
+and it stops blocking new deployments once it is older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`.
+Known limitation: if such a deployment has no running or pending steps left (every step was already reported as
+successful before the script failed), the orphan reconciliation finishes it after
+`DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` and it shows as successful, because the API never learned about the
+failure. Check the fastdeploy journal for "not finishing the deployment" in that case.
+
 ## Service Registration
 
 Services are registered with FastDeploy using the `fastdeploy_register_service` role.
