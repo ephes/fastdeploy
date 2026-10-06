@@ -224,6 +224,16 @@ class DeploymentAlreadyRunning(Exception):
         super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
 
 
+# Name of the failure step that records why a deployment was finished by the
+# orphan cleanup instead of by its deploy task.
+ORPHANED_STEP_NAME = "deployment orphaned"
+ORPHANED_STEP_MESSAGE = (
+    "Finished by the orphan cleanup: the deploy task never reported the end of this deployment "
+    "(it stopped reporting without finishing it), so its outcome is unknown and it is recorded as failed. "
+    "Check the fastdeploy service journal for the deploy task's output."
+)
+
+
 class Deployment(EventsMixin):
     """
     Representing a single deployment for a service. It has an origin
@@ -390,6 +400,33 @@ class Deployment(EventsMixin):
                 steps_to_remove.append(step)
                 step.delete()
         return steps_to_remove
+
+    def finish_as_orphaned(self) -> tuple[list[Step], Step | None]:
+        """
+        Finish a deployment that its deploy task stopped reporting without
+        finishing it. The outcome is unknown, so the deployment must not look
+        successful: a failure step with the reason is added. Returns the steps
+        to remove (like ``finish``) and the added failure step, or ``([], None)``
+        if the deployment is already finished.
+        """
+        if self.finished is not None:
+            return [], None
+
+        now = datetime.now(timezone.utc)
+        failure_step = Step(
+            name=ORPHANED_STEP_NAME,
+            state="failure",
+            started=now,
+            finished=now,
+            message=ORPHANED_STEP_MESSAGE,
+            deployment_id=self.id,
+        )
+        steps_to_remove = self.finish()
+        removed = {id(step) for step in steps_to_remove}
+        self.steps = [step for step in self.steps if id(step) not in removed]
+        self.steps.append(failure_step)
+        failure_step.process()
+        return steps_to_remove, failure_step
 
 
 def sync_services(

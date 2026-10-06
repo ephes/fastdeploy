@@ -38,6 +38,12 @@ class FinishDeployment(Command):
     deployment_id: int
 
 
+class FinishOrphanedDeployment(Command):
+    """Finish a deployment its deploy task stopped reporting for, as failed."""
+
+    deployment_id: int
+
+
 class StartDeployment(Command):
     service_id: int
     user: str

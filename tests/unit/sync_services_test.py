@@ -189,3 +189,49 @@ async def test_sync_services_deletes_service_with_stale_deployment(bus, uow, ser
 
     assert result.deleted == [service_in_db.name]
     assert result.skipped == []
+
+
+@pytest.mark.asyncio
+async def test_sync_services_deletes_service_with_orphaned_deployment(bus, uow, service_in_db):
+    """An orphaned deployment (no open steps, no recent activity) does not count as running."""
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    deployment = model.Deployment(service_id=service_in_db.id, origin="test", user="test", started=old, finished=None)
+    async with uow:
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        await uow.steps.add(
+            model.Step(name="done", state="success", deployment_id=deployment.id, started=old, finished=old)
+        )
+        await uow.commit()
+
+    result = await bus.handle(commands.SyncServices(force=True))
+
+    assert result.deleted == [service_in_db.name]
+    assert result.skipped == []
+
+
+@pytest.mark.asyncio
+async def test_sync_services_keeps_service_whose_deployment_reported_recently(bus, uow, service_in_db):
+    """No open steps, but the last step was just reported: the deploy task may still be finishing."""
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    deployment = model.Deployment(service_id=service_in_db.id, origin="test", user="test", started=old, finished=None)
+    async with uow:
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        await uow.steps.add(
+            model.Step(
+                name="done",
+                state="success",
+                deployment_id=deployment.id,
+                started=old,
+                finished=datetime.now(timezone.utc),
+            )
+        )
+        await uow.commit()
+
+    result = await bus.handle(commands.SyncServices(force=True))
+
+    assert result.deleted == []
+    assert result.skipped == [
+        model.SkippedService(name=service_in_db.name, reason=f"deployment {deployment.id} is still running")
+    ]

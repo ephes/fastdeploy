@@ -88,7 +88,7 @@ fastdeploy_source_path: /Users/jochen/projects/fastdeploy  # for rsync
 fastdeploy_git_repo: https://github.com/ephes/fastdeploy.git  # for git
 ```
 
-FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `300`) in its `.env`. This prevents brand-new deployments from being auto-finished before their steps are created.
+FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `300`) in its `.env`. A deployment is only treated as orphaned once neither its start nor any step activity happened within this delay. This prevents brand-new deployments from being auto-finished before their steps are created, and deployments whose deploy task is still retrying to finish them from being finished early.
 
 Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Orphaned unfinished deployments do not block (they are finished as part of a successful start; a rejected start changes nothing), and deployments older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` (default: `480`) do not block.
 
@@ -102,10 +102,11 @@ skipped. When the deploy fails, a "failed step" is reported with the same number
 deployment is finished afterwards; if finishing fails after a failed deploy, the original error is kept. If the failed
 step cannot be reported at all, the deployment is left unfinished instead of being finished as an apparent success,
 and it stops blocking new deployments once it is older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`.
-Known limitation: if such a deployment has no running or pending steps left (every step was already reported as
-successful before the script failed), the orphan reconciliation finishes it after
-`DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` and it shows as successful, because the API never learned about the
-failure. Check the fastdeploy journal for "not finishing the deployment" in that case.
+If such a deployment has no running or pending steps left (every step was already reported as successful before the
+script failed), it is orphaned: once `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` passed without activity, the orphan
+reconciliation finishes it as failed with a `deployment orphaned` failure step that records the reason (see
+[Orphaned deployments](endpoints.md#orphaned-deployments)). The fastdeploy journal ("not finishing the deployment")
+has the deploy task's side of it.
 
 ## Service Registration
 

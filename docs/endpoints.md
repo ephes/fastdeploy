@@ -152,15 +152,28 @@ deployment is created or started. The response names the running deployment:
   }
 }
 ```
-Orphaned unfinished deployments of the service (no running/pending steps and older than
-`DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS`) do not block: they are finished as part of a
-successful start, so a stale row cannot wedge the service. A rejected (409) start changes nothing. Unfinished deployments started longer ago than the deployment token
+Orphaned unfinished deployments of the service (see [Orphaned deployments](#orphaned-deployments))
+do not block: they are finished as failed as part of a successful start, so a stale row cannot wedge
+the service. A rejected (409) start changes nothing. Unfinished deployments started longer ago than the deployment token
 lifetime (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) can no longer report or finish
 and do not block new deployments either. Concurrent starts for the same service are serialized
 by a database row lock on the service, so exactly one of them succeeds.
 
+### Orphaned deployments
+A deployment is orphaned when it is unfinished, has no running or pending steps, and neither the
+deployment start nor any step start/finish happened within `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS`
+(default 300). Its deploy task stopped reporting without finishing it (for example because the API
+was unreachable when the deploy failed), so its outcome is unknown. Orphaned deployments are never
+recorded as successful: `GET /deployments/`, `GET /deployments/{deployment_id}` and a successful
+`POST /deployments/` for the same service finish them and add a step named `deployment orphaned`
+with state `failure` whose `message` records the reason. The step is returned with the other steps
+(`GET /deployments/{deployment_id}`, `GET /steps/?deployment_id=`), broadcast over the websocket, and
+shown as a failed step in the web frontend. A later `PUT /deployments/finish/` from the deploy task
+does not change the result. The cleanup, `PUT /deployments/finish/` and `POST /steps/` lock the deployment
+row, so a deploy task that finishes or reports a step at the same time is never marked as orphaned.
+
 ### GET /deployments/
-**Purpose**: List all deployments
+**Purpose**: List all deployments; orphaned deployments are finished as failed first
 **Authentication**: User token required
 **Response**:
 ```json
@@ -181,8 +194,8 @@ by a database row lock on the service, so exactly one of them succeeds.
 **Authentication**: Service token required (must match deployment's service)
 **Errors**: `404 {"detail": "Deployment not found"}` both for an unknown id and for a deployment of
 another service, so the response does not reveal which ids exist. An orphaned unfinished deployment
-(no running/pending steps, older than `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS`) is finished on read,
-but only after the ownership check.
+(see [Orphaned deployments](#orphaned-deployments)) is finished as failed on read, but only after the
+ownership check.
 **Response**:
 ```json
 {

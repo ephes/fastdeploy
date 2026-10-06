@@ -121,3 +121,78 @@ async def test_get_deployment_with_steps_returns_plain_models_from_repository():
     )
     assert {step.name for step in modified_steps} == {"init", "backup"}
     assert next(step for step in modified_steps if step.name == "backup").state == "running"
+
+
+# test orphan classification
+
+
+def orphan_candidate(started, step_started=None, step_finished=None, state="success"):
+    deployment = model.Deployment(id=1, service_id=1, origin="GitHub", user="foobar", started=started)
+    steps = [model.Step(id=1, name="s", deployment_id=1, state=state, started=step_started, finished=step_finished)]
+    return deployment, steps
+
+
+async def test_deployment_without_open_steps_and_activity_is_orphaned():
+    now = datetime.now(timezone.utc)
+    old = now - views.ORPHAN_RECONCILE_DELAY - timedelta(minutes=1)
+    deployment, steps = orphan_candidate(old, old, old)
+
+    assert views.deployment_is_orphaned(deployment, steps, now)
+    assert views.classify_unfinished_deployment(deployment, steps, now) == "orphaned"
+
+
+async def test_deployment_with_recent_step_activity_is_not_orphaned():
+    """The deploy task reported its last step recently and may still be finishing (retrying through an API outage)."""
+    now = datetime.now(timezone.utc)
+    old = now - views.ORPHAN_RECONCILE_DELAY - timedelta(minutes=1)
+    deployment, steps = orphan_candidate(old, old, now - timedelta(seconds=30))
+
+    assert not views.deployment_is_orphaned(deployment, steps, now)
+    assert views.classify_unfinished_deployment(deployment, steps, now) == "active"
+
+
+async def test_deployment_with_open_steps_is_not_orphaned():
+    now = datetime.now(timezone.utc)
+    old = now - views.ORPHAN_RECONCILE_DELAY - timedelta(minutes=1)
+    deployment, steps = orphan_candidate(old, old, None, state="running")
+
+    assert not views.deployment_is_orphaned(deployment, steps, now)
+    assert views.classify_unfinished_deployment(deployment, steps, now) == "active"
+
+
+async def test_finished_deployment_is_not_orphaned():
+    now = datetime.now(timezone.utc)
+    old = now - views.ORPHAN_RECONCILE_DELAY - timedelta(minutes=1)
+    deployment, steps = orphan_candidate(old, old, old)
+    deployment.finished = old
+
+    assert not views.deployment_is_orphaned(deployment, steps, now)
+
+
+async def test_get_steps_to_do_skips_orphan_marker_step(uow, service_in_db):
+    service = service_in_db
+    started = datetime.now(timezone.utc) - timedelta(days=1)
+    deployment = model.Deployment(
+        service_id=service.id, origin="GitHub", user="foobar", started=started, finished=started
+    )
+    async with uow:
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        await uow.steps.add(
+            model.Step(
+                name="reported", started=started, finished=started, state="success", deployment_id=deployment.id
+            )
+        )
+        await uow.steps.add(
+            model.Step(
+                name=model.ORPHANED_STEP_NAME,
+                started=started,
+                finished=started,
+                state="failure",
+                deployment_id=deployment.id,
+            )
+        )
+        await uow.commit()
+
+    steps = await views.get_steps_to_do_from_service(service, uow=uow)
+    assert [step.name for step in steps] == ["reported"]

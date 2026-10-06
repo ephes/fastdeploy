@@ -90,7 +90,7 @@ SERVICE_TOKEN_RETENTION_DAYS=30  # Delete expired/revoked token records older th
 API_URL=http://localhost:8000
 ```
 
-`DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` adds a safety window before unfinished deployments are considered orphaned by reconciliation on read endpoints and before starting a new deployment. Increase this if step creation is delayed in your environment.
+`DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` adds a safety window before unfinished deployments are considered orphaned by reconciliation on read endpoints and before starting a new deployment. It counts from the latest activity of the deployment (its start or the last reported step). Orphaned deployments are finished as failed with a `deployment orphaned` failure step that records the reason, see [docs/endpoints.md](docs/endpoints.md#orphaned-deployments). Increase the delay if step creation is delayed in your environment.
 
 Only one deployment per service runs at a time: `POST /deployments/` returns `409 Conflict` (naming the running deployment id) while the service has an active deployment. See [docs/endpoints.md](docs/endpoints.md#post-deployments).
 

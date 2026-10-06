@@ -125,3 +125,42 @@ async def test_default_containers_are_not_shared_between_instances():
     first_deployed, second_deployed = model.DeployedService(deployment_id=1), model.DeployedService(deployment_id=2)
     first_deployed.config["key"] = "value"
     assert second_deployed.config == {}
+
+
+# test domain.model.Deployment.finish_as_orphaned
+
+
+async def test_finish_as_orphaned_adds_failure_step_with_reason():
+    started = datetime.now(timezone.utc) - timedelta(days=1)
+    reported = model.Step(id=1, name="step-1", deployment_id=1, state="success", started=started, finished=started)
+    open_step = model.Step(id=2, name="step-2", deployment_id=1, state="pending")
+    deployment = model.Deployment(
+        id=1, service_id=1, origin="GitHub", user="foobar", started=started, steps=[reported, open_step]
+    )
+
+    removed, failure_step = deployment.finish_as_orphaned()
+
+    assert deployment.finished is not None
+    assert removed == [open_step]
+    assert failure_step is not None
+    assert failure_step.name == model.ORPHANED_STEP_NAME
+    assert failure_step.state == "failure"
+    assert failure_step.deployment_id == 1
+    assert failure_step.message == model.ORPHANED_STEP_MESSAGE
+    assert failure_step.started is not None and failure_step.finished is not None
+    assert deployment.steps == [reported, failure_step]
+    # the failure step is broadcast like a reported step, once it has been saved
+    failure_step.id = 3
+    failure_step.raise_recorded_events()
+    assert [type(event) for event in failure_step.events] == [events.StepProcessed]
+
+
+async def test_finish_as_orphaned_on_finished_deployment_is_noop():
+    started = datetime.now(timezone.utc) - timedelta(days=1)
+    deployment = model.Deployment(id=1, service_id=1, origin="GitHub", user="foobar", started=started)
+    deployment.finish()
+    finished = deployment.finished
+
+    assert deployment.finish_as_orphaned() == ([], None)
+    assert deployment.finished == finished
+    assert deployment.steps == []

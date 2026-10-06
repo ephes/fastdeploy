@@ -5,7 +5,7 @@ Unreleased
 - Single-flight deployments per service: `POST /deployments/` returns `409 Conflict` with the running
   deployment id while the service already has an active deployment, instead of spawning a second
   concurrent deploy. Check and insert are serialized by a database row lock on the service, orphaned
-  deployments of the service do not block (they are finished as part of a successful start), and deployments older than the deployment token
+  deployments of the service do not block (they are finished as failed as part of a successful start), and deployments older than the deployment token
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
 ### Bug Fixes
@@ -27,6 +27,19 @@ Unreleased
   deployment has its own retries, and a failure there no longer replaces the original deploy error. A failed deploy
   whose failure step cannot be reported is not finished as an apparent success. A non-string `error_message` (for example an Ansible `msg` list) is
   converted to text instead of being rejected with 422.
+- Orphaned deployments are no longer recorded as successful. A deploy whose script failed after every step was
+  already reported as successful, while the API was unreachable for the failure step, used to be finished by the
+  orphan cleanup and then looked successful. The orphan cleanup (on `GET /deployments/`,
+  `GET /deployments/{deployment_id}` and a successful start of the same service) now finishes such deployments as
+  failed: it adds a `deployment orphaned` step with state `failure` whose message records the reason. The step is
+  returned by the API with the other steps, broadcast over the websocket and shown as a failed step in the web
+  frontend; a late finish from the deploy task does not change it, and it is not copied into the step list of the
+  next deployment. `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` now counts from the latest activity (deployment start
+  or last step start/finish) instead of only the start, so a long deployment whose task is still retrying to finish
+  it is not finished early; until then it keeps blocking new deploys of the service and services sync keeps the
+  service. The cleanup re-checks a deployment under the service lock and a row lock on the deployment before
+  finishing it; finishing a deployment and processing a step take the same deployment row lock, so a deploy task
+  finishing concurrently is never marked as orphaned.
 
 ### Security
 - `GET /deployments/{deployment_id}` checks that the deployment belongs to the token's service before

@@ -238,3 +238,32 @@ async def test_what_happens_to_first_unknown_step(popen, bus, service_in_db, cat
             unknown_deleted_event = event
             break
     assert unknown_deleted_event is not None
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_finish_orphaned_deployment_rechecks_before_finishing(bus, uow, service_in_db):
+    """A deployment that reported a step after it was classified as orphaned is left alone."""
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    deployment = model.Deployment(service_id=service_in_db.id, origin="test", user="test", started=old)
+    async with uow:
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        await uow.steps.add(
+            model.Step(
+                name="just reported",
+                state="success",
+                deployment_id=deployment.id,
+                started=old,
+                finished=datetime.now(timezone.utc),
+            )
+        )
+        await uow.commit()
+
+    assert await bus.handle(commands.FinishOrphanedDeployment(deployment_id=deployment.id)) is False
+    assert await bus.handle(commands.FinishOrphanedDeployment(deployment_id=deployment.id + 1000)) is False
+
+    async with uow:
+        untouched = await uow.deployments.get(deployment.id)
+        steps = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert untouched.finished is None
+    assert [step.name for step in steps] == ["just reported"]

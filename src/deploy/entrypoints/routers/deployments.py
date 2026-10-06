@@ -28,8 +28,9 @@ router = APIRouter(
 
 async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = None) -> list[int]:
     """
-    Reconcile deployments stuck unfinished without active steps. Returns the ids of
-    the deployments that were finished. Callers must check that the caller may access
+    Reconcile orphaned deployments (unfinished, without active steps and without
+    recent activity) by finishing them as failed. Returns the ids of the deployments
+    that were finished. Callers must check that the caller may access
     `deployment_id` before, because this writes.
     """
     if deployment_id is None:
@@ -38,10 +39,12 @@ async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = N
         is_orphaned = await views.is_orphaned_unfinished_deployment(deployment_id, bus.uow)
         orphaned_ids = [deployment_id] if is_orphaned else []
 
+    finished_ids: list[int] = []
     for orphaned_id in orphaned_ids:
-        cmd = commands.FinishDeployment(deployment_id=orphaned_id)
-        await bus.handle(cmd)
-    return orphaned_ids
+        cmd = commands.FinishOrphanedDeployment(deployment_id=orphaned_id)
+        if await bus.handle(cmd):
+            finished_ids.append(orphaned_id)
+    return finished_ids
 
 
 @router.get("/", dependencies=[Depends(get_current_active_user)])

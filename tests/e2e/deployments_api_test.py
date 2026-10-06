@@ -449,7 +449,7 @@ async def test_deploy_service_happy(popen, app, uow, publisher, valid_service_to
 # single-flight: only one running deployment per service
 
 
-async def add_unfinished_deployment(uow, service_id, started, step_states=()):
+async def add_unfinished_deployment(uow, service_id, started, step_states=(), step_finished=None):
     async with uow:
         deployment = model.Deployment(
             service_id=service_id,
@@ -462,7 +462,13 @@ async def add_unfinished_deployment(uow, service_id, started, step_states=()):
         await uow.commit()
         for idx, state in enumerate(step_states):
             await uow.steps.add(
-                model.Step(name=f"step {idx}", deployment_id=deployment.id, state=state, started=started)
+                model.Step(
+                    name=f"step {idx}",
+                    deployment_id=deployment.id,
+                    state=state,
+                    started=started,
+                    finished=step_finished,
+                )
             )
         await uow.commit()
     return deployment
@@ -519,7 +525,9 @@ async def test_deploy_start_reconciles_orphaned_deployment(popen, app, uow, serv
     assert response.json()["id"] != orphan.id
     async with uow:
         reconciled = await uow.deployments.get(orphan.id)
+        steps = await uow.steps.get_steps_by_deployment(orphan.id)
     assert reconciled.finished is not None
+    assert_finished_as_orphaned(steps)
 
 
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
@@ -612,3 +620,116 @@ async def test_deploy_rejected_start_leaves_orphan_untouched(
     async with uow:
         untouched = await uow.deployments.get(orphan.id)
     assert untouched.finished is None
+
+
+def assert_finished_as_orphaned(steps, reported=("success",)):
+    """An orphaned deployment keeps its reported steps and gets a failure step with the reason."""
+    by_name = {step.name: step for step in steps}
+    marker = by_name.pop(model.ORPHANED_STEP_NAME)
+    assert marker.state == "failure"
+    assert marker.message == model.ORPHANED_STEP_MESSAGE
+    assert sorted(step.state for step in by_name.values()) == sorted(reported)
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_get_deployments_finishes_orphan_as_failed(app, uow, publisher, service_in_db, valid_access_token_in_db):
+    """Every reported step succeeded, but the deploy task never finished: this must not look successful."""
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    orphan = await add_unfinished_deployment(uow, service_in_db.id, old, step_states=("success",), step_finished=old)
+
+    headers = {"authorization": f"Bearer {valid_access_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(app.url_path_for("get_deployments"), headers=headers)
+
+    assert response.status_code == 200
+    assert next(d for d in response.json() if d["id"] == orphan.id)["finished"] is not None
+    async with uow:
+        steps = await uow.steps.get_steps_by_deployment(orphan.id)
+    assert_finished_as_orphaned(steps)
+    published = [event for _, event in publisher.events]
+    assert any(isinstance(event, events.DeploymentFinished) and event.id == orphan.id for event in published)
+    assert any(
+        isinstance(event, events.StepProcessed) and event.name == model.ORPHANED_STEP_NAME and event.state == "failure"
+        for event in published
+    )
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_get_deployment_details_shows_orphan_failure(app, uow, service_in_db, valid_service_token_in_db):
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    orphan = await add_unfinished_deployment(
+        uow, service_in_db.id, old, step_states=("success", "failure"), step_finished=old
+    )
+
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=orphan.id), headers=headers
+        )
+        again = await client.get(app.url_path_for("get_deployment_details", deployment_id=orphan.id), headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["finished"] is not None
+    assert_finished_as_orphaned([model.Step(**step) for step in data["steps"]], reported=("success", "failure"))
+    # reconciling is not repeated, there is exactly one marker step
+    assert again.json() == data
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_get_deployments_does_not_finish_deployment_with_recent_step(
+    app, uow, service_in_db, valid_access_token_in_db
+):
+    """Started long ago, but the last step was reported just now: the deploy task may still be finishing."""
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    recent = await add_unfinished_deployment(
+        uow, service_in_db.id, old, step_states=("success",), step_finished=datetime.now(timezone.utc)
+    )
+
+    headers = {"authorization": f"Bearer {valid_access_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(app.url_path_for("get_deployments"), headers=headers)
+
+    assert response.status_code == 200
+    async with uow:
+        untouched = await uow.deployments.get(recent.id)
+        steps = await uow.steps.get_steps_by_deployment(recent.id)
+    assert untouched.finished is None
+    assert [step.name for step in steps] == ["step 0"]
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+@patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_rejected_while_last_step_was_reported_recently(
+    popen, app, uow, service_in_db, valid_service_token_in_db
+):
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    recent = await add_unfinished_deployment(
+        uow, service_in_db.id, old, step_states=("success",), step_finished=datetime.now(timezone.utc)
+    )
+
+    response = await post_start_deployment(app, valid_service_token_in_db)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["deployment_id"] == recent.id
+    popen.assert_not_called()
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_finish_after_orphan_cleanup_keeps_failure(app, uow, service_in_db, valid_access_token_in_db):
+    """A late finish from the deploy task does not turn an orphaned deployment into a success."""
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    orphan = await add_unfinished_deployment(uow, service_in_db.id, old, step_states=("success",), step_finished=old)
+
+    headers = {"authorization": f"Bearer {valid_access_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.get(app.url_path_for("get_deployments"), headers=headers)
+        deployment_token = create_access_token({"type": "deployment", "deployment": orphan.id}, timedelta(minutes=5))
+        response = await client.put(
+            app.url_path_for("finish_deployment"), headers={"authorization": f"Bearer {deployment_token}"}
+        )
+
+    assert response.status_code == 200
+    async with uow:
+        steps = await uow.steps.get_steps_by_deployment(orphan.id)
+    assert_finished_as_orphaned(steps)

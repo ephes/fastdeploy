@@ -2,6 +2,8 @@ import logging
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import NoResultFound
+
 from .. import views
 from ..adapters.filesystem import AbstractFilesystem
 from ..domain import commands, events, model
@@ -114,6 +116,20 @@ async def purge_service_tokens(command: commands.PurgeServiceTokens, uow: Abstra
     return deleted
 
 
+async def get_deployment_for_update(deployment_id: int, uow: AbstractUnitOfWork) -> model.Deployment:
+    """
+    Must be called inside an open unit of work. Locks the deployment row (see
+    ``get_for_update``) and loads its current steps. Raises DeploymentNotFound
+    for an unknown id.
+    """
+    try:
+        deployment = await uow.deployments.get_for_update(deployment_id)
+    except NoResultFound as e:
+        raise views.DeploymentNotFound(deployment_id) from e
+    deployment.steps = await uow.steps.get_steps_by_deployment(deployment_id)
+    return deployment
+
+
 async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUnitOfWork):
     """
     Finish a deployment.
@@ -123,7 +139,7 @@ async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUni
     and update the finished deployment.
     """
     async with uow:
-        deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
+        deployment = await get_deployment_for_update(command.deployment_id, uow)
         removed_steps = deployment.finish()
         for step in removed_steps:
             await uow.steps.delete(step)
@@ -131,16 +147,62 @@ async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUni
         await uow.commit()
 
 
+async def stage_orphaned_deployment_finish(
+    deployment: model.Deployment, steps: list[model.Step], uow: AbstractUnitOfWork
+) -> None:
+    """
+    Finish an orphaned deployment as failed inside the current unit of work:
+    remove its open steps and add the failure step that records the reason.
+    An orphaned deployment must never look successful.
+    """
+    deployment.steps = steps
+    removed_steps, failure_step = deployment.finish_as_orphaned()
+    for step in removed_steps:
+        await uow.steps.delete(step)
+    if failure_step is not None:
+        await uow.steps.add(failure_step)
+    await uow.deployments.add(deployment)
+
+
+async def finish_orphaned_deployment(command: commands.FinishOrphanedDeployment, uow: AbstractUnitOfWork) -> bool:
+    """
+    Finish an orphaned deployment as failed. The orphan rule is checked again
+    while the service is locked, so a deployment that reported a step (or was
+    finished) in the meantime is left alone. Returns whether it was finished.
+    """
+    try:
+        service_id = (await views.get_deployment_with_steps(command.deployment_id, uow)).service_id
+    except views.DeploymentNotFound:
+        return False
+    now = datetime.now(timezone.utc)
+    async with uow:
+        # Same service lock as deployment starts and services syncs, then the
+        # deployment lock that finishing and step processing take as well, so the
+        # check below sees the current state and nothing changes it until commit.
+        await uow.services.lock_for_deployment(service_id)
+        try:
+            deployment = await get_deployment_for_update(command.deployment_id, uow)
+        except views.DeploymentNotFound:
+            return False  # deleted in the meantime
+        steps = deployment.steps
+        if not views.deployment_is_orphaned(deployment, steps, now):
+            return False
+        logger.warning("Finishing orphaned deployment %s as failed", deployment.id)
+        await stage_orphaned_deployment_finish(deployment, steps, uow)
+        await uow.commit()
+    return True
+
+
 async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitOfWork) -> None:
     """
     Must be called inside an open unit of work, after the service has been
     locked for deployment. Raises ``DeploymentAlreadyRunning`` if the service
     has an active deployment; otherwise finishes its orphaned unfinished
-    deployments (staged in the current transaction). Nothing is mutated when
+    deployments as failed (staged in the current transaction). Nothing is mutated when
     the start is refused.
     """
     now = datetime.now(timezone.utc)
-    orphans: list[tuple[model.Deployment, list[model.Step]]] = []
+    orphan_ids: list[int] = []
     for unfinished in await uow.deployments.get_unfinished_by_service(service_id):
         if unfinished.id is None:
             continue
@@ -149,14 +211,27 @@ async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitO
         if state == "active":
             raise model.DeploymentAlreadyRunning(service_id=service_id, deployment_id=unfinished.id)
         if state == "orphaned":
-            orphans.append((unfinished, steps))
+            orphan_ids.append(unfinished.id)
 
-    for orphan, steps in orphans:
-        logger.info("Finishing orphaned deployment %s before starting a new one", orphan.id)
-        orphan.steps = steps
-        for step in orphan.finish():
-            await uow.steps.delete(step)
-        await uow.deployments.add(orphan)
+    # Lock and reload the orphans: the deploy task may have finished a deployment
+    # or reported a step since it was classified (finishing and step processing
+    # take the deployment lock, not the service lock). Check all before staging,
+    # so a refused start changes nothing.
+    locked: list[model.Deployment] = []
+    for orphan_id in orphan_ids:
+        try:
+            orphan = await get_deployment_for_update(orphan_id, uow)
+        except views.DeploymentNotFound:
+            continue
+        if orphan.finished is not None:
+            continue
+        if not views.deployment_is_orphaned(orphan, orphan.steps, now):
+            raise model.DeploymentAlreadyRunning(service_id=service_id, deployment_id=orphan_id)
+        locked.append(orphan)
+
+    for orphan in locked:
+        logger.warning("Finishing orphaned deployment %s as failed before starting a new one", orphan.id)
+        await stage_orphaned_deployment_finish(orphan, orphan.steps, uow)
 
 
 async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitOfWork):
@@ -210,7 +285,7 @@ async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
     # get the deployment that we are deploying from database
     step = model.Step(**command.model_dump())
     async with uow:
-        deployment = await views.get_deployment_with_steps(command.deployment_id, uow)
+        deployment = await get_deployment_for_update(command.deployment_id, uow)
         steps_to_update = deployment.process_step(step)
         for step in steps_to_update:
             await uow.steps.add(step)
@@ -251,5 +326,6 @@ COMMAND_HANDLERS = {
     commands.PurgeServiceTokens: purge_service_tokens,
     commands.StartDeployment: start_deployment,
     commands.FinishDeployment: finish_deployment,
+    commands.FinishOrphanedDeployment: finish_orphaned_deployment,
     commands.ProcessStep: process_step,
 }  # type: dict[type[commands.Command], Callable]

@@ -2,6 +2,7 @@ import abc
 from datetime import datetime
 
 from sqlalchemy import and_, delete, or_, select, text
+from sqlalchemy.exc import NoResultFound
 
 from ..domain import model
 
@@ -183,6 +184,16 @@ class AbstractDeploymentRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_for_update(self, deployment_id: int) -> model.Deployment:
+        """
+        Load the current state of a deployment and lock its row until the
+        current transaction ends. Every writer of a deployment (finishing it,
+        processing a step, the orphan cleanup) takes this lock first, so they
+        are serialized.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def get_by_service(self, service_id: int) -> list[model.Deployment]:
         raise NotImplementedError
 
@@ -209,6 +220,18 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
 
     async def get(self, deployment_id):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def get_for_update(self, deployment_id):
+        # PostgreSQL ``SELECT ... FOR UPDATE``; populate_existing refreshes an
+        # instance already loaded in this session with the state seen after locking.
+        stmt = (
+            select(model.Deployment)
+            .where(model.Deployment.id == deployment_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
@@ -283,7 +306,15 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
         self._deployments.append(deployment)
 
     async def get(self, deployment_id):
-        return next(d for d in self._deployments if d.id == deployment_id)
+        for deployment in self._deployments:
+            if deployment.id == deployment_id:
+                return deployment
+        # same as the SQLAlchemy repository
+        raise NoResultFound(f"Deployment {deployment_id} not found")
+
+    async def get_for_update(self, deployment_id):
+        # In-memory repositories never suspend, so writers cannot interleave.
+        return await self.get(deployment_id)
 
     async def get_by_service(self, service_id):
         return [d for d in self._deployments if d.service_id == service_id]
@@ -380,7 +411,13 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
         await self.session.delete(step)
 
     async def get_steps_by_deployment(self, deployment_id):
-        stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)
+        # populate_existing: steps loaded earlier in this session are refreshed,
+        # so a reload after locking the deployment sees their current state.
+        stmt = (
+            select(model.Step)
+            .where(model.Step.deployment_id == deployment_id)
+            .execution_options(populate_existing=True)
+        )
         result = await self.session.execute(stmt)
         return result.scalars().all()
 

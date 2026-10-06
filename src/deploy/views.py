@@ -26,17 +26,51 @@ def _as_utc(dt: datetime | None) -> datetime | None:
     return dt
 
 
-def deployment_is_too_new_for_reconciliation(
-    deployment: model.Deployment,
-    now: datetime,
-) -> bool:
+def last_deployment_activity(deployment: model.Deployment, steps: list[model.Step]) -> datetime | None:
     """
-    Avoid reconciling brand-new deployments during the startup race window.
+    Latest of the deployment start and the start/finish times of its steps, or
+    None if the deployment has no start time.
     """
     started = _as_utc(deployment.started)
     if started is None:
+        return None
+    timestamps = [started]
+    for step in steps:
+        for value in (step.started, step.finished):
+            as_utc = _as_utc(value)
+            if as_utc is not None:
+                timestamps.append(as_utc)
+    return max(timestamps)
+
+
+def deployment_is_too_new_for_reconciliation(
+    deployment: model.Deployment,
+    now: datetime,
+    steps: list[model.Step] | None = None,
+) -> bool:
+    """
+    Avoid reconciling deployments that were active recently: brand-new
+    deployments during the startup race window, and deployments whose deploy
+    task reported its last step but is still finishing the deployment (for
+    example while retrying through a short API outage).
+    """
+    last_activity = last_deployment_activity(deployment, steps or [])
+    if last_activity is None:
         return True
-    return (now - started) < ORPHAN_RECONCILE_DELAY
+    return (now - last_activity) < ORPHAN_RECONCILE_DELAY
+
+
+def deployment_is_orphaned(deployment: model.Deployment, steps: list[model.Step], now: datetime) -> bool:
+    """
+    An unfinished deployment is orphaned when it has no running/pending steps
+    and no activity within the reconcile delay. Its deploy task stopped
+    reporting without finishing it, so the outcome is unknown.
+    """
+    if deployment.finished is not None:
+        return False
+    if deployment_is_too_new_for_reconciliation(deployment, now, steps):
+        return False
+    return not deployment_has_open_steps(steps)
 
 
 async def get_user_by_name(name: str, uow: unit_of_work.AbstractUnitOfWork) -> model.User:
@@ -79,7 +113,8 @@ async def get_steps_from_last_deployment(
     if last_successful_deployment_id is not None:
         # try to get steps from last successful deployment
         steps_from_db = await uow.steps.get_steps_by_deployment(last_successful_deployment_id)
-        steps.extend(steps_from_db)
+        # the orphan marker is not a step of the deploy script
+        steps.extend(step for step in steps_from_db if step.name != model.ORPHANED_STEP_NAME)
     return steps
 
 
@@ -147,8 +182,8 @@ def classify_unfinished_deployment(
     """
     Classify an unfinished deployment for the per-service single-flight check.
 
-    - "orphaned": no running/pending steps and older than the reconcile delay;
-      safe to finish (same rule as the read-path orphan reconciliation).
+    - "orphaned": no running/pending steps and no activity within the reconcile
+      delay; finished as failed (same rule as the read-path orphan reconciliation).
     - "stale": started longer ago than the deployment token lifetime (or has no
       start time), so the deploy task cannot report or finish anymore. It does
       not block new deployments but is left untouched.
@@ -157,7 +192,7 @@ def classify_unfinished_deployment(
     started = _as_utc(deployment.started)
     if started is None:
         return "stale"
-    if not deployment_is_too_new_for_reconciliation(deployment, now) and not deployment_has_open_steps(steps):
+    if deployment_is_orphaned(deployment, steps, now):
         return "orphaned"
     if (now - started) >= STALE_DEPLOYMENT_AGE:
         return "stale"
@@ -168,9 +203,9 @@ async def get_orphaned_unfinished_deployment_ids(
     uow: unit_of_work.AbstractUnitOfWork,
 ) -> list[int]:
     """
-    Return unfinished deployments that have no running/pending steps.
+    Return orphaned unfinished deployments (see ``deployment_is_orphaned``).
 
-    These deployments are safe to reconcile by calling FinishDeployment.
+    These deployments are reconciled with FinishOrphanedDeployment.
     """
     orphaned_ids: list[int] = []
     now = datetime.now(timezone.utc)
@@ -180,9 +215,10 @@ async def get_orphaned_unfinished_deployment_ids(
             if deployment.id is None or deployment.finished is not None:
                 continue
             if deployment_is_too_new_for_reconciliation(deployment, now):
+                # cheap pre-check, step activity can only make it newer
                 continue
             deployment_steps = await uow.steps.get_steps_by_deployment(deployment.id)
-            if not deployment_has_open_steps(deployment_steps):
+            if deployment_is_orphaned(deployment, deployment_steps, now):
                 orphaned_ids.append(deployment.id)
     return orphaned_ids
 
@@ -192,14 +228,10 @@ async def is_orphaned_unfinished_deployment(
     uow: unit_of_work.AbstractUnitOfWork,
 ) -> bool:
     """
-    Return True if deployment is unfinished and has no running/pending steps.
+    Return True if the deployment is orphaned (see ``deployment_is_orphaned``).
     """
     deployment = await get_deployment_with_steps(deployment_id, uow)
-    if deployment.finished is not None:
-        return False
-    if deployment_is_too_new_for_reconciliation(deployment, datetime.now(timezone.utc)):
-        return False
-    return not deployment_has_open_steps(deployment.steps)
+    return deployment_is_orphaned(deployment, deployment.steps, datetime.now(timezone.utc))
 
 
 async def all_deployed_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.DeployedService]:
