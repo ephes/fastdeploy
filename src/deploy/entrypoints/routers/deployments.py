@@ -93,7 +93,7 @@ async def finish_deployment(
     return {"detail": f"Deployment {deployment.id} finished"}
 
 
-@router.post("/")
+@router.post("/", responses={409: {"description": "Another deployment of this service is still running"}})
 async def start_deployment(
     request: Request,
     context: DeploymentContext = DeploymentContext(env={}),
@@ -104,6 +104,10 @@ async def start_deployment(
     Start a new deployment. Needs to be authenticated with a service token. Invoked
     by frontend or github action. The service token is used to get the current
     service from the database.
+
+    Only one deployment per service may run at a time: if the service still has
+    an active deployment, the request is rejected with 409 Conflict and the
+    response detail names the running deployment id.
     """
     if service.id is None:
         # this cannot happen -> it's just a type guard
@@ -124,6 +128,14 @@ async def start_deployment(
     )
     try:
         await bus.handle(cmd)
+    except model.DeploymentAlreadyRunning as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": f"Deployment {e.deployment_id} is still running for service {service.name}",
+                "deployment_id": e.deployment_id,
+            },
+        ) from e
     except Exception:
         raise HTTPException(status_code=400, detail="Something went wrong")
 

@@ -11,6 +11,9 @@ from .service_layer import unit_of_work
 
 OPEN_STEP_STATES = {"pending", "running"}
 ORPHAN_RECONCILE_DELAY = timedelta(seconds=settings.deployment_orphan_reconcile_delay_seconds)
+# After the deployment token has expired the deploy task can neither report
+# steps nor finish the deployment, so it can no longer hold the service lock.
+STALE_DEPLOYMENT_AGE = timedelta(minutes=settings.deployment_access_token_expire_minutes)
 
 
 def _as_utc(dt: datetime | None) -> datetime | None:
@@ -121,6 +124,31 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
 def deployment_has_open_steps(steps: list[model.Step]) -> bool:
     """Return True if any step indicates the deployment is still active."""
     return any(step.state in OPEN_STEP_STATES for step in steps)
+
+
+def classify_unfinished_deployment(
+    deployment: model.Deployment,
+    steps: list[model.Step],
+    now: datetime,
+) -> str:
+    """
+    Classify an unfinished deployment for the per-service single-flight check.
+
+    - "orphaned": no running/pending steps and older than the reconcile delay;
+      safe to finish (same rule as the read-path orphan reconciliation).
+    - "stale": started longer ago than the deployment token lifetime (or has no
+      start time), so the deploy task cannot report or finish anymore. It does
+      not block new deployments but is left untouched.
+    - "active": anything else. Blocks a new deployment of the same service.
+    """
+    started = _as_utc(deployment.started)
+    if started is None:
+        return "stale"
+    if not deployment_is_too_new_for_reconciliation(deployment, now) and not deployment_has_open_steps(steps):
+        return "orphaned"
+    if (now - started) >= STALE_DEPLOYMENT_AGE:
+        return "stale"
+    return "active"
 
 
 async def get_orphaned_unfinished_deployment_ids(

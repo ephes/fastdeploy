@@ -210,6 +210,19 @@ class Service(EventsMixin):
         return f"{self.name}/{deploy_script}"
 
 
+class DeploymentAlreadyRunning(Exception):
+    """
+    Raised when a deployment is started for a service that already has an
+    active (unfinished, non-orphaned) deployment. Only one deployment per
+    service may run at a time.
+    """
+
+    def __init__(self, service_id: int, deployment_id: int):
+        self.service_id = service_id
+        self.deployment_id = deployment_id
+        super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
+
+
 class Deployment(EventsMixin):
     """
     Representing a single deployment for a service. It has an origin

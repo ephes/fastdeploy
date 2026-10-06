@@ -62,6 +62,34 @@ async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUni
         await uow.commit()
 
 
+async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitOfWork) -> None:
+    """
+    Must be called inside an open unit of work, after the service has been
+    locked for deployment. Raises ``DeploymentAlreadyRunning`` if the service
+    has an active deployment; otherwise finishes its orphaned unfinished
+    deployments (staged in the current transaction). Nothing is mutated when
+    the start is refused.
+    """
+    now = datetime.now(timezone.utc)
+    orphans: list[tuple[model.Deployment, list[model.Step]]] = []
+    for unfinished in await uow.deployments.get_unfinished_by_service(service_id):
+        if unfinished.id is None:
+            continue
+        steps = await uow.steps.get_steps_by_deployment(unfinished.id)
+        state = views.classify_unfinished_deployment(unfinished, steps, now)
+        if state == "active":
+            raise model.DeploymentAlreadyRunning(service_id=service_id, deployment_id=unfinished.id)
+        if state == "orphaned":
+            orphans.append((unfinished, steps))
+
+    for orphan, steps in orphans:
+        logger.info("Finishing orphaned deployment %s before starting a new one", orphan.id)
+        orphan.steps = steps
+        for step in orphan.finish():
+            await uow.steps.delete(step)
+        await uow.deployments.add(orphan)
+
+
 async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitOfWork):
     """
     Start a deployment. The list of deployment steps is fetched from the
@@ -86,6 +114,13 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
 
     # actually start the deployment
     async with uow:
+        # Single-flight per service: lock the service row so concurrent starts
+        # for the same service are serialized, reconcile orphaned deployments and
+        # refuse if another deployment is still active. The lock is held until
+        # the commit below, which also makes the new deployment visible.
+        await uow.services.lock_for_deployment(command.service_id)
+        await finish_orphans_or_raise_if_running(command.service_id, uow)
+
         # add the deployment to the database
         # have to commit early to get the deployment ID :(
         # FIXME: this is a bit of a hack

@@ -37,6 +37,14 @@ class AbstractServiceRepository(abc.ABC):
     async def list(self) -> list[model.Service]:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    async def lock_for_deployment(self, service_id: int) -> None:
+        """
+        Serialize deployment starts for a service until the current
+        transaction ends (commit or rollback).
+        """
+        raise NotImplementedError
+
 
 class SqlAlchemyServiceRepository(AbstractServiceRepository):
     def __init__(self, session):
@@ -62,6 +70,12 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
 
     async def _delete(self, service):
         stmt = delete(model.Service).where(model.Service.id == service.id)
+        await self.session.execute(stmt)
+
+    async def lock_for_deployment(self, service_id):
+        # Row lock on the service (PostgreSQL ``SELECT ... FOR UPDATE``). Concurrent
+        # starts for the same service block here until the holder's transaction ends.
+        stmt = select(model.Service).where(model.Service.id == service_id).with_for_update()
         await self.session.execute(stmt)
 
 
@@ -90,6 +104,10 @@ class InMemoryServiceRepository(AbstractServiceRepository):
 
     async def _delete(self, service):
         self._services = [s for s in self._services if s.id != service.id]
+
+    async def lock_for_deployment(self, service_id: int) -> None:  # noqa: ARG002
+        # In-memory repositories never suspend, so check and insert cannot interleave.
+        return None
 
 
 class AbstractUserRepository(abc.ABC):
@@ -168,6 +186,10 @@ class AbstractDeploymentRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_unfinished_by_service(self, service_id: int) -> list[model.Deployment]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def list(self) -> list[model.Deployment]:
         raise NotImplementedError
 
@@ -196,6 +218,16 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
 
     async def list(self):
         stmt = select(model.Deployment)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_unfinished_by_service(self, service_id):
+        stmt = (
+            select(model.Deployment)
+            .where(model.Deployment.service_id == service_id)
+            .where(model.Deployment.finished.is_(None))
+            .order_by(model.Deployment.id)
+        )
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
@@ -254,6 +286,9 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
     async def get_by_service(self, service_id):
         return [d for d in self._deployments if d.service_id == service_id]
+
+    async def get_unfinished_by_service(self, service_id):
+        return [d for d in self._deployments if d.service_id == service_id and d.finished is None]
 
     async def get_last_successful_deployment_id(self, service_id):
         last_successful = None

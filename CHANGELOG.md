@@ -1,3 +1,13 @@
+Unreleased
+==========
+
+### Features
+- Single-flight deployments per service: `POST /deployments/` returns `409 Conflict` with the running
+  deployment id while the service already has an active deployment, instead of spawning a second
+  concurrent deploy. Check and insert are serialized by a database row lock on the service, orphaned
+  deployments of the service do not block (they are finished as part of a successful start), and deployments older than the deployment token
+  lifetime no longer block. Addresses the per-service limit from security review #07.
+
 0.2.0 - 2025-09-01
 ==================
 

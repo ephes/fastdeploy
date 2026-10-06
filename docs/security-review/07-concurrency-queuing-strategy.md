@@ -4,8 +4,21 @@
 
 **Severity**: HIGH
 **Category**: Resource Exhaustion / Denial of Service
-**Status**: CONFIRMED
+**Status**: PARTIALLY MITIGATED (per-service limit of 1 implemented; global pool, rate limiting and queuing open)
 **Date**: 2024-09-03
+
+## Mitigation Status (2026-10-06)
+
+- **Per-service concurrency limit (default 1): implemented.** `POST /deployments/` refuses to start a
+  deployment while the service has an active (unfinished, non-orphaned) deployment and returns
+  `409 Conflict` naming the running deployment id. The check and the insert run in one transaction
+  that holds a `SELECT ... FOR UPDATE` row lock on the service, so concurrent starts for the same
+  service yield exactly one deployment (also across multiple API worker processes). Orphaned
+  deployments of the service do not block and are finished as part of a successful start (a
+  rejected start changes nothing); deployments older than the deployment token
+  lifetime do not block. Rejected requests are not queued: callers must retry.
+- **Still open:** global worker pool, per-user rate limiting, FIFO queue and retries (Phase 1.1 and
+  Phase 2 below).
 
 ## Security Review Feedback
 

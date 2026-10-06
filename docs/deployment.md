@@ -90,6 +90,8 @@ fastdeploy_git_repo: https://github.com/ephes/fastdeploy.git  # for git
 
 FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `300`) in its `.env`. This prevents brand-new deployments from being auto-finished before their steps are created.
 
+Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Orphaned unfinished deployments do not block (they are finished as part of a successful start; a rejected start changes nothing), and deployments older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` (default: `480`) do not block.
+
 ## Service Registration
 
 Services are registered with FastDeploy using the `fastdeploy_register_service` role.

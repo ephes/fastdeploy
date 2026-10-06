@@ -107,6 +107,23 @@ username=<username>&password=<password>
   "details": "/deployments/1"
 }
 ```
+**Single-flight per service**: only one deployment per service runs at a time. If the
+service still has an active deployment, the request is rejected with **409 Conflict** and no
+deployment is created or started. The response names the running deployment:
+```json
+{
+  "detail": {
+    "message": "Deployment 41 is still running for service myservice",
+    "deployment_id": 41
+  }
+}
+```
+Orphaned unfinished deployments of the service (no running/pending steps and older than
+`DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS`) do not block: they are finished as part of a
+successful start, so a stale row cannot wedge the service. A rejected (409) start changes nothing. Unfinished deployments started longer ago than the deployment token
+lifetime (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) can no longer report or finish
+and do not block new deployments either. Concurrent starts for the same service are serialized
+by a database row lock on the service, so exactly one of them succeeds.
 
 ### GET /deployments/
 **Purpose**: List all deployments
@@ -271,6 +288,9 @@ All endpoints may return these standard error responses:
   ```json
   {"detail": "Wrong service token"}
   ```
+
+- **409 Conflict** (`POST /deployments/`): Another deployment of the service is still running;
+  `detail.deployment_id` names it
 
 - **404 Not Found**: Resource does not exist
   ```json
