@@ -4,9 +4,11 @@ name: CI
 # type check and build. Tests only: this workflow needs no secrets and never
 # deploys. Deploys go through the Ansible playbooks (ops-control), not Actions.
 
+# Every branch push runs, so a branch gets a result before a pull request
+# exists (agents push branches without opening one).
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
 

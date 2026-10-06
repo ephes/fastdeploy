@@ -78,7 +78,7 @@ Unreleased
 ### Development
 - GitHub Actions CI (`.github/workflows/ci.yml`) runs `just lint`, `just typecheck` and the
   pytest suite against a `postgres:17` service container, plus the frontend Vitest suite and
-  build, on pushes to `main` and on pull requests. Actions are pinned by commit SHA, permissions
+  build, on every branch push and on pull requests. Actions are pinned by commit SHA, permissions
   are read-only and no secrets are used.
 - The stale, manual-only `deploy.yml` workflow is removed. It posted to the staging deploy API
   with an unpinned third-party action and echoed the response through a shell line (a script

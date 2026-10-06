@@ -162,7 +162,7 @@ DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost/deploy_test just t
 
 ### Continuous integration
 
-`.github/workflows/ci.yml` runs on pushes to `main`, on pull requests and on demand. It runs
+`.github/workflows/ci.yml` runs on every branch push, on pull requests and on demand. It runs
 `just lint`, `just typecheck` and `just test-python` against a `postgres:17` service container,
 and in `frontend/` `npm ci`, `npm test` (Vitest) and `npm run build` (vue-tsc and Vite). The
 workflow has read-only permissions, uses no secrets and does not deploy; deploys go through the
