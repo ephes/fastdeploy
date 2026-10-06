@@ -1,5 +1,6 @@
 import abc
 import json
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from . import events as events_module
@@ -413,14 +414,74 @@ def sync_services(
             updated_services.append(service)
             service.update()
 
-    # check if any services in target are not in source
+    # check if any services in target are not in source. The caller decides
+    # which of them are actually deleted (see check_sync_deletions) and records
+    # the deleted event via Service.delete().
     deleted_services = []
     source_name_lookup = {service.name: service for service in source_services}
     for service in target_services:
         if service.name not in source_name_lookup:
             deleted_services.append(service)
-            service.delete()
     return updated_services, deleted_services
+
+
+@dataclass
+class SkippedService:
+    """A service that a sync would have deleted but kept."""
+
+    name: str
+    reason: str
+
+
+@dataclass
+class ServiceSyncResult:
+    """Names of the services a sync updated (or added), deleted and skipped."""
+
+    updated: list[str] = field(default_factory=list)
+    deleted: list[str] = field(default_factory=list)
+    skipped: list[SkippedService] = field(default_factory=list)
+
+
+class ServiceSyncRefused(Exception):
+    """
+    Raised when a services sync would delete suspiciously many services,
+    for example because the services directory is empty or points to the
+    wrong place. Deleting a service also deletes all of its deployments and
+    steps, so such a sync has to be forced explicitly.
+    """
+
+    def __init__(self, reason: str, would_delete: list[str], total: int):
+        self.reason = reason
+        self.would_delete = would_delete
+        self.total = total
+        super().__init__(reason)
+
+
+def check_sync_deletions(
+    source_services: list[Service], target_services: list[Service], deleted_services: list[Service], force: bool
+) -> None:
+    """
+    Refuse a sync that would wipe out the service history unless it is forced:
+
+    - the filesystem lists no services at all while the database has some
+    - more than half of the services in the database would be deleted
+    """
+    if force or not deleted_services:
+        return
+    total = len(target_services)
+    would_delete = sorted(service.name for service in deleted_services)
+    if not source_services:
+        raise ServiceSyncRefused(
+            f"No services found in the services directory, refusing to delete all {total} services",
+            would_delete=would_delete,
+            total=total,
+        )
+    if len(deleted_services) * 2 > total:
+        raise ServiceSyncRefused(
+            f"Refusing to delete {len(deleted_services)} of {total} services (more than half)",
+            would_delete=would_delete,
+            total=total,
+        )
 
 
 class DeployedService(EventsMixin):

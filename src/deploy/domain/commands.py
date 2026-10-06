@@ -22,7 +22,8 @@ class DeleteService(Command):
 
 
 class SyncServices(Command):
-    pass
+    # Allow a sync that deletes all or more than half of the services.
+    force: bool = False
 
 
 class FinishDeployment(Command):

@@ -26,23 +26,67 @@ async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWor
         await uow.commit()
 
 
-async def sync_services(command: commands.SyncServices, uow: AbstractUnitOfWork, fs: AbstractFilesystem):
-    """Orchestrate the sync of services between filesystem and database."""
+async def sync_services(
+    command: commands.SyncServices, uow: AbstractUnitOfWork, fs: AbstractFilesystem
+) -> model.ServiceSyncResult:
+    """
+    Orchestrate the sync of services between filesystem and database.
 
-    async def persist_synced_services(uow, updated_services, deleted_services):
-        for to_delete in deleted_services:
-            if to_delete.id is not None:
-                await uow.services.delete(to_delete)
+    Raises ``ServiceSyncRefused`` (and changes nothing) when the sync would
+    delete all or more than half of the services and is not forced. Services
+    with an active deployment are never deleted, they are reported as skipped.
+    """
+    source_services = await views.get_services_from_filesystem(fs)
+    now = datetime.now(timezone.utc)
+    async with uow:
+        target_services = await uow.services.list()
+        updated_services, candidates = model.sync_services(source_services, target_services)
+        model.check_sync_deletions(source_services, target_services, candidates, command.force)
+
+        deleted: list[model.Service] = []
+        skipped: list[model.SkippedService] = []
+        # lock in id order, deployment starts lock a single service row
+        for service in sorted(candidates, key=lambda s: s.id or 0):
+            if service.id is None:
+                continue
+            # Serialize with deployment starts: a start that already holds the
+            # lock has committed its deployment once we get the lock.
+            await uow.services.lock_for_deployment(service.id)
+            active_ids = await active_deployment_ids(service.id, uow, now)
+            if active_ids:
+                logger.warning("Not deleting service %s: deployments %s are still running", service.name, active_ids)
+                skipped.append(
+                    model.SkippedService(name=service.name, reason=f"deployment {active_ids[0]} is still running")
+                )
+                continue
+            await uow.services.delete(service)
+            service.delete()
+            deleted.append(service)
+
         for to_update in updated_services:
             await uow.services.add(to_update)
-
-    target_services = await views.all_synced_services(uow)
-    source_services = await views.get_services_from_filesystem(fs)
-
-    updated_services, deleted_services = model.sync_services(source_services, target_services)
-    async with uow:
-        await persist_synced_services(uow, updated_services, deleted_services)
         await uow.commit()
+
+    return model.ServiceSyncResult(
+        updated=[service.name for service in updated_services],
+        deleted=[service.name for service in deleted],
+        skipped=skipped,
+    )
+
+
+async def active_deployment_ids(service_id: int, uow: AbstractUnitOfWork, now: datetime) -> list[int]:
+    """
+    Return the ids of the deployments of a service that are still running,
+    using the same rule as the per-service single-flight check.
+    """
+    active: list[int] = []
+    for unfinished in await uow.deployments.get_unfinished_by_service(service_id):
+        if unfinished.id is None:
+            continue
+        steps = await uow.steps.get_steps_by_deployment(unfinished.id)
+        if views.classify_unfinished_deployment(unfinished, steps, now) == "active":
+            active.append(unfinished.id)
+    return active
 
 
 async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUnitOfWork):

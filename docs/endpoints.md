@@ -72,9 +72,28 @@ username=<username>&password=<password>
 ### POST /services/sync
 **Purpose**: Synchronize filesystem services to database
 **Authentication**: User token required
+**Query Parameters**: `force` (optional, default `false`)
+
+Services that have no directory in the services directory are deleted together with all of their
+deployments and steps. Two guards protect against wiping the history by accident:
+
+- The sync is refused with **409 Conflict** when the services directory lists no services while the
+  database has some, or when more than half of the services in the database would be deleted.
+  Nothing is changed. Pass `force=true` to delete them anyway.
+  ```json
+  {"detail": {"message": "...", "would_delete": ["service1"], "total": 1}}
+  ```
+- A service with a running deployment is never deleted, not even with `force=true`. It is reported
+  in `skipped` and removed by a later sync once the deployment has finished.
+
 **Response**:
 ```json
-{"detail": "Services synced"}
+{
+  "detail": "Services synced",
+  "updated": ["added_or_changed_service"],
+  "deleted": ["removed_service"],
+  "skipped": [{"name": "busy_service", "reason": "deployment 42 is still running"}]
+}
 ```
 
 ### DELETE /services/{service_id}
@@ -300,6 +319,9 @@ All endpoints may return these standard error responses:
 
 - **409 Conflict** (`POST /deployments/`): Another deployment of the service is still running;
   `detail.deployment_id` names it
+
+- **409 Conflict** (`POST /services/sync`): The sync would delete all or more than half of the
+  services; `detail.would_delete` lists them. Retry with `force=true` if that is intended
 
 - **404 Not Found**: Resource does not exist
   ```json

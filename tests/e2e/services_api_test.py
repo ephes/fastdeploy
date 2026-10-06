@@ -135,7 +135,42 @@ async def test_sync_services_happy(app, uow, valid_access_token_in_db, service_i
 
     assert response.status_code == 200
     result = response.json()
-    assert result == {"detail": "Services synced"}
+    assert result == {"detail": "Services synced", "updated": [service_in_fs.name], "deleted": [], "skipped": []}
     async with uow:
         service = await uow.services.get_by_name(service_in_fs.name)
     assert service.name == service_in_fs.name
+
+
+async def post_sync(app, access_token, params=None):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        return await client.post(
+            app.url_path_for("sync_services"),
+            params=params,
+            headers={"authorization": f"Bearer {access_token}"},
+        )
+
+
+async def test_sync_services_empty_directory_is_refused(app, uow, valid_access_token_in_db, service_in_db):
+    response = await post_sync(app, valid_access_token_in_db)
+
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["would_delete"] == [service_in_db.name]
+    assert detail["total"] == 1
+    async with uow:
+        service = await uow.services.get_by_name(service_in_db.name)
+    assert service.id == service_in_db.id
+
+
+async def test_sync_services_empty_directory_force(app, uow, valid_access_token_in_db, service_in_db):
+    response = await post_sync(app, valid_access_token_in_db, params={"force": "true"})
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "detail": "Services synced",
+        "updated": [],
+        "deleted": [service_in_db.name],
+        "skipped": [],
+    }
+    async with uow:
+        assert await uow.services.list() == []

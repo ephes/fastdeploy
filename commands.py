@@ -39,6 +39,7 @@ from deploy.auth import get_password_hash  # noqa
 from deploy.bootstrap import get_bus_for_cli  # noqa
 from deploy.config import settings  # noqa
 from deploy.domain import commands, events  # noqa
+from deploy.domain.model import ServiceSyncRefused  # noqa
 
 
 CWD = str(Path(__file__).parent.resolve())
@@ -86,20 +87,38 @@ def createuser():
         sys.exit(0)
 
 
-async def _syncservices() -> None:
+async def _syncservices(force: bool):
     bus = await get_bus_for_cli()
-    cmd = commands.SyncServices()
-    await bus.handle(cmd)
-    await bus.uow.close()
+    try:
+        return await bus.handle(commands.SyncServices(force=force))
+    finally:
+        await bus.uow.close()
 
 
 @cli.command()
-def syncservices():
+def syncservices(
+    force: bool = typer.Option(
+        False, "--force", help="Delete services even if all or more than half of them would be removed."
+    ),
+):
     """
     Sync services from filesystem with services in database.
+
+    Refuses (exit code 1) to delete all or more than half of the services
+    unless --force is given. Services with a running deployment are kept.
     """
     rprint("syncing services")
-    asyncio.run(_syncservices())
+    try:
+        result = asyncio.run(_syncservices(force))
+    except ServiceSyncRefused as e:
+        rprint(f"[red]sync refused:[/red] {e.reason}")
+        rprint(f"would delete: {', '.join(e.would_delete)}")
+        rprint("check the services directory or rerun with --force")
+        sys.exit(1)
+    rprint(f"updated: {', '.join(result.updated) or '-'}")
+    rprint(f"deleted: {', '.join(result.deleted) or '-'}")
+    for skipped in result.skipped:
+        rprint(f"skipped: {skipped.name} ({skipped.reason})")
     rprint("services synced")
 
 

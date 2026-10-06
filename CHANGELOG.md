@@ -8,6 +8,16 @@ Unreleased
   deployments of the service do not block (they are finished as part of a successful start), and deployments older than the deployment token
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
+### Bug Fixes
+- A services sync (`POST /services/sync`, `commands.py syncservices`) no longer wipes the
+  deployment history when the services directory is empty or mis-pointed: it is refused (409 /
+  exit status 1, nothing changed) when no services are found while the database has some, or when
+  more than half of the services would be deleted, unless `force` (`?force=true` / `--force`) is
+  given. Services with a running deployment are never deleted and are reported as skipped. The
+  response and CLI output list the updated, deleted and skipped services. Deploy note: the Ansible
+  deploy runs `syncservices`, so a deploy with an empty or mostly removed services directory now
+  fails at that task instead of deleting the services.
+
 ### Security
 - Websocket authentication hardening (`/deployments/ws/{client_id}`): any failed authentication
   (including a valid service, deployment or config token, or a token for a deleted user) now sends

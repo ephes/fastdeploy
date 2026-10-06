@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from ... import views
-from ...domain import commands
+from ...domain import commands, model
 from ..dependencies import get_current_active_user
 from ..helper_models import Bus
 
@@ -51,11 +51,45 @@ async def get_service_names(bus: Bus = Depends()) -> list[str]:
     return await views.get_service_names(bus.fs)
 
 
-@router.post("/sync")
-async def sync_services(bus: Bus = Depends()) -> dict:
+class SkippedService(BaseModel):
+    name: str
+    reason: str
+
+
+class SyncResult(BaseModel):
+    detail: str
+    updated: list[str]
+    deleted: list[str]
+    skipped: list[SkippedService]
+
+
+@router.post(
+    "/sync",
+    responses={409: {"description": "Sync refused because it would delete all or most services"}},
+)
+async def sync_services(
+    force: bool = Query(False, description="Delete services even if all or more than half of them would be removed"),
+    bus: Bus = Depends(),
+) -> SyncResult:
     """
     Sync services from filesytem to database.
+
+    Services without a directory are deleted together with their deployments.
+    A sync that would delete all services or more than half of them is refused
+    with 409 Conflict unless `force=true` is passed. Services with a running
+    deployment are never deleted and are reported as skipped.
     """
-    cmd = commands.SyncServices()
-    await bus.handle(cmd)
-    return {"detail": "Services synced"}
+    cmd = commands.SyncServices(force=force)
+    try:
+        result: model.ServiceSyncResult = await bus.handle(cmd)
+    except model.ServiceSyncRefused as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"message": e.reason, "would_delete": e.would_delete, "total": e.total},
+        ) from e
+    return SyncResult(
+        detail="Services synced",
+        updated=result.updated,
+        deleted=result.deleted,
+        skipped=[SkippedService(name=s.name, reason=s.reason) for s in result.skipped],
+    )

@@ -89,9 +89,16 @@ Available commands include createuser, syncservices, test, docs, and others. Run
 This command syncs the services from the filesystem with the services in the
 database. If a service is in the filesystem but not in the database, it will be
 added to the database and if it's in the database but not in the filesystem, it
-will be removed.
+will be removed together with all of its deployments and steps.
 
-This command does not take any arguments.
+To protect the deployment history, the command refuses to delete anything and
+exits with status 1 when the services directory is empty while the database has
+services, or when more than half of the services would be deleted. Check the
+services directory first; if the deletion is intended, rerun with `--force`.
+Services with a running deployment are never deleted (not even with `--force`);
+they are reported as skipped and removed by a later sync.
+
+The command prints the updated (or added), deleted and skipped services.
 
 ```shell
 # Using just (recommended)
@@ -99,6 +106,7 @@ just syncservices
 
 # Or using commands.py
 python commands.py syncservices
+python commands.py syncservices --force  # allow deleting all or most services
 ```
 
 ## createuser
