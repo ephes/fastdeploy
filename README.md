@@ -152,6 +152,22 @@ The Python tests need the `deploy_test` PostgreSQL database (see above). They do
 frontend build: the test setup creates the empty, git-ignored `frontend/dist` directory the app
 mounts, so a clean checkout can run `just test-python` directly.
 
+The database defaults to `postgresql+asyncpg:///deploy_test` (local socket). To use another
+database, set `DATABASE_URL` in the environment; the pytest configuration only provides the
+default, for example:
+
+```shell
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost/deploy_test just test-python
+```
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every branch push, on pull requests and on demand. It runs
+`just lint`, `just typecheck` and `just test-python` against a `postgres:17` service container,
+and in `frontend/` `npm ci`, `npm test` (Vitest) and `npm run build` (vue-tsc and Vite). The
+workflow has read-only permissions, uses no secrets and does not deploy; deploys go through the
+Ansible playbooks.
+
 ### Code quality
 
 ```shell
