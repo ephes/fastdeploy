@@ -6,6 +6,17 @@ Unreleased
   after it was accepted is closed with an authentication failure message and code `1008`. Before, a
   client could keep any number of connections open without ever sending a token. Clients that send
   their token right after connecting (the web UI does) are not affected.
+  NOTES (branch parked, not merged; open findings of the second review round, both in
+  `src/deploy/entrypoints/fastapi_app.py`):
+  1. Critical: when a client that does not read stalls the close frame, the endpoint returns and the
+     connection manager forgets the connection, but Uvicorn does not close an accepted transport on a
+     normal return of the application, so the transport stays open under backpressure. The transport
+     has to be terminated for certain, and a test has to prove it.
+  2. Warning: the deadline only covers waiting for a message; `authenticate()` runs outside it, so a
+     slow user lookup can keep an unauthenticated connection, or authenticate it after the deadline.
+     The remaining budget has to cover the first authentication, including its failure handling.
+  The step and context size limits and the shell-free deploy command of this branch were merged to
+  main separately (branch `fix/step-limits-argv`); rebase before continuing.
 - `POST /steps/` rejects a `name` longer than 255, a `state` longer than 20 and a `message` longer than
   4096 characters with `422` (before: a database error answered as `400` on PostgreSQL, no limit
   elsewhere). `POST /deployments/` rejects a context whose JSON encoding is larger than
