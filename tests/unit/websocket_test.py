@@ -398,3 +398,106 @@ async def test_websocket_successful_authentication_does_not_touch_replacement_co
     assert cm.all_connections[client_id] is new
     assert new.sent == []
     assert client_id not in cm.expiry_tasks
+
+
+class StuckWebsocket(RecordingWebsocket):
+    """A client that never takes what the server sends (full send buffer)."""
+
+    def __init__(self, stuck_close=False):
+        super().__init__()
+        self.stuck_close = stuck_close
+        self.send_cancelled = False
+
+    async def send_text(self, message):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.send_cancelled = True
+            raise
+
+    async def close(self, code=1000, reason=None):
+        if self.stuck_close:
+            await asyncio.Event().wait()
+        await super().close(code=code, reason=reason)
+
+
+@pytest.fixture
+def short_broadcast_budget(monkeypatch):
+    monkeypatch.setattr(websocket_module, "BROADCAST_SEND_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(websocket_module, "SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS", 0.2)
+
+
+async def test_broadcast_slow_client_does_not_block_healthy_clients(test_message, short_broadcast_budget):
+    cm = ConnectionManager()
+    slow_id, healthy_id = uuid4(), uuid4()
+    slow, healthy = StuckWebsocket(), RecordingWebsocket()
+    for client_id, websocket in ((slow_id, slow), (healthy_id, healthy)):  # the slow client comes first
+        await cm.connect(client_id, websocket)
+        cm.active_connections[client_id] = websocket
+        cm.principals[client_id] = "user"
+
+    broadcast = asyncio.create_task(cm.broadcast(test_message))
+    # the healthy client gets the event while the slow send is still pending
+    await asyncio.sleep(0.05)
+    assert healthy.sent == [test_message.model_dump_json()]
+    assert not broadcast.done()
+
+    # the broadcast itself is bounded, the publisher is not held indefinitely
+    await asyncio.wait_for(broadcast, timeout=2)
+
+    assert slow.send_cancelled
+    assert slow.closed
+    assert slow.close_code == 1013
+    assert_forgotten(cm, slow_id)
+    assert slow_id not in cm.principals
+    assert cm.active_connections == {healthy_id: healthy}
+
+    # later broadcasts work and no longer wait for the removed client
+    await asyncio.wait_for(cm.broadcast(test_message), timeout=0.1)
+    assert healthy.sent == [test_message.model_dump_json()] * 2
+
+
+async def test_broadcast_is_bounded_when_slow_client_does_not_close_either(test_message, short_broadcast_budget):
+    cm = ConnectionManager()
+    slow_id = uuid4()
+    slow = StuckWebsocket(stuck_close=True)
+    await cm.connect(slow_id, slow)
+    cm.active_connections[slow_id] = slow
+
+    await asyncio.wait_for(cm.broadcast(test_message), timeout=2)
+
+    assert not slow.closed
+    assert_forgotten(cm, slow_id)
+
+
+async def test_broadcast_timeout_does_not_remove_replacement_connection(test_message, short_broadcast_budget):
+    """The slow connection goes away and its client id is reused while the send is pending."""
+    cm = ConnectionManager()
+    client_id = uuid4()
+    slow, replacement = StuckWebsocket(), RecordingWebsocket()
+    await cm.connect(client_id, slow)
+    cm.active_connections[client_id] = slow
+
+    broadcast = asyncio.create_task(cm.broadcast(test_message))
+    await asyncio.sleep(0.05)
+    cm.disconnect(client_id, slow)
+    await cm.connect(client_id, replacement)
+    cm.active_connections[client_id] = replacement
+    await asyncio.wait_for(broadcast, timeout=2)
+
+    assert cm.all_connections == {client_id: replacement}
+    assert cm.active_connections == {client_id: replacement}
+
+
+async def test_broadcast_keeps_event_order_per_client(short_broadcast_budget):
+    class Numbered(BaseModel):
+        number: int
+
+    cm = ConnectionManager()
+    healthy = RecordingWebsocket()
+    cm.active_connections[uuid4()] = healthy
+
+    for number in range(5):
+        await cm.broadcast(Numbered(number=number))
+
+    assert healthy.sent == [Numbered(number=number).model_dump_json() for number in range(5)]

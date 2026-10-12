@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import signal
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -82,7 +83,10 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
     return environment
 
 
-MAX_ASYNCIO_STDOUT_SIZE = 1024 * 1024 * 10  # 10 MiB output -> raise exception on bigger output
+MAX_ASYNCIO_STDOUT_SIZE = 1024 * 1024 * 10  # 10 MiB, longer output lines are skipped as a whole
+# How long the deploy script's process group gets to exit after SIGTERM, and
+# again after SIGKILL, when the deploy task stops reading its output early.
+DEPLOY_STOP_TIMEOUT = 10.0
 MAX_STEP_MESSAGE_SIZE = 4096
 
 
@@ -224,6 +228,8 @@ class DeployTask(BaseSettings):
             "DEPLOY_CONFIG_FILE": str(config_path),
         }
 
+        proc = None
+        reaped = False
         try:
             proc = await asyncio.create_subprocess_shell(
                 command,
@@ -231,19 +237,47 @@ class DeployTask(BaseSettings):
                 stderr=asyncio.subprocess.STDOUT,
                 limit=MAX_ASYNCIO_STDOUT_SIZE,
                 env=env,
+                # Own process group, so the script and its descendants can be
+                # stopped together when this task gives up on it.
+                start_new_session=True,
             )
 
+            # True while inside an output line longer than the stream limit
+            # whose end has not been read yet.
+            skipping = False
             while True:
                 started = datetime.now(timezone.utc)
-                data = await proc.stdout.readline()
+                try:
+                    data = await proc.stdout.readuntil(b"\n")
+                except asyncio.IncompleteReadError as e:
+                    # End of output: what is left is a last line without a
+                    # newline, or nothing.
+                    data = e.partial
+                except asyncio.LimitOverrunError as e:
+                    # The line is longer than the stream limit and still in the
+                    # buffer. Drop this part and keep dropping until its newline
+                    # was read, instead of abandoning the script or mistaking
+                    # the end of the line for a step result.
+                    await proc.stdout.readexactly(e.consumed)
+                    if not skipping:
+                        self.log(f"skipped a deploy output line longer than {MAX_ASYNCIO_STDOUT_SIZE} bytes")
+                    skipping = True
+                    continue
                 if not data:
                     break
+                if skipping:
+                    # the rest of the over-limit line, up to its newline
+                    skipping = False
+                    continue
 
                 # Do NOT check proc.returncode here. The process may have exited
                 # but still have buffered stdout data that must be processed.
-                # readline() returns empty only after all buffered output is read.
+                # readuntil() reports the end only after all buffered output is read.
 
-                decoded = data.decode("UTF-8")
+                # Bytes that are not valid UTF-8 are replaced (U+FFFD) instead of
+                # raising: a line that is no step result is skipped below anyway,
+                # and a step result with a damaged character is still reported.
+                decoded = data.decode("UTF-8", errors="replace")
                 try:
                     step_result = json.loads(decoded)
                 except json.decoder.JSONDecodeError:
@@ -265,13 +299,71 @@ class DeployTask(BaseSettings):
                     self.log(f"could not report step {result_name!r}: {type(e).__name__}: {e}")
 
             return_code = await proc.wait()
+            reaped = True
             if return_code != 0:
                 raise RuntimeError(f"deploy script exited with code {return_code}")
 
-        # Cleanup config file after deployment
         finally:
-            if "config_path" in locals():
+            try:
+                if proc is not None and not reaped:
+                    # Reading stopped early (error or cancellation): do not leave
+                    # the deploy script running without anybody tracking it.
+                    await self.stop_deploy_process(proc)
+            finally:
+                # Cleanup config file after deployment
                 secure_config.cleanup_config(config_path)
+
+    async def stop_deploy_process(self, proc) -> None:
+        """
+        Terminate and reap the deploy script's process group: SIGTERM first,
+        SIGKILL when members are still alive ``DEPLOY_STOP_TIMEOUT`` seconds
+        later. The group counts, not only the script itself: a descendant may
+        outlive it. Never raises, so the error that stopped the deployment is
+        preserved.
+        """
+        # start_new_session made the script the leader of its own group
+        pgid = proc.pid
+        stopped = False
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(pgid, sig)
+            except ProcessLookupError:
+                stopped = True  # the whole group is gone already
+                break
+            except OSError as e:
+                # For example EPERM: sudo runs the script as another user and no
+                # member of the group may be signalled. Waiting would not help.
+                self.log(f"could not send {sig.name} to deploy process group {pgid}: {e}")
+                return
+            if await self.process_group_gone(pgid, DEPLOY_STOP_TIMEOUT):
+                stopped = True
+                break
+        if not stopped:
+            self.log(f"deploy process group {pgid} is still running after SIGKILL")
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=DEPLOY_STOP_TIMEOUT)
+        except asyncio.TimeoutError:
+            self.log(f"deploy process {proc.pid} was not reaped")
+        except Exception as e:
+            self.log(f"could not wait for deploy process {proc.pid}: {type(e).__name__}: {e}")
+
+    @staticmethod
+    async def process_group_gone(pgid: int, timeout: float) -> bool:
+        """
+        Wait until the process group has no members left. The exited script is
+        reaped by the event loop while this sleeps; until then it still counts.
+        """
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            try:
+                os.killpg(pgid, 0)
+            except ProcessLookupError:
+                return True
+            except OSError:
+                pass  # members exist that may not be signalled
+            if asyncio.get_running_loop().time() >= deadline:
+                return False
+            await asyncio.sleep(0.05)
 
     async def report_failure(self, error: BaseException) -> bool:
         """

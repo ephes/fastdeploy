@@ -1,6 +1,10 @@
+from datetime import datetime, timezone
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.orm.exc import NoResultFound
+
+from deploy.domain import model
 
 pytestmark = pytest.mark.asyncio
 
@@ -78,6 +82,40 @@ async def test_delete_non_existing_service(app, valid_access_token_in_db):
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Service does not exist"}
+
+
+async def test_delete_service_with_running_deployment_conflicts(
+    app, service_in_db, valid_access_token_in_db, publisher, uow
+):
+    deployment = model.Deployment(
+        service_id=service_in_db.id, origin="test", user="test", started=datetime.now(timezone.utc), finished=None
+    )
+    async with uow:
+        await uow.deployments.add(deployment)
+        await uow.commit()
+        await uow.steps.add(model.Step(name="running step", state="running", deployment_id=deployment.id))
+        await uow.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.delete(
+            app.url_path_for("delete_service", service_id=service_in_db.id),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": {
+            "message": f"Deployment {deployment.id} is still running for service {service_in_db.id}",
+            "deployment_id": deployment.id,
+        }
+    }
+    assert publisher.events == []
+    async with uow:
+        assert (await uow.services.get(service_in_db.id)).name == service_in_db.name
+        [kept] = await uow.deployments.get_by_service(service_in_db.id)
+        [step] = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert kept.id == deployment.id
+    assert step.name == "running step"
 
 
 @pytest.mark.db("in_memory")
