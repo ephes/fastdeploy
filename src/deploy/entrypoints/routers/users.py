@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -9,6 +9,7 @@ from ... import auth
 from ...config import settings
 from ...domain import commands, model
 from ...domain.model import User
+from ...login_throttle import login_throttle
 from ..dependencies import get_current_active_user
 from ..helper_models import Bus
 
@@ -30,9 +31,29 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 
-@router.post("/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), bus: Bus = Depends()) -> dict:
-    """Obtain an access token for the current user."""
+@router.post("/token", responses={429: {"description": "Too many failed login attempts"}})
+async def login_for_access_token(
+    request: Request, form_data: OAuth2PasswordRequestForm = Depends(), bus: Bus = Depends()
+) -> dict:
+    """
+    Obtain an access token for the current user.
+
+    Failed attempts are limited per user name and client address and per client
+    address (`LOGIN_FAILURE_LIMIT`, `LOGIN_ADDRESS_FAILURE_LIMIT`,
+    `LOGIN_FAILURE_WINDOW_SECONDS`). At the limit the request is answered with
+    429 and a `Retry-After` header, without checking the password.
+    """
+    address = request.client.host if request.client else "unknown"
+    retry_after = login_throttle.retry_after(form_data.username, address)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts",
+            headers={"Retry-After": str(retry_after)},
+        )
+    # Count the attempt before the (slow) password check and take it back on
+    # success, so parallel requests cannot overrun the limit.
+    attempt = login_throttle.begin_attempt(form_data.username, address)
     try:
         user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)
     except Exception:
@@ -41,6 +62,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
+    finally:
+        # also when the request was cancelled: an attempt without a login stays counted
+        login_throttle.record_failure(attempt)
+    login_throttle.record_success(attempt)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = auth.create_access_token(
         payload={"user": user.name, "type": "user"}, expires_delta=access_token_expires

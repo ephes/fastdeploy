@@ -115,6 +115,8 @@ export const useAuth = defineStore("auth", {
             this.errorMessage = err.message;
           } else if (err.response.status === 401) {
             this.errorMessage = "Invalid username or password";
+          } else if (err.response.status === 429) {
+            this.errorMessage = "Too many failed login attempts, try again later";
           } else {
             this.errorMessage = "Unknown error";
           }

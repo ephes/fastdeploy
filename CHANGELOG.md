@@ -2,6 +2,14 @@ Unreleased
 ==========
 
 ### Security
+- `POST /token` limits failed logins: after `LOGIN_FAILURE_LIMIT` (default 10) failed attempts for one
+  user name from one client address, or `LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) from one client address
+  for any user names, inside `LOGIN_FAILURE_WINDOW_SECONDS` (default 900), it answers `429` with a
+  `Retry-After` header and does not check the password. Before, passwords could be guessed without
+  limit. The password hash check now runs in a worker thread instead of blocking the event loop (a
+  stream of login attempts could stall step reports of running deployments), and it is also spent on
+  unknown user names, so the response time no longer tells whether a user exists. Valid logins and
+  issued tokens are unchanged; the web UI shows a message for `429`. See [docs/auth.md](docs/auth.md).
 - Replace python-jose and its ecdsa dependency with PyJWT for all JWT issuance and verification.
   Preserve existing signed tokens, expiry handling, revocation and the legacy service-token grace
   window; restrict configuration to the supported HMAC algorithms.

@@ -3,6 +3,7 @@ This module contains a collection of authentication related
 functions.
 """
 
+import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -28,11 +29,31 @@ def verify_password(plain, hashed):
 async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWork) -> User:
     """
     Authenticate a user against the database. Raise an exception if the
-    user is not found or the password is incorrect.
+    user is not found or the password is incorrect. Both cases cost one
+    password hash check, which runs in a worker thread.
     """
-    user = await views.get_user_by_name(username, uow)
+    try:
+        user = await views.get_user_by_name(username, uow)
+    except Exception:
+        # Spend the same time as a real password check, so the response time
+        # does not tell whether the user exists. (Only the first dummy check
+        # of a process takes longer: it creates the hash to check against.)
+        await asyncio.to_thread(PWD_CONTEXT.dummy_verify)
+        raise
 
-    if not verify_password(password, user.password):
+    # The hash is deliberately slow: check it in a worker thread, otherwise
+    # every login attempt blocks the event loop (and with it step reports of
+    # running deployments) for the duration of the check.
+    try:
+        verified = await asyncio.to_thread(verify_password, password, user.password)
+    except Exception:
+        # The hash library refuses some input right away, without doing the
+        # work (bcrypt: a password with a NUL byte or longer than 4096
+        # characters; an unusable stored hash). Spend the check anyway, so
+        # such input cannot tell existing users from unknown ones either.
+        await asyncio.to_thread(PWD_CONTEXT.dummy_verify)
+        raise ValueError("invalid password") from None
+    if not verified:
         raise ValueError("invalid password")
     return user
 

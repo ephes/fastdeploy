@@ -136,6 +136,16 @@ def app(bus):
     return fastapi_app
 
 
+@pytest.fixture(autouse=True)
+def clear_login_throttle():
+    """The failed login counters are process wide; start every test without them."""
+    from deploy.login_throttle import login_throttle
+
+    login_throttle.clear()
+    yield
+    login_throttle.clear()
+
+
 @pytest.fixture
 def password():
     return "password"

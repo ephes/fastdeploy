@@ -86,6 +86,11 @@ SERVICE_TOKEN_MAX_EXPIRE_DAYS=90  # Longest lifetime a service token can be issu
 # LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL=2026-11-01T00:00:00+00:00  # Accept tokens without jti until then
 SERVICE_TOKEN_RETENTION_DAYS=30  # Delete expired/revoked token records older than this
 
+# Failed login limit on POST /token (429 at the limit; LOGIN_FAILURE_LIMIT=0 turns it off)
+LOGIN_FAILURE_LIMIT=10  # failed attempts per user name and client address inside the window
+LOGIN_ADDRESS_FAILURE_LIMIT=50  # failed attempts per client address for any user names
+LOGIN_FAILURE_WINDOW_SECONDS=900
+
 # API configuration
 API_URL=http://localhost:8000
 ```

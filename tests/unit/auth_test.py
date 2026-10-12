@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.orm.exc import NoResultFound
 
 from deploy.auth import (
@@ -388,3 +390,102 @@ async def test_issue_service_token_for_existing_in_memory(service_in_db, user_in
         await issue_for_existing(uow, service_in_db.name, "nobody")
     with pytest.raises(ServiceTokenIssueRefused, match="unknown service"):
         await issue_for_existing(uow, "nothing", user_in_db.name)
+
+
+# --- password check: off the event loop, same work for unknown users ---
+
+
+async def test_authenticate_user_checks_the_password_in_a_worker_thread(uow, user_in_db, password):
+    import threading
+
+    from deploy import auth
+
+    threads = []
+    real_verify = auth.verify_password
+
+    def recording_verify(plain, hashed):
+        threads.append(threading.current_thread())
+        return real_verify(plain, hashed)
+
+    with patch("deploy.auth.verify_password", recording_verify):
+        user = await auth.authenticate_user(user_in_db.name, password, uow)
+    assert user.name == user_in_db.name
+    assert threads and all(thread is not threading.main_thread() for thread in threads)
+
+
+async def test_authenticate_user_spends_a_hash_check_for_an_unknown_user(uow):
+    import threading
+
+    from deploy import auth
+
+    calls = []
+
+    def recording_dummy_verify(*args, **kwargs):
+        calls.append(threading.current_thread())
+
+    with (
+        patch.object(auth.PWD_CONTEXT, "dummy_verify", recording_dummy_verify),
+        pytest.raises((NoResultFound, StopIteration)),
+    ):
+        await auth.authenticate_user("no-such-user", "password", uow)
+    assert len(calls) == 1 and calls[0] is not threading.main_thread()
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def bcrypt_user_in_db(uow, monkeypatch):
+    """A user whose password is hashed with bcrypt, the production scheme (the tests use a fast one)."""
+    from passlib.context import CryptContext
+
+    from deploy import auth
+
+    context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=4)
+    monkeypatch.setattr(auth, "PWD_CONTEXT", context)
+    user = model.User(name="bcrypt-user", password=context.hash("password"))
+    async with uow:
+        await uow.users.add(user)
+        await uow.commit()
+    return user
+
+
+async def test_authenticate_user_with_bcrypt(uow, bcrypt_user_in_db):
+    from deploy import auth
+
+    assert (await auth.authenticate_user(bcrypt_user_in_db.name, "password", uow)).name == "bcrypt-user"
+    with pytest.raises(ValueError, match="invalid password"):
+        await auth.authenticate_user(bcrypt_user_in_db.name, "wrong", uow)
+
+
+@pytest.mark.parametrize("refused_password", ["with\x00nul", "x" * 5000])
+async def test_authenticate_user_spends_a_hash_check_when_bcrypt_refuses_the_password(
+    uow, bcrypt_user_in_db, refused_password
+):
+    """bcrypt refuses these passwords at once; an existing user must not answer faster than an unknown one."""
+    from deploy import auth
+
+    # the point of the test: the library raises instead of checking
+    with pytest.raises(ValueError):
+        auth.verify_password(refused_password, bcrypt_user_in_db.password)
+
+    calls = []
+    with (
+        patch.object(auth.PWD_CONTEXT, "dummy_verify", lambda *args, **kwargs: calls.append(1)),
+        pytest.raises(ValueError, match=r"^invalid password$"),
+    ):
+        await auth.authenticate_user(bcrypt_user_in_db.name, refused_password, uow)
+    assert calls == [1]
+
+
+async def test_authenticate_user_spends_a_hash_check_for_an_unusable_stored_hash(uow, user_in_db):
+    from deploy import auth
+
+    user_in_db.password = "not-a-hash"
+    async with uow:
+        await uow.users.add(user_in_db)
+        await uow.commit()
+    calls = []
+    with (
+        patch.object(auth.PWD_CONTEXT, "dummy_verify", lambda *args, **kwargs: calls.append(1)),
+        pytest.raises(ValueError, match="invalid password"),
+    ):
+        await auth.authenticate_user(user_in_db.name, "password", uow)
+    assert calls == [1]
