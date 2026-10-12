@@ -1,6 +1,7 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 
 import { getClient, HttpClient } from "./httpClient";
+import { rememberSession } from "./session";
 import { useServices } from "./service";
 import { useSteps } from "./step";
 import { pythonToJavascript } from "../converters";
@@ -90,30 +91,61 @@ export const useDeployments = defineStore("deployments", {
      *
      * Then use the service token to start the deployment.
      *
+     * The response is converted like every other deployment (camel case
+     * keys, dates), so the new row is found by its serviceId right away.
+     * It is the oldest state the deployment ever had: if the websocket
+     * (or a list fetch) already delivered the row, that one is kept and
+     * returned instead of being replaced by the start response.
+     *
+     * The service token is only set on the client of this one call.
+     *
+     * Returns null when the login session ended while waiting (logout,
+     * or another login): the caller belongs to a session that is over
+     * and must not act on the result, e.g. navigate to the deployment.
+     * If that happens before the request was sent, it is not sent.
+     *
      * @param serviceName {string} the name of the service to deploy
      * @param client {HttpClient} the http client to use - settable for testing
-     * @returns deployment {Deployment} the started deployment
+     * @returns deployment {Deployment | null} the started deployment, null if the session ended
      */
     async startDeployment(
       serviceName: string,
       client: HttpClient = getClient()
-    ) {
+    ): Promise<Deployment | null> {
+      const isCurrentSession = rememberSession();
       const servicesStore = useServices();
       const serviceToken = await servicesStore.fetchServiceToken(
         serviceName,
         "frontend"
       );
+      if (!isCurrentSession()) {
+        return null;
+      }
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
-      const deployment = await client.post<Promise<Deployment>>("deployments/");
-      this.deployments[deployment.id] = deployment;
-      return deployment;
+      const started = pythonToJavascript(
+        await client.post<Promise<Deployment>>("deployments/")
+      ) as Deployment;
+      if (!isCurrentSession()) {
+        // started, but the session it was started in is over
+        return null;
+      }
+      const known = this.deployments[started.id];
+      if (known) {
+        return known;
+      }
+      this.deployments[started.id] = started;
+      return started;
     },
     /**
      * Fetch all deployments from the backend and store them in the
      * store by id.
      */
     async fetchDeployments() {
+      const isCurrentSession = rememberSession();
       const deployments: Deployment[] = await this.client.get<Promise<Deployment[]>>("deployments/");
+      if (!isCurrentSession()) {
+        return;
+      }
       for (const deployment of deployments) {
         this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
       }

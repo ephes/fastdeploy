@@ -31,6 +31,33 @@ export function createWebsocketClient(): WebsocketClient {
      */
     retryCount: 0,
     /**
+     * Set by dispose(). A disposed client never connects, reconnects,
+     * authenticates or passes on a message again.
+     */
+    disposed: false,
+    /**
+     * End this client for good: called on logout. Detaches the event
+     * handlers before closing, so the close does not start the
+     * reconnect loop, and a reconnect timer that is already waiting
+     * finds the client disposed. The stores are dropped so no late
+     * message can reach them.
+     */
+    dispose() {
+      this.disposed = true;
+      this.stores = [];
+      const connection = this.connection;
+      if (connection !== undefined) {
+        connection.onclose = null;
+        connection.onopen = null;
+        connection.onmessage = null;
+        try {
+          connection.close();
+        } catch (err) {
+          console.log("closing websocket failed: ", err);
+        }
+      }
+    },
+    /**
      * Register a store to be notified when a message is received.
      *
      * @param store
@@ -47,6 +74,14 @@ export function createWebsocketClient(): WebsocketClient {
      * @param event {Event}
      */
     onConnectionOpen(accessToken: string, event: Event) {
+      if (this.disposed) {
+        // opened after logout: do not send the old token, just hang up
+        const lateConnection = event.target as WebSocket | null;
+        if (lateConnection && typeof lateConnection.close === "function") {
+          lateConnection.close();
+        }
+        return;
+      }
       console.log(event);
       console.log("Successfully connected to the echo websocket server..");
       const websocketStore = useWebsocketStore();
@@ -69,9 +104,9 @@ export function createWebsocketClient(): WebsocketClient {
       websocketUrl: string,
       event: CloseEvent
     ) {
-      if (this.connection === undefined) {
-        // This should never happen. It's just a type guard to make
-        // typescript happy.
+      if (this.connection === undefined || this.disposed) {
+        // undefined should never happen. It's just a type guard to make
+        // typescript happy. Disposed: logged out, do not reconnect.
         return;
       }
       const websocketStore = useWebsocketStore();
@@ -81,6 +116,10 @@ export function createWebsocketClient(): WebsocketClient {
       while (this.retryCount < 3) {
         this.retryCount++;
         await new Promise((resolve) => setTimeout(resolve, 1000));
+        if (this.disposed) {
+          // logged out while waiting: the token of this loop is void
+          return;
+        }
         console.log(
           "Attempting to reconnect to websocket server: ",
           this.retryCount
@@ -107,6 +146,9 @@ export function createWebsocketClient(): WebsocketClient {
      * @param message {Message} The message to pass to the stores
      */
     notifyStores(message: Message) {
+      if (this.disposed) {
+        return;
+      }
       const newMessage = pythonToJavascript(message);
       for (const store of this.stores) {
         store.onMessage(newMessage);
@@ -138,6 +180,9 @@ export function createWebsocketClient(): WebsocketClient {
      * @param event {MessageEvent} The url of the websocket server
      */
     onMessage(event: MessageEvent) {
+      if (this.disposed) {
+        return;
+      }
       console.log("Received message from websocket server: ", event.data);
       const message = JSON.parse(event.data) as Message;
       useWebsocketStore().receivedMessage();
@@ -156,6 +201,9 @@ export function createWebsocketClient(): WebsocketClient {
      * @param accessToken {string} The access token to use for authentication
      */
     initWebsocketConnection(websocketUrl: string, accessToken: string) {
+      if (this.disposed) {
+        return;
+      }
       // create the websocket connection
       const websocketStore = useWebsocketStore();
       websocketStore.handling = "init connection";

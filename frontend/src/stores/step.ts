@@ -1,5 +1,6 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
+import { rememberSession } from "./session";
 import { pythonToJavascript } from "../converters";
 import { Step, StepById, Message, Deployment } from "../typings";
 
@@ -148,7 +149,11 @@ export const useSteps = defineStore("steps", {
       const url =
         "steps/?" +
         new URLSearchParams({ deployment_id: deploymentId.toString() });
+      const isCurrentSession = rememberSession();
       const steps = await this.client.get<Promise<Object[]>>(url);
+      if (!isCurrentSession()) {
+        return;
+      }
       for (const apiStep of steps) {
         this.addStep(pythonToJavascript(apiStep) as Step);
       }
