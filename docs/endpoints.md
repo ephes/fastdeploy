@@ -16,6 +16,15 @@ username=<username>&password=<password>
 ```json
 {"access_token": "<jwt>", "token_type": "bearer"}
 ```
+**Errors**:
+- `401` for a wrong user name or password. Both take the same time: the password hash check also runs
+  for unknown users.
+- `429` with a `Retry-After` header (seconds) and `{"detail": "Too many failed login attempts"}` after
+  too many failed attempts: `LOGIN_FAILURE_LIMIT` (default 10) for one user name from one client address,
+  or `LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) from one client address for any user names, inside
+  `LOGIN_FAILURE_WINDOW_SECONDS` (default 900). While limited, the password is not checked, so the right
+  password is refused as well. A successful login clears the count of that user name and address. Tokens
+  that were already issued keep working.
 
 ### POST /service-token
 **Purpose**: Generate service token for deployments

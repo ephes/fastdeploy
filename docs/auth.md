@@ -17,6 +17,18 @@ fastDeploy uses JWT-based authentication with four distinct token types, each pr
 
 **Default Expiration**: 30 minutes
 
+**Failed login limit**: `POST /token` answers `429` with a `Retry-After` header once a user name had
+`LOGIN_FAILURE_LIMIT` (default 10) failed attempts from one client address, or one client address had
+`LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) failed attempts for any user names, inside
+`LOGIN_FAILURE_WINDOW_SECONDS` (default 900). A successful login clears the count for that user name and
+address; `LOGIN_FAILURE_LIMIT=0` turns the limit off. The counts are kept in memory by the API process
+(a restart clears them; with several worker processes each one counts on its own). The client address is
+the one the ASGI server reports: behind a reverse proxy, uvicorn must trust the proxy's forwarded headers
+(its default for a proxy on `127.0.0.1`, see `--forwarded-allow-ips`), otherwise every client shares the
+proxy's address and the per-address limit applies to all of them together. The password hash check runs
+in a worker thread and is also spent on unknown user names, so a login attempt neither blocks the API
+nor reveals by its duration whether a user exists.
+
 **Permitted Operations**:
 - View and manage services
 - View deployment history

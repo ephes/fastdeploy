@@ -33,6 +33,24 @@ describe("Auth Store Actions", () => {
     expect(authStore.errorMessage).toBe("Incorrect username or password");
   });
 
+  it("tells the user when the login is throttled", async () => {
+    const authStore = useAuth();
+    authStore.username = "user";
+    authStore.password = "password";
+    authStore.client = {
+      async post<T = unknown>(): Promise<T> {
+        return new Promise<any>(() => {
+          const error: any = Error("Too Many Requests");
+          error.response = { status: 429 };
+          throw error;
+        });
+      },
+      options: {headers: {}},
+    } as any;
+    await authStore.login();
+    expect(authStore.errorMessage).toBe("Too many failed login attempts, try again later");
+  });
+
   it("calls login successfully", async () => {
     const authStore = useAuth();
     authStore.username = "user";

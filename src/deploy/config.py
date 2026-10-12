@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     # expiry / revocation is older than this many days (on token issue and
     # via "commands.py purgeservicetokens").
     service_token_retention_days: int = Field(30, ge=1)
+    # Failed logins on POST /token allowed per (user name, client address) and
+    # per client address inside one window (seconds). Further attempts get
+    # 429 until enough failures left the window. A limit <= 0 turns the
+    # throttle off.
+    login_failure_limit: int = 10
+    login_address_failure_limit: int = 50
+    login_failure_window_seconds: int = Field(15 * 60, ge=1)
     database_url: str = "postgresql+asyncpg:///deploy"
     db_engine: typing.Any = None
     secret_key: str = Field(...)

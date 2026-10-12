@@ -158,3 +158,89 @@ async def test_service_token_of_deleted_user_cannot_deploy(
     response = await start_deployment(app, token)
     assert response.status_code == 401
     popen.assert_not_called()
+
+
+# --- failed login limit on POST /token ---
+
+
+async def post_login(app, username, password, client_address="203.0.113.5"):
+    transport = ASGITransport(app=app, client=(client_address, 51234))
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        return await client.post(
+            app.url_path_for("login_for_access_token"), data={"username": username, "password": password}
+        )
+
+
+async def test_login_is_refused_after_too_many_failures(app, user_in_db, password, monkeypatch):
+    monkeypatch.setattr(settings, "login_failure_limit", 3)
+    for _ in range(3):
+        response = await post_login(app, user_in_db.name, "wrong")
+        assert response.status_code == 401
+    # the right password no longer helps inside the window, and it is not even checked
+    with patch("deploy.auth.verify_password") as verify_password:
+        response = await post_login(app, user_in_db.name, password)
+    assert response.status_code == 429
+    assert response.json() == {"detail": "Too many failed login attempts"}
+    assert 1 <= int(response.headers["retry-after"]) <= settings.login_failure_window_seconds
+    verify_password.assert_not_called()
+
+
+async def test_login_limit_is_per_user_name_and_client_address(app, user_in_db, password, monkeypatch):
+    monkeypatch.setattr(settings, "login_failure_limit", 2)
+    for _ in range(2):
+        await post_login(app, user_in_db.name, "wrong")
+    assert (await post_login(app, user_in_db.name, password)).status_code == 429
+    assert (await post_login(app, user_in_db.name, password, client_address="203.0.113.6")).status_code == 200
+    assert (await post_login(app, "somebody-else", "wrong")).status_code == 401
+
+
+async def test_successful_login_resets_the_failure_count(app, user_in_db, password, monkeypatch):
+    monkeypatch.setattr(settings, "login_failure_limit", 3)
+    for _ in range(2):
+        await post_login(app, user_in_db.name, "wrong")
+    assert (await post_login(app, user_in_db.name, password)).status_code == 200
+    for _ in range(2):
+        await post_login(app, user_in_db.name, "wrong")
+    assert (await post_login(app, user_in_db.name, password)).status_code == 200
+
+
+async def test_login_address_limit_covers_unknown_user_names(app, user_in_db, password, monkeypatch):
+    monkeypatch.setattr(settings, "login_address_failure_limit", 4)
+    for index in range(4):
+        assert (await post_login(app, f"guess{index}", "wrong")).status_code == 401
+    assert (await post_login(app, user_in_db.name, password)).status_code == 429
+    assert (await post_login(app, user_in_db.name, password, client_address="203.0.113.6")).status_code == 200
+
+
+async def test_login_limit_can_be_turned_off(app, user_in_db, password, monkeypatch):
+    monkeypatch.setattr(settings, "login_failure_limit", 0)
+    for _ in range(15):
+        assert (await post_login(app, user_in_db.name, "wrong")).status_code == 401
+    assert (await post_login(app, user_in_db.name, password)).status_code == 200
+
+
+async def test_valid_logins_are_never_limited(app, user_in_db, password, monkeypatch):
+    monkeypatch.setattr(settings, "login_failure_limit", 2)
+    monkeypatch.setattr(settings, "login_address_failure_limit", 2)
+    for _ in range(6):
+        assert (await post_login(app, user_in_db.name, password)).status_code == 200
+
+
+@pytest.mark.parametrize("refused_password", ["with\x00nul", "x" * 5000])
+async def test_login_with_a_password_the_hash_library_refuses_is_a_plain_failure(
+    app, user_in_db, refused_password, monkeypatch
+):
+    monkeypatch.setattr(settings, "login_failure_limit", 2)
+    for _ in range(2):
+        response = await post_login(app, user_in_db.name, refused_password)
+        assert response.status_code == 401
+    assert (await post_login(app, user_in_db.name, refused_password)).status_code == 429
+
+
+async def test_parallel_failed_logins_cannot_overrun_the_limit(app, user_in_db, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(settings, "login_failure_limit", 3)
+    responses = await asyncio.gather(*(post_login(app, user_in_db.name, "wrong") for _ in range(8)))
+    codes = sorted(response.status_code for response in responses)
+    assert codes == [401] * 3 + [429] * 5
