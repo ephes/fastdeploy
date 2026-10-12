@@ -45,6 +45,18 @@ Unreleased
   deployment has its own retries, and a failure there no longer replaces the original deploy error. A failed deploy
   whose failure step cannot be reported is not finished as an apparent success. A non-string `error_message` (for example an Ansible `msg` list) is
   converted to text instead of being rejected with 422.
+- Repeated step reports are idempotent. When the response to a processed `POST /steps/` was lost and the deploy
+  task sent the report again, the already finished step was treated as unknown and stored a second time (or the
+  retry consumed a later planned step of the same name). A report is now identified by its step name and started
+  timestamp: the same result again changes nothing and is answered like the first report; a different state or
+  message for it is rejected with `409 Conflict`. Steps sharing a name with different started timestamps stay
+  separate steps.
+- Starting a deployment stores the deployment and its planned steps in one transaction before the detached deploy
+  task is launched. Previously the task was launched first, so a fast task could report its first step before the
+  planned steps existed and that step was stored twice. If the deploy task cannot be started, the deployment is now
+  finished as failed immediately (a `deployment launch failed` step records the error type, details are logged) and
+  `POST /deployments/` answers `500` with the deployment id, instead of `400` with an unfinished deployment that
+  blocked the service until the orphan cleanup.
 - Orphaned deployments are no longer recorded as successful. A deploy whose script failed after every step was
   already reported as successful, while the API was unreachable for the failure step, used to be finished by the
   orphan cleanup and then looked successful. The orphan cleanup (on `GET /deployments/`,

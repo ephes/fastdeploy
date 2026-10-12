@@ -103,6 +103,9 @@ async def test_events_mixin_events_are_consumable_by_unit_of_work():
         async def _commit(self):
             pass
 
+        async def flush(self):
+            pass
+
         async def rollback(self):
             pass
 
@@ -164,3 +167,116 @@ async def test_finish_as_orphaned_on_finished_deployment_is_noop():
     assert deployment.finish_as_orphaned() == ([], None)
     assert deployment.finished == finished
     assert deployment.steps == []
+
+
+# test repeated step reports (the response to a processed report got lost)
+
+
+def make_running_deployment(steps):
+    started = datetime.now(timezone.utc) - timedelta(minutes=10)
+    return model.Deployment(id=1, service_id=1, origin="GitHub", user="foobar", started=started, steps=steps)
+
+
+def make_report(name, started, state="success", message=""):
+    return model.Step(
+        name=name, started=started, finished=started + timedelta(seconds=5), state=state, message=message
+    )
+
+
+async def test_repeated_report_of_known_step_is_idempotent():
+    build = model.Step(id=1, name="build", deployment_id=1, state="running")
+    test = model.Step(id=2, name="test", deployment_id=1, state="pending")
+    publish = model.Step(id=3, name="publish", deployment_id=1, state="pending")
+    deployment = make_running_deployment([build, test, publish])
+    started = datetime.now(timezone.utc)
+
+    assert deployment.process_step(make_report("build", started)) == [test, build]
+    assert [step.state for step in deployment.steps] == ["success", "running", "pending"]
+    finished_once = build.finished
+
+    # the same report again: nothing to insert or update, next step advanced only once
+    assert deployment.process_step(make_report("build", started)) == []
+    assert [step.state for step in deployment.steps] == ["success", "running", "pending"]
+    assert build.finished == finished_once
+
+
+async def test_repeated_report_of_unknown_step_is_idempotent():
+    deployment = make_running_deployment([])
+    started = datetime.now(timezone.utc)
+    first = make_report("gather facts", started, message="ok")
+    deployment.steps = deployment.process_step(first)
+    assert deployment.steps == [first]
+
+    assert deployment.process_step(make_report("gather facts", started, message="ok")) == []
+
+
+@pytest.mark.parametrize("changed", [{"state": "failure"}, {"message": "something else"}])
+async def test_conflicting_repeated_report_is_rejected(changed):
+    build = model.Step(id=1, name="build", deployment_id=1, state="running")
+    test = model.Step(id=2, name="test", deployment_id=1, state="pending")
+    deployment = make_running_deployment([build, test])
+    started = datetime.now(timezone.utc)
+    deployment.process_step(make_report("build", started, message="built"))
+
+    conflicting = make_report("build", started, **({"message": "built"} | changed))
+    with pytest.raises(model.StepReportConflict):
+        deployment.process_step(conflicting)
+    assert (build.state, build.message, test.state) == ("success", "built", "running")
+
+
+async def test_steps_sharing_a_name_are_not_repeated_reports():
+    """Same name but another started timestamp is another step, planned or not."""
+    first = model.Step(id=1, name="restart", deployment_id=1, state="running")
+    second = model.Step(id=2, name="restart", deployment_id=1, state="pending")
+    deployment = make_running_deployment([first, second])
+    started = datetime.now(timezone.utc)
+
+    assert deployment.process_step(make_report("restart", started)) == [second, first]
+    # a retry of the first report must not consume the second planned step
+    assert deployment.process_step(make_report("restart", started)) == []
+    assert second.state == "running"
+
+    later = started + timedelta(seconds=1)
+    assert deployment.process_step(make_report("restart", later)) == [second]
+    assert (second.state, second.started) == ("success", later)
+
+    # an unplanned third step of that name is still added
+    third = make_report("restart", later + timedelta(seconds=1))
+    assert deployment.process_step(third) == [third]
+
+
+async def test_repeated_progress_report_is_idempotent():
+    """A report does not have to be final: a repeated "running" report must not advance another step."""
+    build = model.Step(id=1, name="build", deployment_id=1, state="running")
+    test = model.Step(id=2, name="test", deployment_id=1, state="pending")
+    publish = model.Step(id=3, name="publish", deployment_id=1, state="pending")
+    deployment = make_running_deployment([build, test, publish])
+    started = datetime.now(timezone.utc)
+
+    assert deployment.process_step(make_report("build", started, state="running", message="50%")) == [test, build]
+    assert deployment.process_step(make_report("build", started, state="running", message="50%")) == []
+    assert [step.state for step in deployment.steps] == ["running", "running", "pending"]
+
+    with pytest.raises(model.StepReportConflict):
+        deployment.process_step(make_report("build", started, state="running", message="75%"))
+
+
+async def test_planned_steps_without_a_report_are_not_taken_for_processed_reports():
+    """The first planned step is started by the server; a report for it is not a repeat."""
+    started = datetime.now(timezone.utc)
+    build = model.Step(id=1, name="build", deployment_id=1, state="running", started=started)
+    deployment = make_running_deployment([build])
+
+    assert deployment.process_step(make_report("build", started, message="built")) == [build]
+    assert (build.state, build.message) == ("success", "built")
+
+
+async def test_repeated_report_matches_timestamp_without_timezone():
+    """A timestamp without timezone is stored as local time and reloaded with a timezone."""
+    deployment = make_running_deployment([])
+    naive = datetime(2026, 1, 2, 3, 4, 5, 678, tzinfo=timezone.utc).replace(tzinfo=None)
+    stored = make_report("build", naive.astimezone(timezone.utc))
+    stored.finished = datetime.now(timezone.utc)
+    deployment.steps = [stored]
+
+    assert deployment.process_step(make_report("build", naive)) == []

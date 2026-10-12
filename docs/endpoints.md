@@ -159,6 +159,23 @@ lifetime (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) can no longer r
 and do not block new deployments either. Concurrent starts for the same service are serialized
 by a database row lock on the service, so exactly one of them succeeds.
 
+**Start order**: the deployment and its planned steps are committed in one transaction before the
+detached deploy task is started, so a task that reports its first step immediately finds the planned
+steps. If the deploy task cannot be started, the deployment is finished as failed at once: its planned
+steps are removed and a step named `deployment launch failed` with state `failure` records the error
+type (details are in the fastdeploy service log). The request is answered with **500** and the failed
+deployment id, and the service is free for the next start:
+```json
+{
+  "detail": {
+    "message": "Deploy task of deployment 42 could not be started",
+    "deployment_id": 42
+  }
+}
+```
+The failed deployment is returned by `GET /deployments/` and `GET /deployments/{deployment_id}`; no
+websocket events are broadcast for it.
+
 ### Orphaned deployments
 A deployment is orphaned when it is unfinished, has no running or pending steps, and neither the
 deployment start nor any step start/finish happened within `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS`
@@ -240,6 +257,13 @@ ownership check.
 ```json
 {"detail": "step processed"}
 ```
+
+Reporting a step is idempotent, so the deploy task can safely repeat a report whose response was lost. A
+report is identified by its `name` and `started` timestamp (whatever its `state`; a `started` without a
+timezone counts as server local time): sending the same result again (same `state`
+and `message`) changes nothing, adds no step, broadcasts no event and gets the same response. The same
+`name` and `started` with a different `state` or `message` is rejected with **409 Conflict**. Steps that
+share a name but have different `started` timestamps are separate steps.
 
 ### GET /steps/
 **Purpose**: List steps for a deployment
@@ -348,6 +372,12 @@ All endpoints may return these standard error responses:
 
 - **409 Conflict** (`POST /deployments/`): Another deployment of the service is still running;
   `detail.deployment_id` names it
+
+- **500 Internal Server Error** (`POST /deployments/`): The deploy task could not be started; the
+  deployment `detail.deployment_id` was finished as failed
+
+- **409 Conflict** (`POST /steps/`): The step (same `name` and `started`) was already reported with a
+  different `state` or `message`
 
 - **409 Conflict** (`POST /services/sync`): The sync would delete all or more than half of the
   services; `detail.would_delete` lists them. Retry with `force=true` if that is intended

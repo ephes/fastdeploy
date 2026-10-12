@@ -103,7 +103,13 @@ async def finish_deployment(
     return {"detail": f"Deployment {deployment.id} finished"}
 
 
-@router.post("/", responses={409: {"description": "Another deployment of this service is still running"}})
+@router.post(
+    "/",
+    responses={
+        409: {"description": "Another deployment of this service is still running"},
+        500: {"description": "The deploy task could not be started; the deployment was finished as failed"},
+    },
+)
 async def start_deployment(
     request: Request,
     context: DeploymentContext = DeploymentContext(env={}),  # noqa: B008 -- FastAPI copies body defaults per request
@@ -118,6 +124,10 @@ async def start_deployment(
     Only one deployment per service may run at a time: if the service still has
     an active deployment, the request is rejected with 409 Conflict and the
     response detail names the running deployment id.
+
+    If the deploy task cannot be started, the new deployment is finished as
+    failed (it does not block the next start) and the request is answered with
+    500; the response detail names the failed deployment id.
     """
     if service.id is None:
         # this cannot happen -> it's just a type guard
@@ -143,6 +153,14 @@ async def start_deployment(
             status_code=status.HTTP_409_CONFLICT,
             detail={
                 "message": f"Deployment {e.deployment_id} is still running for service {service.name}",
+                "deployment_id": e.deployment_id,
+            },
+        ) from e
+    except model.DeploymentLaunchFailed as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "message": f"Deploy task of deployment {e.deployment_id} could not be started",
                 "deployment_id": e.deployment_id,
             },
         ) from e

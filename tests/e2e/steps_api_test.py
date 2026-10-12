@@ -106,6 +106,28 @@ async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy
         assert step.name == step_result.name
 
 
+async def test_process_step_repeated_report(app, uow, step_result, publisher, valid_deploy_token_in_db):
+    """A retried report (lost response) is accepted again without a second step or event."""
+    payload = json.loads(step_result.model_dump_json())
+    headers = {"authorization": f"Bearer {valid_deploy_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        first = await client.post(app.url_path_for("process_step_result"), json=payload, headers=headers)
+        events_after_first_report = len(publisher.events)
+        second = await client.post(app.url_path_for("process_step_result"), json=payload, headers=headers)
+        conflicting = await client.post(
+            app.url_path_for("process_step_result"), json=payload | {"state": "failure"}, headers=headers
+        )
+
+    assert (first.status_code, second.status_code) == (200, 200)
+    assert second.json() == first.json()
+    assert conflicting.status_code == 409
+    assert conflicting.json() == {"detail": "Step was already reported with a different result"}
+    assert len(publisher.events) == events_after_first_report
+    async with uow:
+        [step] = await uow.steps.list()
+        assert (step.name, step.state) == (step_result.name, "success")
+
+
 # test get_steps_by_deployment endpoint
 
 

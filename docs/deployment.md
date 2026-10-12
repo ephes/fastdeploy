@@ -95,7 +95,9 @@ Deployments are single-flight per service: starting a deployment while the same 
 The deploy task (the detached `python -m deploy.tasks` process that runs the deploy script) reports each step to
 `POST /steps/` and finally calls `PUT /deployments/finish/`. Connection errors and `5xx` responses are retried with
 exponential backoff (4 attempts per step, 6 for finishing the deployment, starting at 3 seconds), so a short API
-restart, for example while fastdeploy deploys itself, does not leave the deployment active. `4xx` responses are not
+restart, for example while fastdeploy deploys itself, does not leave the deployment active. A retried step report
+that the API had already processed (only the response was lost) is recognized by its name and started timestamp and
+changes nothing. `4xx` responses are not
 retried. A step that still cannot be reported is dropped and logged to the task's stderr (the fastdeploy service
 journal), and the task keeps reading the deploy script output; lines that are not a JSON object with a `name` are
 skipped. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
