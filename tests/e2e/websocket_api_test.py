@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from deploy.adapters.websocket import ConnectionManager
 from deploy.auth import create_access_token, get_password_hash
@@ -129,7 +129,7 @@ def test_websocket_client_id_is_reusable_after_disconnect(ws_client, cm):
 
 
 def test_websocket_without_token_is_closed_after_the_authentication_deadline(ws_client, cm, monkeypatch):
-    monkeypatch.setattr("deploy.adapters.websocket.settings.websocket_auth_timeout_seconds", 0.2)
+    monkeypatch.setattr("deploy.entrypoints.fastapi_app.settings.websocket_auth_timeout_seconds", 0.2)
     with ws_client.websocket_connect(ws_path(uuid4())) as ws:
         ws.send_json({"ping": True})  # traffic without a token does not keep it open
         assert ws.receive_json() == {
@@ -141,15 +141,56 @@ def test_websocket_without_token_is_closed_after_the_authentication_deadline(ws_
             ws.receive_json()
     assert excinfo.value.code == 1008
     assert cm.all_connections == {}
-    assert cm.auth_deadline_tasks == {}
 
 
 def test_websocket_with_token_stays_open_after_the_authentication_deadline(ws_client, cm, monkeypatch):
-    monkeypatch.setattr("deploy.adapters.websocket.settings.websocket_auth_timeout_seconds", 0.2)
+    monkeypatch.setattr("deploy.entrypoints.fastapi_app.settings.websocket_auth_timeout_seconds", 0.2)
     client_id = uuid4()
     with ws_client.websocket_connect(ws_path(client_id)) as ws:
         ws.send_json({"access_token": user_token()})
         assert ws.receive_json()["status"] == "success"
         time.sleep(0.6)
         assert cm.is_authenticated(client_id)
-        assert cm.auth_deadline_tasks == {}
+        ws.send_json({"ping": True})  # still served
+
+
+def test_websocket_endpoint_returns_when_the_client_never_reads(cm, monkeypatch):
+    """
+    Neither the timeout notification nor the close can be sent: the endpoint
+    still has to return, which is what releases the connection.
+    """
+    from deploy.adapters import websocket as websocket_module
+    from deploy.entrypoints import fastapi_app as app_module
+
+    monkeypatch.setattr(app_module.settings, "websocket_auth_timeout_seconds", 0.05)
+    monkeypatch.setattr(websocket_module, "AUTH_TIMEOUT_CLOSE_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(app_module, "WEBSOCKET_CLOSE_TIMEOUT_SECONDS", 0.05)
+
+    class SilentWebsocket:
+        """Accepts, never delivers a message and never gets a frame out."""
+
+        client_state = application_state = WebSocketState.CONNECTED
+
+        async def accept(self):
+            pass
+
+        async def receive_json(self):
+            await asyncio.sleep(3600)
+
+        async def send_json(self, message):
+            await asyncio.sleep(3600)
+
+        async def close(self, code=1000):
+            await asyncio.sleep(3600)
+
+    class StubBus:
+        uow = None
+
+    bus = StubBus()
+    bus.cm = cm
+
+    async def run():
+        await asyncio.wait_for(app_module.websocket_endpoint(SilentWebsocket(), uuid4(), bus), timeout=5)
+
+    asyncio.run(run())
+    assert cm.all_connections == {}

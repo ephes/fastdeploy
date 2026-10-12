@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 from uuid import UUID
 
@@ -37,6 +38,10 @@ async def redirect_typer():
     return RedirectResponse("/static/index.html")
 
 
+# How long the close handshake at the end of the websocket endpoint may take.
+WEBSOCKET_CLOSE_TIMEOUT_SECONDS = 1.0
+
+
 class Message(BaseModel):
     message: str
 
@@ -49,9 +54,20 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
     if not await connection_manager.connect(client_id, websocket):
         return  # client id already in use by a live connection
     was_authenticated = False
+    # Until the connection is authenticated, it only gets this long in total,
+    # whatever it sends in the meantime.
+    auth_deadline = asyncio.get_running_loop().time() + settings.websocket_auth_timeout_seconds
     try:
         while True:
-            data = await websocket.receive_json()
+            if connection_manager.is_authenticated(client_id, websocket):
+                data = await websocket.receive_json()
+            else:
+                remaining = max(auth_deadline - asyncio.get_running_loop().time(), 0)
+                try:
+                    data = await asyncio.wait_for(websocket.receive_json(), timeout=remaining)
+                except asyncio.TimeoutError:
+                    await connection_manager.close_unauthenticated(client_id, websocket)
+                    break
             if not isinstance(data, dict):
                 break
             if data.get("access_token") is not None:
@@ -70,7 +86,8 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
             websocket.client_state != WebSocketState.DISCONNECTED
             and websocket.application_state != WebSocketState.DISCONNECTED
         ):
+            # bounded: the peer may not read, and returning ends the connection anyway
             with contextlib.suppress(Exception):
-                await websocket.close()
+                await asyncio.wait_for(websocket.close(), timeout=WEBSOCKET_CLOSE_TIMEOUT_SECONDS)
     if was_authenticated:
         await connection_manager.broadcast(Message(message="Client left"))
