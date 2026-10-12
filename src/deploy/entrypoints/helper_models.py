@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..bootstrap import get_bus
 from ..service_layer.messagebus import MessageBus
@@ -20,9 +20,24 @@ class Step(StepBase):
     deployment_id: int
 
 
+# Limits for reported steps. They are the sizes of the columns of the step
+# table, so a longer value could not be stored anyway.
+MAX_STEP_NAME_LENGTH = 255
+MAX_STEP_STATE_LENGTH = 20
+MAX_STEP_MESSAGE_LENGTH = 4096
+
+
 class StepResult(StepBase):
+    """
+    A step reported by a deploy task. Only this input model is limited in
+    size, the models used for responses are not.
+    """
+
+    name: str = Field(max_length=MAX_STEP_NAME_LENGTH)
+    state: str = Field(max_length=MAX_STEP_STATE_LENGTH)
     started: datetime
     finished: datetime
+    message: str = Field(max_length=MAX_STEP_MESSAGE_LENGTH)
 
 
 class Deployment(BaseModel):
