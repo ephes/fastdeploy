@@ -515,6 +515,36 @@ async def test_deploy_start_after_finish_is_allowed(popen, app, bus, valid_servi
 
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
 @patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_launch_failure_finishes_deployment_as_failed(popen, app, uow, valid_service_token_in_db):
+    popen.side_effect = OSError("cannot fork /secret/path")
+
+    failed = await post_start_deployment(app, valid_service_token_in_db)
+
+    assert failed.status_code == 500
+    detail = failed.json()["detail"]
+    async with uow:
+        [deployment] = await uow.deployments.list()
+        steps = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert detail == {
+        "message": f"Deploy task of deployment {deployment.id} could not be started",
+        "deployment_id": deployment.id,
+    }
+    assert deployment.finished is not None
+    # the planned steps are gone, the failure step tells why without leaking details
+    [step] = steps
+    assert (step.name, step.state) == (model.LAUNCH_FAILED_STEP_NAME, "failure")
+    assert "OSError" in step.message
+    assert "secret" not in step.message
+
+    # the failed deployment does not block the service
+    popen.side_effect = None
+    second = await post_start_deployment(app, valid_service_token_in_db)
+    assert second.status_code == 200
+    assert second.json()["id"] != deployment.id
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+@patch("deploy.tasks.subprocess.Popen")
 async def test_deploy_start_reconciles_orphaned_deployment(popen, app, uow, service_in_db, valid_service_token_in_db):
     started = datetime.now(timezone.utc) - timedelta(minutes=10)
     orphan = await add_unfinished_deployment(uow, service_in_db.id, started, step_states=("success",))

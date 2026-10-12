@@ -103,6 +103,9 @@ async def test_events_mixin_events_are_consumable_by_unit_of_work():
         async def _commit(self):
             pass
 
+        async def flush(self):
+            pass
+
         async def rollback(self):
             pass
 

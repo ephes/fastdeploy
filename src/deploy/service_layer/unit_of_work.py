@@ -47,6 +47,14 @@ class AbstractUnitOfWork(abc.ABC):
     async def commit(self):
         await self._commit()
 
+    @abc.abstractmethod
+    async def flush(self):
+        """
+        Send pending changes to the database without committing, so that new
+        models get their ids while the transaction (and its locks) stays open.
+        """
+        raise NotImplementedError
+
     def collect_new_events(self):
         for repo in [self.services, self.deployments, self.steps, self.users]:
             for model in repo.seen:
@@ -101,6 +109,9 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
 
     async def _commit(self):
         await self.session.commit()
+
+    async def flush(self):
+        await self.session.flush()
 
     async def rollback(self):
         await self.session.rollback()
@@ -166,6 +177,9 @@ class InMemoryUnitOfWork(AbstractUnitOfWork):
 
     async def _commit(self):
         self.committed = True
+
+    async def flush(self):
+        pass  # ids are assigned when a model is added
 
     async def rollback(self):
         pass

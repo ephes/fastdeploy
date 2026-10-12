@@ -156,7 +156,17 @@ async def stage_orphaned_deployment_finish(
     An orphaned deployment must never look successful.
     """
     deployment.steps = steps
-    removed_steps, failure_step = deployment.finish_as_orphaned()
+    await stage_failed_deployment_finish(deployment, model.ORPHANED_STEP_NAME, model.ORPHANED_STEP_MESSAGE, uow)
+
+
+async def stage_failed_deployment_finish(
+    deployment: model.Deployment, name: str, message: str, uow: AbstractUnitOfWork
+) -> None:
+    """
+    Finish a deployment as failed inside the current unit of work: remove its
+    open steps and add a failure step with the given name and message.
+    """
+    removed_steps, failure_step = deployment.finish_as_failed(name, message)
     for step in removed_steps:
         await uow.steps.delete(step)
     if failure_step is not None:
@@ -265,17 +275,31 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
         await uow.services.lock_for_deployment(command.service_id)
         await finish_orphans_or_raise_if_running(command.service_id, uow)
 
-        # add the deployment to the database
-        # have to commit early to get the deployment ID :(
-        # FIXME: this is a bit of a hack
+        # Store the deployment and its planned steps in one transaction, before the
+        # deploy task exists: the detached task may report its first step right
+        # away and has to find the planned steps. The flush allocates the
+        # deployment id while the service lock is still held.
         await uow.deployments.add(deployment)
-        await uow.commit()
-
-        # start deployment task
-        deployment.start_deployment_task(service)
+        await uow.flush()
+        deployment.prepare_steps()
         for step in deployment.steps:
             await uow.steps.add(step)
         await uow.commit()
+
+        # start deployment task
+        try:
+            deployment.start_deployment_task(service)
+        except Exception as e:
+            # Without a deploy task nothing would ever finish the deployment, and it
+            # would block the service until it counts as orphaned. Details stay in
+            # the log: the step message is shown to users.
+            logger.exception("Could not start deploy task of deployment %s", deployment.id)
+            assert deployment.id is not None
+            failed = await get_deployment_for_update(deployment.id, uow)
+            message = f"The deploy task could not be started ({type(e).__name__}). See the fastdeploy service log."
+            await stage_failed_deployment_finish(failed, model.LAUNCH_FAILED_STEP_NAME, message, uow)
+            await uow.commit()
+            raise model.DeploymentLaunchFailed(deployment.id) from e
 
 
 async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):

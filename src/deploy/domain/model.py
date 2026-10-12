@@ -246,6 +246,22 @@ ORPHANED_STEP_MESSAGE = (
 )
 
 
+# Name of the failure step that records that the deploy task of a deployment
+# could not be started.
+LAUNCH_FAILED_STEP_NAME = "deployment launch failed"
+
+
+class DeploymentLaunchFailed(Exception):
+    """
+    Raised when the deploy task of a new deployment could not be started. The
+    deployment was finished as failed, so it does not block further starts.
+    """
+
+    def __init__(self, deployment_id: int):
+        self.deployment_id = deployment_id
+        super().__init__(f"Deploy task of deployment {deployment_id} could not be started")
+
+
 class Deployment(EventsMixin):
     """
     Representing a single deployment for a service. It has an origin
@@ -390,18 +406,27 @@ class Deployment(EventsMixin):
             step.process()
         return modified_steps
 
-    def start_deployment_task(self, service: Service):
+    def prepare_steps(self) -> None:
         """
-        Start actual deployment task and raise started event.
+        Assign the planned steps to this deployment and start the first one. The
+        steps have to be stored before the deploy task is started, because the
+        task may report its first step right away.
         """
         if self.started is None or self.finished is not None or self.id is None:
             raise ValueError("Unable to start deployment")
 
-        # start first step immediately + raise processed events for all steps
-        self.steps[0].start()
+        if self.steps:
+            self.steps[0].start()
         for step in self.steps:
             step.deployment_id = self.id
-            step.process()
+
+    def start_deployment_task(self, service: Service):
+        """
+        Start actual deployment task and raise started event. Has to be called
+        after the deployment and its prepared steps were committed.
+        """
+        if self.started is None or self.finished is not None or self.id is None:
+            raise ValueError("Unable to start deployment")
 
         # start the deployment task
         from ..tasks import get_deploy_environment, run_deploy
@@ -409,7 +434,9 @@ class Deployment(EventsMixin):
         environment = get_deploy_environment(self, service.get_deploy_script())
         run_deploy(environment)  # subprocess.Popen(...)
 
-        # record started event
+        # raise processed events for all steps and record started event
+        for step in self.steps:
+            step.process()
         self.record(events_module.DeploymentStarted)
 
     def finish(self):
@@ -438,16 +465,25 @@ class Deployment(EventsMixin):
         to remove (like ``finish``) and the added failure step, or ``([], None)``
         if the deployment is already finished.
         """
+        return self.finish_as_failed(ORPHANED_STEP_NAME, ORPHANED_STEP_MESSAGE)
+
+    def finish_as_failed(self, name: str, message: str) -> tuple[list[Step], Step | None]:
+        """
+        Finish a deployment that will not be finished by its deploy task and add
+        a failure step that records the reason, so it does not look successful.
+        Returns the steps to remove (like ``finish``) and the added failure step,
+        or ``([], None)`` if the deployment is already finished.
+        """
         if self.finished is not None:
             return [], None
 
         now = datetime.now(timezone.utc)
         failure_step = Step(
-            name=ORPHANED_STEP_NAME,
+            name=name,
             state="failure",
             started=now,
             finished=now,
-            message=ORPHANED_STEP_MESSAGE,
+            message=message,
             deployment_id=self.id,
         )
         steps_to_remove = self.finish()
