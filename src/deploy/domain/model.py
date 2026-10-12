@@ -224,6 +224,15 @@ class DeploymentAlreadyRunning(Exception):
         super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
 
 
+def as_utc(timestamp: datetime) -> datetime:
+    """
+    A timestamp without a timezone counts as local time, which is also how the
+    database driver stores it; it comes back from the database with a timezone.
+    Compare timestamps through this, so a reloaded one equals the reported one.
+    """
+    return timestamp.astimezone(timezone.utc)
+
+
 class StepReportConflict(ValueError):
     """
     Raised when a step report repeats an already processed report (same step
@@ -353,13 +362,16 @@ class Deployment(EventsMixin):
         modified_steps: list[Step] = []
 
         # A report that was already processed is sent again when its response got
-        # lost. A processed step keeps the reported started timestamp, so name and
-        # started identify the report; steps that merely share a name differ in it.
+        # lost. A processed step has a finished timestamp (planned steps that no
+        # report touched have none) and keeps the reported started timestamp, so
+        # name and started identify the report; steps that merely share a name
+        # differ in it.
         if step.started is not None:
+            reported_started = as_utc(step.started)
             for processed_step in steps:
-                if processed_step.state in ("running", "pending"):
+                if processed_step.finished is None or processed_step.started is None:
                     continue
-                if processed_step.name != step.name or processed_step.started != step.started:
+                if processed_step.name != step.name or as_utc(processed_step.started) != reported_started:
                     continue
                 if (processed_step.state, processed_step.message or "") != (step.state, step.message or ""):
                     raise StepReportConflict(deployment_id=self.id, name=step.name)

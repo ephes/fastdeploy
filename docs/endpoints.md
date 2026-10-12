@@ -259,7 +259,8 @@ ownership check.
 ```
 
 Reporting a step is idempotent, so the deploy task can safely repeat a report whose response was lost. A
-report is identified by its `name` and `started` timestamp: sending the same result again (same `state`
+report is identified by its `name` and `started` timestamp (whatever its `state`; a `started` without a
+timezone counts as server local time): sending the same result again (same `state`
 and `message`) changes nothing, adds no step, broadcasts no event and gets the same response. The same
 `name` and `started` with a different `state` or `message` is rejected with **409 Conflict**. Steps that
 share a name but have different `started` timestamps are separate steps.

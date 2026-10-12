@@ -243,3 +243,40 @@ async def test_steps_sharing_a_name_are_not_repeated_reports():
     # an unplanned third step of that name is still added
     third = make_report("restart", later + timedelta(seconds=1))
     assert deployment.process_step(third) == [third]
+
+
+async def test_repeated_progress_report_is_idempotent():
+    """A report does not have to be final: a repeated "running" report must not advance another step."""
+    build = model.Step(id=1, name="build", deployment_id=1, state="running")
+    test = model.Step(id=2, name="test", deployment_id=1, state="pending")
+    publish = model.Step(id=3, name="publish", deployment_id=1, state="pending")
+    deployment = make_running_deployment([build, test, publish])
+    started = datetime.now(timezone.utc)
+
+    assert deployment.process_step(make_report("build", started, state="running", message="50%")) == [test, build]
+    assert deployment.process_step(make_report("build", started, state="running", message="50%")) == []
+    assert [step.state for step in deployment.steps] == ["running", "running", "pending"]
+
+    with pytest.raises(model.StepReportConflict):
+        deployment.process_step(make_report("build", started, state="running", message="75%"))
+
+
+async def test_planned_steps_without_a_report_are_not_taken_for_processed_reports():
+    """The first planned step is started by the server; a report for it is not a repeat."""
+    started = datetime.now(timezone.utc)
+    build = model.Step(id=1, name="build", deployment_id=1, state="running", started=started)
+    deployment = make_running_deployment([build])
+
+    assert deployment.process_step(make_report("build", started, message="built")) == [build]
+    assert (build.state, build.message) == ("success", "built")
+
+
+async def test_repeated_report_matches_timestamp_without_timezone():
+    """A timestamp without timezone is stored as local time and reloaded with a timezone."""
+    deployment = make_running_deployment([])
+    naive = datetime(2026, 1, 2, 3, 4, 5, 678, tzinfo=timezone.utc).replace(tzinfo=None)
+    stored = make_report("build", naive.astimezone(timezone.utc))
+    stored.finished = datetime.now(timezone.utc)
+    deployment.steps = [stored]
+
+    assert deployment.process_step(make_report("build", naive)) == []

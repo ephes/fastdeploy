@@ -296,3 +296,24 @@ async def test_repeated_step_report_keeps_one_row_and_advances_once(popen, bus, 
     async with bus.uow as uow:
         steps = await uow.steps.get_steps_by_deployment(deployment.id)
     assert sorted((step.name, step.state) for step in steps) == [("step1", "success"), ("step2", "running")]
+
+
+@patch("deploy.tasks.subprocess.Popen")
+async def test_repeated_step_report_without_timezone_is_recognized_after_reload(popen, bus, service_with_steps):
+    """The stored timestamp comes back from PostgreSQL with a timezone, the repeated report has none."""
+    await bus.handle(
+        commands.StartDeployment(service_id=service_with_steps.id, origin="github", user="fd", context={})
+    )
+    async with bus.uow as uow:
+        [deployment] = await uow.deployments.list()
+    naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    report = commands.ProcessStep(
+        deployment_id=deployment.id, name="step1", state="success", started=naive, finished=naive, message=""
+    )
+
+    await bus.handle(report)
+    await bus.handle(report)
+
+    async with bus.uow as uow:
+        steps = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert sorted((step.name, step.state) for step in steps) == [("step1", "success"), ("step2", "running")]
