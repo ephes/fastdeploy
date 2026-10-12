@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     app_name: str = "Small Deployment Frontend"
     admin_email: str = "jochen-fastdeploy@wersdoerfer.de"
     password_hash_algorithm: str = Field("bcrypt")
-    token_sign_algorithm: str = "HS256"
+    token_sign_algorithm: typing.Literal["HS256", "HS384", "HS512"] = "HS256"
     access_token_expire_minutes: int = 30
     deployment_access_token_expire_minutes: int = 480
     deployment_orphan_reconcile_delay_seconds: int = 300

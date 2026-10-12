@@ -122,3 +122,10 @@ new tokens, then unset the setting.
 - Token validation includes signature verification and expiration checking
 - Tokens should be transmitted over HTTPS in production
 - Service registration requires out-of-band administrative access (cannot be done via API)
+
+JWT signing and verification use PyJWT with an explicit HMAC algorithm (`HS256` by default;
+`TOKEN_SIGN_ALGORITHM` also accepts `HS384` and `HS512`). Existing python-jose tokens remain
+valid with the same secret and algorithm. No asymmetric signing dependency is needed.
+Expiry retains the previous whole-second boundary; tokens without `exp` remain accepted
+by the decoder, while every issuance path adds `exp`. Service-token revocation and the
+legacy grace deadline remain unchanged.

@@ -69,6 +69,8 @@ payload = {
 ```
 
 #### 4. JWT Library Capabilities
+
+Historical assessment below: JWT handling now uses PyJWT with HMAC only; see [authentication](../auth.md).
 **Location**: `/Users/jochen/projects/fastdeploy/pyproject.toml:20`
 ```toml
 "python-jose[cryptography]>=3.3.0"
