@@ -197,7 +197,6 @@ class DeployTask(BaseSettings):
 
     async def deploy_steps(self):
         """Run deployment steps with secure configuration."""
-        sudo_command = f"sudo -u {settings.sudo_user}"
         # Handle absolute vs relative paths
         if self.deploy_script.startswith("/"):
             deploy_command = self.deploy_script
@@ -217,8 +216,11 @@ class DeployTask(BaseSettings):
             ssh_auth_sock=os.environ.get("SSH_AUTH_SOCK"),
         )
 
-        # Pass config file path as argument instead of using --preserve-env
-        command = f"{sudo_command} {deploy_command} --config {config_path}"
+        # An argument list, executed without a shell: the deploy script is one
+        # argument (the path of the script, never a command line), so nothing
+        # in the service config or the settings is interpreted by a shell.
+        # The config file path is an argument instead of using --preserve-env.
+        command = ["sudo", "-u", settings.sudo_user, deploy_command, "--config", str(config_path)]
 
         # Minimal environment without sensitive data
         env = {
@@ -231,8 +233,8 @@ class DeployTask(BaseSettings):
         proc = None
         reaped = False
         try:
-            proc = await asyncio.create_subprocess_shell(
-                command,
+            proc = await asyncio.create_subprocess_exec(
+                *command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 limit=MAX_ASYNCIO_STDOUT_SIZE,

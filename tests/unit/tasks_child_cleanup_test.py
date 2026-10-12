@@ -21,7 +21,7 @@ from deploy.tasks import DeploymentContext, DeployTask
 
 pytestmark = pytest.mark.asyncio
 
-real_create_subprocess_shell = asyncio.create_subprocess_shell
+real_create_subprocess_exec = asyncio.create_subprocess_exec
 
 
 class RecordingClient:
@@ -66,11 +66,11 @@ def run_child(tmp_path, monkeypatch):
         script = tmp_path / "child.py"
         script.write_text(textwrap.dedent(source))
 
-        async def create(command, **kwargs):
+        async def create(*command, **kwargs):
             seen["kwargs"] = kwargs
-            return await real_create_subprocess_shell(f"exec {sys.executable} {script} {tmp_path}", **kwargs)
+            return await real_create_subprocess_exec(sys.executable, str(script), str(tmp_path), **kwargs)
 
-        monkeypatch.setattr(tasks.asyncio, "create_subprocess_shell", create)
+        monkeypatch.setattr(tasks.asyncio, "create_subprocess_exec", create)
         original_cleanup = tasks.SecureConfig.cleanup_config
 
         def cleanup(self, config_path):
@@ -236,8 +236,8 @@ async def test_cancellation_stops_child_and_descendants(task, run_child, tmp_pat
 async def test_read_error_stops_child_and_descendants(task, run_child, tmp_path):
     seen = run_child(WAITING_CHILD % 'print("started", flush=True)')
 
-    async def create_with_failing_reader(command, **kwargs):
-        proc = await create(command, **kwargs)
+    async def create_with_failing_reader(*command, **kwargs):
+        proc = await create(*command, **kwargs)
         original_readuntil = proc.stdout.readuntil
 
         async def readuntil(separator=b"\n"):
@@ -248,9 +248,9 @@ async def test_read_error_stops_child_and_descendants(task, run_child, tmp_path)
         proc.stdout.readuntil = readuntil
         return proc
 
-    create = tasks.asyncio.create_subprocess_shell
+    create = tasks.asyncio.create_subprocess_exec
     with (
-        patch.object(tasks.asyncio, "create_subprocess_shell", create_with_failing_reader),
+        patch.object(tasks.asyncio, "create_subprocess_exec", create_with_failing_reader),
         pytest.raises(OSError, match="pipe broke"),
     ):
         await task.deploy_steps()
@@ -342,3 +342,110 @@ async def test_normal_exit_does_not_signal_the_process_group(task, run_child):
 
     killpg.assert_not_called()
     assert [step["name"] for step in task.client.posted] == ["only"]
+
+
+# --- the deploy command is an argument list, not a shell command line ---
+
+
+@pytest.fixture
+def fake_sudo(tmp_path):
+    """A directory to put on PATH whose "sudo -u USER CMD ARGS" just runs CMD ARGS and records its arguments."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    sudo = bin_dir / "sudo"
+    sudo.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import json, os, sys
+            with open({str(tmp_path / "sudo_args.json")!r}, "w") as f:
+                json.dump(sys.argv[1:], f)
+            assert sys.argv[1] == "-u"
+            os.execv(sys.argv[3], sys.argv[3:])
+            """
+        )
+    )
+    sudo.chmod(0o755)
+    return bin_dir
+
+
+def write_deploy_script(path, tmp_path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        textwrap.dedent(
+            f"""\
+            #!{sys.executable}
+            import json, sys
+            with open({str(tmp_path / "script_args.json")!r}, "w") as f:
+                json.dump(sys.argv[1:], f)
+            print(json.dumps({{"name": "ran", "state": "success"}}), flush=True)
+            """
+        )
+    )
+    path.chmod(0o755)
+
+
+async def run_deploy_steps_with(task, fake_sudo, deploy_script, monkeypatch, sudo_user="deploy"):
+    monkeypatch.setattr(tasks.settings, "sudo_user", sudo_user)
+    task.deploy_script = deploy_script
+    task.path_for_deploy = f"{fake_sudo}{os.pathsep}{os.environ.get('PATH', '/usr/bin:/bin')}"
+    # sudo itself is looked up on the PATH of the deploy task
+    monkeypatch.setenv("PATH", task.path_for_deploy)
+    await asyncio.wait_for(task.deploy_steps(), timeout=30)
+
+
+async def test_deploy_command_runs_the_script_with_the_config_argument(task, fake_sudo, tmp_path, monkeypatch):
+    """The invocation existing services rely on: sudo -u USER SCRIPT --config PATH."""
+    import json
+
+    script = tmp_path / "services" / "dummy" / "deploy.sh"
+    write_deploy_script(script, tmp_path)
+
+    await run_deploy_steps_with(task, fake_sudo, str(script), monkeypatch)
+
+    sudo_args = json.loads((tmp_path / "sudo_args.json").read_text())
+    assert sudo_args[:3] == ["-u", "deploy", str(script)]
+    assert sudo_args[3] == "--config"
+    assert len(sudo_args) == 5
+    assert json.loads((tmp_path / "script_args.json").read_text()) == sudo_args[3:]
+    assert [step["name"] for step in task.client.posted] == ["ran"]
+
+
+async def test_relative_deploy_script_is_resolved_below_the_services_root(task, fake_sudo, tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.setattr(tasks.settings, "services_dir_name", "services")
+    monkeypatch.setattr(tasks.settings, "project_root", tmp_path)
+    write_deploy_script(tmp_path / "services" / "dummy" / "deploy.sh", tmp_path)
+
+    await run_deploy_steps_with(task, fake_sudo, "dummy/deploy.sh", monkeypatch)
+
+    sudo_args = json.loads((tmp_path / "sudo_args.json").read_text())
+    assert sudo_args[2] == str(tmp_path / "services" / "dummy" / "deploy.sh")
+    assert [step["name"] for step in task.client.posted] == ["ran"]
+
+
+async def test_shell_syntax_in_the_deploy_script_is_not_interpreted(task, fake_sudo, tmp_path, monkeypatch):
+    """A script path with shell metacharacters is one argument: nothing else runs."""
+    injected = tmp_path / "injected"
+    script = tmp_path / "services" / f"deploy.sh; touch {injected} #"
+    write_deploy_script(script, tmp_path)
+
+    await run_deploy_steps_with(task, fake_sudo, str(script), monkeypatch)
+
+    assert not injected.exists()
+    assert [step["name"] for step in task.client.posted] == ["ran"]
+
+
+async def test_shell_syntax_in_the_sudo_user_is_not_interpreted(task, fake_sudo, tmp_path, monkeypatch):
+    import json
+
+    injected = tmp_path / "injected"
+    script = tmp_path / "services" / "deploy.sh"
+    write_deploy_script(script, tmp_path)
+    sudo_user = f"deploy true; touch {injected};"
+
+    await run_deploy_steps_with(task, fake_sudo, str(script), monkeypatch, sudo_user=sudo_user)
+
+    assert not injected.exists()
+    assert json.loads((tmp_path / "sudo_args.json").read_text())[:3] == ["-u", sudo_user, str(script)]

@@ -7,7 +7,13 @@ from httpx import ASGITransport, AsyncClient
 
 from deploy.auth import create_access_token
 from deploy.domain import events, model
-from deploy.entrypoints.helper_models import StepResult
+from deploy.entrypoints.helper_models import (
+    MAX_STEP_MESSAGE_LENGTH,
+    MAX_STEP_NAME_LENGTH,
+    MAX_STEP_STATE_LENGTH,
+    StepResult,
+)
+from deploy.tasks import MAX_STEP_MESSAGE_SIZE
 
 pytestmark = pytest.mark.asyncio
 
@@ -126,6 +132,49 @@ async def test_process_step_repeated_report(app, uow, step_result, publisher, va
     async with uow:
         [step] = await uow.steps.list()
         assert (step.name, step.state) == (step_result.name, "success")
+
+
+@pytest.mark.parametrize(
+    "field, limit",
+    [("message", MAX_STEP_MESSAGE_LENGTH), ("name", MAX_STEP_NAME_LENGTH), ("state", MAX_STEP_STATE_LENGTH)],
+)
+async def test_process_step_rejects_oversized_fields(
+    field, limit, app, uow, step_result, publisher, valid_deploy_token_in_db
+):
+    payload = json.loads(step_result.model_dump_json()) | {field: "x" * (limit + 1)}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            app.url_path_for("process_step_result"),
+            json=payload,
+            headers={"authorization": f"Bearer {valid_deploy_token_in_db}"},
+        )
+
+    assert response.status_code == 422
+    [error] = response.json()["detail"]
+    assert error["loc"] == ["body", field]
+    assert error["type"] == "string_too_long"
+    assert f"at most {limit} characters" in error["msg"]
+    # nothing was stored or broadcast
+    assert publisher.events == []
+    async with uow:
+        assert await uow.steps.list() == []
+
+
+async def test_process_step_accepts_message_at_the_limit(app, uow, step_result, valid_deploy_token_in_db):
+    """The deploy task cuts messages to this length, they must still be accepted."""
+    assert MAX_STEP_MESSAGE_LENGTH == MAX_STEP_MESSAGE_SIZE
+    payload = json.loads(step_result.model_dump_json()) | {"message": "x" * MAX_STEP_MESSAGE_LENGTH}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            app.url_path_for("process_step_result"),
+            json=payload,
+            headers={"authorization": f"Bearer {valid_deploy_token_in_db}"},
+        )
+
+    assert response.status_code == 200
+    async with uow:
+        [step] = await uow.steps.list()
+        assert len(step.message) == MAX_STEP_MESSAGE_LENGTH
 
 
 # test get_steps_by_deployment endpoint

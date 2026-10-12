@@ -88,7 +88,7 @@ class DeployProc:
     def stdout(self):
         return self
 
-    async def create_subprocess_shell(self, *args, **kwargs):
+    async def create_subprocess_exec(self, *args, **kwargs):
         return self
 
     async def readline(self):
@@ -294,7 +294,7 @@ async def test_deploy_steps_keeps_draining_stdout_after_failed_post(task_kwargs,
     stdout_lines = [{"name": "step1"}, {"name": "step2"}, {"name": "step3"}, None]
     proc = DeployProc(stdout_lines)
 
-    with patch("deploy.tasks.asyncio.create_subprocess_shell", new=proc.create_subprocess_shell):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec):
         await task.deploy_steps()
 
     assert proc._lines_read == 3
@@ -322,7 +322,7 @@ async def test_run_deploy_finishes_after_step_post_failures(task_kwargs, no_slee
     proc = DeployProc([{"name": "step1"}, None], returncode=1)
 
     with (
-        patch("deploy.tasks.asyncio.create_subprocess_shell", new=proc.create_subprocess_shell),
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
         pytest.raises(RuntimeError, match="exited with code 1"),
     ):
         await task.run_deploy()
@@ -336,7 +336,7 @@ async def test_finish_deployment_is_retried(task_kwargs, no_sleep):
     task = make_task(task_kwargs, client)
     proc = DeployProc([None])
 
-    with patch("deploy.tasks.asyncio.create_subprocess_shell", new=proc.create_subprocess_shell):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec):
         await task.run_deploy()
 
     assert client.put_attempts == 3
@@ -348,7 +348,7 @@ async def test_finish_deployment_failure_does_not_replace_original_error(task_kw
     proc = DeployProc([None], returncode=2)
 
     with (
-        patch("deploy.tasks.asyncio.create_subprocess_shell", new=proc.create_subprocess_shell),
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
         pytest.raises(RuntimeError, match="exited with code 2"),
     ):
         await task.run_deploy()
@@ -364,7 +364,7 @@ async def test_failed_step_report_gets_finish_attempts(task_kwargs, no_sleep):
     proc = DeployProc([None], returncode=2)
 
     with (
-        patch("deploy.tasks.asyncio.create_subprocess_shell", new=proc.create_subprocess_shell),
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
         pytest.raises(RuntimeError, match="exited with code 2"),
     ):
         await task.run_deploy()
@@ -380,7 +380,7 @@ async def test_deployment_not_finished_when_failure_cannot_be_reported(task_kwar
     proc = DeployProc([None], returncode=2)
 
     with (
-        patch("deploy.tasks.asyncio.create_subprocess_shell", new=proc.create_subprocess_shell),
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
         pytest.raises(RuntimeError, match="exited with code 2"),
     ):
         await task.run_deploy()
@@ -416,7 +416,7 @@ async def test_finish_deployment_failure_is_raised_without_original_error(task_k
     proc = DeployProc([None])
 
     with (
-        patch("deploy.tasks.asyncio.create_subprocess_shell", new=proc.create_subprocess_shell),
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
         pytest.raises(httpx.ConnectError),
     ):
         await task.run_deploy()

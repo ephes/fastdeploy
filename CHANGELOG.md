@@ -1,7 +1,25 @@
 Unreleased
 ==========
 
+### Breaking
+- `deploy_script` in a service's `config.json` is the path of one executable and no longer a shell
+  command line. A value with spaces is now one path: `"deploy.sh --flag"` used to run `deploy.sh` with
+  the argument `--flag` and now fails, because no file of that name exists. The same holds for shell
+  syntax (`;`, `&&`, `$VAR`, quotes, globs), which is passed on literally. Values that are a plain
+  relative or absolute path (all shipped and documented configs) behave as before. A script that needs
+  fixed arguments has to be wrapped in a script of its own.
+
 ### Security
+- `POST /steps/` rejects a `name` longer than 255, a `state` longer than 20 and a `message` longer than
+  4096 characters with `422` (before: a database error answered as `400` on PostgreSQL, no limit
+  elsewhere). `POST /deployments/` rejects a context whose JSON encoding is larger than
+  `DEPLOYMENT_CONTEXT_MAX_BYTES` (default 65536) with `413` and starts nothing; before, a context of any
+  size was stored and sent to every websocket client. The deploy task already cuts step messages to
+  4096 characters. See [docs/endpoints.md](docs/endpoints.md).
+- The deploy task starts the deploy script as an argument list (`sudo -u <SUDO_USER> <script> --config
+  <file>`) instead of a shell command line, so shell syntax in a service's `deploy_script` or in
+  `SUDO_USER` is no longer interpreted. sudo gets the same command as before; existing service configs
+  and sudoers rules work unchanged.
 - `POST /token` limits failed logins: after `LOGIN_FAILURE_LIMIT` (default 10) failed attempts for one
   user name from one client address, or `LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) from one client address
   for any user names, inside `LOGIN_FAILURE_WINDOW_SECONDS` (default 900), it answers `429` with a

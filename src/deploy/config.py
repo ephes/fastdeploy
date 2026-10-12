@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     login_failure_limit: int = 10
     login_address_failure_limit: int = 50
     login_failure_window_seconds: int = Field(15 * 60, ge=1)
+    # Upper limit for the JSON encoded context of POST /deployments/ in bytes.
+    deployment_context_max_bytes: int = Field(64 * 1024, ge=2)
     database_url: str = "postgresql+asyncpg:///deploy"
     db_engine: typing.Any = None
     secret_key: str = Field(...)

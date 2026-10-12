@@ -92,6 +92,12 @@ FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `
 
 Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Orphaned unfinished deployments do not block (they are finished as part of a successful start; a rejected start changes nothing), and deployments older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` (default: `480`) do not block.
 
+The deploy task starts the deploy script as `sudo -u <SUDO_USER> <script> --config <config file>`. This is an
+argument list executed without a shell: `deploy_script` from the service's `config.json` (an absolute path, or a path
+below the services directory) is one argument, the path of the script. It is not split into words and shell syntax in
+it or in `SUDO_USER` is not interpreted, so a `deploy_script` cannot carry extra arguments or commands. sudo sees the
+same command as before, so existing sudoers rules keep matching.
+
 The deploy task owns the deploy script it starts. The script runs in its own process group, and the task waits for
 it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
 U+FFFD (a step result containing them is still reported, with the replacement character; any other such line is

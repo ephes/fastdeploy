@@ -157,6 +157,12 @@ waits for it and is then refused. Retry after the deployment has finished.
   }
 }
 ```
+The context is stored with the deployment, passed to the deploy script and sent to every websocket
+client. Its JSON encoding may be at most `DEPLOYMENT_CONTEXT_MAX_BYTES` bytes (default 65536, counted
+in UTF-8); a larger context is rejected with **413** and no deployment is started:
+```json
+{"detail": "Deployment context is too large: 70000 bytes, at most 65536 are allowed"}
+```
 **Response**:
 ```json
 {
@@ -283,6 +289,11 @@ ownership check.
 {"detail": "step processed"}
 ```
 
+Size limits: `name` may have at most 255 characters, `state` at most 20 and `message` at most 4096 (the
+sizes of the database columns). A longer value is rejected with **422** and the usual validation
+error body, which names the field (`"loc": ["body", "message"]`, `"type": "string_too_long"`); the step
+is not stored. The deploy task cuts messages to 4096 characters before it reports them.
+
 Reporting a step is idempotent, so the deploy task can safely repeat a report whose response was lost. A
 report is identified by its `name` and `started` timestamp (whatever its `state`; a `started` without a
 timezone counts as server local time): sending the same result again (same `state`
@@ -403,6 +414,12 @@ All endpoints may return these standard error responses:
 
 - **409 Conflict** (`POST /deployments/`): Another deployment of the service is still running;
   `detail.deployment_id` names it
+
+- **413 Content Too Large** (`POST /deployments/`): The JSON encoded context is larger than
+  `DEPLOYMENT_CONTEXT_MAX_BYTES`; no deployment was started
+
+- **422 Unprocessable Content** (`POST /steps/`): `name`, `state` or `message` is longer than allowed
+  (255, 20 and 4096 characters)
 
 - **500 Internal Server Error** (`POST /deployments/`): The deploy task could not be started; the
   deployment `detail.deployment_id` was finished as failed

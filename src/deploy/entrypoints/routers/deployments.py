@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from ... import views
+from ...config import settings
 from ...domain import commands, events, model
 from ...tasks import DeploymentContext
 from ..dependencies import (
@@ -107,6 +108,7 @@ async def finish_deployment(
     "/",
     responses={
         409: {"description": "Another deployment of this service is still running"},
+        413: {"description": "The deployment context is too large"},
         500: {"description": "The deploy task could not be started; the deployment was finished as failed"},
     },
 )
@@ -128,10 +130,24 @@ async def start_deployment(
     If the deploy task cannot be started, the new deployment is finished as
     failed (it does not block the next start) and the request is answered with
     500; the response detail names the failed deployment id.
+
+    The context is stored, passed to the deploy script and sent to every
+    websocket client, so its JSON encoding is limited to
+    `DEPLOYMENT_CONTEXT_MAX_BYTES`; a larger one is rejected with 413.
     """
     if service.id is None:
         # this cannot happen -> it's just a type guard
         raise HTTPException(status_code=404, detail="Service not found")
+
+    context_size = len(context.model_dump_json().encode("utf-8"))
+    if context_size > settings.deployment_context_max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                f"Deployment context is too large: {context_size} bytes, "
+                f"at most {settings.deployment_context_max_bytes} are allowed"
+            ),
+        )
 
     # register deployment started handler to get the deployment_id
     class DeploymentStartedHandler:
