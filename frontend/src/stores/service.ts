@@ -1,4 +1,5 @@
 import { getClient } from "./httpClient";
+import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
@@ -104,14 +105,18 @@ export const useServices = defineStore("services", {
     async syncServices(force: boolean = false): Promise<boolean> {
       this.syncRefusal = null;
       this.syncErrorMessage = "";
+      const isCurrentSession = rememberSession();
       try {
         await this.client.post(
           "/services/sync",
           undefined,
           force ? { query: { force: "true" } } : {}
         );
-        return true;
+        return isCurrentSession();
       } catch (err: any) {
+        if (!isCurrentSession()) {
+          return false;
+        }
         const detail = err?.body?.detail;
         if (err?.response?.status === 409 && detail && typeof detail === "object") {
           this.syncRefusal = {
@@ -134,10 +139,13 @@ export const useServices = defineStore("services", {
      * @param service_id {number} - The id of the service to delete
      */
     async deleteService(service_id: number) {
+      const isCurrentSession = rememberSession();
       this.client
         .delete<number>(`/services/${service_id}`)
         .then((deletedId) => {
-          delete this.services[deletedId];
+          if (isCurrentSession()) {
+            delete this.services[deletedId];
+          }
         })
         .catch((err) => {
           console.log("delete service error: ", err);
@@ -148,7 +156,11 @@ export const useServices = defineStore("services", {
      * of services.
      */
     async fetchServices() {
+      const isCurrentSession = rememberSession();
       const services = await this.client.get<Promise<ServiceWithId[]>>("services/")
+      if (!isCurrentSession()) {
+        return;
+      }
       for (const service of services) {
         this.services[service.id] = service;
       }
@@ -158,8 +170,11 @@ export const useServices = defineStore("services", {
      * them in the store.
      */
     async fetchServiceNames() {
+      const isCurrentSession = rememberSession();
       this.client.get<string[]>("services/names/").then((names) => {
-        this.serviceNames = names;
+        if (isCurrentSession()) {
+          this.serviceNames = names;
+        }
       });
     },
     /**
@@ -179,6 +194,7 @@ export const useServices = defineStore("services", {
       expirationInDays: number = 1
     ) {
       this.serviceTokenErrorMessage = "";
+      const isCurrentSession = rememberSession();
       try {
         const response = await (<Promise<{ service_token: string }>>(
           this.client.post("service-token", {
@@ -187,8 +203,12 @@ export const useServices = defineStore("services", {
             expiration_in_days: expirationInDays,
           })
         ));
-        return response.service_token;
+        // a token that arrives after logout is not handed out anymore
+        return isCurrentSession() ? response.service_token : null;
       } catch (err: any) {
+        if (!isCurrentSession()) {
+          return null;
+        }
         this.serviceTokenErrorMessage =
           err.message + " " + JSON.stringify(err.body);
         return null;

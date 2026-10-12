@@ -10,6 +10,20 @@ Unreleased
   fixed arguments has to be wrapped in a script of its own.
 
 ### Security
+- Web UI: a logout ends the whole login session, not just the stored access token. Before, it cleared
+  only the token: the services, deployments and steps stores kept their data and their HTTP clients with
+  the old `Authorization` header, the websocket client was not kept anywhere and reconnected with the
+  old token when its connection closed, and a response still in flight was written into the stores
+  afterwards. Now the websocket client is disposed (handlers detached, connection closed, no reconnect,
+  no message delivered, the old token is not sent on a connection that opens late), the stores and the
+  websocket status are reset and get clients without `Authorization` header, the password is cleared
+  (also from the login request options, and already after a successful login), and responses of
+  requests started in an earlier session are dropped. A request for a deployment whose service token
+  arrives after the logout is not sent, and a start response that arrives after the session ended no
+  longer navigates the UI (possibly already the next user's) to that deployment. A client created while logged out no longer carries
+  `Authorization: Bearer null`. The logout happens, as before, when the server rejects the websocket
+  authentication; the next login starts with empty stores and a websocket of its own. Frontend assets
+  only, no API change. See [docs/architecture.md](docs/architecture.md#login-session).
 - `POST /steps/` rejects a `name` longer than 255, a `state` longer than 20 and a `message` longer than
   4096 characters with `422` (before: a database error answered as `400` on PostgreSQL, no limit
   elsewhere). `POST /deployments/` rejects a context whose JSON encoding is larger than
@@ -53,6 +67,12 @@ Unreleased
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
 ### Bug Fixes
+- Web UI: a deployment started with the deploy button shows up under its service at once. The response of
+  `POST /deployments/` was stored as received (`service_id`, dates as strings) while the store is read
+  by `serviceId`, so the new row was missing from the service's deployments and its progress display
+  until a websocket message for it arrived. The response is now converted like fetched and websocket
+  deployments. It also no longer replaces a row the websocket already delivered: a deployment that
+  finished before the start response arrived stays finished instead of showing as running again.
 - `DELETE /services/{service_id}` no longer deletes a service whose deployment is still running. Deleting it removed
   the deployment and its steps while the detached deploy task kept running untracked. The delete now takes the same
   service lock as a deployment start, applies the same "active deployment" rule as the services sync, and answers

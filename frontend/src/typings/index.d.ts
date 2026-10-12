@@ -71,6 +71,8 @@ type WebsocketClient = {
   stores: any[];
   connection?: WebSocket;
   retryCount: number;
+  disposed: boolean;
+  dispose(): void;
   initWebsocketConnection(websocketUrl: string, accessToken: string): void;
   onAuthenticationMessage(message: AuthenticationMessage): void;
   authenticateWebsocketConnection(connection: WebSocket, accessToken: string): void;

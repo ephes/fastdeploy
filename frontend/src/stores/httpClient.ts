@@ -44,13 +44,17 @@ export const getClientWithoutAuth = ():HttpClient => {
 
 /**
  * Use access token from auth store to turn an unauthenticated
- * into an authenticated client.
+ * into an authenticated client. Without an access token (not logged
+ * in, or logged out) the client stays unauthenticated: it carries no
+ * Authorization header at all.
  *
  * @returns client {HttpClient} authenticated client
  */
 export const getClient = ():HttpClient => {
   const client = getClientWithoutAuth();
   const auth = useAuth();
-  client.options.headers.Authorization = `Bearer ${auth.accessToken}`;
+  if (auth.accessToken) {
+    client.options.headers.Authorization = `Bearer ${auth.accessToken}`;
+  }
   return client;
 };

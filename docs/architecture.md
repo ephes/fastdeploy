@@ -302,6 +302,35 @@ class WebSocketClient {
 }
 ```
 
+### Login Session
+
+Everything the web UI holds for a logged-in user belongs to one login session and ends with it
+(`frontend/src/stores/auth.ts`, `endSession`):
+
+- The auth store keeps the websocket client of the session. Ending the session disposes it: its event
+  handlers are detached, the connection is closed, and a disposed client never reconnects,
+  authenticates or passes a message to a store again, also not from a reconnect timer that was already
+  waiting or a connection that opens late.
+- The services, deployments and steps stores and the websocket status are reset. Their HTTP clients are
+  replaced by clients without `Authorization` header (`getClient()` only sets the header while an access
+  token exists).
+- The access token and the password are cleared. The password is also cleared after a successful login
+  and removed from the login request options when the request has finished.
+- The auth store counts sessions (`sessionId`). Every store action that waits for a response remembers
+  the session it started in (`rememberSession()` in `frontend/src/stores/session.ts`) and drops the
+  response if the session has changed meanwhile, so a late response cannot fill the stores of a
+  logged-out UI or of the next user. New store actions that write a response into a store have to do
+  the same.
+
+A session ends on logout, which the UI performs when the server rejects the websocket authentication,
+and before a new session starts on a successful login. A successful login therefore always begins with
+empty stores, new clients and a new websocket client.
+
+Starting a deployment (`startDeployment`) converts the response of `POST /deployments/` like every other
+deployment (camel case keys, dates) and treats it as the oldest state of that deployment: a row that the
+websocket or a list fetch already delivered is kept. It returns `null` when the session ended while it was
+waiting; the caller then does nothing (the deploy button does not navigate to the deployment).
+
 ## Deployment Architecture
 
 ### Service Definition

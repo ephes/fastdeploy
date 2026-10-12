@@ -66,6 +66,94 @@ describe("Deployment Store Actions", () => {
     );
   });
 
+  it("shows a started deployment under its service right away", async () => {
+    const servicesStore = useServices();
+    const deploymentsStore = useDeployments();
+    servicesStore.fetchServiceToken = vi.fn();
+    // what the backend answers: snake case keys, dates as strings
+    const startResponse = {
+      id: 2,
+      service_id: 1,
+      origin: "frontend",
+      user: "deploy",
+      started: "2021-11-23T10:03:01.000000",
+      finished: null,
+    };
+    const client = {
+      async post<T = unknown>(): Promise<T> {
+        return startResponse as any;
+      },
+      options: { headers: {} },
+    } as any;
+
+    const started = (await deploymentsStore.startDeployment("fastdeploy", client))!;
+
+    expect(started).toStrictEqual(pythonToJavascript(startResponse));
+    expect(started.serviceId).toBe(1);
+    expect(started.started).toBeInstanceOf(Date);
+    expect("service_id" in started).toBe(false);
+    expect(Object.keys(deploymentsStore.getDeploymentsByService(1))).toStrictEqual(["2"]);
+    expect(Object.keys(deploymentsStore.getActiveDeploymentsByService(1))).toStrictEqual(["2"]);
+    expect(deploymentsStore.getDeploymentsByService(2)).toStrictEqual({});
+  });
+
+  it("keeps a newer websocket state when the start response arrives late", async () => {
+    const servicesStore = useServices();
+    const deploymentsStore = useDeployments();
+    const websocketClient = createWebsocketClient();
+    websocketClient.registerStore(deploymentsStore);
+    servicesStore.fetchServiceToken = vi.fn();
+    let respond!: (value: any) => void;
+    const client = {
+      post: () => new Promise<any>((resolve) => (respond = resolve)),
+      options: { headers: {} },
+    } as any;
+    const starting = deploymentsStore.startDeployment("fastdeploy", client);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // the deployment finishes (seen over the websocket) before the
+    // response of the request that started it has arrived
+    const finishedMessage = {
+      id: 2,
+      service_id: 1,
+      origin: "frontend",
+      user: "deploy",
+      started: "2021-11-23T10:03:01.000000",
+      finished: "2021-11-23T10:03:05.000000",
+      type: "deployment",
+    };
+    websocketClient.onMessage(createEvent(finishedMessage));
+    respond({ ...finishedMessage, finished: null, type: undefined });
+    const started = (await starting)!;
+
+    expect(deploymentsStore.deployments[2].finished).toBeInstanceOf(Date);
+    expect(started.finished).toBeInstanceOf(Date);
+    expect(deploymentsStore.getActiveDeploymentsByService(1)).toStrictEqual({});
+    expect(Object.keys(deploymentsStore.getDeploymentsByService(1))).toStrictEqual(["2"]);
+  });
+
+  it("uses the service token only on the client of the start request", async () => {
+    const servicesStore = useServices();
+    const deploymentsStore = useDeployments();
+    servicesStore.fetchServiceToken = vi.fn(async () => "service-token");
+    const seen: string[] = [];
+    const client = {
+      async post() {
+        seen.push(client.options.headers.Authorization);
+        return { id: 3, service_id: 1 };
+      },
+      options: { headers: {} as any },
+    } as any;
+
+    await deploymentsStore.startDeployment("fastdeploy", client);
+
+    expect(seen).toStrictEqual(["Bearer service-token"]);
+    expect(deploymentsStore.client).not.toBe(client);
+    expect(JSON.stringify(deploymentsStore.client.options)).not.toContain("service-token");
+    expect(JSON.stringify(servicesStore.client.options)).not.toContain("service-token");
+  });
+
   it("fetches the list of deployments", async () => {
     const deploymentsStore = useDeployments();
     deploymentsStore.client = {

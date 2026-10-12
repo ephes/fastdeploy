@@ -22,7 +22,11 @@ async function forceSync() {
 }
 
 async function startDeployment(serviceName: string) {
-  const deployment: Deployment = await deploymentStore.startDeployment(serviceName);
+  const deployment: Deployment | null = await deploymentStore.startDeployment(serviceName);
+  if (deployment === null) {
+    // the login session ended while waiting: not ours to show anymore
+    return;
+  }
   router.push({ name: 'deployment-detail', params: { id: deployment.id } });
 }
 </script>
