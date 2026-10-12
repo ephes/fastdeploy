@@ -1,6 +1,11 @@
 Unreleased
 ==========
 
+### Security
+- Replace python-jose and its ecdsa dependency with PyJWT for all JWT issuance and verification.
+  Preserve existing signed tokens, expiry handling, revocation and the legacy service-token grace
+  window; restrict configuration to the supported HMAC algorithms.
+
 ### Features
 - `python commands.py issueservicetoken --service S --user U --days N [--origin O]` issues a recorded,
   revocable service token (with `jti`) from the command line, so playbooks and operators can replace

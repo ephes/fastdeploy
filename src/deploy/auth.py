@@ -6,7 +6,7 @@ functions.
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt  # type: ignore
+import jwt
 from passlib.context import CryptContext  # type: ignore
 
 from . import views
@@ -59,14 +59,31 @@ def token_to_payload(token: str):
     """
     Parse a JWT token and return a dict of its payload.
 
-    The jwt.decode function checks for expiration and raises
-    ExpiredSignatureError if it's expired.
+    PyJWT verifies signatures and claims. Preserve python-jose's whole-second
+    expiry boundary and iat type check below, allowing future iat values.
+    Raise ExpiredSignatureError for expired tokens; exp remains optional.
     """
-    return jwt.decode(
+    payload = jwt.decode(
         token,
         settings.secret_key,
         algorithms=[settings.token_sign_algorithm],
+        # python-jose permits future iat and checks exp against whole seconds.
+        options={"verify_iat": False, "verify_exp": False},
     )
+
+    if "iat" in payload:
+        try:
+            int(payload["iat"])
+        except (ValueError, TypeError) as exc:
+            raise jwt.InvalidIssuedAtError("Issued At claim (iat) must be an integer.") from exc
+    if "exp" in payload:
+        try:
+            expires_at = int(payload["exp"])
+        except (ValueError, TypeError) as exc:
+            raise jwt.DecodeError("Expiration Time claim (exp) must be an integer.") from exc
+        if expires_at < int(datetime.now(timezone.utc).timestamp()):
+            raise jwt.ExpiredSignatureError("Signature has expired.")
+    return payload
 
 
 async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:

@@ -1,0 +1,70 @@
+{
+  "user": {
+    "claims": {
+      "type": "user",
+      "user": "user",
+      "exp": 4102444800
+    },
+    "signed": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoidXNlciIsInVzZXIiOiJ1c2VyIiwiZXhwIjo0MTAyNDQ0ODAwfQ.HyTZ_YSYzCmjLr-KPCBxvWapBEP7XDWTAmPwgqckiQc"
+  },
+  "service": {
+    "claims": {
+      "type": "service",
+      "service": "fastdeploytest",
+      "user": "user",
+      "origin": "GitHub",
+      "jti": "old-jti",
+      "exp": 4102444800
+    },
+    "signed": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoic2VydmljZSIsInNlcnZpY2UiOiJmYXN0ZGVwbG95dGVzdCIsInVzZXIiOiJ1c2VyIiwib3JpZ2luIjoiR2l0SHViIiwianRpIjoib2xkLWp0aSIsImV4cCI6NDEwMjQ0NDgwMH0.x5WSKbDflR6i4HShS4iV2XBH8LDRwV1mHjmmXFkTZvo"
+  },
+  "legacy": {
+    "claims": {
+      "type": "service",
+      "service": "fastdeploytest",
+      "user": "user",
+      "origin": "GitHub",
+      "exp": 4102444800
+    },
+    "signed": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoic2VydmljZSIsInNlcnZpY2UiOiJmYXN0ZGVwbG95dGVzdCIsInVzZXIiOiJ1c2VyIiwib3JpZ2luIjoiR2l0SHViIiwiZXhwIjo0MTAyNDQ0ODAwfQ.7hQ67MpBhl0bmxztzftgHW1y6tJityr7eYhUjfdpbOM"
+  },
+  "deployment": {
+    "claims": {
+      "type": "deployment",
+      "deployment": 23,
+      "exp": 4102444800
+    },
+    "signed": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoiZGVwbG95bWVudCIsImRlcGxveW1lbnQiOjIzLCJleHAiOjQxMDI0NDQ4MDB9.5X7PWZcaejKJDR2nNP-btSIkdE03Sg1NtAPByNmrGgY"
+  },
+  "config": {
+    "claims": {
+      "type": "config",
+      "foo": "bar",
+      "exp": 4102444800
+    },
+    "signed": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoiY29uZmlnIiwiZm9vIjoiYmFyIiwiZXhwIjo0MTAyNDQ0ODAwfQ.6woV35hlnE04F--YHiTHzTnx4RV9_O6b8l3PLBNlyGo"
+  },
+  "no_exp": {
+    "claims": {
+      "type": "user",
+      "user": "user"
+    },
+    "signed": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoidXNlciIsInVzZXIiOiJ1c2VyIn0.q6Om_86UjHQk-sam9Nrmssl40rtIcBEzycE5jcSMgJk"
+  },
+  "expired": {
+    "claims": {
+      "type": "user",
+      "user": "user",
+      "exp": 1
+    },
+    "signed": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoidXNlciIsInVzZXIiOiJ1c2VyIiwiZXhwIjoxfQ.RqJSKK4BCmOXmfc0Hvz29wgBDKWo8J3R5f-ZL1XLHbc"
+  },
+  "wrong_algorithm": {
+    "claims": {
+      "type": "user",
+      "user": "user",
+      "exp": 4102444800
+    },
+    "signed": "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoidXNlciIsInVzZXIiOiJ1c2VyIiwiZXhwIjo0MTAyNDQ0ODAwfQ.p62H6eX_AYGAPnGdYVSP5WfcLocytNKH0zC5q88sQOx74FKL6zTQ8L3l7cY9R1aW"
+  }
+}
