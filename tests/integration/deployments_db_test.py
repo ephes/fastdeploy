@@ -267,3 +267,32 @@ async def test_finish_orphaned_deployment_rechecks_before_finishing(bus, uow, se
         steps = await uow.steps.get_steps_by_deployment(deployment.id)
     assert untouched.finished is None
     assert [step.name for step in steps] == ["just reported"]
+
+
+@patch("deploy.tasks.subprocess.Popen")
+async def test_repeated_step_report_keeps_one_row_and_advances_once(popen, bus, service_with_steps, publisher):
+    """The response to a committed report got lost, so the deploy task sends it again."""
+    await bus.handle(
+        commands.StartDeployment(service_id=service_with_steps.id, origin="github", user="fd", context={})
+    )
+    async with bus.uow as uow:
+        [deployment] = await uow.deployments.list()
+        planned = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert [(step.name, step.state) for step in planned] == [("step1", "running"), ("step2", "pending")]
+
+    [report, _] = create_process_steps_commands(planned)
+    await bus.handle(report)
+    events_after_first_report = len(publisher.events)
+    await bus.handle(report)
+
+    async with bus.uow as uow:
+        steps = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert sorted((step.name, step.state) for step in steps) == [("step1", "success"), ("step2", "running")]
+    assert len(publisher.events) == events_after_first_report
+
+    conflicting = report.model_copy(update={"state": "failure"})
+    with pytest.raises(model.StepReportConflict):
+        await bus.handle(conflicting)
+    async with bus.uow as uow:
+        steps = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert sorted((step.name, step.state) for step in steps) == [("step1", "success"), ("step2", "running")]

@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ... import views
-from ...domain import commands
+from ...domain import commands, model
 from ..dependencies import get_current_active_deployment, get_current_active_user
 from ..helper_models import Bus, Deployment, Step, StepResult
 
@@ -16,7 +16,7 @@ router = APIRouter(
 )
 
 
-@router.post("/")
+@router.post("/", responses={409: {"description": "The step was already reported with a different result"}})
 async def process_step_result(
     step: StepResult,
     deployment: Deployment = Depends(get_current_active_deployment),
@@ -25,11 +25,21 @@ async def process_step_result(
     """
     When a step is finished, the deployment process sends a result back to this endpoint.
     Needs to be authenticated with a deployment token.
+
+    Reporting is idempotent: sending the same result again (same name, started
+    timestamp, state and message) changes nothing and is answered like the first
+    report. The same name and started timestamp with a different state or message
+    is rejected with 409 Conflict.
     """
     assert isinstance(deployment.id, int)
     cmd = commands.ProcessStep(**step.model_dump(), deployment_id=deployment.id)
     try:
         await bus.handle(cmd)
+    except model.StepReportConflict as e:
+        logger.warning("conflicting repeated step report for deployment %s", deployment.id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Step was already reported with a different result"
+        ) from e
     except Exception as e:
         logger.warning("could not process step for deployment %s", deployment.id, exc_info=True)
         raise HTTPException(status_code=400, detail="Something went wrong") from e

@@ -241,6 +241,12 @@ ownership check.
 {"detail": "step processed"}
 ```
 
+Reporting a step is idempotent, so the deploy task can safely repeat a report whose response was lost. A
+report is identified by its `name` and `started` timestamp: sending the same result again (same `state`
+and `message`) changes nothing, adds no step, broadcasts no event and gets the same response. The same
+`name` and `started` with a different `state` or `message` is rejected with **409 Conflict**. Steps that
+share a name but have different `started` timestamps are separate steps.
+
 ### GET /steps/
 **Purpose**: List steps for a deployment
 **Authentication**: User token required
@@ -348,6 +354,9 @@ All endpoints may return these standard error responses:
 
 - **409 Conflict** (`POST /deployments/`): Another deployment of the service is still running;
   `detail.deployment_id` names it
+
+- **409 Conflict** (`POST /steps/`): The step (same `name` and `started`) was already reported with a
+  different `state` or `message`
 
 - **409 Conflict** (`POST /services/sync`): The sync would delete all or more than half of the
   services; `detail.would_delete` lists them. Retry with `force=true` if that is intended

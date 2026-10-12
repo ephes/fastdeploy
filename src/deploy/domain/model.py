@@ -224,6 +224,18 @@ class DeploymentAlreadyRunning(Exception):
         super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
 
 
+class StepReportConflict(ValueError):
+    """
+    Raised when a step report repeats an already processed report (same step
+    name and started timestamp) but with a different state or message.
+    """
+
+    def __init__(self, deployment_id: int | None, name: str):
+        self.deployment_id = deployment_id
+        self.name = name
+        super().__init__(f"Step {name!r} of deployment {deployment_id} was already reported with a different result")
+
+
 # Name of the failure step that records why a deployment was finished by the
 # orphan cleanup instead of by its deploy task.
 ORPHANED_STEP_NAME = "deployment orphaned"
@@ -302,7 +314,11 @@ class Deployment(EventsMixin):
         We need to check whether the current step is in the list of the steps
         we need to take etc.
 
-        Returns a new list of steps that have been modified.
+        Returns a new list of steps that have been modified. It is empty for a
+        repeated report of an already processed step (same name and started
+        timestamp, same state and message), so processing a report is idempotent.
+        A repeated report with a different state or message raises
+        ``StepReportConflict``.
 
         * Find out whether the step is already known
         * If it's a known pending step, update the pending steps state and add
@@ -318,7 +334,20 @@ class Deployment(EventsMixin):
             raise ValueError("deployment has already finished")
 
         steps = self.steps
-        modified_steps = []
+        modified_steps: list[Step] = []
+
+        # A report that was already processed is sent again when its response got
+        # lost. A processed step keeps the reported started timestamp, so name and
+        # started identify the report; steps that merely share a name differ in it.
+        if step.started is not None:
+            for processed_step in steps:
+                if processed_step.state in ("running", "pending"):
+                    continue
+                if processed_step.name != step.name or processed_step.started != step.started:
+                    continue
+                if (processed_step.state, processed_step.message or "") != (step.state, step.message or ""):
+                    raise StepReportConflict(deployment_id=self.id, name=step.name)
+                return []
 
         # find out whether the step is already known
         known_step = None
