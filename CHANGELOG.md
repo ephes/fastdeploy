@@ -27,6 +27,21 @@ Unreleased
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
 ### Bug Fixes
+- `DELETE /services/{service_id}` no longer deletes a service whose deployment is still running. Deleting it removed
+  the deployment and its steps while the detached deploy task kept running untracked. The delete now takes the same
+  service lock as a deployment start, applies the same "active deployment" rule as the services sync, and answers
+  `409 Conflict` with the running deployment id; nothing changes. Services without a running deployment are deleted
+  as before.
+- The deploy task no longer abandons a running deploy script. Output that was not valid UTF-8, an output line over
+  10 MiB or a cancelled task ended the task before it waited for the script, which kept running while the deployment
+  was already reported as failed. Such output lines are now skipped, the script runs in its own process group, and
+  when the task stops reading early it terminates that group (`SIGTERM`, then `SIGKILL` after 10 seconds) and reaps
+  it before removing the config file. A script running as another user through `sudo` may refuse the signal; see
+  [docs/deployment.md](docs/deployment.md).
+- One slow websocket client can no longer hold back deployment events for everybody else. A broadcast sent to the
+  clients one after another without a time limit, so a client that stopped reading blocked all later clients and the
+  request that published the event. Sends now run concurrently with a 5 second budget each; a client that exceeds it
+  is closed with code `1013` and removed, and has to reconnect.
 - A services sync (`POST /services/sync`, `commands.py syncservices`) no longer wipes the
   deployment history when the services directory is empty or mis-pointed: it is refused (409 /
   exit status 1, nothing changed) when no services are found while the database has some, or when

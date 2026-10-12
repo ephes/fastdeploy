@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 
 # add 5 seconds to avoid closing a reconnecting client
 EXPIRY_GRACE_SECONDS = 5
+# A broadcast waits at most this long for one client to take a message. A
+# client that is slower is disconnected, so it cannot hold back the others.
+BROADCAST_SEND_TIMEOUT_SECONDS = 5.0
+# ... and at most this long for the close handshake of such a client.
+SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS = 1.0
 
 
 class ConnectionManager:
@@ -180,12 +185,39 @@ class ConnectionManager:
         await self.all_connections[client_id].send_json(message)
 
     async def broadcast(self, message: BaseModel):
+        """
+        Send the message to every authenticated connection.
+
+        The sends run concurrently and each one is bounded by
+        ``BROADCAST_SEND_TIMEOUT_SECONDS``, so the broadcast as a whole is
+        bounded and one slow client delays neither the other clients nor the
+        publisher for longer than that. A client which exceeds the budget is
+        disconnected; it has to reconnect and fetch the current state.
+        """
         text = message.model_dump_json()
-        for client_id, connection in list(self.active_connections.items()):
+        connections = list(self.active_connections.items())
+        await asyncio.gather(*(self._send_within_budget(client_id, ws, text) for client_id, ws in connections))
+
+    async def _send_within_budget(self, client_id: UUID, websocket: WebSocket, text: str) -> None:
+        try:
+            await asyncio.wait_for(websocket.send_text(text), timeout=BROADCAST_SEND_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "disconnecting websocket client %s: broadcast not sent within %s seconds",
+                client_id,
+                BROADCAST_SEND_TIMEOUT_SECONDS,
+            )
+            # Forget it first: the cancelled send may have written a partial
+            # frame, so this connection must not get another broadcast.
+            self.disconnect(client_id, websocket)
             try:
-                await connection.send_text(text)
-            except Exception:  # one broken connection must not stop the broadcast
-                logger.info("broadcast to websocket client %s failed", client_id, exc_info=True)
+                await asyncio.wait_for(
+                    websocket.close(code=status.WS_1013_TRY_AGAIN_LATER), timeout=SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS
+                )
+            except Exception:  # includes the timeout, the peer does not read anyway
+                logger.debug("could not close slow websocket client %s cleanly", client_id, exc_info=True)
+        except Exception:  # one broken connection must not stop the broadcast
+            logger.info("broadcast to websocket client %s failed", client_id, exc_info=True)
 
     async def publish(self, channel, event):  # noqa: ARG002 -- channel is part of the publisher interface; all clients get every event
         await self.broadcast(event)
