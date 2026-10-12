@@ -34,9 +34,11 @@ Unreleased
   as before.
 - The deploy task no longer abandons a running deploy script. Output that was not valid UTF-8, an output line over
   10 MiB or a cancelled task ended the task before it waited for the script, which kept running while the deployment
-  was already reported as failed. Such output lines are now skipped, the script runs in its own process group, and
-  when the task stops reading early it terminates that group (`SIGTERM`, then `SIGKILL` after 10 seconds) and reaps
-  it before removing the config file. A script running as another user through `sudo` may refuse the signal; see
+  was already reported as failed. Invalid bytes are now replaced with U+FFFD (a step result containing them is still
+  reported, other such lines are skipped), an over-limit line is skipped as a whole, the script runs in its own
+  process group, and when the task stops reading early it terminates that group (`SIGTERM`, then `SIGKILL` for
+  members still alive after 10 seconds, including descendants that outlive the script) and reaps the script before
+  removing the config file. A script running as another user through `sudo` may refuse the signal; see
   [docs/deployment.md](docs/deployment.md).
 - One slow websocket client can no longer hold back deployment events for everybody else. A broadcast sent to the
   clients one after another without a time limit, so a client that stopped reading blocked all later clients and the

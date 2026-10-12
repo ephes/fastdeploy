@@ -173,8 +173,50 @@ async def test_over_limit_line_is_skipped_and_the_script_is_reaped(task, run_chi
         await task.deploy_steps()
 
     assert [step["name"] for step in task.client.posted] == ["after"]
-    assert "skipped deploy output line" in capsys.readouterr().err
+    assert capsys.readouterr().err.count("skipped a deploy output line") == 1
     assert len(seen["cleanups"]) == 1
+
+
+async def test_the_end_of_an_over_limit_line_is_not_taken_for_a_step(task, run_child, monkeypatch):
+    """
+    The line arrives in pieces: an over-limit prefix first, and later a suffix
+    that on its own would be a valid step result. All of it is one line.
+    """
+    monkeypatch.setattr(tasks, "MAX_ASYNCIO_STDOUT_SIZE", 1024)
+    run_child(
+        """
+        import json, sys, time
+        out = sys.stdout
+        out.write("x" * 5000)
+        out.flush()
+        time.sleep(0.5)  # the reader hits the limit before the newline exists
+        out.write("\\r" + json.dumps({"name": "smuggled", "state": "success"}) + "\\n")
+        out.flush()
+        # an over-limit line which reaches the reader together with its newline
+        out.write("y" * 3000 + "\\n" + json.dumps({"name": "after", "state": "success"}) + "\\n")
+        out.flush()
+        out.write(json.dumps({"name": "last without newline", "state": "success"}))
+        out.flush()
+        """
+    )
+
+    await task.deploy_steps()
+
+    assert [step["name"] for step in task.client.posted] == ["after", "last without newline"]
+
+
+async def test_an_over_limit_line_without_end_does_not_hang(task, run_child, monkeypatch):
+    monkeypatch.setattr(tasks, "MAX_ASYNCIO_STDOUT_SIZE", 1024)
+    run_child(
+        """
+        import sys
+        sys.stdout.write("x" * 5000)
+        """
+    )
+
+    await asyncio.wait_for(task.deploy_steps(), timeout=10)
+
+    assert task.client.posted == []
 
 
 async def test_cancellation_stops_child_and_descendants(task, run_child, tmp_path):
@@ -196,14 +238,14 @@ async def test_read_error_stops_child_and_descendants(task, run_child, tmp_path)
 
     async def create_with_failing_reader(command, **kwargs):
         proc = await create(command, **kwargs)
-        original_readline = proc.stdout.readline
+        original_readuntil = proc.stdout.readuntil
 
-        async def readline():
-            await original_readline()
+        async def readuntil(separator=b"\n"):
+            await original_readuntil(separator)
             await wait_for_pids(tmp_path)
             raise OSError("pipe broke")
 
-        proc.stdout.readline = readline
+        proc.stdout.readuntil = readuntil
         return proc
 
     create = tasks.asyncio.create_subprocess_shell
@@ -231,6 +273,40 @@ async def test_child_ignoring_sigterm_is_killed(task, run_child, tmp_path, monke
         await running
 
     assert_all_gone(pids)
+
+
+async def test_descendant_outliving_the_script_is_killed(task, run_child, tmp_path, monkeypatch):
+    """
+    The script itself exits on SIGTERM, but its descendant ignores SIGTERM and
+    holds no pipe of the task. The group is only gone after SIGKILL.
+    """
+    monkeypatch.setattr(tasks, "DEPLOY_STOP_TIMEOUT", 0.5)
+    run_child(
+        """
+        import os, subprocess, sys, time
+        out = sys.argv[1]
+        stubborn = "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(300)"
+        grandchild = subprocess.Popen(
+            [sys.executable, "-c", stubborn],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.5)  # let it install its handler
+        with open(os.path.join(out, "pids.tmp"), "w") as f:
+            f.write(f"{os.getpid()} {grandchild.pid}")
+        os.rename(os.path.join(out, "pids.tmp"), os.path.join(out, "pids"))
+        print("started", flush=True)
+        time.sleep(300)
+        """
+    )
+
+    running = asyncio.create_task(task.deploy_steps())
+    pids = await wait_for_pids(tmp_path)
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+
+    # no grace period here: the cleanup itself has to have finished the group
+    assert [pid for pid in pids if is_alive(pid)] == []
 
 
 async def test_run_deploy_reports_failure_after_stopping_the_child(task, run_child, tmp_path):

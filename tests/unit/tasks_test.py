@@ -102,6 +102,9 @@ class DeployProc:
             return line.encode("utf8")
         return json.dumps(line).encode("utf8")
 
+    async def readuntil(self, separator=b"\n"):
+        return await self.readline()
+
     async def sleep(self, duration):
         self.waited_for_connection = True
 

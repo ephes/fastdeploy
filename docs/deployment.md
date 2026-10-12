@@ -93,12 +93,15 @@ FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `
 Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Orphaned unfinished deployments do not block (they are finished as part of a successful start; a rejected start changes nothing), and deployments older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` (default: `480`) do not block.
 
 The deploy task owns the deploy script it starts. The script runs in its own process group, and the task waits for
-it on every path. Output that is not valid UTF-8 and lines longer than 10 MiB are skipped like any other line that
-is not a step result; they no longer end the deployment. When the task stops reading early (an unexpected error or
-a cancelled task), it sends `SIGTERM` to the script's process group, waits up to 10 seconds, sends `SIGKILL`, waits
-again, and only then removes the config file and reports the failure. Limit: the task runs as the `fastdeploy` user
-and can only signal processes it is allowed to signal. A script started through `sudo -u deploy` runs as another
-user, so the signal may be refused (this is logged to the task's stderr); such a script then ends when it next
+it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
+U+FFFD (a step result containing them is still reported, with the replacement character; any other such line is
+skipped like every line that is not a step result), and a line longer than 10 MiB is skipped as a whole, up to its
+newline, with one message on the task's stderr. When the task stops reading early (an unexpected error or a cancelled
+task), it sends `SIGTERM` to the script's process group and waits up to 10 seconds for every member of the group to
+exit, not only the script itself. Members that are still alive then get `SIGKILL`. Only after that does the task
+remove the config file and report the failure. Limit: the task runs as the `fastdeploy` user and can only signal
+processes it is allowed to signal. A script started through `sudo -u deploy` runs as another user, so the signal may
+be refused (this is logged to the task's stderr, and the task does not wait); such a script then ends when it next
 writes to its closed output pipe, which happens as soon as the deploy task exits.
 
 The deploy task (the detached `python -m deploy.tasks` process that runs the deploy script) reports each step to
