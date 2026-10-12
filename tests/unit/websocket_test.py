@@ -501,3 +501,114 @@ async def test_broadcast_keeps_event_order_per_client(short_broadcast_budget):
         await cm.broadcast(Numbered(number=number))
 
     assert healthy.sent == [Numbered(number=number).model_dump_json() for number in range(5)]
+
+
+# --- authentication deadline ---
+
+
+class DeadlineWebsocket:
+    """Records what the connection manager sends and how it closes."""
+
+    def __init__(self):
+        self.sent = []
+        self.close_code = None
+
+    async def accept(self):
+        pass
+
+    async def send_json(self, message):
+        self.sent.append(message)
+
+    async def close(self, code=1000):
+        self.close_code = code
+
+
+@pytest.fixture
+def auth_timeout(monkeypatch):
+    monkeypatch.setattr(websocket_module.settings, "websocket_auth_timeout_seconds", 0.05)
+    return 0.05
+
+
+async def test_unauthenticated_connection_is_closed_after_the_deadline(auth_timeout):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    websocket = DeadlineWebsocket()
+
+    assert await cm.connect(client_id, websocket)
+    assert client_id in cm.all_connections
+    await asyncio.sleep(auth_timeout * 4)
+
+    assert cm.all_connections == {}
+    assert cm.auth_deadline_tasks == {}
+    assert websocket.close_code == 1008
+    assert websocket.sent == [
+        {"type": "authentication", "status": "failure", "detail": "authentication timeout"},
+    ]
+
+
+async def test_authenticated_connection_survives_the_deadline(uow, user_in_db, auth_timeout):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    websocket = DeadlineWebsocket()
+    token = create_access_token({"type": "user", "user": user_in_db.name}, timedelta(minutes=5))
+
+    await cm.connect(client_id, websocket)
+    assert await cm.authenticate(client_id, token, uow)
+    assert cm.auth_deadline_tasks == {}
+    await asyncio.sleep(auth_timeout * 4)
+
+    assert cm.is_authenticated(client_id, websocket)
+    assert websocket.close_code is None
+    cm.disconnect(client_id, websocket)
+
+
+async def test_disconnect_cancels_the_authentication_deadline(auth_timeout):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    websocket = DeadlineWebsocket()
+
+    await cm.connect(client_id, websocket)
+    [task] = cm.auth_deadline_tasks.values()
+    cm.disconnect(client_id, websocket)
+    await asyncio.sleep(0)
+
+    assert cm.auth_deadline_tasks == {}
+    assert task.cancelled()
+    assert websocket.close_code is None
+
+
+async def test_deadline_of_a_closed_connection_does_not_close_its_successor(auth_timeout):
+    """The client id is reused by a new connection before the old deadline is over."""
+    cm = ConnectionManager()
+    client_id = uuid4()
+    first, second = DeadlineWebsocket(), DeadlineWebsocket()
+
+    await cm.connect(client_id, first)
+    await asyncio.sleep(auth_timeout / 2)
+    cm.disconnect(client_id, first)
+    await cm.connect(client_id, second)
+    await asyncio.sleep(auth_timeout * 0.75)
+
+    # the first deadline has passed, the second has not
+    assert cm.all_connections == {client_id: second}
+    assert second.close_code is None
+    await asyncio.sleep(auth_timeout * 2)
+    assert cm.all_connections == {}
+    assert second.close_code == 1008
+
+
+async def test_deadline_close_does_not_wait_for_a_client_that_does_not_read(auth_timeout, monkeypatch):
+    monkeypatch.setattr(websocket_module, "AUTH_TIMEOUT_CLOSE_TIMEOUT_SECONDS", 0.05)
+
+    class StuckWebsocket(DeadlineWebsocket):
+        async def send_json(self, message):
+            await asyncio.sleep(3600)
+
+    cm = ConnectionManager()
+    client_id = uuid4()
+    await cm.connect(client_id, StuckWebsocket())
+    [task] = cm.auth_deadline_tasks.values()
+
+    await asyncio.wait_for(task, timeout=2)
+
+    assert cm.all_connections == {}

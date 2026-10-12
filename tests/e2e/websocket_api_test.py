@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import timedelta
 from uuid import uuid4
 
@@ -125,3 +126,30 @@ def test_websocket_client_id_is_reusable_after_disconnect(ws_client, cm):
             assert ws.receive_json()["status"] == "success"
     assert cm.all_connections == {}
     assert cm.expiry_tasks == {}
+
+
+def test_websocket_without_token_is_closed_after_the_authentication_deadline(ws_client, cm, monkeypatch):
+    monkeypatch.setattr("deploy.adapters.websocket.settings.websocket_auth_timeout_seconds", 0.2)
+    with ws_client.websocket_connect(ws_path(uuid4())) as ws:
+        ws.send_json({"ping": True})  # traffic without a token does not keep it open
+        assert ws.receive_json() == {
+            "type": "authentication",
+            "status": "failure",
+            "detail": "authentication timeout",
+        }
+        with pytest.raises(WebSocketDisconnect) as excinfo:
+            ws.receive_json()
+    assert excinfo.value.code == 1008
+    assert cm.all_connections == {}
+    assert cm.auth_deadline_tasks == {}
+
+
+def test_websocket_with_token_stays_open_after_the_authentication_deadline(ws_client, cm, monkeypatch):
+    monkeypatch.setattr("deploy.adapters.websocket.settings.websocket_auth_timeout_seconds", 0.2)
+    client_id = uuid4()
+    with ws_client.websocket_connect(ws_path(client_id)) as ws:
+        ws.send_json({"access_token": user_token()})
+        assert ws.receive_json()["status"] == "success"
+        time.sleep(0.6)
+        assert cm.is_authenticated(client_id)
+        assert cm.auth_deadline_tasks == {}

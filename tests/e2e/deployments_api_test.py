@@ -423,6 +423,43 @@ async def test_deploy_service_with_context(popen, app, valid_service_token_in_db
 
 
 @patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_rejects_oversized_context(popen, app, uow, publisher, valid_service_token_in_db, monkeypatch):
+    monkeypatch.setattr(settings, "deployment_context_max_bytes", 1024)
+    too_large = {"env": {"blob": "x" * 1024}}
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(app.url_path_for("start_deployment"), headers=headers, json=too_large)
+
+    assert response.status_code == 413
+    detail = response.json()["detail"]
+    assert "Deployment context is too large" in detail
+    assert "at most 1024" in detail
+    # nothing was started, stored or broadcast
+    assert not popen.called
+    assert publisher.events == []
+    async with uow:
+        assert await uow.deployments.list() == []
+
+
+@patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_context_limit_counts_encoded_bytes(popen, app, valid_service_token_in_db, monkeypatch):
+    """The limit is on the UTF-8 encoded JSON, not on the number of characters."""
+    context = {"env": {"k": "x" * 100}}
+    encoded_size = len('{"env":{"k":"' + "x" * 100 + '"}}')
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    start_deployment = app.url_path_for("start_deployment")
+
+    monkeypatch.setattr(settings, "deployment_context_max_bytes", encoded_size)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        at_limit = await client.post(start_deployment, headers=headers, json=context)
+        # same number of characters, but more bytes
+        multibyte = await client.post(start_deployment, headers=headers, json={"env": {"k": "\u00e4" * 100}})
+
+    assert at_limit.status_code == 200
+    assert multibyte.status_code == 413
+
+
+@patch("deploy.tasks.subprocess.Popen")
 async def test_deploy_service_happy(popen, app, uow, publisher, valid_service_token_in_db, service_in_db):
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

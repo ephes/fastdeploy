@@ -2,6 +2,21 @@ Unreleased
 ==========
 
 ### Security
+- A websocket connection that has not authenticated within `WEBSOCKET_AUTH_TIMEOUT_SECONDS` (default 10)
+  after it was accepted is closed with an authentication failure message and code `1008`. Before, a
+  client could keep any number of connections open without ever sending a token. Clients that send
+  their token right after connecting (the web UI does) are not affected.
+- `POST /steps/` rejects a `name` longer than 255, a `state` longer than 20 and a `message` longer than
+  4096 characters with `422` (before: a database error answered as `400` on PostgreSQL, no limit
+  elsewhere). `POST /deployments/` rejects a context whose JSON encoding is larger than
+  `DEPLOYMENT_CONTEXT_MAX_BYTES` (default 65536) with `413` and starts nothing; before, a context of any
+  size was stored and sent to every websocket client. The deploy task already cuts step messages to
+  4096 characters. See [docs/endpoints.md](docs/endpoints.md).
+- The deploy task starts the deploy script as an argument list (`sudo -u <SUDO_USER> <script> --config
+  <file>`) instead of a shell command line, so shell syntax in a service's `deploy_script` or in
+  `SUDO_USER` is no longer interpreted. sudo gets the same command as before; existing service configs
+  and sudoers rules work unchanged. `deploy_script` is the path of one executable: a value with spaces
+  is now one path and no longer split into a script and arguments.
 - `POST /token` limits failed logins: after `LOGIN_FAILURE_LIMIT` (default 10) failed attempts for one
   user name from one client address, or `LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) from one client address
   for any user names, inside `LOGIN_FAILURE_WINDOW_SECONDS` (default 900), it answers `429` with a

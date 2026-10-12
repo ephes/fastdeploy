@@ -91,6 +91,10 @@ LOGIN_FAILURE_LIMIT=10  # failed attempts per user name and client address insid
 LOGIN_ADDRESS_FAILURE_LIMIT=50  # failed attempts per client address for any user names
 LOGIN_FAILURE_WINDOW_SECONDS=900
 
+# Request limits
+WEBSOCKET_AUTH_TIMEOUT_SECONDS=10  # close a websocket connection that sent no valid token by then
+DEPLOYMENT_CONTEXT_MAX_BYTES=65536  # largest JSON encoded context of POST /deployments/ (413 above)
+
 # API configuration
 API_URL=http://localhost:8000
 ```
@@ -118,6 +122,10 @@ Services can use either relative or absolute paths for their deployment scripts:
 ```
 
 When using absolute paths, ensure the `SUDO_USER` has appropriate permissions and sudoers rules are configured correctly.
+
+`deploy_script` is the path of one executable, not a command line: fastDeploy runs
+`sudo -u <SUDO_USER> <script> --config <file>` as an argument list without a shell, so the value is never
+split into words and shell syntax in it has no effect.
 
 ## Development
 

@@ -7,6 +7,7 @@ from fastapi import WebSocket, status
 from pydantic import BaseModel
 
 from ..auth import token_to_payload, user_from_token
+from ..config import settings
 from ..domain import events
 from ..service_layer.unit_of_work import AbstractUnitOfWork
 
@@ -19,6 +20,9 @@ EXPIRY_GRACE_SECONDS = 5
 BROADCAST_SEND_TIMEOUT_SECONDS = 5.0
 # ... and at most this long for the close handshake of such a client.
 SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS = 1.0
+# How long telling a client that it did not authenticate in time, and closing
+# its connection, may take. Such a client may not read at all.
+AUTH_TIMEOUT_CLOSE_TIMEOUT_SECONDS = 1.0
 
 
 class ConnectionManager:
@@ -29,7 +33,8 @@ class ConnectionManager:
     using an id that is still connected is refused instead of replacing the
     first one. After successful authentication the id is bound to the user
     of the access token for the lifetime of the connection, and only
-    authenticated connections receive broadcasts.
+    authenticated connections receive broadcasts. A connection that does not
+    authenticate within ``WEBSOCKET_AUTH_TIMEOUT_SECONDS`` is closed.
     """
 
     def __init__(self) -> None:
@@ -37,6 +42,7 @@ class ConnectionManager:
         self.active_connections: dict[UUID, WebSocket] = {}
         self.principals: dict[UUID, str] = {}
         self.expiry_tasks: dict[UUID, asyncio.Task] = {}
+        self.auth_deadline_tasks: dict[UUID, asyncio.Task] = {}
 
     async def connect(self, client_id: UUID, websocket: WebSocket) -> bool:
         """
@@ -55,7 +61,39 @@ class ConnectionManager:
         except BaseException:
             self.disconnect(client_id, websocket)
             raise
+        if self.all_connections.get(client_id) is websocket:
+            self.auth_deadline_tasks[client_id] = asyncio.create_task(
+                self._close_unauthenticated_after(client_id, websocket, settings.websocket_auth_timeout_seconds)
+            )
         return True
+
+    async def _close_unauthenticated_after(self, client_id: UUID, websocket: WebSocket, delay: float) -> None:
+        """
+        Close the connection when it is still not authenticated after the
+        delay, so a client cannot hold a connection open without a token.
+        """
+        await asyncio.sleep(delay)
+        if self.auth_deadline_tasks.get(client_id) is asyncio.current_task():
+            del self.auth_deadline_tasks[client_id]
+        if self.all_connections.get(client_id) is not websocket or self.is_authenticated(client_id, websocket):
+            return
+        logger.info("closing websocket client %s: not authenticated within %s seconds", client_id, delay)
+        # Forget it first, a token arriving from now on is too late.
+        self.disconnect(client_id, websocket)
+        try:
+            await asyncio.wait_for(self._send_auth_timeout(websocket), timeout=AUTH_TIMEOUT_CLOSE_TIMEOUT_SECONDS)
+        except Exception:  # includes the timeout, the peer may be gone or not reading
+            logger.debug("could not close unauthenticated websocket client %s cleanly", client_id, exc_info=True)
+
+    @staticmethod
+    async def _send_auth_timeout(websocket: WebSocket) -> None:
+        await websocket.send_json(events.AuthenticationFailed(detail="authentication timeout").model_dump())
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+
+    def _cancel_auth_deadline(self, client_id: UUID) -> None:
+        task = self.auth_deadline_tasks.pop(client_id, None)
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
 
     def is_authenticated(self, client_id: UUID, websocket: WebSocket | None = None) -> bool:
         connection = self.active_connections.get(client_id)
@@ -158,6 +196,7 @@ class ConnectionManager:
 
         self.principals[client_id] = username
         self.active_connections[client_id] = websocket
+        self._cancel_auth_deadline(client_id)
         # after successful authentication, add connection close callback on token expiration
         await self.close_on_expire(client_id, expires_at)
         auth_event = events.AuthenticationSucceeded(detail=f"access token verification successful for user {username}")
@@ -179,6 +218,7 @@ class ConnectionManager:
         was_authenticated = self.active_connections.pop(client_id, None) is not None
         self.principals.pop(client_id, None)
         self._cancel_expiry(client_id)
+        self._cancel_auth_deadline(client_id)
         return was_authenticated
 
     async def send(self, client_id, message: dict):

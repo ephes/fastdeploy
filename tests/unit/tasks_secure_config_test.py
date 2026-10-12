@@ -207,16 +207,16 @@ class TestDeployTaskSecure:
             mock_settings.sudo_user = "deploy"
             mock_settings.services_root = Path("/services")
 
-            with patch("deploy.tasks.asyncio.create_subprocess_shell") as mock_create:
+            with patch("deploy.tasks.asyncio.create_subprocess_exec") as mock_create:
                 mock_create.return_value = mock_proc
 
                 await task.deploy_steps()
 
                 # Check the command that was executed
-                command = mock_create.call_args[0][0]
+                command = list(mock_create.call_args[0])
 
                 # Should use sudo without --preserve-env
-                assert "sudo -u deploy" in command
+                assert command[:3] == ["sudo", "-u", "deploy"]
                 assert "--preserve-env" not in command
 
                 # Should pass config file path
@@ -241,7 +241,7 @@ class TestDeployTaskSecure:
 
         config_file_path = None
 
-        # Capture the config file path when create_subprocess_shell is called
+        # Capture the config file path when create_subprocess_exec is called
         async def capture_config_path(*args, **kwargs):
             nonlocal config_file_path
             env = kwargs.get("env", {})
@@ -261,7 +261,7 @@ class TestDeployTaskSecure:
                 mock_secure_config_class.return_value = mock_secure_config
 
                 with patch(
-                    "deploy.tasks.asyncio.create_subprocess_shell", side_effect=capture_config_path
+                    "deploy.tasks.asyncio.create_subprocess_exec", side_effect=capture_config_path
                 ) as mock_create:
                     await task.deploy_steps()
 
@@ -318,7 +318,7 @@ class TestSecurityVerification:
             assert "secret123" not in str(call_env.values())
 
     @pytest.mark.asyncio
-    @patch("deploy.tasks.asyncio.create_subprocess_shell")
+    @patch("deploy.tasks.asyncio.create_subprocess_exec")
     async def test_sudo_without_preserve_env(self, mock_create_subprocess):
         """Verify sudo is called without --preserve-env."""
         mock_proc = AsyncMock()
@@ -342,9 +342,9 @@ class TestSecurityVerification:
             await task.deploy_steps()
 
             # Get the command that was executed
-            command = mock_create_subprocess.call_args[0][0]
+            command = list(mock_create_subprocess.call_args[0])
 
             # Verify sudo command format
-            assert "sudo -u deployuser" in command
+            assert command[:4] == ["sudo", "-u", "deployuser", "/deploy.sh"]
             assert "--preserve-env" not in command
-            assert "SETENV" not in command.upper()
+            assert "SETENV" not in " ".join(command).upper()
