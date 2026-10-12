@@ -112,12 +112,28 @@ and offers a "force sync" button that retries with `force=true` after a confirma
 ```
 
 ### DELETE /services/{service_id}
-**Purpose**: Remove service from database
+**Purpose**: Remove service from database, together with its deployments and their steps
 **Authentication**: User token required
 **Response**:
 ```json
 {"detail": "Service 1 deleted"}
 ```
+
+A service with a running deployment is not deleted. The request is rejected with **409 Conflict**
+and nothing changes, because the detached deploy task would keep running without its deployment
+record:
+```json
+{
+  "detail": {
+    "message": "Deployment 41 is still running for service 1",
+    "deployment_id": 41
+  }
+}
+```
+"Running" follows the same rule as the single-flight check of `POST /deployments/` and the services
+sync: orphaned deployments and deployments older than the deployment token lifetime do not block.
+The check takes the same service lock as a deployment start, so a delete that races with a start
+waits for it and is then refused. Retry after the deployment has finished.
 
 ## Deployment Endpoints
 
@@ -341,6 +357,12 @@ share a name but have different `started` timestamps are separate steps.
    }
    ```
 
+Slow clients: every event is sent to all authenticated connections at the same time, and each
+connection has 5 seconds to take it. A connection that does not (for example a suspended browser
+tab with a full receive buffer) is closed with code `1013` and forgotten, so it can delay neither
+the other clients nor the request that produced the event. Events are not queued for it: reconnect,
+authenticate again and reload the current state over the REST endpoints.
+
 ## Authentication Summary
 
 | Endpoint | Required Token Type |
@@ -378,6 +400,9 @@ All endpoints may return these standard error responses:
 
 - **409 Conflict** (`POST /steps/`): The step (same `name` and `started`) was already reported with a
   different `state` or `message`
+
+- **409 Conflict** (`DELETE /services/{service_id}`): The service has a running deployment and was
+  not deleted; `detail.deployment_id` names it
 
 - **409 Conflict** (`POST /services/sync`): The sync would delete all or more than half of the
   services; `detail.would_delete` lists them. Retry with `force=true` if that is intended

@@ -21,8 +21,21 @@ async def create_user(command: commands.CreateUser, uow: AbstractUnitOfWork):
 
 
 async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWork):
+    """
+    Delete a service together with its deployments and steps.
+
+    Raises ``ServiceHasActiveDeployment`` (and changes nothing) while a
+    deployment of the service is still active, like a services sync.
+    """
+    now = datetime.now(timezone.utc)
     async with uow:
+        # Serialize with deployment starts: a start that already holds the
+        # lock has committed its deployment once we get the lock.
+        await uow.services.lock_for_deployment(command.service_id)
         service = await uow.services.get(command.service_id)
+        active_ids = await active_deployment_ids(command.service_id, uow, now)
+        if active_ids:
+            raise model.ServiceHasActiveDeployment(command.service_id, active_ids[0])
         await uow.services.delete(service)
         service.delete()
         await uow.commit()

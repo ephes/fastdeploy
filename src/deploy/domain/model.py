@@ -224,6 +224,19 @@ class DeploymentAlreadyRunning(Exception):
         super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
 
 
+class ServiceHasActiveDeployment(Exception):
+    """
+    Raised when a service is deleted while one of its deployments is still
+    active. Deleting the service would also delete that deployment and its
+    steps, while the detached deploy task keeps running.
+    """
+
+    def __init__(self, service_id: int, deployment_id: int):
+        self.service_id = service_id
+        self.deployment_id = deployment_id
+        super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
+
+
 def as_utc(timestamp: datetime) -> datetime:
     """
     A timestamp without a timezone counts as local time, which is also how the

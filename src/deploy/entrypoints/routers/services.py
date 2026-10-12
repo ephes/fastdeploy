@@ -30,14 +30,25 @@ async def get_services(bus: Bus = Depends()) -> list[Service]:
     return [Service(**s.model_dump()) for s in services_from_db]
 
 
-@router.delete("/{service_id}")
+@router.delete(
+    "/{service_id}",
+    responses={409: {"description": "The service has a running deployment and was not deleted"}},
+)
 async def delete_service(service_id: int, bus: Bus = Depends()) -> dict:
     """
-    Delete a service.
+    Delete a service together with its deployments and steps.
+
+    A service with a running deployment is not deleted: the request is
+    rejected with 409 Conflict and nothing changes.
     """
     cmd = commands.DeleteService(service_id=service_id)
     try:
         await bus.handle(cmd)
+    except model.ServiceHasActiveDeployment as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"message": str(e), "deployment_id": e.deployment_id},
+        ) from e
     except Exception as e:
         raise HTTPException(status_code=404, detail="Service does not exist") from e
     return {"detail": f"Service {service_id} deleted"}
