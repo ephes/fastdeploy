@@ -5,6 +5,14 @@ Unreleased
 - Replace python-jose and its ecdsa dependency with PyJWT for all JWT issuance and verification.
   Preserve existing signed tokens, expiry handling, revocation and the legacy service-token grace
   window; restrict configuration to the supported HMAC algorithms.
+- Upgrade dependencies with known advisories to fixed versions. Runtime: starlette 1.3.1 (with
+  FastAPI 0.141.1), python-multipart 0.0.31, anyio 4.14.2, urllib3 2.8.0, orjson 3.11.6, idna 3.15,
+  pygments 2.20.0 and python-dotenv 1.2.2; ujson is no longer installed. Development and docs:
+  jupyterlab 4.6.4, notebook 7.6.3, jupyter-server 2.21.0, tornado 6.5.9, mistune 3.3.3, nbconvert
+  7.17.1, bleach 6.4.0, pytest 9.0.3, mkdocs-material 9.7.7, pymdown-extensions 11.0.1, requests
+  2.33.0, setuptools 83.0.0, soupsieve 2.9, filelock 3.32.7 and virtualenv 21.7.13. `pip-audit`
+  reports no known advisories for the locked runtime and development sets afterwards. FastAPI stays
+  below 0.142, which would add OpenTelemetry packages to the runtime install.
 
 ### Features
 - `python commands.py issueservicetoken --service S --user U --days N [--origin O]` issues a recorded,
