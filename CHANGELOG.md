@@ -1,6 +1,13 @@
 Unreleased
 ==========
 
+### Security
+- Validate temporary configuration type and permissions on an open no-follow descriptor.
+  Cleanup and exit cleanup refuse symlinks, hard links, untracked files and replaced
+  paths, preserving the identity of configs created by this process. The launcher
+  cleans its config after the detached task exits or fails to start. See the
+  owner/group and trusted-directory contract in [deployment docs](docs/deployment.md).
+
 ### Breaking
 - `deploy_script` in a service's `config.json` is the path of one executable and no longer a shell
   command line. A value with spaces is now one path: `"deploy.sh --flag"` used to run `deploy.sh` with

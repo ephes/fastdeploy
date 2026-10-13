@@ -254,9 +254,32 @@ Web Request → FastDeploy (fastdeploy user)
 Key security features:
 - **User isolation**: FastDeploy runs as `fastdeploy`, deployments as `deploy`
 - **Sudo restrictions**: Specific sudoers rules per service
-- **Config security**: Temporary config files with 0o640 permissions
+- **Config security**: [Temporary config ownership and descriptor validation](#temporary-configuration-ownership)
 - **Secrets management**: SOPS-encrypted secrets, keys only readable by deploy user
 - **No network privileges**: Deploy user cannot make outbound connections
+
+### Temporary configuration ownership
+
+FastDeploy creates mode-0640 regular files owned by its service user in `/var/tmp`.
+The deployment user must belong to the file's group to read them; the group has
+no write permission. Readers also accept mode 0600 when running as the owner.
+The kernel checks access on open, and FastDeploy validates type and mode on that
+same descriptor. Symlinks and nonregular files are rejected.
+
+Cleanup only accepts files created by the current process. It retains a descriptor
+until cleanup to preserve the file's identity, refuses replacement paths and hard
+links, and overwrites the validated descriptor before unlinking. Exit cleanup uses
+the same checks. The launcher cleans its config when the detached task exits, or
+if launch fails, releasing the retained descriptor. A refused cleanup returns false and logs an error; the replacement
+is left intact. Overwriting is best effort and does not guarantee erasure on SSDs
+or copy-on-write filesystems.
+
+Keep the config directory and its ancestors under trusted ownership. A custom
+directory must not be writable by untrusted users; the default `/var/tmp` must be
+root-owned with the sticky bit. Processes with the service user's UID and root
+are trusted: POSIX does not offer an atomic inode-conditional unlink, so they must
+not rename paths concurrently between the final identity check and unlink.
+
 
 ## Troubleshooting
 

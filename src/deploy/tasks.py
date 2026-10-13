@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -48,7 +49,19 @@ def run_deploy(environment):  # pragma no cover
     }
 
     command = [sys.executable, "-m", "deploy.tasks"]  # make relative imports work
-    subprocess.Popen(command, start_new_session=True, env=clean_env)
+    try:
+        process = subprocess.Popen(command, start_new_session=True, env=clean_env)
+    except BaseException:
+        secure_config.cleanup_config(config_path)
+        raise
+
+    def cleanup_after_exit():
+        try:
+            process.wait()
+        finally:
+            secure_config.cleanup_config(config_path)
+
+    threading.Thread(target=cleanup_after_exit, daemon=True, name="deployment-config-cleanup").start()
 
 
 class DeploymentContext(BaseModel):
