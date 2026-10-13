@@ -333,7 +333,13 @@ PUBLISH_EVENTS = events.ServiceDeleted | events.DeploymentStarted | events.Deplo
 
 
 async def publish_event(event: PUBLISH_EVENTS, publish: Callable):
-    logger.info(f"Publishing event {event}")
+    logger.info(
+        "Publishing event=%s id=%s service_id=%s deployment_id=%s",
+        type(event).__name__,
+        getattr(event, "id", None),
+        getattr(event, "service_id", None),
+        getattr(event, "deployment_id", None),
+    )
     await publish("broadcast", event)
 
 
