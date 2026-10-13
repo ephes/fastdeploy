@@ -7,11 +7,19 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from deploy.secure_config import SecureConfig, cleanup_temp_files, get_config_from_env
+from deploy.secure_config import SecureConfig, _forget_config, _temp_files, cleanup_temp_files, get_config_from_env
+
+
+@pytest.fixture(autouse=True)
+def release_test_configs():
+    before = set(_temp_files)
+    yield
+    for path in set(_temp_files) - before:
+        _forget_config(path)
 
 
 class TestSecureConfig:
@@ -146,18 +154,11 @@ class TestSecureConfig:
         with os.fdopen(fd, "w") as f:
             json.dump({"key": "value"}, f)
 
-        # Mock the stat and os.access to simulate unreadable file
-        with patch.object(Path, "stat") as mock_stat, patch("os.access") as mock_access:
-            mock_stat_result = MagicMock()
-            mock_stat_result.st_mode = 0o100640  # Regular file with 0640
-            mock_stat_result.st_uid = os.getuid() + 1  # Different user
-            mock_stat.return_value = mock_stat_result
-            mock_access.return_value = False  # Not readable
-
-            with pytest.raises(PermissionError) as exc_info:
-                secure_config.read_deployment_config(config_file)
-
-            assert "not readable by current user" in str(exc_info.value)
+        with (
+            patch("deploy.secure_config.os.open", side_effect=PermissionError("not readable")),
+            pytest.raises(PermissionError, match="not readable"),
+        ):
+            secure_config.read_deployment_config(config_file)
 
     def test_read_deployment_config_file_not_found(self, secure_config, temp_dir):
         """Test that reading fails if file doesn't exist."""
@@ -170,10 +171,7 @@ class TestSecureConfig:
 
     def test_cleanup_config_success(self, secure_config, temp_dir):
         """Test successful cleanup of configuration file."""
-        # Create a config file
-        config_file = temp_dir / "to_cleanup.json"
-        with open(config_file, "w") as f:
-            json.dump({"sensitive": "data"}, f)
+        config_file = make_config(secure_config)
 
         assert config_file.exists()
 
@@ -185,12 +183,7 @@ class TestSecureConfig:
 
     def test_cleanup_config_overwrite_before_deletion(self, secure_config, temp_dir):
         """Test that cleanup overwrites file content before deletion."""
-        # Create a config file with known content
-        config_file = temp_dir / "sensitive.json"
-        sensitive_data = {"secret": "password123"}
-
-        with open(config_file, "w") as f:
-            json.dump(sensitive_data, f)
+        config_file = make_config(secure_config)
 
         original_size = config_file.stat().st_size
 
@@ -212,7 +205,7 @@ class TestSecureConfig:
         # Verify content was overwritten with random data (not the original JSON)
         assert captured_content is not None
         assert len(captured_content) == original_size
-        assert b"password123" not in captured_content
+        assert b"sentinel-secret" not in captured_content
         assert b"secret" not in captured_content
 
     def test_cleanup_config_nonexistent_file(self, secure_config, temp_dir):
@@ -385,3 +378,135 @@ class TestIntegration:
         # Cleanup all
         for config_path in configs.values():
             secure_config.cleanup_config(config_path)
+
+
+def make_config(handler):
+    return handler.create_deployment_config("identity", "sentinel-secret", "/script", "/steps", "/finish", {}, "/bin")
+
+
+@pytest.mark.parametrize("mode", [0o600, 0o640])
+def test_read_descriptor_survives_path_replacement(tmp_path, monkeypatch, mode):
+    handler = SecureConfig(tmp_path)
+    path = make_config(handler)
+    path.chmod(mode)
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_text('{"wrong": true}')
+    real_fstat = os.fstat
+    replaced = False
+
+    def replace_after_stat(fd):
+        nonlocal replaced
+        info = real_fstat(fd)
+        if not replaced:
+            replaced = True
+            path.unlink()
+            path.symlink_to(sentinel)
+        return info
+
+    monkeypatch.setattr(os, "fstat", replace_after_stat)
+    assert handler.read_deployment_config(path)["deployment_id"] == "identity"
+    assert replaced
+    assert sentinel.read_text() == '{"wrong": true}'
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "regular", "hardlink", "fifo"])
+@pytest.mark.parametrize("at_exit", [False, True])
+def test_cleanup_refuses_substituted_path(tmp_path, replacement, at_exit):
+    handler = SecureConfig(tmp_path)
+    path = make_config(handler)
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_bytes(b"sentinel bytes")
+    sentinel.chmod(0o600)
+    if replacement == "hardlink":
+        os.link(path, tmp_path / "alias")
+    else:
+        path.unlink()
+        if replacement == "symlink":
+            path.symlink_to(sentinel)
+        elif replacement == "regular":
+            path.write_bytes(b"replacement bytes")
+            path.chmod(0o600)
+        else:
+            os.mkfifo(path, 0o600)
+    if at_exit:
+        cleanup_temp_files()
+    else:
+        assert handler.cleanup_config(path) is False
+    assert path.lstat()
+    assert sentinel.read_bytes() == b"sentinel bytes"
+    if replacement == "regular":
+        assert path.read_bytes() == b"replacement bytes"
+    if replacement == "hardlink":
+        assert b"sentinel-secret" in path.read_bytes()
+
+
+def test_cleanup_replacement_after_descriptor_validation(tmp_path, monkeypatch):
+    handler = SecureConfig(tmp_path)
+    path = make_config(handler)
+    original = tmp_path / "original"
+    sentinel = tmp_path / "sentinel"
+    sentinel.write_bytes(b"sentinel bytes")
+    real_urandom = os.urandom
+    replaced = False
+
+    def replace_before_write(size):
+        nonlocal replaced
+        replaced = True
+        path.rename(original)
+        path.symlink_to(sentinel)
+        return real_urandom(size)
+
+    monkeypatch.setattr(os, "urandom", replace_before_write)
+    assert handler.cleanup_config(path) is False
+    assert replaced
+    assert path.is_symlink()
+    assert sentinel.read_bytes() == b"sentinel bytes"
+    assert b"sentinel-secret" not in original.read_bytes()
+
+
+@pytest.mark.parametrize("kind", ["symlink", "fifo", "directory"])
+def test_read_refuses_nonregular_config(tmp_path, kind):
+    handler = SecureConfig(tmp_path)
+    path = tmp_path / "input"
+    if kind == "symlink":
+        path.symlink_to(make_config(handler))
+    elif kind == "fifo":
+        os.mkfifo(path, 0o600)
+    else:
+        path.mkdir(mode=0o700)
+    with pytest.raises(OSError):
+        handler.read_deployment_config(path)
+
+
+def test_cleanup_refuses_untracked_regular_file(tmp_path):
+    path = tmp_path / "untracked"
+    path.write_bytes(b"sentinel bytes")
+    path.chmod(0o600)
+    assert SecureConfig(tmp_path).cleanup_config(path) is False
+    assert path.read_bytes() == b"sentinel bytes"
+
+
+def test_failed_creation_retries_cleanup_at_exit(tmp_path, monkeypatch):
+    handler = SecureConfig(tmp_path)
+    real_fsync = os.fsync
+    monkeypatch.setattr(json, "dump", lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("write failed")))
+    monkeypatch.setattr(os, "fsync", lambda fd: (_ for _ in ()).throw(OSError("flush failed")))
+    with pytest.raises(RuntimeError, match="write failed"):
+        make_config(handler)
+    paths = [p for p in _temp_files if p.parent == tmp_path]
+    assert len(paths) == 1
+    fd = _temp_files[paths[0]]
+    monkeypatch.setattr(os, "fsync", real_fsync)
+    cleanup_temp_files()
+    assert not paths[0].exists()
+    with pytest.raises(OSError):
+        os.fstat(fd)
+
+
+def test_exit_cleanup_does_not_construct_default_handler(tmp_path, monkeypatch):
+    path = make_config(SecureConfig(tmp_path))
+    monkeypatch.setattr(
+        SecureConfig, "__init__", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("no directory access"))
+    )
+    cleanup_temp_files()
+    assert not path.exists()

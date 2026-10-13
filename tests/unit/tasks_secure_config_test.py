@@ -6,6 +6,7 @@ Tests for tasks.py using secure configuration files instead of environment varia
 import json
 import os
 import tempfile
+import threading
 from datetime import timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -348,3 +349,47 @@ class TestSecurityVerification:
             assert command[:4] == ["sudo", "-u", "deployuser", "/deploy.sh"]
             assert "--preserve-env" not in command
             assert "SETENV" not in " ".join(command).upper()
+
+
+@pytest.mark.parametrize("launch_fails", [False, True])
+def test_launcher_releases_config_descriptor(tmp_path, monkeypatch, launch_fails):
+    from deploy.secure_config import _temp_files
+
+    handler = SecureConfig(tmp_path)
+    monkeypatch.setattr("deploy.tasks.SecureConfig", lambda: handler)
+    exited = threading.Event()
+    finished = threading.Event()
+    original_cleanup = handler.cleanup_config
+    captured = {}
+
+    def cleanup(path):
+        captured["fd"] = _temp_files[path]
+        captured["path"] = path
+        result = original_cleanup(path)
+        finished.set()
+        return result
+
+    monkeypatch.setattr(handler, "cleanup_config", cleanup)
+
+    class Child:
+        def wait(self):
+            assert exited.wait(5)
+
+    def launch(*args, **kwargs):
+        if launch_fails:
+            raise OSError("launch failed")
+        return Child()
+
+    monkeypatch.setattr("deploy.tasks.subprocess.Popen", launch)
+    if launch_fails:
+        with pytest.raises(OSError, match="launch failed"):
+            run_deploy({})
+    else:
+        run_deploy({})
+        assert not finished.is_set()
+        exited.set()
+    assert finished.wait(5)
+    assert not captured["path"].exists()
+    assert captured["path"] not in _temp_files
+    with pytest.raises(OSError):
+        os.fstat(captured["fd"])

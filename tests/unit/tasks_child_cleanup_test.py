@@ -73,11 +73,11 @@ def run_child(tmp_path, monkeypatch):
         monkeypatch.setattr(tasks.asyncio, "create_subprocess_exec", create)
         original_cleanup = tasks.SecureConfig.cleanup_config
 
-        def cleanup(self, config_path):
+        def cleanup(config_path):
             seen["cleanups"].append(config_path)
-            return original_cleanup(self, config_path)
+            return original_cleanup(config_path)
 
-        monkeypatch.setattr(tasks.SecureConfig, "cleanup_config", cleanup)
+        monkeypatch.setattr(tasks.SecureConfig, "cleanup_config", staticmethod(cleanup))
         return seen
 
     return install

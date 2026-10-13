@@ -5,31 +5,58 @@ Replaces environment variable passing with temporary secure files.
 """
 
 import atexit
-import contextlib
 import json
 import logging
 import os
+import stat
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Track temp files for cleanup
-_temp_files: set[Path] = set()
+# Retain descriptors so an unlinked inode cannot be reused as an owned config.
+_temp_files: dict[Path, int] = {}
+_cleanup_lock = threading.RLock()
+
+
+def _forget_config(path: Path) -> None:
+    with _cleanup_lock:
+        fd = _temp_files.pop(path, None)
+        if fd is not None:
+            os.close(fd)
+
+
+def _open_config(path: Path, flags: int) -> int:
+    # NONBLOCK avoids hanging on substituted FIFOs before fstat rejects them.
+    fd = os.open(path, flags | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise PermissionError(f"Config file {path} is not a regular file")
+        mode = stat.S_IMODE(info.st_mode)
+        if mode not in (0o600, 0o640):
+            raise PermissionError(
+                f"Config file {path} has insecure permissions: {oct(mode)} (expected 0o600 or 0o640)"
+            )
+        # Successful open is the kernel's owner/group/ACL access check.
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
 
 
 def cleanup_temp_files():
-    """Clean up any remaining temporary configuration files."""
+    """Clean up only files created by this process, including at exit."""
     for temp_file in _temp_files.copy():
-        try:
-            if temp_file.exists():
-                temp_file.unlink()
-                logger.debug(f"Cleaned up temp file: {temp_file}")
-        except Exception as e:
-            logger.warning(f"Failed to clean up {temp_file}: {e}")
-        finally:
-            _temp_files.discard(temp_file)
+        with _cleanup_lock:
+            try:
+                SecureConfig.cleanup_config(temp_file)
+            except Exception as e:
+                logger.warning(f"Failed to clean up {temp_file}: {e}")
+            finally:
+                _forget_config(temp_file)
 
 
 # Register cleanup on exit
@@ -93,27 +120,23 @@ class SecureConfig:
         # Create temp file with secure permissions
         fd, temp_path = tempfile.mkstemp(prefix=f"deploy_{deployment_id}_", suffix=".json", dir=str(self.config_dir))
 
+        temp_file = Path(temp_path)
+        _temp_files[temp_file] = fd
         try:
             # Set permissions to be secure - owner and group can read
             # The subprocess runs as deploy user who is in the fastdeploy group
             os.fchmod(fd, 0o640)  # rw-r----- (owner read/write, group read)
 
             # Write configuration
-            with os.fdopen(fd, "w") as f:
+            with os.fdopen(os.dup(fd), "w") as f:
                 json.dump(config_data, f, indent=2)
-
-            temp_file = Path(temp_path)
-            _temp_files.add(temp_file)
 
             logger.info(f"Created secure config: {temp_file} for deployment {deployment_id}")
             return temp_file
 
         except Exception as e:
             # Clean up on error
-            with contextlib.suppress(Exception):
-                os.close(fd)
-            if Path(temp_path).exists():
-                Path(temp_path).unlink()
+            self.cleanup_config(Path(temp_path))
             raise RuntimeError(f"Failed to create secure config: {e}") from e
 
     def read_deployment_config(self, config_path: Path) -> dict[str, Any]:
@@ -130,27 +153,15 @@ class SecureConfig:
             PermissionError: If file permissions are not secure
             FileNotFoundError: If config file doesn't exist
         """
-        if not config_path.exists():
-            raise FileNotFoundError(f"Config file not found: {config_path}")
-
-        # Verify secure permissions
-        stat_info = config_path.stat()
-        mode = stat_info.st_mode & 0o777
-
-        if mode not in (0o600, 0o640):
-            raise PermissionError(
-                f"Config file {config_path} has insecure permissions: {oct(mode)} (expected 0o600 or 0o640)"
-            )
-
-        # Verify ownership (should be current user or readable via group)
-        # Allow files owned by another user if we can read them (via group permissions)
-        if stat_info.st_uid != os.getuid() and not os.access(config_path, os.R_OK):
-            raise PermissionError(f"Config file {config_path} not readable by current user")
-
-        with open(config_path) as f:
+        try:
+            fd = _open_config(config_path, os.O_RDONLY)
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Config file not found: {config_path}") from e
+        with os.fdopen(fd) as f:
             return json.load(f)
 
-    def cleanup_config(self, config_path: Path) -> bool:
+    @staticmethod
+    def cleanup_config(config_path: Path) -> bool:
         """
         Securely remove a configuration file.
 
@@ -160,26 +171,43 @@ class SecureConfig:
         Returns:
             True if successfully removed, False otherwise
         """
-        try:
-            if config_path.exists():
-                # Overwrite with random data before deletion for extra security
-                original_size = config_path.stat().st_size
-                with open(config_path, "r+b") as f:
-                    f.write(os.urandom(original_size))
-                    f.flush()
-                    os.fsync(f.fileno())
+        with _cleanup_lock:
+            return _cleanup_config(config_path)
 
-                config_path.unlink()
-                _temp_files.discard(config_path)
-                logger.debug(f"Securely removed config: {config_path}")
-                return True
-            else:
-                # No file to cleanup is considered success
-                _temp_files.discard(config_path)
-                return True
-        except Exception as e:
-            logger.error(f"Failed to cleanup config {config_path}: {e}")
-            return False
+
+def _cleanup_config(config_path: Path) -> bool:
+    try:
+        try:
+            config_path.lstat()
+        except FileNotFoundError:
+            _forget_config(config_path)
+            return True
+
+        owned_fd = _temp_files.get(config_path)
+        if owned_fd is None:
+            raise PermissionError(f"Config file {config_path} was not created by this process")
+
+        fd = _open_config(config_path, os.O_RDWR)
+        with os.fdopen(fd, "r+b") as f:
+            info = os.fstat(f.fileno())
+            owned = os.fstat(owned_fd)
+            if (info.st_dev, info.st_ino) != (owned.st_dev, owned.st_ino) or info.st_nlink != 1:
+                raise PermissionError(f"Config file {config_path} was replaced or hard-linked")
+            # Overwrite the validated descriptor, never reopen the pathname.
+            f.write(os.urandom(info.st_size))
+            f.flush()
+            os.fsync(f.fileno())
+            current = config_path.lstat()
+            if (current.st_dev, current.st_ino) != (info.st_dev, info.st_ino):
+                raise PermissionError(f"Config file {config_path} was replaced during cleanup")
+            config_path.unlink()
+
+        _forget_config(config_path)
+        logger.debug(f"Securely removed config: {config_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to cleanup config {config_path}: {e}")
+        return False
 
 
 def get_config_from_env() -> dict[str, Any] | None:
