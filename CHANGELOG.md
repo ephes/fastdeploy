@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Security
+- A websocket connection that has not authenticated within `WEBSOCKET_AUTH_TIMEOUT_SECONDS` (default 10)
+  after it was accepted is closed with code `1008` and the reason `authentication timeout`. The time
+  covers waiting for the token and verifying it. Before, a client could keep any number of connections
+  open without ever sending a token. Clients that send their token right after connecting (the web UI
+  does) are not affected.
 - Validate temporary configuration type and permissions on an open no-follow descriptor.
   Cleanup and exit cleanup refuse symlinks, hard links, untracked files and replaced
   paths, preserving the identity of configs created by this process. The launcher

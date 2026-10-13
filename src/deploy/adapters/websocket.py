@@ -29,7 +29,9 @@ class ConnectionManager:
     using an id that is still connected is refused instead of replacing the
     first one. After successful authentication the id is bound to the user
     of the access token for the lifetime of the connection, and only
-    authenticated connections receive broadcasts.
+    authenticated connections receive broadcasts. The websocket endpoint
+    closes a connection that does not authenticate within
+    ``WEBSOCKET_AUTH_TIMEOUT_SECONDS``.
     """
 
     def __init__(self) -> None:

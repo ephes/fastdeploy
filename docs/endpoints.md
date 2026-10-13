@@ -363,6 +363,11 @@ share a name but have different `started` timestamps are separate steps.
    On failure (invalid or expired token, a service/deployment/config token, or a user that no
    longer exists) the server sends `{"type": "authentication", "status": "failure"}` and closes
    the connection with code `1008`. Reconnect with a new token to try again.
+   The first authentication has to succeed within `WEBSOCKET_AUTH_TIMEOUT_SECONDS` (default 10)
+   after the connection was accepted, whatever else the client sends in the meantime. A connection
+   that is still not authenticated then is closed with code `1008` and the close reason
+   `authentication timeout`; no message is sent before the close. Connect again and send the token
+   right away.
 4. Optionally re-authenticate on the same connection by sending a new access token for the
    **same** user; this replaces the session expiry. A token for a different user is rejected and
    closes the connection.
