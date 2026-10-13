@@ -10,7 +10,6 @@ from deploy.domain import events, model
 from deploy.entrypoints.helper_models import (
     MAX_STEP_MESSAGE_LENGTH,
     MAX_STEP_NAME_LENGTH,
-    MAX_STEP_STATE_LENGTH,
     StepResult,
 )
 from deploy.tasks import MAX_STEP_MESSAGE_SIZE
@@ -86,7 +85,9 @@ def step_result(deployment_in_db):
     )
 
 
-async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy_token_in_db, deployment_in_db):
+@pytest.mark.parametrize("state", ["success", "failure"])
+async def test_process_step_happy(state, app, uow, step_result, publisher, valid_deploy_token_in_db, deployment_in_db):
+    step_result.state = state
     deployment_in_db.started = datetime.now(timezone.utc)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -105,11 +106,13 @@ async def test_process_step_happy(app, uow, step_result, publisher, valid_deploy
     assert channel == "broadcast"
     assert isinstance(step_processed, events.StepProcessed)
     assert step_processed.name == step_result.name
+    assert step_processed.state == state
 
     # make sure step was persisted
     async with uow:
         [step] = await uow.steps.list()
         assert step.name == step_result.name
+        assert step.state == state
 
 
 async def test_process_step_repeated_report(app, uow, step_result, publisher, valid_deploy_token_in_db):
@@ -136,7 +139,7 @@ async def test_process_step_repeated_report(app, uow, step_result, publisher, va
 
 @pytest.mark.parametrize(
     "field, limit",
-    [("message", MAX_STEP_MESSAGE_LENGTH), ("name", MAX_STEP_NAME_LENGTH), ("state", MAX_STEP_STATE_LENGTH)],
+    [("message", MAX_STEP_MESSAGE_LENGTH), ("name", MAX_STEP_NAME_LENGTH)],
 )
 async def test_process_step_rejects_oversized_fields(
     field, limit, app, uow, step_result, publisher, valid_deploy_token_in_db
@@ -175,6 +178,36 @@ async def test_process_step_accepts_message_at_the_limit(app, uow, step_result, 
     async with uow:
         [step] = await uow.steps.list()
         assert len(step.message) == MAX_STEP_MESSAGE_LENGTH
+
+
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize("state", ["pending", "running", "succes", "", "SUCCESS"])
+async def test_process_step_rejects_nonterminal_state(
+    state, app, uow, step_result, publisher, valid_deploy_token_in_db, deployment_in_db
+):
+    build = model.Step(name=step_result.name, deployment_id=deployment_in_db.id, state="running")
+    next_step = model.Step(name="next", deployment_id=deployment_in_db.id, state="pending")
+    async with uow:
+        for step in [build, next_step]:
+            await uow.steps.add(step)
+        await uow.commit()
+    before = [step.model_dump() for step in [build, next_step]]
+    payload = json.loads(step_result.model_dump_json()) | {"state": state}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            app.url_path_for("process_step_result"),
+            json=payload,
+            headers={"authorization": f"Bearer {valid_deploy_token_in_db}"},
+        )
+    assert response.status_code == 422
+    [error] = response.json()["detail"]
+    assert error["loc"] == ["body", "state"]
+    assert error["type"] == "literal_error"
+    assert publisher.events == []
+    async with uow:
+        assert [step.model_dump() for step in await uow.steps.list()] == before
+        saved = await uow.deployments.get(deployment_in_db.id)
+        assert saved.finished is None
 
 
 # test get_steps_by_deployment endpoint

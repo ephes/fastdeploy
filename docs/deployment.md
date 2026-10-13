@@ -111,7 +111,12 @@ be refused (this is logged to the task's stderr, and the task does not wait); su
 writes to its closed output pipe, which happens as soon as the deploy task exits.
 
 The deploy task (the detached `python -m deploy.tasks` process that runs the deploy script) reports each step to
-`POST /steps/` and finally calls `PUT /deployments/finish/`. Connection errors and `5xx` responses are retried with
+`POST /steps/` and finally calls `PUT /deployments/finish/`. Scripts must emit explicit terminal
+`success` or `failure` states only. The task forwards named JSON lines as reports; it does not filter
+nonterminal states. Older scripts emitting `running`/`pending` (or omitting `state`, which defaults to
+`pending`) receive a non-retried 422 and a dropped-step stderr diagnostic for each such line. Update
+those scripts to emit a result only when a step finishes; planned steps still show progress in the UI.
+Connection errors and `5xx` responses are retried with
 exponential backoff (4 attempts per step, 6 for finishing the deployment, starting at 3 seconds), so a short API
 restart, for example while fastdeploy deploys itself, does not leave the deployment active. A retried step report
 that the API had already processed (only the response was lost) is recognized by its name and started timestamp and
@@ -226,8 +231,8 @@ Registered services must provide a deployment script that:
            step_data["message"] = message
        print(json.dumps(step_data), flush=True)
 
-   # States: "running", "success", "failure"
-   emit_step("Install packages", "running", "Installing dependencies...")
+   # Finished report states: "success", "failure"
+   # Install dependencies, then report the outcome.
    emit_step("Install packages", "success", "All packages installed")
    ```
 
