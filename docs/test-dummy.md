@@ -61,7 +61,7 @@ def main():
 
 ```python
 def emit_step(name, state, message=""):
-    """Emit a finished step result (success or failure)."""
+    """Emit a step report: "running" when it starts, "success" or "failure" when it ends."""
     step_data = {"name": name, "state": state}
     if message:
         step_data["message"] = message
@@ -69,7 +69,7 @@ def emit_step(name, state, message=""):
 
 # Usage
 emit_step("Initialize deployment", "success", f"Starting deployment for {service_name}")
-# Install dependencies before reporting their outcome.
+emit_step("Install dependencies", "running", "Installing dependencies...")
 emit_step("Install dependencies", "success", "All packages installed")
 ```
 
@@ -87,15 +87,15 @@ The script simulates a realistic deployment with these steps:
 8. **Clean up old versions**
 9. **Deployment complete**
 
-Each script step emits one terminal `success` or `failure` result when it finishes. Planned steps
-can still show `pending`/`running` in the UI. Older dummy runners that emit `running` must be
-updated: those lines receive a non-retried 422 and are dropped with a task stderr diagnostic.
+Each step reports `running` when it starts and `success` or `failure` when it finishes. A line with
+any other state receives a non-retried 422 and is dropped with a task stderr diagnostic.
 
 ### Error Handling
 
 ```python
 try:
     for step in steps:
+        emit_step(step, "running", f"Executing: {step}")
         time.sleep(2)  # Simulate work
         emit_step(step, "success", f"Completed: {step}")
 

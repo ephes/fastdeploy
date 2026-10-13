@@ -17,10 +17,16 @@ Unreleased
   owner/group and trusted-directory contract in [deployment docs](docs/deployment.md).
 
 ### Breaking
-- Finished step reports (`POST /steps/`) accept only `success` or `failure`; other states return 422
-  without mutation. Domain processing also rejects them. Planned/response step states are unchanged.
-  Deploy scripts must emit only terminal results: the task still forwards named JSON lines, so
-  nonterminal or omitted states receive non-retried 422s and dropped-step stderr diagnostics.
+- Step reports (`POST /steps/`) accept only the states `running`, `success` and `failure`; any other
+  state (`pending`, an unknown or misspelled one) returns 422 without mutation, and domain processing
+  rejects it as well. Before, `state` was any string of up to 20 characters. Deploy scripts that report
+  `running` when a step starts and its result when it ends keep working unchanged; a line with another
+  or an omitted state (the task defaults it to `pending`) receives a non-retried 422 and a dropped-step
+  stderr diagnostic. This corrects the note of the first version of this change, which accepted only
+  `success` and `failure` and asked for scripts to stop reporting `running`: that dropped the progress
+  reports of every existing deploy script (each got a 422), while results were still recorded.
+- A `running` report of a step that is already running no longer moves the next planned step to
+  `running`; only a `success` result does. A `running` report never changes a step that has a result.
 - `deploy_script` in a service's `config.json` is the path of one executable and no longer a shell
   command line. A value with spaces is now one path: `"deploy.sh --flag"` used to run `deploy.sh` with
   the argument `--flag` and now fails, because no file of that name exists. The same holds for shell

@@ -273,13 +273,13 @@ ownership check.
 ## Step Management Endpoints
 
 ### POST /steps/
-**Purpose**: Report a finished step
+**Purpose**: Report the progress or the result of a step
 **Authentication**: Deployment token required
 **Request Body**:
 ```json
 {
   "name": "step_name",
-  "state": "success",
+  "state": "running|success|failure",
   "started": "2026-10-13T10:00:00Z",
   "finished": "2026-10-13T10:01:00Z",
   "message": "Status message or failure details; may be empty"
@@ -290,10 +290,16 @@ ownership check.
 {"detail": "step processed"}
 ```
 
-`message` is required and may be an empty string. Only `success` and `failure` are accepted report states. `pending`, `running` and unknown states are
-rejected with **422** before any step changes or events. Planned steps and response/websocket models
-still use `pending` and `running`; they are not finished reports. Direct domain processing rejects
-nonterminal reports with `ValueError` before mutation.
+`message` is required and may be an empty string. The accepted report states are `running` (the step
+has started; a progress report), `success` and `failure` (its result). `pending` and unknown states are
+rejected with **422** before any step changes or events; `pending` is the state of a planned step and
+is never reported. Direct domain processing rejects them with `ValueError` before mutation.
+
+A `running` report marks its step as running and updates its message; it never advances another
+planned step and never changes a step that already has a result. Only steps that are pending or
+running are looked up by name, so a `running` report that arrives after the result of a step of the
+same name is stored as a separate step, and the result stays as reported. A `success` result moves the
+next planned step to `running`.
 
 Size limits: `name` may have at most 255 characters and `message` at most 4096 (the
 sizes of the database columns). A longer value is rejected with **422** and the usual validation
@@ -303,8 +309,10 @@ is not stored. The deploy task cuts messages to 4096 characters before it report
 Reporting a step is idempotent, so the deploy task can safely repeat a report whose response was lost. A
 report is identified by its `name` and `started` timestamp (a `started` without a timezone counts as
 server local time): sending the same result again (same `state` and `message`) changes nothing, adds no step, broadcasts no event and gets the same response. The same
-`name` and `started` with a different `state` or `message` is rejected with **409 Conflict**. Steps that
-share a name but have different `started` timestamps are separate steps.
+`name` and `started` with a different `state` or `message` is rejected with **409 Conflict**, so a
+progress report and the result of a step need different `started` timestamps (the deploy task stamps
+every script line with its own). Steps that share a name but have different `started` timestamps are
+separate steps.
 
 ### GET /steps/
 **Purpose**: List steps for a deployment
@@ -434,7 +442,7 @@ All endpoints may return these standard error responses:
 - **413 Content Too Large** (`POST /deployments/`): The JSON encoded context is larger than
   `DEPLOYMENT_CONTEXT_MAX_BYTES`; no deployment was started
 
-- **422 Unprocessable Content** (`POST /steps/`): `name` or `message` is longer than allowed, or `state` is not `success`/`failure`
+- **422 Unprocessable Content** (`POST /steps/`): `name` or `message` is longer than allowed, or `state` is not `running`, `success` or `failure`
   (`name`: 255 characters; `message`: 4096 characters)
 
 - **500 Internal Server Error** (`POST /deployments/`): The deploy task could not be started; the

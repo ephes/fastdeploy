@@ -23,7 +23,8 @@ async def process_step_result(
     bus: Bus = Depends(),
 ) -> dict:
     """
-    When a step is finished, the deployment process sends a result back to this endpoint.
+    The deployment process reports a step here: with the state running when it
+    starts (optional) and with its result (success or failure) when it is finished.
     Needs to be authenticated with a deployment token.
 
     Reporting is idempotent: sending the same result again (same name, started

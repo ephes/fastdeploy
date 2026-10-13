@@ -248,9 +248,72 @@ async def test_steps_sharing_a_name_are_not_repeated_reports():
     assert deployment.process_step(third) == [third]
 
 
-@pytest.mark.parametrize("state", ["pending", "running", "succes", "", "SUCCESS"])
+@pytest.mark.parametrize("result", ["success", "failure"])
+async def test_runner_sequence_of_progress_and_result_reports(result):
+    """Deploy scripts report "running" when a step starts and its result when it ends."""
+    build = model.Step(id=1, name="build", deployment_id=1, state="running")
+    test = model.Step(id=2, name="test", deployment_id=1, state="pending")
+    publish = model.Step(id=3, name="publish", deployment_id=1, state="pending")
+    deployment = make_running_deployment([build, test, publish])
+    t0 = datetime.now(timezone.utc)
+
+    # progress of the running step: recorded, no other step is advanced
+    assert deployment.process_step(make_report("build", t0, state="running", message="building")) == [build]
+    assert [step.state for step in deployment.steps] == ["running", "pending", "pending"]
+    assert build.message == "building"
+    # the same progress report again (lost response) changes nothing
+    assert deployment.process_step(make_report("build", t0, state="running", message="building")) == []
+
+    assert deployment.process_step(make_report("build", t0 + timedelta(seconds=1), message="built")) == [test, build]
+    assert [step.state for step in deployment.steps] == ["success", "running", "pending"]
+
+    # progress of the step that was advanced to running, then its result
+    t2 = t0 + timedelta(seconds=2)
+    assert deployment.process_step(make_report("test", t2, state="running")) == [test]
+    assert [step.state for step in deployment.steps] == ["success", "running", "pending"]
+    modified = deployment.process_step(make_report("test", t2 + timedelta(seconds=1), state=result))
+    if result == "success":
+        assert modified == [publish, test]
+        assert [step.state for step in deployment.steps] == ["success", "success", "running"]
+    else:
+        assert modified == [test]
+        assert [step.state for step in deployment.steps] == ["success", "failure", "pending"]
+
+
+async def test_progress_report_of_unplanned_step_gets_its_result():
+    deployment = make_running_deployment([])
+    t0 = datetime.now(timezone.utc)
+    progress = make_report("backup", t0, state="running")
+    assert deployment.process_step(progress) == [progress]
+    deployment.steps.append(progress)
+
+    assert deployment.process_step(make_report("backup", t0 + timedelta(seconds=1), message="done")) == [progress]
+    assert (progress.state, progress.message) == ("success", "done")
+
+
+@pytest.mark.parametrize("result", ["success", "failure"])
+async def test_progress_report_never_overwrites_a_result(result):
+    build = model.Step(id=1, name="build", deployment_id=1, state="running")
+    test = model.Step(id=2, name="test", deployment_id=1, state="pending")
+    deployment = make_running_deployment([build, test])
+    started = datetime.now(timezone.utc)
+    deployment.process_step(make_report("build", started, state=result, message="done"))
+    states = [step.state for step in deployment.steps]
+
+    # the same report demoted to progress is a conflict
+    with pytest.raises(model.StepReportConflict):
+        deployment.process_step(make_report("build", started, state="running"))
+    # a later progress report of that name is a step of its own
+    late = make_report("build", started + timedelta(seconds=30), state="running")
+    assert deployment.process_step(late) == [late]
+
+    assert [step.state for step in deployment.steps] == states
+    assert (build.state, build.message) == (result, "done")
+
+
+@pytest.mark.parametrize("state", ["pending", "succes", "", "SUCCESS", "warning"])
 @pytest.mark.parametrize("name", ["build", "test", "unplanned"])
-async def test_nonterminal_report_is_rejected_without_mutation(state, name):
+async def test_unknown_report_state_is_rejected_without_mutation(state, name):
     build = model.Step(id=1, name="build", deployment_id=1, state="running")
     test = model.Step(id=2, name="test", deployment_id=1, state="pending")
     deployment = make_running_deployment([build, test])
@@ -258,7 +321,7 @@ async def test_nonterminal_report_is_rejected_without_mutation(state, name):
     report = make_report(name, datetime.now(timezone.utc), state=state, message="50%")
     report_before = report.model_dump()
 
-    with pytest.raises(ValueError, match="success or failure"):
+    with pytest.raises(ValueError, match="running, success or failure"):
         deployment.process_step(report)
 
     assert [step.model_dump() for step in deployment.steps] == before
