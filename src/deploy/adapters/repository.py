@@ -471,7 +471,6 @@ class SqlAlchemyDeployedServiceRepository(AbstractDeployedServiceRepository):
         super().__init__()
 
     async def _add(self, deployed_service):
-        print("adding: ", deployed_service)
         self.session.add(deployed_service)
 
     async def list(self):
