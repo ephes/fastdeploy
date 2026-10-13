@@ -317,7 +317,7 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
 
 async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
     """
-    Process a finished deployment step.
+    Process a reported deployment step (progress or result).
     """
     # get the deployment that we are deploying from database
     step = model.Step(**command.model_dump())

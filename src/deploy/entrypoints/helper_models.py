@@ -34,7 +34,7 @@ class StepResult(StepBase):
     """
 
     name: str = Field(max_length=MAX_STEP_NAME_LENGTH)
-    state: Literal["success", "failure"]
+    state: Literal["running", "success", "failure"]
     started: datetime
     finished: datetime
     message: str = Field(max_length=MAX_STEP_MESSAGE_LENGTH)

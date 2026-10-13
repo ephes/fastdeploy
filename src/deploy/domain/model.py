@@ -246,6 +246,11 @@ def as_utc(timestamp: datetime) -> datetime:
     return timestamp.astimezone(timezone.utc)
 
 
+# States a deploy script may report for a step: progress (``running``) or a
+# result. ``pending`` is the state of a planned step and never reported.
+REPORTED_STEP_STATES = ("running", "success", "failure")
+
+
 class StepReportConflict(ValueError):
     """
     Raised when a step report repeats an already processed report (same step
@@ -352,6 +357,12 @@ class Deployment(EventsMixin):
         We need to check whether the current step is in the list of the steps
         we need to take etc.
 
+        A report is a progress report (``running``) or a result (``success``,
+        ``failure``); any other state raises ``ValueError`` before anything is
+        changed. A progress report marks its step as running and never touches a
+        step that already has a result: steps with a result are not looked up, so
+        a later ``running`` report of the same name is a new step.
+
         Returns a new list of steps that have been modified. It is empty for a
         repeated report of an already processed step (same name and started
         timestamp, same state and message), so processing a report is idempotent.
@@ -365,8 +376,8 @@ class Deployment(EventsMixin):
         * Determine which step is now running and add it to the list
           of modified steps, too
         """
-        if step.state not in ("success", "failure"):
-            raise ValueError("reported step state must be success or failure")
+        if step.state not in REPORTED_STEP_STATES:
+            raise ValueError("reported step state must be running, success or failure")
 
         if self.started is None:
             raise ValueError("deployment has not started yet")
@@ -409,9 +420,10 @@ class Deployment(EventsMixin):
                     known_step = pending_step
                     break
         else:
-            # finished step was already running -> change state of next pending
-            # step to running unless currently finished step has failed
-            if len(pending_steps) > 0 and step.state != "failure":
+            # step was already running -> change state of next pending step to
+            # running, but only when the step succeeded: a failure ends the
+            # deployment and a progress report leaves the step running
+            if len(pending_steps) > 0 and step.state == "success":
                 next_pending_step = pending_steps[0]
                 next_pending_step.state = "running"
                 modified_steps.append(next_pending_step)

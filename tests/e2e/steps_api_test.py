@@ -180,9 +180,71 @@ async def test_process_step_accepts_message_at_the_limit(app, uow, step_result, 
         assert len(step.message) == MAX_STEP_MESSAGE_LENGTH
 
 
+@pytest.mark.parametrize("result", ["success", "failure"])
+async def test_process_step_runner_sequence(result, app, uow, publisher, valid_deploy_token_in_db, deployment_in_db):
+    """
+    Replay what the deploy scripts emit: "running" when a step starts and its
+    result when it ends, each line stamped with its own started timestamp by the
+    deploy task. Every report is accepted and the planned steps follow.
+    """
+    planned = [
+        model.Step(name="dump", deployment_id=deployment_in_db.id, state="running"),
+        model.Step(name="upload", deployment_id=deployment_in_db.id, state="pending"),
+        model.Step(name="cleanup", deployment_id=deployment_in_db.id, state="pending"),
+    ]
+    async with uow:
+        for step in planned:
+            await uow.steps.add(step)
+        await uow.commit()
+
+    async def planned_steps():
+        steps = await uow.steps.get_steps_by_deployment(deployment_in_db.id)
+        return sorted(steps, key=lambda step: step.id)
+
+    t0 = datetime.now(timezone.utc) - timedelta(minutes=1)
+    lines = [
+        ("dump", "running", "dumping"),
+        ("dump", "success", "dumped"),
+        ("upload", "running", "uploading"),
+        ("upload", result, "upload finished"),
+    ]
+    headers = {"authorization": f"Bearer {valid_deploy_token_in_db}"}
+    responses, states_after = [], []
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for position, (name, state, message) in enumerate(lines):
+            started = t0 + timedelta(seconds=position)
+            payload = {
+                "name": name,
+                "state": state,
+                "message": message,
+                "started": started.isoformat(),
+                "finished": (started + timedelta(seconds=1)).isoformat(),
+            }
+            response = await client.post(app.url_path_for("process_step_result"), json=payload, headers=headers)
+            responses.append((response.status_code, response.json()))
+            async with uow:
+                states_after.append([step.state for step in await planned_steps()])
+
+    assert responses == [(200, {"detail": "step processed"})] * len(lines)
+    next_state = "running" if result == "success" else "pending"
+    assert states_after == [
+        ["running", "pending", "pending"],
+        ["success", "running", "pending"],
+        ["success", "running", "pending"],
+        ["success", result, next_state],
+    ]
+    async with uow:
+        steps = await planned_steps()
+        assert [(step.name, step.message) for step in steps[:2]] == [("dump", "dumped"), ("upload", "upload finished")]
+        assert len(steps) == len(planned)
+    reported = [(event.name, event.state) for _, event in publisher.events if isinstance(event, events.StepProcessed)]
+    for name, state, _ in lines:
+        assert (name, state) in reported
+
+
 @pytest.mark.db("in_memory")
-@pytest.mark.parametrize("state", ["pending", "running", "succes", "", "SUCCESS"])
-async def test_process_step_rejects_nonterminal_state(
+@pytest.mark.parametrize("state", ["pending", "succes", "", "SUCCESS", "warning"])
+async def test_process_step_rejects_unknown_state(
     state, app, uow, step_result, publisher, valid_deploy_token_in_db, deployment_in_db
 ):
     build = model.Step(name=step_result.name, deployment_id=deployment_in_db.id, state="running")
