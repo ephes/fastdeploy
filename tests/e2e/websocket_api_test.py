@@ -1,10 +1,11 @@
 import asyncio
+import time
 from datetime import timedelta
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from deploy.adapters.websocket import ConnectionManager
 from deploy.auth import create_access_token, get_password_hash
@@ -125,3 +126,95 @@ def test_websocket_client_id_is_reusable_after_disconnect(ws_client, cm):
             assert ws.receive_json()["status"] == "success"
     assert cm.all_connections == {}
     assert cm.expiry_tasks == {}
+
+
+# --- authentication deadline ---
+
+
+@pytest.fixture
+def short_auth_deadline(monkeypatch):
+    monkeypatch.setattr("deploy.entrypoints.fastapi_app.settings.websocket_auth_timeout_seconds", 0.2)
+
+
+def test_websocket_without_token_is_closed_after_the_authentication_deadline(ws_client, cm, short_auth_deadline):
+    with ws_client.websocket_connect(ws_path(uuid4())) as ws:
+        ws.send_json({"ping": True})  # traffic without a token does not keep it open
+        with pytest.raises(WebSocketDisconnect) as excinfo:
+            ws.receive_json()
+    assert excinfo.value.code == 1008
+    assert excinfo.value.reason == "authentication timeout"
+    assert cm.all_connections == {}
+
+
+def test_websocket_with_token_stays_open_after_the_authentication_deadline(ws_client, cm, short_auth_deadline):
+    client_id = uuid4()
+    with ws_client.websocket_connect(ws_path(client_id)) as ws:
+        ws.send_json({"access_token": user_token()})
+        assert ws.receive_json()["status"] == "success"
+        time.sleep(0.6)
+        assert cm.is_authenticated(client_id)
+        ws.send_json({"access_token": user_token()})  # still served
+        assert ws.receive_json()["status"] == "success"
+
+
+def test_websocket_authentication_deadline_covers_verifying_the_token(ws_client, cm, short_auth_deadline, monkeypatch):
+    """A token sent in time does not help if looking up its user outlasts the deadline."""
+    lookup_cancelled = False
+
+    async def slow_user_from_token(token, uow):
+        nonlocal lookup_cancelled
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            lookup_cancelled = True
+            raise
+
+    monkeypatch.setattr("deploy.adapters.websocket.user_from_token", slow_user_from_token)
+    client_id = uuid4()
+    with ws_client.websocket_connect(ws_path(client_id)) as ws:
+        ws.send_json({"access_token": user_token()})
+        with pytest.raises(WebSocketDisconnect) as excinfo:
+            ws.receive_json()
+    assert excinfo.value.code == 1008
+    assert lookup_cancelled
+    assert not cm.is_authenticated(client_id)
+    assert cm.all_connections == {}
+    assert cm.expiry_tasks == {}
+
+
+def test_websocket_endpoint_lets_the_close_after_the_deadline_finish(cm, monkeypatch):
+    """
+    The close is the server's way to end the TCP connection of a peer that
+    does not answer, so the endpoint must wait for it instead of cancelling it.
+    """
+    from deploy.entrypoints import fastapi_app as app_module
+
+    monkeypatch.setattr(app_module.settings, "websocket_auth_timeout_seconds", 0.05)
+
+    class SilentWebsocket:
+        """Accepts, never delivers a message and takes its time to close."""
+
+        client_state = application_state = WebSocketState.CONNECTED
+        closed_with = None
+
+        async def accept(self):
+            pass
+
+        async def receive_json(self):
+            await asyncio.sleep(3600)
+
+        async def close(self, code=1000, reason=None):
+            await asyncio.sleep(0.3)
+            self.closed_with = (code, reason)
+
+    class StubBus:
+        uow = None
+
+    bus = StubBus()
+    bus.cm = cm
+    websocket = SilentWebsocket()
+
+    asyncio.run(asyncio.wait_for(app_module.websocket_endpoint(websocket, uuid4(), bus), timeout=5))
+
+    assert websocket.closed_with == (1008, "authentication timeout")
+    assert cm.all_connections == {}

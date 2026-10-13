@@ -92,6 +92,7 @@ LOGIN_ADDRESS_FAILURE_LIMIT=50  # failed attempts per client address for any use
 LOGIN_FAILURE_WINDOW_SECONDS=900
 
 # Request limits
+WEBSOCKET_AUTH_TIMEOUT_SECONDS=10  # close a websocket connection that has not authenticated by then
 DEPLOYMENT_CONTEXT_MAX_BYTES=65536  # largest JSON encoded context of POST /deployments/ (413 above)
 
 # API configuration
