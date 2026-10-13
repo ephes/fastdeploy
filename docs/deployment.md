@@ -118,7 +118,8 @@ that the API had already processed (only the response was lost) is recognized by
 changes nothing. `4xx` responses are not
 retried. A step that still cannot be reported is dropped and logged to the task's stderr (the fastdeploy service
 journal), and the task keeps reading the deploy script output; lines that are not a JSON object with a `name` are
-skipped. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
+skipped. A JSON object without a `name` is logged to the task's stderr with its size and up to 10 shortened keys,
+never its values. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
 deployment is finished afterwards; if finishing fails after a failed deploy, the original error is kept. If the failed
 step cannot be reported at all, the deployment is left unfinished instead of being finished as an apparent success,
 and it stops blocking new deployments once it is older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`.

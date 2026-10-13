@@ -301,6 +301,25 @@ async def test_deploy_steps_keeps_draining_stdout_after_failed_post(task_kwargs,
     assert [step["name"] for step in client.post_calls] == ["step2", "step3"]
 
 
+async def test_deploy_steps_logs_nameless_result_bounded_without_values(task, capsys):
+    secret = "s3cr3t-value"
+    nameless = {"token": secret, "k" * 500: secret} | {f"key{i}": secret for i in range(50)}
+    with patch("deploy.tasks.asyncio", new=DeployProc([nameless, None])):
+        await task.deploy_steps()
+
+    assert task.client.post_calls == []
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    [line] = captured.err.splitlines()
+    assert line.startswith("fastdeploy deploy task: step result not posted: no name in JSON object of ")
+    assert f"of {len(json.dumps(nameless).encode())} bytes" in line
+    assert "'token'" in line
+    assert "... 42 more" in line
+    assert secret not in line
+    assert "k" * 41 not in line
+    assert len(line) < 1000
+
+
 async def test_deploy_steps_keeps_draining_stdout_after_invalid_step(task, capsys):
     stdout_lines = [{"name": "step1"}, {"name": "step2"}, None]
     proc = DeployProc(stdout_lines)

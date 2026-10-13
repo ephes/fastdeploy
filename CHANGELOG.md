@@ -74,6 +74,9 @@ Unreleased
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
 ### Bug Fixes
+- Deploy task: a JSON object without a `name` on the deploy script's output is no longer printed as a
+  whole to stdout. It is logged to the task's stderr like every other skipped or dropped result, with
+  its size and up to 10 shortened keys and never its values, which may hold secrets.
 - Web UI: a deployment started with the deploy button shows up under its service at once. The response of
   `POST /deployments/` was stored as received (`service_id`, dates as strings) while the store is read
   by `serviceId`, so the new row was missing from the service's deployments and its progress display

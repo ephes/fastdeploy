@@ -101,6 +101,9 @@ MAX_ASYNCIO_STDOUT_SIZE = 1024 * 1024 * 10  # 10 MiB, longer output lines are sk
 # again after SIGKILL, when the deploy task stops reading its output early.
 DEPLOY_STOP_TIMEOUT = 10.0
 MAX_STEP_MESSAGE_SIZE = 4096
+# A JSON object without a name is logged with at most this many keys, each shortened to this size
+MAX_LOGGED_RESULT_KEYS = 10
+MAX_LOGGED_RESULT_KEY_SIZE = 40
 
 
 class DeployTask(BaseSettings):
@@ -144,6 +147,21 @@ class DeployTask(BaseSettings):
         reporting to the API fails. Never log tokens or step messages here.
         """
         print(f"fastdeploy deploy task: {message}", file=sys.stderr, flush=True)
+
+    @staticmethod
+    def describe_nameless_result(step_result: dict, size: int) -> str:
+        """
+        Bounded description of a JSON object without a name: its size and a limited
+        number of shortened keys. Values are never included, they may hold secrets.
+        """
+        keys = []
+        for key in list(step_result)[:MAX_LOGGED_RESULT_KEYS]:
+            if len(key) > MAX_LOGGED_RESULT_KEY_SIZE:
+                key = key[:MAX_LOGGED_RESULT_KEY_SIZE] + "..."
+            keys.append(repr(key))
+        if (more := len(step_result) - len(keys)) > 0:
+            keys.append(f"... {more} more")
+        return f"no name in JSON object of {size} bytes with keys [{', '.join(keys)}]"
 
     @staticmethod
     def is_retryable(error: Exception) -> bool:
@@ -304,7 +322,7 @@ class DeployTask(BaseSettings):
                 result_name = step_result.get("name")
                 if result_name is None:
                     # should not happen
-                    print("step result not posted: ", step_result)
+                    self.log(f"step result not posted: {self.describe_nameless_result(step_result, len(data))}")
                     continue
                 step_result["started"] = started
                 try:
