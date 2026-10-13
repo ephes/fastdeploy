@@ -17,6 +17,10 @@ Unreleased
   owner/group and trusted-directory contract in [deployment docs](docs/deployment.md).
 
 ### Breaking
+- Finished step reports (`POST /steps/`) accept only `success` or `failure`; other states return 422
+  without mutation. Domain processing also rejects them. Planned/response step states are unchanged.
+  Deploy scripts must emit only terminal results: the task still forwards named JSON lines, so
+  nonterminal or omitted states receive non-retried 422s and dropped-step stderr diagnostics.
 - `deploy_script` in a service's `config.json` is the path of one executable and no longer a shell
   command line. A value with spaces is now one path: `"deploy.sh --flag"` used to run `deploy.sh` with
   the argument `--flag` and now fails, because no file of that name exists. The same holds for shell
@@ -39,7 +43,7 @@ Unreleased
   `Authorization: Bearer null`. The logout happens, as before, when the server rejects the websocket
   authentication; the next login starts with empty stores and a websocket of its own. Frontend assets
   only, no API change. See [docs/architecture.md](docs/architecture.md#login-session).
-- `POST /steps/` rejects a `name` longer than 255, a `state` longer than 20 and a `message` longer than
+- `POST /steps/` rejects a `name` longer than 255 and a `message` longer than
   4096 characters with `422` (before: a database error answered as `400` on PostgreSQL, no limit
   elsewhere). `POST /deployments/` rejects a context whose JSON encoding is larger than
   `DEPLOYMENT_CONTEXT_MAX_BYTES` (default 65536) with `413` and starts nothing; before, a context of any

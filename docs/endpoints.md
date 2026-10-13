@@ -273,15 +273,16 @@ ownership check.
 ## Step Management Endpoints
 
 ### POST /steps/
-**Purpose**: Report step progress
+**Purpose**: Report a finished step
 **Authentication**: Deployment token required
 **Request Body**:
 ```json
 {
   "name": "step_name",
-  "state": "pending|running|success|failure",
-  "message": "Optional status message",
-  "error_message": "Error details if failure"
+  "state": "success",
+  "started": "2026-10-13T10:00:00Z",
+  "finished": "2026-10-13T10:01:00Z",
+  "message": "Status message or failure details; may be empty"
 }
 ```
 **Response**:
@@ -289,15 +290,19 @@ ownership check.
 {"detail": "step processed"}
 ```
 
-Size limits: `name` may have at most 255 characters, `state` at most 20 and `message` at most 4096 (the
+`message` is required and may be an empty string. Only `success` and `failure` are accepted report states. `pending`, `running` and unknown states are
+rejected with **422** before any step changes or events. Planned steps and response/websocket models
+still use `pending` and `running`; they are not finished reports. Direct domain processing rejects
+nonterminal reports with `ValueError` before mutation.
+
+Size limits: `name` may have at most 255 characters and `message` at most 4096 (the
 sizes of the database columns). A longer value is rejected with **422** and the usual validation
 error body, which names the field (`"loc": ["body", "message"]`, `"type": "string_too_long"`); the step
 is not stored. The deploy task cuts messages to 4096 characters before it reports them.
 
 Reporting a step is idempotent, so the deploy task can safely repeat a report whose response was lost. A
-report is identified by its `name` and `started` timestamp (whatever its `state`; a `started` without a
-timezone counts as server local time): sending the same result again (same `state`
-and `message`) changes nothing, adds no step, broadcasts no event and gets the same response. The same
+report is identified by its `name` and `started` timestamp (a `started` without a timezone counts as
+server local time): sending the same result again (same `state` and `message`) changes nothing, adds no step, broadcasts no event and gets the same response. The same
 `name` and `started` with a different `state` or `message` is rejected with **409 Conflict**. Steps that
 share a name but have different `started` timestamps are separate steps.
 
@@ -429,8 +434,8 @@ All endpoints may return these standard error responses:
 - **413 Content Too Large** (`POST /deployments/`): The JSON encoded context is larger than
   `DEPLOYMENT_CONTEXT_MAX_BYTES`; no deployment was started
 
-- **422 Unprocessable Content** (`POST /steps/`): `name`, `state` or `message` is longer than allowed
-  (255, 20 and 4096 characters)
+- **422 Unprocessable Content** (`POST /steps/`): `name` or `message` is longer than allowed, or `state` is not `success`/`failure`
+  (`name`: 255 characters; `message`: 4096 characters)
 
 - **500 Internal Server Error** (`POST /deployments/`): The deploy task could not be started; the
   deployment `detail.deployment_id` was finished as failed

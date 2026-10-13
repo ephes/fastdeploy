@@ -365,6 +365,9 @@ class Deployment(EventsMixin):
         * Determine which step is now running and add it to the list
           of modified steps, too
         """
+        if step.state not in ("success", "failure"):
+            raise ValueError("reported step state must be success or failure")
+
         if self.started is None:
             raise ValueError("deployment has not started yet")
 

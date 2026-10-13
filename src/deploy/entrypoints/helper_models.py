@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from fastapi import Depends
 from pydantic import BaseModel, Field
@@ -23,7 +24,6 @@ class Step(StepBase):
 # Limits for reported steps. They are the sizes of the columns of the step
 # table, so a longer value could not be stored anyway.
 MAX_STEP_NAME_LENGTH = 255
-MAX_STEP_STATE_LENGTH = 20
 MAX_STEP_MESSAGE_LENGTH = 4096
 
 
@@ -34,7 +34,7 @@ class StepResult(StepBase):
     """
 
     name: str = Field(max_length=MAX_STEP_NAME_LENGTH)
-    state: str = Field(max_length=MAX_STEP_STATE_LENGTH)
+    state: Literal["success", "failure"]
     started: datetime
     finished: datetime
     message: str = Field(max_length=MAX_STEP_MESSAGE_LENGTH)

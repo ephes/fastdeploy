@@ -183,20 +183,23 @@ def make_report(name, started, state="success", message=""):
     )
 
 
-async def test_repeated_report_of_known_step_is_idempotent():
+@pytest.mark.parametrize("state", ["success", "failure"])
+async def test_repeated_report_of_known_step_is_idempotent(state):
     build = model.Step(id=1, name="build", deployment_id=1, state="running")
     test = model.Step(id=2, name="test", deployment_id=1, state="pending")
     publish = model.Step(id=3, name="publish", deployment_id=1, state="pending")
     deployment = make_running_deployment([build, test, publish])
     started = datetime.now(timezone.utc)
 
-    assert deployment.process_step(make_report("build", started)) == [test, build]
-    assert [step.state for step in deployment.steps] == ["success", "running", "pending"]
+    expected_states = [state, "running" if state == "success" else "pending", "pending"]
+    expected_modified = [test, build] if state == "success" else [build]
+    assert deployment.process_step(make_report("build", started, state=state)) == expected_modified
+    assert [step.state for step in deployment.steps] == expected_states
     finished_once = build.finished
 
     # the same report again: nothing to insert or update, next step advanced only once
-    assert deployment.process_step(make_report("build", started)) == []
-    assert [step.state for step in deployment.steps] == ["success", "running", "pending"]
+    assert deployment.process_step(make_report("build", started, state=state)) == []
+    assert [step.state for step in deployment.steps] == expected_states
     assert build.finished == finished_once
 
 
@@ -245,20 +248,26 @@ async def test_steps_sharing_a_name_are_not_repeated_reports():
     assert deployment.process_step(third) == [third]
 
 
-async def test_repeated_progress_report_is_idempotent():
-    """A report does not have to be final: a repeated "running" report must not advance another step."""
+@pytest.mark.parametrize("state", ["pending", "running", "succes", "", "SUCCESS"])
+@pytest.mark.parametrize("name", ["build", "test", "unplanned"])
+async def test_nonterminal_report_is_rejected_without_mutation(state, name):
     build = model.Step(id=1, name="build", deployment_id=1, state="running")
     test = model.Step(id=2, name="test", deployment_id=1, state="pending")
-    publish = model.Step(id=3, name="publish", deployment_id=1, state="pending")
-    deployment = make_running_deployment([build, test, publish])
-    started = datetime.now(timezone.utc)
+    deployment = make_running_deployment([build, test])
+    before = [step.model_dump() for step in deployment.steps]
+    report = make_report(name, datetime.now(timezone.utc), state=state, message="50%")
+    report_before = report.model_dump()
 
-    assert deployment.process_step(make_report("build", started, state="running", message="50%")) == [test, build]
-    assert deployment.process_step(make_report("build", started, state="running", message="50%")) == []
-    assert [step.state for step in deployment.steps] == ["running", "running", "pending"]
+    with pytest.raises(ValueError, match="success or failure"):
+        deployment.process_step(report)
 
-    with pytest.raises(model.StepReportConflict):
-        deployment.process_step(make_report("build", started, state="running", message="75%"))
+    assert [step.model_dump() for step in deployment.steps] == before
+    assert report.model_dump() == report_before
+    for step in [*deployment.steps, report]:
+        step.raise_recorded_events()
+        assert step.events == []
+    deployment.raise_recorded_events()
+    assert deployment.events == []
 
 
 async def test_planned_steps_without_a_report_are_not_taken_for_processed_reports():

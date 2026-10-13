@@ -179,9 +179,9 @@ async def test_deploy_steps_drains_stdout_after_process_exits(task):
     buffered data remained in stdout.
     """
     stdout_lines = [
-        {"name": "step1", "state": "running"},
-        {"name": "step2", "state": "running"},
-        {"name": "step3", "state": "running"},
+        {"name": "step1", "state": "success"},
+        {"name": "step2", "state": "success"},
+        {"name": "step3", "state": "success"},
         {"name": "step4", "state": "success"},
         None,  # EOF sentinel
     ]
