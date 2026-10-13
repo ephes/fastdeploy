@@ -49,20 +49,44 @@ class MessageBus:
     async def handle_event(self, event: events.Event):
         for handler in self.event_handlers[type(event)]:
             try:
-                logger.debug("handling event %s with handler %s", event, handler)
+                logger.debug(
+                    "handling event=%s id=%s service_id=%s deployment_id=%s",
+                    type(event).__name__,
+                    getattr(event, "id", None),
+                    getattr(event, "service_id", None),
+                    getattr(event, "deployment_id", None),
+                )
                 await handler(event)
                 self.queue.extend(self.uow.collect_new_events())
             except Exception:
-                logger.exception("Exception handling event %s", event)
+                logger.exception(
+                    "Exception handling event=%s id=%s service_id=%s deployment_id=%s",
+                    type(event).__name__,
+                    getattr(event, "id", None),
+                    getattr(event, "service_id", None),
+                    getattr(event, "deployment_id", None),
+                )
                 continue
 
     async def handle_command(self, command: commands.Command) -> Any:
-        logger.debug("handling command %s", command)
+        logger.debug(
+            "handling command=%s id=%s service_id=%s deployment_id=%s",
+            type(command).__name__,
+            getattr(command, "id", None),
+            getattr(command, "service_id", None),
+            getattr(command, "deployment_id", None),
+        )
         try:
             handler = self.command_handlers[type(command)]
             result = await handler(command)
             self.queue.extend(self.uow.collect_new_events())
             return result
         except Exception:
-            logger.exception("Exception handling command %s", command)
+            logger.exception(
+                "Exception handling command=%s id=%s service_id=%s deployment_id=%s",
+                type(command).__name__,
+                getattr(command, "id", None),
+                getattr(command, "service_id", None),
+                getattr(command, "deployment_id", None),
+            )
             raise

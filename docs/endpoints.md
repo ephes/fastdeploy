@@ -404,8 +404,10 @@ authenticate again and reload the current state over the REST endpoints.
 Event publication diagnostics at INFO contain only the event class and its `id`, `service_id` and
 `deployment_id` when present. Event payloads (including context, configuration, names and messages)
 are omitted from these logs and the publisher emits no stdout output. Authorized websocket delivery
-keeps the full event payload. Enable INFO logging to see these diagnostics. This contract covers
-these two publisher INFO calls only; message-bus DEBUG and failure logs can still contain payloads.
+keeps the full event payload. Enable INFO logging to see these diagnostics. Message-bus DEBUG and
+handler failure logs also include only the message class and these identifiers (absent ids are
+`None`), without message or handler reprs. Failure logs retain the traceback; exception messages
+may still contain details supplied by a handler. Deployed-service insertion emits no stdout output.
 
 ## Authentication Summary
 

@@ -4,7 +4,10 @@ Unreleased
 ### Security
 - INFO logs in the service-layer and websocket publishers include only event class and identifiers,
   excluding context and configuration; the websocket publisher no longer prints events to stdout.
-  Authorized websocket payloads are unchanged. Other DEBUG and failure logs can still contain payloads.
+  Authorized websocket payloads are unchanged.
+- Message-bus DEBUG and handler failure logs include only the message class and identifiers,
+  retaining failure tracebacks without logging message or handler reprs. Deployed-service insertion
+  emits no stdout output.
 - A websocket connection that has not authenticated within `WEBSOCKET_AUTH_TIMEOUT_SECONDS` (default 10)
   after it was accepted is closed with code `1008` and the reason `authentication timeout`. The time
   covers waiting for the token and verifying it. Before, a client could keep any number of connections
