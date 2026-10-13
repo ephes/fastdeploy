@@ -11,6 +11,11 @@ class WebsocketEventpublisher:
         self.cm = cm
 
     async def __call__(self, channel: str, event: events.Event):
-        print("websocket event publisher: ", channel, event)
-        logging.info("publishing: event=%s", event)
+        logger.info(
+            "Publishing event=%s id=%s service_id=%s deployment_id=%s",
+            type(event).__name__,
+            getattr(event, "id", None),
+            getattr(event, "service_id", None),
+            getattr(event, "deployment_id", None),
+        )
         await self.cm.publish(channel, event)

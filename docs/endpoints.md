@@ -388,6 +388,12 @@ tab with a full receive buffer) is closed with code `1013` and forgotten, so it 
 the other clients nor the request that produced the event. Events are not queued for it: reconnect,
 authenticate again and reload the current state over the REST endpoints.
 
+Event publication diagnostics at INFO contain only the event class and its `id`, `service_id` and
+`deployment_id` when present. Event payloads (including context, configuration, names and messages)
+are omitted from these logs and the publisher emits no stdout output. Authorized websocket delivery
+keeps the full event payload. Enable INFO logging to see these diagnostics. This contract covers
+these two publisher INFO calls only; message-bus DEBUG and failure logs can still contain payloads.
+
 ## Authentication Summary
 
 | Endpoint | Required Token Type |
