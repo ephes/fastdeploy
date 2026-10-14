@@ -95,6 +95,12 @@ Unreleased
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
 ### Bug Fixes
+- The steps planned for a new deployment come from the last successful deployment of the service again.
+  A deployment counted as successful as long as it had at most one failed step, so a deployment that
+  failed in one step (or was finished as orphaned) became the plan for the next one, including its
+  failure step and without the steps that never ran. Now a deployment with any failed step is not
+  successful in either repository, and the plan comes from the last deployment whose steps all succeeded,
+  or from the service config.
 - Deploy task: a JSON object without a `name` on the deploy script's output is no longer printed as a
   whole to stdout. It is logged to the task's stderr like every other skipped or dropped result, with
   its size and up to 10 shortened keys and never its values, which may hold secrets.

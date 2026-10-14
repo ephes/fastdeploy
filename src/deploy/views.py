@@ -112,9 +112,9 @@ async def get_steps_from_last_deployment(
     last_successful_deployment_id = await uow.deployments.get_last_successful_deployment_id(service.id)
     if last_successful_deployment_id is not None:
         # try to get steps from last successful deployment
-        steps_from_db = await uow.steps.get_steps_by_deployment(last_successful_deployment_id)
-        # the orphan marker is not a step of the deploy script
-        steps.extend(step for step in steps_from_db if step.name != model.ORPHANED_STEP_NAME)
+        # a successful deployment has only successful steps, so it never
+        # contains the failure step recorded for an orphaned deployment
+        steps.extend(await uow.steps.get_steps_by_deployment(last_successful_deployment_id))
     return steps
 
 

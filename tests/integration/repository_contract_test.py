@@ -90,3 +90,48 @@ async def test_sqlalchemy_repositories_return_plain_models(uow, user_in_db, serv
 @pytest.mark.db("in_memory")
 async def test_in_memory_repositories_return_plain_models(uow, user_in_db, service_in_db, deployment_in_db):
     await assert_repository_contract_returns_plain_models(uow, user_in_db, service_in_db, deployment_in_db)
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_last_successful_deployment_requires_all_steps_successful(uow, service_in_db):
+    now = datetime.now(timezone.utc)
+
+    async def add(minutes_ago, step_states, finished=True):
+        started = now - timedelta(minutes=minutes_ago)
+        deployment = model.Deployment(
+            service_id=service_in_db.id,
+            origin="github",
+            user="fastdeploy",
+            started=started,
+            finished=started if finished else None,
+            context={},
+        )
+        async with uow:
+            await uow.deployments.add(deployment)
+            await uow.commit()
+            for index, state in enumerate(step_states):
+                await uow.steps.add(
+                    model.Step(
+                        name=f"step {index}",
+                        state=state,
+                        started=started,
+                        finished=started,
+                        deployment_id=deployment.id,
+                    )
+                )
+            await uow.commit()
+        return deployment
+
+    async def last_successful_id():
+        async with uow:
+            return await uow.deployments.get_last_successful_deployment_id(service_in_db.id)
+
+    assert await last_successful_id() is None
+    await add(60, ["failure"])
+    assert await last_successful_id() is None
+
+    successful = await add(50, ["success", "success"])
+    await add(40, ["success", "failure"])  # one failed step is enough
+    await add(30, [])  # no steps at all
+    await add(20, ["success"], finished=False)  # still running
+    assert await last_successful_id() == successful.id
