@@ -219,7 +219,7 @@ Registered services must provide a deployment script that:
 2. **Handles FastDeploy Config Structure**
    ```python
    config = json.load(open(args.config))
-   deployment_id = config.get('deployment_id')
+   deployment_id = config.get('deployment_id')  # id of this deployment as a string, e.g. "42"
    service_name = config.get('deploy_script', '').split('/')[0]
    ```
 

@@ -48,6 +48,7 @@ class TestGetDeployEnvironmentSecure:
         assert "DEPLOYMENT_FINISH_URL" in result
         assert "CONTEXT" in result
         assert "PATH_FOR_DEPLOY" in result
+        assert result["DEPLOYMENT_ID"] == "test-123"
 
     def test_get_deploy_environment_uses_configured_deployment_token_ttl(self):
         deployment = Deployment(
@@ -104,6 +105,7 @@ class TestRunDeploySecure:
         mock_secure_config_class.return_value = mock_secure_config
 
         environment = {
+            "DEPLOYMENT_ID": "42",
             "ACCESS_TOKEN": "secret-token",
             "DEPLOY_SCRIPT": "/deploy.sh",
             "STEPS_URL": "https://api/steps",
@@ -115,8 +117,9 @@ class TestRunDeploySecure:
         with patch("deploy.tasks.get_deploy_environment", return_value=environment):
             run_deploy(environment)
 
-        # Verify secure config was created
+        # Verify secure config was created for the deployment
         mock_secure_config.create_deployment_config.assert_called_once()
+        assert mock_secure_config.create_deployment_config.call_args.kwargs["deployment_id"] == "42"
 
         # Verify subprocess was started with config file path
         mock_popen.assert_called_once()
@@ -176,6 +179,7 @@ class TestDeployTaskSecure:
 
             # Create DeployTask from config
             task = DeployTask(
+                deployment_id="test-deploy-123",
                 deploy_script="/test/deploy.sh",
                 access_token="test-token",
                 steps_url="https://api/steps",
@@ -192,6 +196,7 @@ class TestDeployTaskSecure:
     async def test_deploy_steps_no_preserve_env(self):
         """Test that deploy_steps doesn't use --preserve-env."""
         task = DeployTask(
+            deployment_id="42",
             deploy_script="/test/deploy.sh",
             access_token="token",
             steps_url="https://api/steps",
@@ -228,6 +233,7 @@ class TestDeployTaskSecure:
     async def test_deploy_steps_with_config_file(self, temp_dir):
         """Test deploy_steps using config file instead of env vars."""
         task = DeployTask(
+            deployment_id="42",
             deploy_script="/deploy.sh",
             access_token="secure-token",
             steps_url="https://api/steps",
@@ -250,6 +256,8 @@ class TestDeployTaskSecure:
                 config_file_path = env["DEPLOY_CONFIG_FILE"]
                 # Check file exists when subprocess is created (before cleanup)
                 assert Path(config_file_path).exists(), f"Config file should exist: {config_file_path}"
+                # the deploy script sees the id of its deployment
+                assert json.loads(Path(config_file_path).read_text())["deployment_id"] == "42"
             return mock_proc
 
         with patch("deploy.tasks.settings") as mock_settings:
@@ -328,6 +336,7 @@ class TestSecurityVerification:
         mock_create_subprocess.return_value = mock_proc
 
         task = DeployTask(
+            deployment_id="42",
             deploy_script="/deploy.sh",
             access_token="token",
             steps_url="https://api/steps",

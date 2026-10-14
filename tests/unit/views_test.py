@@ -169,30 +169,38 @@ async def test_finished_deployment_is_not_orphaned():
     assert not views.deployment_is_orphaned(deployment, steps, now)
 
 
-async def test_get_steps_to_do_skips_orphan_marker_step(uow, service_in_db):
-    service = service_in_db
-    started = datetime.now(timezone.utc) - timedelta(days=1)
+async def add_finished_deployment(uow, service, started, step_states):
     deployment = model.Deployment(
         service_id=service.id, origin="GitHub", user="foobar", started=started, finished=started
     )
     async with uow:
         await uow.deployments.add(deployment)
         await uow.commit()
-        await uow.steps.add(
-            model.Step(
-                name="reported", started=started, finished=started, state="success", deployment_id=deployment.id
+        for name, state in step_states:
+            await uow.steps.add(
+                model.Step(name=name, started=started, finished=started, state=state, deployment_id=deployment.id)
             )
-        )
-        await uow.steps.add(
-            model.Step(
-                name=model.ORPHANED_STEP_NAME,
-                started=started,
-                finished=started,
-                state="failure",
-                deployment_id=deployment.id,
-            )
-        )
         await uow.commit()
+    return deployment
 
-    steps = await views.get_steps_to_do_from_service(service, uow=uow)
-    assert [step.name for step in steps] == ["reported"]
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+@pytest.mark.parametrize(
+    "failed_steps",
+    [
+        [("failed", "failure")],
+        [("failed", "failure"), ("also failed", "failure")],
+        [(model.ORPHANED_STEP_NAME, "failure")],
+    ],
+)
+async def test_get_steps_to_do_ignores_deployment_with_failed_step(uow, service_in_db, failed_steps):
+    """A deployment with any failed step is not successful, the plan comes from the one before."""
+    now = datetime.now(timezone.utc)
+    successful = await add_finished_deployment(
+        uow, service_in_db, now - timedelta(days=2), [("first", "success"), ("second", "success")]
+    )
+    await add_finished_deployment(uow, service_in_db, now - timedelta(days=1), [("first", "success"), *failed_steps])
+
+    assert await uow.deployments.get_last_successful_deployment_id(service_in_db.id) == successful.id
+    steps = await views.get_steps_to_do_from_service(service_in_db, uow=uow)
+    assert [(step.name, step.state) for step in steps] == [("first", "pending"), ("second", "pending")]

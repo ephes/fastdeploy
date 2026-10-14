@@ -41,6 +41,7 @@ class RecordingClient:
 @pytest.fixture
 def task():
     task = DeployTask(
+        deployment_id="1",
         deploy_script="/never-executed/deploy.sh",
         access_token="token",
         steps_url="http://test/steps",

@@ -258,27 +258,28 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
     async def get_last_successful_deployment_id(self, service_id):
         """
         Returns the id of the last successful deployment for a service.
+
+        A deployment is successful if it is finished, has at least one step
+        and all of its steps succeeded. A single failed step (including the
+        failure step recorded for an orphaned deployment) disqualifies it.
         """
         statement = text(
             """
-            select step.deployment_id
-            from deployment, step
-            where step.deployment_id=deployment.id
-            and step.state = 'success'
-            and deployment.service_id = :service_id
+            select deployment.id
+            from deployment
+            where deployment.service_id = :service_id
             and deployment.finished is not null
-            and step.deployment_id not in (
-                select distinct(step.deployment_id)
-                from step, deployment
-                where step.deployment_id=deployment.id
-                and deployment.service_id = :service_id
-                and step.state != 'success'
-                group by step.deployment_id
-                having count(step.id) > 1
+            and exists (
+                select 1 from step
+                where step.deployment_id = deployment.id
+                and step.state = 'success'
             )
-            group by step.deployment_id, deployment.started
-            having count(step.id) > 0
-            order by deployment.started desc
+            and not exists (
+                select 1 from step
+                where step.deployment_id = deployment.id
+                and step.state != 'success'
+            )
+            order by deployment.started desc nulls last
             limit 1
         """
         )
@@ -332,9 +333,7 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
                 continue
 
             steps = await self.step_repository.get_steps_by_deployment(deployment.id)
-            successful_steps = [step for step in steps if step.state == "success"]
-            failed_steps = [step for step in steps if step.state != "success"]
-            if not successful_steps or len(failed_steps) > 1:
+            if not steps or any(step.state != "success" for step in steps):
                 continue
 
             if last_successful is None:

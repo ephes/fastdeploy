@@ -50,6 +50,7 @@ def task_kwargs():
     task_attrs = ["deploy_script", "access_token", "steps_url", "deployment_finish_url"]
     kwargs = {attr: attr for attr in task_attrs}
     kwargs["path_for_deploy"] = "/tmp/deploy"
+    kwargs["deployment_id"] = "1"
     return kwargs
 
 
