@@ -105,13 +105,14 @@ new tokens, then unset the setting.
 {"type": "deployment", "deployment": "<deployment_id>", "exp": "<expiration>"}
 ```
 
-**Default Expiration**: 30 minutes
+**Default Expiration**: 480 minutes (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`)
 
 **Permitted Operations**:
 - Report step progress for the specific deployment
 - Mark deployment as finished
 
-**Usage**: Passed to deployment process via `ACCESS_TOKEN` environment variable
+**Usage**: Written as `access_token` to the deployment's config file (mode `0640`), which the deploy
+task reads and passes to the deploy script with `--config`; it is not passed in an environment variable
 
 ### Config Token
 

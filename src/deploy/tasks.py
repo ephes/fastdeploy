@@ -84,6 +84,7 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
         expires_delta=timedelta(minutes=settings.deployment_access_token_expire_minutes),
     )
     environment = {
+        "DEPLOYMENT_ID": str(deployment.id),
         "ACCESS_TOKEN": access_token,
         "DEPLOY_SCRIPT": deploy_script,
         "STEPS_URL": settings.steps_url,
@@ -116,6 +117,8 @@ class DeployTask(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=None)
 
+    # passed on to the deploy script as ``deployment_id`` in its config file
+    deployment_id: str
     deploy_script: str
     access_token: str
     steps_url: str
@@ -237,7 +240,7 @@ class DeployTask(BaseSettings):
         # Create secure config file for subprocess
         secure_config = SecureConfig()
         config_path = secure_config.create_deployment_config(
-            deployment_id=getattr(self, "deployment_id", "deploy_subprocess"),
+            deployment_id=self.deployment_id,
             access_token=self.access_token,
             deploy_script=self.deploy_script,
             steps_url=self.steps_url,
@@ -450,6 +453,7 @@ async def run_deploy_task():  # pragma: no cover
     if config_data:
         # Use configuration from secure file
         deploy_task = DeployTask(
+            deployment_id=config_data.get("deployment_id", ""),
             deploy_script=config_data.get("deploy_script", ""),
             access_token=config_data.get("access_token", ""),
             steps_url=config_data.get("steps_url", ""),

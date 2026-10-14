@@ -95,6 +95,11 @@ Unreleased
   lifetime no longer block. Addresses the per-service limit from security review #07.
 
 ### Bug Fixes
+- Deploy scripts get the id of their deployment as `deployment_id` in the config file passed with
+  `--config` (as a string, e.g. `"42"`), as the deployment docs promise. Before, it was always
+  `"deploy_subprocess"`. The auth docs now state the deployment token lifetime of 480 minutes
+  (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`) and that the token is passed in the config file, not in an
+  environment variable.
 - The steps planned for a new deployment come from the last successful deployment of the service again.
   A deployment counted as successful as long as it had at most one failed step, so a deployment that
   failed in one step (or was finished as orphaned) became the plan for the next one, including its
