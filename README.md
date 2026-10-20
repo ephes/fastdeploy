@@ -82,6 +82,8 @@ SUDO_USER=deploy  # User to run deployment scripts as (default: jochen)
 DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS=300  # Ignore very new deployments during orphan reconciliation
 
 # Service tokens
+SERVICE_TOKEN_ADMIN_USERS='["operator"]'  # Existing users allowed to issue tokens via API (default [])
+RESTORE_POLICIES='{"echoport-backup":{"bucket":"backups","prefix":"echoport/"}}'  # Default {} denies restores
 SERVICE_TOKEN_MAX_EXPIRE_DAYS=90  # Longest lifetime a service token can be issued with
 # LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL=2026-11-01T00:00:00+00:00  # Accept tokens without jti until then
 SERVICE_TOKEN_RETENTION_DAYS=30  # Delete expired/revoked token records older than this
@@ -103,7 +105,7 @@ API_URL=http://localhost:8000
 
 Only one deployment per service runs at a time: `POST /deployments/` returns `409 Conflict` (naming the running deployment id) while the service has an active deployment. See [docs/endpoints.md](docs/endpoints.md#post-deployments).
 
-Service tokens are issued via `POST /service-token` or `python commands.py issueservicetoken --service S --user U --days N`, and can be revoked via `DELETE /service-token/{jti}` or `python commands.py revokeservicetoken <jti>`. Tokens issued before revocation support (without `jti`) are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set; see the cutover steps in [docs/auth.md](docs/auth.md#service-token). Records of tokens expired or revoked more than `SERVICE_TOKEN_RETENTION_DAYS` days ago are deleted on token issue or with `python commands.py purgeservicetokens`. See [docs/auth.md](docs/auth.md#service-token).
+Service tokens are issued by configured administrators via `POST /service-token` or `python commands.py issueservicetoken --service S --user U --days N`, and can be revoked via `DELETE /service-token/{jti}` or `python commands.py revokeservicetoken <jti>`. Tokens issued before revocation support (without `jti`) are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set; see the cutover steps in [docs/auth.md](docs/auth.md#service-token). Records of tokens expired or revoked more than `SERVICE_TOKEN_RETENTION_DAYS` days ago are deleted on token issue or with `python commands.py purgeservicetokens`. See [docs/auth.md](docs/auth.md#service-token).
 
 ### Service Configuration
 

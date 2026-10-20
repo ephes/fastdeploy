@@ -117,6 +117,9 @@ cd /path/to/fastdeploy
 ./scripts/test_deployment.py --service test_dummy
 ```
 
+The script obtains a service token via the API. Its `--username` (default `jochen`) must be an
+existing user listed in the server's `SERVICE_TOKEN_ADMIN_USERS`; other users receive 403.
+
 This will:
 1. Authenticate with FastDeploy
 2. Get a service token for test_dummy

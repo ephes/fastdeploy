@@ -2,6 +2,7 @@
 """
 Combined FastDeploy deployment test script.
 Gets service token and deploys with real-time step monitoring on terminal.
+The authenticated username must be listed in SERVICE_TOKEN_ADMIN_USERS.
 """
 
 import argparse
@@ -192,7 +193,7 @@ async def main():
     parser.add_argument(
         "--username",
         default="jochen",
-        help="Username for authentication",
+        help="Administrator username listed in the server SERVICE_TOKEN_ADMIN_USERS",
     )
     parser.add_argument(
         "--service",

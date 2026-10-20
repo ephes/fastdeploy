@@ -2,6 +2,15 @@ Unreleased
 ==========
 
 ### Security
+- Restrict `POST /service-token` to existing users named in `SERVICE_TOKEN_ADMIN_USERS`
+  (default `[]`, non-admins receive 403). Existing tokens and server-local administrative
+  issuance remain supported. The UI can start runs only for configured administrators; it shows
+  issuance refusals without sending a deployment request with a missing token.
+- Validate Echoport restore bucket and archive key against `RESTORE_POLICIES`, keyed by the
+  authenticated service name. Missing policy, wrong bucket, traversal, absolute paths and URL
+  keys receive 422 before any run starts. All run types continue to select only the token's
+  registered service. Configure the admin list and restore policies before restart; no migration
+  or token rotation is needed. See [authentication docs](docs/auth.md#restore-input-policy).
 - INFO logs in the service-layer and websocket publishers include only event class and identifiers,
   excluding context and configuration; the websocket publisher no longer prints events to stdout.
   Authorized websocket payloads are unchanged.

@@ -32,15 +32,26 @@ nor reveals by its duration whether a user exists.
 **Permitted Operations**:
 - View and manage services
 - View deployment history
-- Generate service tokens
+- Generate service tokens only if listed in `SERVICE_TOKEN_ADMIN_USERS`
 - Synchronize services from filesystem
 
 ### Service Token
 
 **Purpose**: Authenticate services for initiating deployments
 
-**Obtaining**: POST to `/service-token` with user token authentication, or on the server with
+**Obtaining**: POST to `/service-token` with an administrator user token, or on the server with
 `python commands.py issueservicetoken --service S --user U --days N [--origin O]` (prints only the token).
+
+FastDeploy has no stored admin/staff role. `SERVICE_TOKEN_ADMIN_USERS` is an explicit JSON list of
+existing user names (for example `SERVICE_TOKEN_ADMIN_USERS='["operator"]'`). It defaults to `[]`:
+all logged-in users receive 403 on issuance until an operator configures an administrator.
+The check uses the authenticated database user, not claims supplied by the client. The web UI
+obtains a service token when starting a run, so non-admin users can still log in and view history
+but cannot start new runs through the UI. The services list shows the issuance error and sends
+no deployment request when issuance is refused. Existing service tokens keep their expiry, revocation
+and legacy-grace behavior; removing an issuer from the list does not revoke their tokens.
+The server-local CLI remains an out-of-band administrative operation; `--user` attributes the
+token to an existing user and does not grant that user API issuance rights.
 
 **Payload Structure**:
 ```json
@@ -89,7 +100,7 @@ new tokens, then unset the setting.
 - View deployment details for the service
 
 **Example Workflow**:
-1. User logs into web interface with user token
+1. Administrator logs into web interface with user token
 2. Generates service token for specific service
 3. Stores service token in CI/CD system (e.g., GitHub Secrets)
 4. CI/CD uses service token to trigger deployments after successful builds
@@ -142,3 +153,36 @@ valid with the same secret and algorithm. No asymmetric signing dependency is ne
 Expiry retains the previous whole-second boundary; tokens without `exp` remain accepted
 by the decoder, while every issuance path adds `exp`. Service-token revocation and the
 legacy grace deadline remain unchanged.
+
+## Restore input policy
+
+All deploy, backup and restore runs use the single `POST /deployments/` endpoint. The verified
+service token selects the service and its registered executable. Body or query service identifiers
+cannot select another service. Recorded tokens must also match the service and user in their record.
+
+Echoport runners in ops-library's `echoport_backup` role read `context.env.ECHOPORT_ACTION`
+(`restore` selects restore; some variants strip whitespace and lowercase it), `ECHOPORT_BUCKET`
+and `ECHOPORT_KEY`. FastDeploy uses the normalized action to detect restores. FastDeploy checks these inputs
+before storing a deployment, publishing events or launching a runner. A restore, or any supplied
+`ECHOPORT_KEY`, requires an explicit policy keyed by the **authenticated service name**:
+
+```shell
+RESTORE_POLICIES='{"echoport-backup":{"bucket":"backups","prefix":"echoport/"}}'
+```
+
+Use the actual registered service name and its backup object prefix; they need not have the same
+name. Prefixes end in `/` and consist of ASCII letters, digits, `_`, `-` and `/` between nonempty
+components. The request must explicitly supply the configured bucket and a key below that prefix.
+Keys allow ASCII letters, digits, `_`, `-`, `.`, and `/` between nonempty components; `..` anywhere,
+`.` components, absolute paths, URL schemes, percent encoding, backslashes and control characters
+are rejected. Missing policy, missing/wrong bucket or invalid/missing key returns 422 with a clear
+error and starts nothing. Defaults deny restores; ordinary deploys and backups without an archive
+key need no policy. This policy does not validate archive contents or replace runner-side checksum,
+extraction and destination checks. Other runner-specific context remains subject to the registered
+runner's own validation. The `fastdeploy_register_service` role also passes `context.env` to its
+registered deployment runner; this change does not alter those roles or allow a different executable.
+
+Deployment requires configuring `SERVICE_TOKEN_ADMIN_USERS` in the managed application environment,
+and `RESTORE_POLICIES` for each service that should support restores, then restarting FastDeploy.
+No database migration or token rotation is required. Existing tokens are subject to the restore
+input policy on their next restore request. No ops-library changes are included.

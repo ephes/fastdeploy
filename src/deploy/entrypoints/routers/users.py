@@ -86,7 +86,7 @@ class ServiceTokenOut(BaseModel):
     expires_at: datetime
 
 
-@router.post("/service-token")
+@router.post("/service-token", responses={403: {"description": "Service token issuance requires an administrator"}})
 async def service_token(
     service_in: ServiceIn,
     user: Annotated[User, Depends(get_current_active_user)],
@@ -94,12 +94,17 @@ async def service_token(
 ) -> ServiceTokenOut:
     """
     Obtain a service token for the specified service/origin/current_user.
+    Requires membership in SERVICE_TOKEN_ADMIN_USERS (otherwise 403).
 
     The token is recorded with its id (`jti`), which can be used to revoke it
     via `DELETE /service-token/{jti}`.
     """
     if user.name is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    if user.name not in settings.service_token_admin_users:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Service token issuance requires an administrator"
+        )
     token, record = await auth.issue_service_token(
         service=service_in.service,
         origin=service_in.origin,
