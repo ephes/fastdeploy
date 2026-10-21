@@ -2,10 +2,20 @@ import typing
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import BaseModel, Field, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
+
+RestorePrefix = typing.Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/$")]
+
+
+class RestorePolicy(BaseModel):
+    """Operator-controlled storage boundary for one service's restore runner."""
+
+    bucket: str = Field(pattern=r"^[a-z0-9][a-z0-9.-]*[a-z0-9]$")
+    # One runner service can serve several Echoport targets, each under its own prefix.
+    prefixes: list[RestorePrefix] = Field(min_length=1)
 
 
 class Settings(BaseSettings):
@@ -20,6 +30,10 @@ class Settings(BaseSettings):
     deployment_orphan_reconcile_delay_seconds: int = 300
     # Upper limit for the lifetime of a service token in days.
     service_token_max_expire_days: int = 90
+    # No implicit admins: configure existing user names explicitly.
+    service_token_admin_users: list[str] = []
+    # Keyed by the authenticated service name, never by request context.
+    restore_policies: dict[str, RestorePolicy] = {}
     # Service tokens issued before revocation support have no "jti" claim and
     # cannot be revoked. They are rejected unless this is set to a point in time
     # (ISO 8601 with timezone) until which they are still accepted.

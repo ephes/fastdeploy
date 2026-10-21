@@ -12,6 +12,11 @@ from deploy.entrypoints.routers.users import ServiceIn, UserOut
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def token_admin(monkeypatch):
+    monkeypatch.setattr(settings, "service_token_admin_users", ["user"])
+
+
 async def test_login_required_without_token(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(app.url_path_for("read_users_me"))

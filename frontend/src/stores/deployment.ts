@@ -99,14 +99,15 @@ export const useDeployments = defineStore("deployments", {
      *
      * The service token is only set on the client of this one call.
      *
-     * Returns null when the login session ended while waiting (logout,
+     * Returns null if token issuance fails; the services store keeps the error.
+     * Also returns null when the login session ended while waiting (logout,
      * or another login): the caller belongs to a session that is over
      * and must not act on the result, e.g. navigate to the deployment.
      * If that happens before the request was sent, it is not sent.
      *
      * @param serviceName {string} the name of the service to deploy
      * @param client {HttpClient} the http client to use - settable for testing
-     * @returns deployment {Deployment | null} the started deployment, null if the session ended
+     * @returns deployment {Deployment | null} the started deployment, null on issuance failure or session end
      */
     async startDeployment(
       serviceName: string,
@@ -118,7 +119,7 @@ export const useDeployments = defineStore("deployments", {
         serviceName,
         "frontend"
       );
-      if (!isCurrentSession()) {
+      if (!isCurrentSession() || !serviceToken) {
         return null;
       }
       client.options.headers.Authorization = `Bearer ${serviceToken}`;

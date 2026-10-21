@@ -1,4 +1,6 @@
 import { vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import ServiceList from "../src/components/ServiceList.vue";
 import { initPinia, createEvent } from "./conftest";
 import { createWebsocketClient } from "../src/websocket";
 import { pythonToJavascript } from "../src/converters";
@@ -51,7 +53,7 @@ describe("Deployment Store Actions", () => {
   it("starts a deployment", async () => {
     const servicesStore = useServices();
     const deploymentsStore = useDeployments();
-    servicesStore.fetchServiceToken = vi.fn();
+    servicesStore.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
     const client = {
       async post<T = unknown>(): Promise<T> {
         return new Promise<any>((resolve, reject) => {
@@ -69,7 +71,7 @@ describe("Deployment Store Actions", () => {
   it("shows a started deployment under its service right away", async () => {
     const servicesStore = useServices();
     const deploymentsStore = useDeployments();
-    servicesStore.fetchServiceToken = vi.fn();
+    servicesStore.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
     // what the backend answers: snake case keys, dates as strings
     const startResponse = {
       id: 2,
@@ -102,7 +104,7 @@ describe("Deployment Store Actions", () => {
     const deploymentsStore = useDeployments();
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(deploymentsStore);
-    servicesStore.fetchServiceToken = vi.fn();
+    servicesStore.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
     let respond!: (value: any) => void;
     const client = {
       post: () => new Promise<any>((resolve) => (respond = resolve)),
@@ -152,6 +154,31 @@ describe("Deployment Store Actions", () => {
     expect(deploymentsStore.client).not.toBe(client);
     expect(JSON.stringify(deploymentsStore.client.options)).not.toContain("service-token");
     expect(JSON.stringify(servicesStore.client.options)).not.toContain("service-token");
+  });
+
+  it("shows the issuance refusal and never starts a run with a missing token", async () => {
+    const servicesStore = useServices();
+    const deploymentsStore = useDeployments();
+    servicesStore.client = {
+      post: vi.fn().mockRejectedValue({
+        message: "Forbidden",
+        body: { detail: "Service token issuance requires an administrator" },
+      }),
+      options: { headers: {} },
+    } as any;
+    const client = { post: vi.fn(), options: { headers: {} } } as any;
+    const started = await deploymentsStore.startDeployment("fastdeploy", client);
+    expect(started).toBeNull();
+    expect(client.post).not.toHaveBeenCalled();
+    expect(client.options.headers.Authorization).toBeUndefined();
+    expect(deploymentsStore.deployments).toStrictEqual({});
+    const wrapper = mount(ServiceList, {
+      global: { stubs: { "router-link": true, "progress-count": true } },
+    });
+    expect(wrapper.find('[role="alert"]').text()).toContain(
+      "Service token issuance requires an administrator"
+    );
+    wrapper.unmount();
   });
 
   it("fetches the list of deployments", async () => {

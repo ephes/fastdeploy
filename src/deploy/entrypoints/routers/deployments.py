@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from ... import views
 from ...config import settings
 from ...domain import commands, events, model
+from ...restore import validate_restore_context
 from ...tasks import DeploymentContext
 from ..dependencies import (
     get_current_active_deployment,
@@ -109,6 +110,7 @@ async def finish_deployment(
     responses={
         409: {"description": "Another deployment of this service is still running"},
         413: {"description": "The deployment context is too large"},
+        422: {"description": "Invalid context or restore input outside the service storage policy"},
         500: {"description": "The deploy task could not be started; the deployment was finished as failed"},
     },
 )
@@ -148,6 +150,11 @@ async def start_deployment(
                 f"at most {settings.deployment_context_max_bytes} are allowed"
             ),
         )
+
+    try:
+        validate_restore_context(service.name, context.env)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)) from e
 
     # register deployment started handler to get the deployment_id
     class DeploymentStartedHandler:

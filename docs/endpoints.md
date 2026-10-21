@@ -28,7 +28,7 @@ username=<username>&password=<password>
 
 ### POST /service-token
 **Purpose**: Generate service token for deployments
-**Authentication**: User token required
+**Authentication**: User token for a user listed in `SERVICE_TOKEN_ADMIN_USERS`; otherwise **403**
 **Request Body**:
 ```json
 {
@@ -148,7 +148,13 @@ waits for it and is then refused. Retry after the deployment has finished.
 
 ### POST /deployments/
 **Purpose**: Initiate new deployment
-**Authentication**: Service token required
+**Authentication**: Service token required; only its registered service can run
+
+Echoport restores (`env.ECHOPORT_ACTION="restore"`) and any supplied `env.ECHOPORT_KEY` require
+a configured `RESTORE_POLICIES` entry for that service, an explicit matching `ECHOPORT_BUCKET`,
+and a relative `ECHOPORT_KEY` below one of its allowed prefixes. Missing or invalid restore input returns
+**422** and starts nothing. See [restore policy](auth.md#restore-input-policy).
+
 **Request Body**:
 ```json
 {
@@ -415,7 +421,7 @@ may still contain details supplied by a handler. Deployed-service insertion emit
 |----------|-------------------|
 | `POST /token` | None (username/password) |
 | `GET /users/me` | User Token |
-| `POST /service-token` | User Token |
+| `POST /service-token` | Administrator user token (`SERVICE_TOKEN_ADMIN_USERS`) |
 | `DELETE /service-token/{jti}` | User Token |
 | `GET /services/*` | User Token |
 | `POST /services/sync` | User Token |

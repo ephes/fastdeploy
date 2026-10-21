@@ -24,7 +24,7 @@ async function forceSync() {
 async function startDeployment(serviceName: string) {
   const deployment: Deployment | null = await deploymentStore.startDeployment(serviceName);
   if (deployment === null) {
-    // the login session ended while waiting: not ours to show anymore
+    // Token issuance failed or the login session ended while waiting.
     return;
   }
   router.push({ name: 'deployment-detail', params: { id: deployment.id } });
@@ -47,6 +47,9 @@ async function startDeployment(serviceName: string) {
     </div>
     <div v-if="serviceStore.syncErrorMessage" class="sync-error" role="alert">
       {{ serviceStore.syncErrorMessage }}
+    </div>
+    <div v-if="serviceStore.serviceTokenErrorMessage" role="alert">
+      {{ serviceStore.serviceTokenErrorMessage }}
     </div>
     <br />
     <table class="service-list">
