@@ -2,6 +2,10 @@ Unreleased
 ==========
 
 ### Security
+- Update the locked certifi CA bundle to 2026.10.19 for the eMudhra/emSign CA compromise
+  ([GHSA-6q48-6c7w-9gw2](https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2)).
+  Lock-only change. Re-sync deployed environments and restart long-running processes so they load
+  the new bundle.
 - Restrict `POST /service-token` to existing users named in `SERVICE_TOKEN_ADMIN_USERS`
   (default `[]`, non-admins receive 403). Existing tokens and server-local administrative
   issuance remain supported. The UI can start runs only for configured administrators; it shows
