@@ -152,7 +152,7 @@ waits for it and is then refused. Retry after the deployment has finished.
 
 Echoport restores (`env.ECHOPORT_ACTION="restore"`) and any supplied `env.ECHOPORT_KEY` require
 a configured `RESTORE_POLICIES` entry for that service, an explicit matching `ECHOPORT_BUCKET`,
-and a relative `ECHOPORT_KEY` below its allowed prefix. Missing or invalid restore input returns
+and a relative `ECHOPORT_KEY` below one of its allowed prefixes. Missing or invalid restore input returns
 **422** and starts nothing. See [restore policy](auth.md#restore-input-policy).
 
 **Request Body**:

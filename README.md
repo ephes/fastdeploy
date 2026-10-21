@@ -83,7 +83,7 @@ DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS=300  # Ignore very new deployments dur
 
 # Service tokens
 SERVICE_TOKEN_ADMIN_USERS='["operator"]'  # Existing users allowed to issue tokens via API (default [])
-RESTORE_POLICIES='{"echoport-backup":{"bucket":"backups","prefix":"echoport/"}}'  # Default {} denies restores
+RESTORE_POLICIES='{"echoport-backup":{"bucket":"backups","prefixes":["archive/","work_app/"]}}'  # Default {} denies restores
 SERVICE_TOKEN_MAX_EXPIRE_DAYS=90  # Longest lifetime a service token can be issued with
 # LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL=2026-11-01T00:00:00+00:00  # Accept tokens without jti until then
 SERVICE_TOKEN_RETENTION_DAYS=30  # Delete expired/revoked token records older than this

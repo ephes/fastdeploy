@@ -167,12 +167,15 @@ before storing a deployment, publishing events or launching a runner. A restore,
 `ECHOPORT_KEY`, requires an explicit policy keyed by the **authenticated service name**:
 
 ```shell
-RESTORE_POLICIES='{"echoport-backup":{"bucket":"backups","prefix":"echoport/"}}'
+RESTORE_POLICIES='{"echoport-backup":{"bucket":"backups","prefixes":["archive/","work_app/"]}}'
 ```
 
-Use the actual registered service name and its backup object prefix; they need not have the same
-name. Prefixes end in `/` and consist of ASCII letters, digits, `_`, `-` and `/` between nonempty
-components. The request must explicitly supply the configured bucket and a key below that prefix.
+Use the actual registered service name and the object prefixes of every Echoport target that runs
+through it; they need not have the same name. A shared runner (such as `echoport-backup`, which
+serves several targets) lists each target's prefix, and a renamed target lists its old prefix too
+while restorable archives remain there. `prefixes` must be a nonempty list. Prefixes end in `/` and
+consist of ASCII letters, digits, `_`, `-` and `/` between nonempty components. The request must
+explicitly supply the configured bucket and a key below one of those prefixes.
 Keys allow ASCII letters, digits, `_`, `-`, `.`, and `/` between nonempty components; `..` anywhere,
 `.` components, absolute paths, URL schemes, percent encoding, backslashes and control characters
 are rejected. Missing policy, missing/wrong bucket or invalid/missing key returns 422 with a clear
@@ -182,7 +185,17 @@ extraction and destination checks. Other runner-specific context remains subject
 runner's own validation. The `fastdeploy_register_service` role also passes `context.env` to its
 registered deployment runner; this change does not alter those roles or allow a different executable.
 
-Deployment requires configuring `SERVICE_TOKEN_ADMIN_USERS` in the managed application environment,
-and `RESTORE_POLICIES` for each service that should support restores, then restarting FastDeploy.
-No database migration or token rotation is required. Existing tokens are subject to the restore
-input policy on their next restore request. No ops-library changes are included.
+### Upgrading
+
+Unset, both settings fail closed: no user can issue tokens through the API or start runs from the
+web UI (403), and every Echoport restore is refused with 422 before anything starts. Already issued
+service tokens keep working, scheduled backups are unaffected (they send `ECHOPORT_KEY_PREFIX`,
+not `ECHOPORT_KEY`), and the server-local `issueservicetoken` command that provisioning uses is
+unchanged.
+
+To keep the web UI and restores available, set `SERVICE_TOKEN_ADMIN_USERS` and a
+`RESTORE_POLICIES` entry for every runner service that should support restores in the managed
+application environment before restarting FastDeploy. Both values are JSON. No database migration
+or token rotation is required. Existing tokens are subject to the restore input policy on their
+next restore request. The deployment roles that render FastDeploy's environment need to support
+both settings before they can be set on a managed host.

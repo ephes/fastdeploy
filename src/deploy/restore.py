@@ -24,7 +24,6 @@ def validate_restore_context(service_name: str, env: dict) -> None:
         or not re.fullmatch(r"[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)+", key)
         or ".." in key
         or any(part in {"", "."} for part in key.split("/"))
-        or not key.startswith(policy.prefix)
-        or len(key) <= len(policy.prefix)
+        or not any(key.startswith(prefix) and len(key) > len(prefix) for prefix in policy.prefixes)
     ):
-        raise ValueError("ECHOPORT_KEY must be a relative archive key under this service's restore prefix")
+        raise ValueError("ECHOPORT_KEY must be a relative archive key under one of this service's restore prefixes")

@@ -24,7 +24,9 @@ def config_directory(tmp_path, monkeypatch):
 @pytest.fixture
 def restore_policy(monkeypatch):
     monkeypatch.setattr(
-        settings, "restore_policies", {"fastdeploytest": RestorePolicy(bucket="backups", prefix="target/")}
+        settings,
+        "restore_policies",
+        {"fastdeploytest": RestorePolicy(bucket="backups", prefixes=["target/", "legacy-target/"])},
     )
 
 
@@ -105,6 +107,8 @@ async def test_signed_token_cannot_change_service_of_record(popen, app, valid_se
     [
         "other/archive.tar.gz",
         "target-evil/archive.tar.gz",
+        "legacy-target/",
+        "legacy/archive.tar.gz",
         "target/../other.tar.gz",
         "target/a..tar.gz",
         "/target/archive.tar.gz",
@@ -161,3 +165,14 @@ async def test_restore_requires_service_policy_bucket_and_key(
     response = await post(app, "/deployments/", valid_service_token_in_db, {"env": env})
     assert response.status_code == 422
     popen.assert_not_called()
+
+
+@patch("deploy.tasks.subprocess.Popen")
+@pytest.mark.parametrize("key", ["target/2026-10-20T03-00-00.tar.gz", "legacy-target/2026-01-01T03-00-00.tar.gz"])
+async def test_restore_below_any_configured_prefix_starts(
+    popen, app, uow, publisher, valid_service_token_in_db, restore_policy, key
+):
+    env = {"ECHOPORT_ACTION": "restore", "ECHOPORT_BUCKET": "backups", "ECHOPORT_KEY": key}
+    response = await post(app, "/deployments/", valid_service_token_in_db, {"env": env})
+    assert response.status_code == 200
+    popen.assert_called_once()

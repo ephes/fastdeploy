@@ -2,17 +2,20 @@ import typing
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
+
+RestorePrefix = typing.Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/$")]
 
 
 class RestorePolicy(BaseModel):
     """Operator-controlled storage boundary for one service's restore runner."""
 
     bucket: str = Field(pattern=r"^[a-z0-9][a-z0-9.-]*[a-z0-9]$")
-    prefix: str = Field(pattern=r"^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*/$")
+    # One runner service can serve several Echoport targets, each under its own prefix.
+    prefixes: list[RestorePrefix] = Field(min_length=1)
 
 
 class Settings(BaseSettings):
