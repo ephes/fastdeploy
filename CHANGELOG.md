@@ -2,8 +2,18 @@ Unreleased
 ==========
 
 ### Fixed
+- `createuser` exits with status 1 when creation fails, allowing automation to
+  detect the failure. An existing username exits with status 0 without changing
+  its password, preserving repeated bootstrap in the bundled Ansible tasks.
+  Other automation that relied on creation errors returning success must handle
+  the nonzero status. Successful creation still exits with status 0.
 - Deployment list hydration preserves websocket updates and deletions received while a
   request is in flight; ordinary refreshes and logout guards are retained.
+
+### Tests
+- Add database-free CLI regression coverage for service-token inventory,
+  revocation, purge retention/validation and resource cleanup, plus initial-user
+  environment and interactive credentials without exposing passwords or hashes.
 
 ### Security
 - Apply CLI service-token issuance validation to the HTTP API: unknown services/users and
