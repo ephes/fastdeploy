@@ -107,6 +107,18 @@ Only one deployment per service runs at a time: `POST /deployments/` returns `40
 
 Service tokens are issued by configured administrators via `POST /service-token` or `python commands.py issueservicetoken --service S --user U --days N`, and can be revoked via `DELETE /service-token/{jti}` or `python commands.py revokeservicetoken <jti>`. Tokens issued before revocation support (without `jti`) are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set; see the cutover steps in [docs/auth.md](docs/auth.md#service-token). Records of tokens expired or revoked more than `SERVICE_TOKEN_RETENTION_DAYS` days ago are deleted on token issue or with `python commands.py purgeservicetokens`. See [docs/auth.md](docs/auth.md#service-token).
 
+Lifecycle settings are validated at startup (defaults are unchanged):
+
+| Setting | Inclusive range |
+| --- | --- |
+| `ACCESS_TOKEN_EXPIRE_MINUTES`, `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, `DEFAULT_EXPIRE_MINUTES` | 1–525600 minutes (one year) |
+| `SERVICE_TOKEN_MAX_EXPIRE_DAYS`, `SERVICE_TOKEN_RETENTION_DAYS` | 1–3650 days (ten years) |
+| `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` | 0–31536000 seconds (one year); zero disables the safety window |
+| `WEBSOCKET_AUTH_TIMEOUT_SECONDS` | finite, greater than 0 and at most 86400 seconds (one day) |
+
+Invalid or oversized values stop startup instead of overflowing date arithmetic or
+silently disabling the websocket authentication deadline.
+
 ### Service Configuration
 
 Services can use either relative or absolute paths for their deployment scripts:
@@ -163,7 +175,8 @@ uv run pytest             # Python tests
 cd frontend && npm test   # Frontend tests (Vitest)
 ```
 
-The Python tests need the `deploy_test` PostgreSQL database (see above). They do not need a
+The Python tests use synthetic records and per-test temporary deployment configuration
+files; they never require host `/var/tmp` access. They need the `deploy_test` PostgreSQL database (see above). They do not need a
 frontend build: the test setup creates the empty, git-ignored `frontend/dist` directory the app
 mounts, so a clean checkout can run `just test-python` directly.
 
@@ -174,6 +187,10 @@ default, for example:
 ```shell
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost/deploy_test just test-python
 ```
+
+Deployment history uses bounded pages: the UI shows the newest 50 deployments and
+loads older pages with **Load more**. API consumers use `limit` (default 50, maximum
+200), `before_id` and optional `service_id`; see [the paging contract](docs/endpoints.md#get-deployments).
 
 ### Continuous integration
 

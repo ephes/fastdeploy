@@ -42,6 +42,10 @@ nor reveals by its duration whether a user exists.
 **Obtaining**: POST to `/service-token` with an administrator user token, or on the server with
 `python commands.py issueservicetoken --service S --user U --days N [--origin O]` (prints only the token).
 
+The API and CLI both require an existing service and user, a nonblank origin and a lifetime
+from 1 to `SERVICE_TOKEN_MAX_EXPIRE_DAYS`. The API returns **422** for refused issuance
+without creating a token record; the administrator check still runs first (**403**).
+
 FastDeploy has no stored admin/staff role. `SERVICE_TOKEN_ADMIN_USERS` is an explicit JSON list of
 existing user names (for example `SERVICE_TOKEN_ADMIN_USERS='["operator"]'`). It defaults to `[]`:
 all logged-in users receive 403 on issuance until an operator configures an administrator.

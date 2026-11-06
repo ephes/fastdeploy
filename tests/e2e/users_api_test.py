@@ -101,7 +101,7 @@ async def revoke(app, access_token, jti):
         )
 
 
-async def test_fetch_service_token_expiration_limit(app, service_in, valid_access_token_in_db):
+async def test_fetch_service_token_expiration_limit(app, service_in, service_in_db, valid_access_token_in_db):
     max_days = settings.service_token_max_expire_days
     response = await fetch_service_token(app, valid_access_token_in_db, service_in, expiration_in_days=max_days)
     assert response.status_code == 200
@@ -249,3 +249,37 @@ async def test_parallel_failed_logins_cannot_overrun_the_limit(app, user_in_db, 
     responses = await asyncio.gather(*(post_login(app, user_in_db.name, "wrong") for _ in range(8)))
     codes = sorted(response.status_code for response in responses)
     assert codes == [401] * 3 + [429] * 5
+
+
+@pytest.mark.parametrize(
+    ("service_name", "origin", "detail"),
+    [("missing-service", "fixture", "unknown service"), ("fastdeploytest", "  ", "origin must not be empty")],
+)
+async def test_service_token_validation_creates_no_record(
+    app, service_in_db, valid_access_token_in_db, uow, service_name, origin, detail
+):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/service-token",
+            json={"service": service_name, "origin": origin},
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+    assert response.status_code == 422
+    assert detail in response.json()["detail"]
+    async with uow:
+        assert await uow.service_tokens.list() == []
+
+
+async def test_non_admin_refused_before_service_token_validation(app, valid_access_token_in_db, uow, monkeypatch):
+    monkeypatch.setattr(settings, "service_token_admin_users", [])
+    with patch("deploy.auth.issue_service_token_for_existing") as issue:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/service-token",
+                json={"service": "missing-service", "origin": " "},
+                headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+            )
+    assert response.status_code == 403
+    issue.assert_not_called()
+    async with uow:
+        assert await uow.service_tokens.list() == []

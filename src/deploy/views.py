@@ -143,10 +143,16 @@ async def get_steps_to_do_from_service(
     return steps
 
 
-async def get_all_deployments(uow: unit_of_work.AbstractUnitOfWork) -> list[model.Deployment]:
-    """Get a list of all deployments in the database."""
+async def get_all_deployments(
+    uow: unit_of_work.AbstractUnitOfWork,
+    *,
+    limit: int = 50,
+    before_id: int | None = None,
+    service_id: int | None = None,
+) -> list[model.Deployment]:
+    """Get a bounded history page, newest id first."""
     async with uow:
-        deployments = await uow.deployments.list()
+        deployments = await uow.deployments.list(limit=limit, before_id=before_id, service_id=service_id)
     return deployments
 
 
@@ -210,7 +216,7 @@ async def get_orphaned_unfinished_deployment_ids(
     orphaned_ids: list[int] = []
     now = datetime.now(timezone.utc)
     async with uow:
-        deployments = await uow.deployments.list()
+        deployments = await uow.deployments.list(unfinished_only=True)
         for deployment in deployments:
             if deployment.id is None or deployment.finished is not None:
                 continue

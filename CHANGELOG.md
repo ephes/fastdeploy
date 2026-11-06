@@ -1,7 +1,13 @@
 Unreleased
 ==========
 
+### Fixed
+- Deployment list hydration preserves websocket updates and deletions received while a
+  request is in flight; ordinary refreshes and logout guards are retained.
+
 ### Security
+- Apply CLI service-token issuance validation to the HTTP API: unknown services/users and
+  blank origins return 422 without recording a token, after the administrator check.
 - Update the locked certifi CA bundle to 2026.10.19 for the eMudhra/emSign CA compromise
   ([GHSA-6q48-6c7w-9gw2](https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2)).
   Lock-only change. Re-sync deployed environments and restart long-running processes so they load
@@ -35,6 +41,15 @@ Unreleased
   owner/group and trusted-directory contract in [deployment docs](docs/deployment.md).
 
 ### Breaking
+- Lifecycle configuration now rejects nonfinite websocket timeouts and durations outside
+  the [README ranges](README.md#configuration) at startup. Check existing environment values
+  before upgrading; previously accepted zero, negative or oversized values may need adjustment.
+  Defaults are unchanged.
+- `GET /deployments/` returns the newest 50 rows by default (at most 200 with `limit`),
+  ordered by descending id. Use exclusive `before_id` cursors to traverse history and
+  optional `service_id` filtering. The JSON array shape is unchanged; consumers must
+  request older pages explicitly. The UI provides Load more and resets paging on
+  service navigation or logout. Orphan scans no longer load completed history.
 - Step reports (`POST /steps/`) accept only the states `running`, `success` and `failure`; any other
   state (`pending`, an unknown or misspelled one) returns 422 without mutation, and domain processing
   rejects it as well. Before, `state` was any string of up to 20 characters. Deploy scripts that report

@@ -167,7 +167,7 @@ async def issue_service_token_for_existing(
     """
     Issue a recorded (revocable) service token after checking that the
     lifetime is within ``service_token_max_expire_days`` and that the user
-    and the service exist. Used by ``commands.py issueservicetoken``.
+    and the service exist. Used by the HTTP API and ``commands.py issueservicetoken``.
     """
     max_days = settings.service_token_max_expire_days
     if not 1 <= days <= max_days:

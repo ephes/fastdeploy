@@ -233,3 +233,16 @@ async def deployed_service_in_db(bus, deployed_service):
         await uow.deployed_services.add(deployed_service)
         await uow.commit()
     return deployed_service
+
+
+@pytest.fixture(autouse=True)
+def isolated_deployment_configs(tmp_path, monkeypatch):
+    """Use synthetic, per-test files instead of the host's /var/tmp."""
+    from deploy.secure_config import SecureConfig
+
+    original_init = SecureConfig.__init__
+
+    def initialize(self, config_dir=None):
+        original_init(self, config_dir=tmp_path if config_dir is None else config_dir)
+
+    monkeypatch.setattr(SecureConfig, "__init__", initialize)

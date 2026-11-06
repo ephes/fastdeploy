@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from ... import views
 from ...config import settings
@@ -50,12 +50,17 @@ async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = N
 
 
 @router.get("/", dependencies=[Depends(get_current_active_user)])
-async def get_deployments(bus: Bus = Depends()) -> list[Deployment]:
+async def get_deployments(
+    bus: Bus = Depends(),
+    limit: int = Query(50, ge=1, le=200),
+    before_id: int | None = Query(None, ge=1),
+    service_id: int | None = Query(None, ge=1),
+) -> list[Deployment]:
     """
-    Get all deployments from database.
+    Get a bounded deployment history page, ordered by descending id.
     """
     await reconcile_orphaned_deployments(bus)
-    deployments = await views.get_all_deployments(bus.uow)
+    deployments = await views.get_all_deployments(bus.uow, limit=limit, before_id=before_id, service_id=service_id)
     return [Deployment(**d.model_dump()) for d in deployments]
 
 
