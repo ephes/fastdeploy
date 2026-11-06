@@ -16,6 +16,14 @@ Unreleased
   environment and interactive credentials without exposing passwords or hashes.
 
 ### Security
+- Bound websocket authentication/expiry control sends to 5 seconds and close handshakes
+  waits (including endpoint cleanup) to 1 second, preserving connection and timer cleanup.
+  Let the server finish transport teardown under its own deadline after that wait.
+- Mark token issuance and full service/configuration responses private/no-store and vary
+  by Authorization while preserving CORS variation. Credential roles are unchanged.
+  These API and websocket protections take effect after updating/restarting the backend.
+- Restrict HTTP service-token revocation to `SERVICE_TOKEN_ADMIN_USERS`, before looking
+  up the token id. Administrator revocation remains idempotent; CLI revocation is unchanged.
 - Apply CLI service-token issuance validation to the HTTP API: unknown services/users and
   blank origins return 422 without recording a token, after the administrator check.
 - Update the locked certifi CA bundle to 2026.10.19 for the eMudhra/emSign CA compromise

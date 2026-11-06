@@ -1,14 +1,15 @@
 import asyncio
-import contextlib
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.websockets import WebSocketState
 
+from ..adapters.websocket import close_websocket
 from ..config import settings
 from .helper_models import Bus
 from .routers import deployed_services, deployments, services, steps, users
@@ -28,6 +29,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def private_responses(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    """Keep credentials and complete service configurations out of HTTP caches."""
+    response = await call_next(request)
+    if request.url.path.rstrip("/") in {"/token", "/service-token", "/services", "/deployed-services"}:
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers.add_vary_header("Authorization")
+    return response
 
 
 app.mount("/static", StaticFiles(directory="frontend/dist"), name="static")
@@ -96,10 +107,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
             websocket.client_state != WebSocketState.DISCONNECTED
             and websocket.application_state != WebSocketState.DISCONNECTED
         ):
-            # Not wrapped in a timeout of our own: the server's close gives up
-            # on a peer that does not answer and then drops the TCP connection,
-            # cancelling it early would skip exactly that.
-            with contextlib.suppress(Exception):
-                await websocket.close(code=close_code, reason=close_reason)
+            await close_websocket(websocket, close_code, close_reason)
     if was_authenticated:
         await connection_manager.broadcast(Message(message="Client left"))

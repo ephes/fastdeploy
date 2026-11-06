@@ -407,6 +407,8 @@ class StuckWebsocket(RecordingWebsocket):
         super().__init__()
         self.stuck_close = stuck_close
         self.send_cancelled = False
+        self.close_cancelled = False
+        self.release_close = asyncio.Event()
 
     async def send_text(self, message):
         try:
@@ -417,7 +419,11 @@ class StuckWebsocket(RecordingWebsocket):
 
     async def close(self, code=1000, reason=None):
         if self.stuck_close:
-            await asyncio.Event().wait()
+            try:
+                await self.release_close.wait()
+            except asyncio.CancelledError:
+                self.close_cancelled = True
+                raise
         await super().close(code=code, reason=reason)
 
 
@@ -467,7 +473,14 @@ async def test_broadcast_is_bounded_when_slow_client_does_not_close_either(test_
     await asyncio.wait_for(cm.broadcast(test_message), timeout=2)
 
     assert not slow.closed
+    assert not slow.close_cancelled
     assert_forgotten(cm, slow_id)
+    pending = set(websocket_module._pending_closes)
+    assert pending
+    slow.release_close.set()
+    await asyncio.wait_for(asyncio.gather(*pending), 0.5)
+    assert slow.closed
+    assert not websocket_module._pending_closes
 
 
 async def test_broadcast_timeout_does_not_remove_replacement_connection(test_message, short_broadcast_budget):
@@ -501,3 +514,108 @@ async def test_broadcast_keeps_event_order_per_client(short_broadcast_budget):
         await cm.broadcast(Numbered(number=number))
 
     assert healthy.sent == [Numbered(number=number).model_dump_json() for number in range(5)]
+
+
+class StuckControlWebsocket(RecordingWebsocket):
+    def __init__(self, stuck_send=False, stuck_close=False):
+        super().__init__()
+        self.stuck_send = stuck_send
+        self.stuck_close = stuck_close
+        self.send_started = asyncio.Event()
+        self.send_cancelled = False
+        self.close_started = False
+        self.close_cancelled = False
+        self.release_close = asyncio.Event()
+
+    async def send_json(self, message):
+        self.send_started.set()
+        if self.stuck_send:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                self.send_cancelled = True
+                raise
+        await super().send_json(message)
+
+    async def close(self, code=1000, reason=None):
+        self.close_started = True
+        if self.stuck_close:
+            try:
+                await self.release_close.wait()
+            except asyncio.CancelledError:
+                self.close_cancelled = True
+                raise
+        await super().close(code, reason)
+
+
+@pytest.mark.parametrize("operation", ["expiry", "reject", "duplicate"])
+@pytest.mark.parametrize("stuck_send,stuck_close", [(True, False), (False, True), (True, True)])
+async def test_control_cleanup_has_send_and_close_deadlines(monkeypatch, operation, stuck_send, stuck_close):
+    monkeypatch.setattr(websocket_module, "BROADCAST_SEND_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(websocket_module, "SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS", 0.01)
+    cm = ConnectionManager()
+    client_id = uuid4()
+    socket = StuckControlWebsocket(stuck_send, stuck_close)
+    await cm.connect(client_id, socket)
+    cm.active_connections[client_id] = socket
+    cm.principals[client_id] = "user"
+    await cm.close_on_expire(client_id, datetime.now(timezone.utc) + timedelta(minutes=1))
+    expiry_task = cm.expiry_tasks[client_id]
+    if operation == "expiry":
+        await asyncio.wait_for(cm.close_on_expire(client_id, datetime.now(timezone.utc)), 0.5)
+    elif operation == "reject":
+        await asyncio.wait_for(cm.reject(client_id, "bad token", socket), 0.5)
+    else:
+        duplicate = StuckControlWebsocket(stuck_close=stuck_close)
+        assert not await asyncio.wait_for(cm.connect(client_id, duplicate), 0.5)
+        assert cm.all_connections[client_id] is socket
+        assert duplicate.close_started
+        assert not duplicate.close_cancelled
+        duplicate.release_close.set()
+        await asyncio.sleep(0)
+        cm.disconnect(client_id, socket)
+        await asyncio.sleep(0)
+        assert expiry_task.cancelled()
+        return
+    await asyncio.sleep(0)
+    assert expiry_task.cancelled()
+    assert_forgotten(cm, client_id)
+    assert socket.send_cancelled == stuck_send
+    assert socket.close_started
+    assert not socket.close_cancelled
+    socket.release_close.set()
+    await asyncio.sleep(0)
+
+
+async def test_control_timeout_preserves_replacement(monkeypatch):
+    monkeypatch.setattr(websocket_module, "BROADCAST_SEND_TIMEOUT_SECONDS", 0.01)
+    cm = ConnectionManager()
+    client_id = uuid4()
+    old, replacement = StuckControlWebsocket(stuck_send=True), RecordingWebsocket()
+    await cm.connect(client_id, old)
+    closing = asyncio.create_task(cm.close(client_id, "expired"))
+    await old.send_started.wait()
+    await cm.connect(client_id, replacement)
+    await asyncio.wait_for(closing, 0.5)
+    assert old.close_started
+    assert cm.all_connections[client_id] is replacement
+    assert not replacement.closed
+
+
+@pytest.mark.db("in_memory")
+async def test_reauthentication_success_send_is_bounded(uow, valid_access_token_in_db, monkeypatch):
+    monkeypatch.setattr(websocket_module, "BROADCAST_SEND_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(websocket_module, "SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS", 0.01)
+    cm = ConnectionManager()
+    socket = StuckControlWebsocket()
+    client_id = uuid4()
+    await cm.connect(client_id, socket)
+    assert await cm.authenticate(client_id, valid_access_token_in_db, uow)
+    first_expiry = cm.expiry_tasks[client_id]
+    socket.stuck_send = socket.stuck_close = True
+    assert not await asyncio.wait_for(cm.authenticate(client_id, valid_access_token_in_db, uow), 0.5)
+    assert first_expiry.cancelled()
+    assert socket.send_cancelled and not socket.close_cancelled
+    socket.release_close.set()
+    await asyncio.sleep(0)
+    assert_forgotten(cm, client_id)

@@ -32,7 +32,7 @@ nor reveals by its duration whether a user exists.
 **Permitted Operations**:
 - View and manage services
 - View deployment history
-- Generate service tokens only if listed in `SERVICE_TOKEN_ADMIN_USERS`
+- Generate and revoke service tokens only if listed in `SERVICE_TOKEN_ADMIN_USERS`
 - Synchronize services from filesystem
 
 ### Service Token
@@ -67,10 +67,12 @@ token to an existing user and does not grant that user API issuance rights.
 **Revocation**: Every issued service token is recorded in the `service_token` table with its id
 (`jti`), service, origin, user and expiry. A service token is only accepted while its record exists,
 is not revoked and the user who obtained it still exists. Revoke a token with
-`DELETE /service-token/{jti}` (any logged-in user) or `python commands.py revokeservicetoken <jti>`;
+`DELETE /service-token/{jti}` (an authenticated user listed in `SERVICE_TOKEN_ADMIN_USERS`) or `python commands.py revokeservicetoken <jti>`;
 `python commands.py listservicetokens` lists the issued tokens. The `jti` is returned when the token
 is issued and is also readable from the token payload. Revocation does not affect deployments that
-are already running (they use their own deployment token).
+are already running (they use their own deployment token). API revocation returns 403 for
+non-admin users before looking up the id, whether it exists or not. Administrators may
+revoke any service token; repeating a revocation preserves its original revocation time.
 
 **Cleanup**: Every issued token adds a record (the web frontend issues a 1-day token per deployment).
 Records of tokens that expired or were revoked more than `SERVICE_TOKEN_RETENTION_DAYS` (default 30)
@@ -157,6 +159,16 @@ valid with the same secret and algorithm. No asymmetric signing dependency is ne
 Expiry retains the previous whole-second boundary; tokens without `exp` remain accepted
 by the decoder, while every issuance path adds `exp`. Service-token revocation and the
 legacy grace deadline remain unchanged.
+
+## Response privacy
+
+`POST /token`, `POST /service-token`, `GET /services/` and `GET /deployed-services/`
+return `Cache-Control: private, no-store` and `Vary: Authorization`, including authentication
+and validation errors. Existing `Vary` values (such as CORS `Origin`) are preserved. Browsers
+and proxies must not store these credential/configuration responses; fetch them again with
+current authorization. This does not change credential roles: service reads require a user
+token, deployed configurations require a config token, and service-token issuance requires
+an allowlisted user. Service and deployment tokens cannot read either configuration list.
 
 ## Restore input policy
 
