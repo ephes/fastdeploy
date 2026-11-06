@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from datetime import datetime, timezone
 from uuid import UUID
@@ -14,11 +15,28 @@ logger = logging.getLogger(__name__)
 
 # add 5 seconds to avoid closing a reconnecting client
 EXPIRY_GRACE_SECONDS = 5
-# A broadcast waits at most this long for one client to take a message. A
+# A broadcast or control send waits at most this long for a client. A
 # client that is slower is disconnected, so it cannot hold back the others.
 BROADCAST_SEND_TIMEOUT_SECONDS = 5.0
-# ... and at most this long for the close handshake of such a client.
+# ... and at most this long waiting for the server's close handshake.
 SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS = 1.0
+_pending_closes: set[asyncio.Task[None]] = set()
+
+
+async def _finish_close(websocket: WebSocket, code: int, reason: str) -> None:
+    with contextlib.suppress(Exception):  # the peer may already be gone
+        await websocket.close(code=code, reason=reason)
+
+
+async def close_websocket(websocket: WebSocket, code: int, reason: str = "") -> None:
+    """Bound the caller's wait, letting the server finish its transport teardown."""
+    # Cancelling the server close while its send buffer is full can skip its
+    # transport abort. Keep it alive under the server's own close deadline.
+    task = asyncio.create_task(_finish_close(websocket, code, reason))
+    _pending_closes.add(task)
+    task.add_done_callback(_pending_closes.discard)
+    with contextlib.suppress(asyncio.TimeoutError):
+        await asyncio.wait_for(asyncio.shield(task), timeout=SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS)
 
 
 class ConnectionManager:
@@ -48,7 +66,7 @@ class ConnectionManager:
         """
         if client_id in self.all_connections:
             logger.warning("refusing websocket connection for client id already in use: %s", client_id)
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await close_websocket(websocket, status.WS_1008_POLICY_VIOLATION)
             return False
         # reserve the id before awaiting, so concurrent connects cannot both succeed
         self.all_connections[client_id] = websocket
@@ -72,10 +90,13 @@ class ConnectionManager:
             return
         self.disconnect(client_id, websocket)
         try:
-            await websocket.send_json({"type": "warning", "detail": message})
-            await websocket.close(code=code)
+            await asyncio.wait_for(
+                websocket.send_json({"type": "warning", "detail": message}), timeout=BROADCAST_SEND_TIMEOUT_SECONDS
+            )
         except Exception:  # connection might already be gone
             logger.debug("could not close websocket for client %s cleanly", client_id, exc_info=True)
+        finally:
+            await close_websocket(websocket, code)
 
     async def _close_after(self, client_id: UUID, websocket: WebSocket, delay: float, message: str):
         await asyncio.sleep(delay)
@@ -121,10 +142,14 @@ class ConnectionManager:
                 return
         self.disconnect(client_id, websocket)
         try:
-            await websocket.send_json(events.AuthenticationFailed(detail=detail).model_dump())
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await asyncio.wait_for(
+                websocket.send_json(events.AuthenticationFailed(detail=detail).model_dump()),
+                timeout=BROADCAST_SEND_TIMEOUT_SECONDS,
+            )
         except Exception:  # connection might already be gone
             logger.debug("could not reject websocket for client %s cleanly", client_id, exc_info=True)
+        finally:
+            await close_websocket(websocket, status.WS_1008_POLICY_VIOLATION)
 
     async def authenticate(self, client_id: UUID, access_token: str, uow: AbstractUnitOfWork) -> bool:
         """
@@ -163,7 +188,14 @@ class ConnectionManager:
         # after successful authentication, add connection close callback on token expiration
         await self.close_on_expire(client_id, expires_at)
         auth_event = events.AuthenticationSucceeded(detail=f"access token verification successful for user {username}")
-        await websocket.send_json(auth_event.model_dump())
+        try:
+            await asyncio.wait_for(
+                websocket.send_json(auth_event.model_dump()), timeout=BROADCAST_SEND_TIMEOUT_SECONDS
+            )
+        except Exception:
+            self.disconnect(client_id, websocket)
+            await close_websocket(websocket, status.WS_1013_TRY_AGAIN_LATER)
+            return False
         return True
 
     def disconnect(self, client_id: UUID, websocket: WebSocket | None = None) -> bool:
@@ -212,12 +244,7 @@ class ConnectionManager:
             # Forget it first: the cancelled send may have written a partial
             # frame, so this connection must not get another broadcast.
             self.disconnect(client_id, websocket)
-            try:
-                await asyncio.wait_for(
-                    websocket.close(code=status.WS_1013_TRY_AGAIN_LATER), timeout=SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS
-                )
-            except Exception:  # includes the timeout, the peer does not read anyway
-                logger.debug("could not close slow websocket client %s cleanly", client_id, exc_info=True)
+            await close_websocket(websocket, status.WS_1013_TRY_AGAIN_LATER)
         except Exception:  # one broken connection must not stop the broadcast
             logger.info("broadcast to websocket client %s failed", client_id, exc_info=True)
 

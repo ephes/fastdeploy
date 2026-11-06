@@ -182,10 +182,9 @@ def test_websocket_authentication_deadline_covers_verifying_the_token(ws_client,
     assert cm.expiry_tasks == {}
 
 
-def test_websocket_endpoint_lets_the_close_after_the_deadline_finish(cm, monkeypatch):
+def test_websocket_endpoint_lets_a_close_within_the_budget_finish(cm, monkeypatch):
     """
-    The close is the server's way to end the TCP connection of a peer that
-    does not answer, so the endpoint must wait for it instead of cancelling it.
+    A close which finishes within the cleanup budget keeps its code and reason.
     """
     from deploy.entrypoints import fastapi_app as app_module
 
@@ -218,3 +217,51 @@ def test_websocket_endpoint_lets_the_close_after_the_deadline_finish(cm, monkeyp
 
     assert websocket.closed_with == (1008, "authentication timeout")
     assert cm.all_connections == {}
+
+
+@pytest.mark.asyncio
+async def test_endpoint_cleanup_cannot_wait_forever_for_close(cm, monkeypatch):
+    from deploy.adapters import websocket as websocket_module
+    from deploy.entrypoints import fastapi_app as app_module
+
+    monkeypatch.setattr(app_module.settings, "websocket_auth_timeout_seconds", 0.01)
+    monkeypatch.setattr(websocket_module, "SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS", 0.01)
+
+    class StuckSocket:
+        client_state = application_state = WebSocketState.CONNECTED
+        close_cancelled = False
+        close_finished = False
+
+        def __init__(self):
+            self.release_close = asyncio.Event()
+
+        async def accept(self):
+            pass
+
+        async def receive_json(self):
+            await asyncio.Event().wait()
+
+        async def close(self, code=1000, reason=None):
+            try:
+                await self.release_close.wait()
+                self.close_finished = True
+            except asyncio.CancelledError:
+                self.close_cancelled = True
+                raise
+
+    class StubBus:
+        uow = None
+
+    bus = StubBus()
+    bus.cm = cm
+    socket = StuckSocket()
+    await asyncio.wait_for(app_module.websocket_endpoint(socket, uuid4(), bus), 0.5)
+    assert not socket.close_cancelled
+    assert not socket.close_finished
+    assert cm.all_connections == cm.expiry_tasks == {}
+    pending = set(websocket_module._pending_closes)
+    assert pending
+    socket.release_close.set()
+    await asyncio.wait_for(asyncio.gather(*pending), 0.5)
+    assert socket.close_finished
+    assert not websocket_module._pending_closes

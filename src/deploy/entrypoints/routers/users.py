@@ -132,14 +132,23 @@ class RevokedServiceTokenOut(BaseModel):
 
 @router.delete(
     "/service-token/{jti}",
-    dependencies=[Depends(get_current_active_user)],
-    responses={404: {"description": "Service token not found"}},
+    responses={
+        403: {"description": "Service token revocation requires an administrator"},
+        404: {"description": "Service token not found"},
+    },
 )
-async def revoke_service_token(jti: str, bus: Annotated[Bus, Depends()]) -> RevokedServiceTokenOut:
+async def revoke_service_token(
+    jti: str, user: Annotated[User, Depends(get_current_active_user)], bus: Annotated[Bus, Depends()]
+) -> RevokedServiceTokenOut:
     """
     Revoke a service token by its id (`jti`). Deployments can no longer be
-    started with it. Revoking an already revoked token succeeds again.
+    started with it. Requires membership in SERVICE_TOKEN_ADMIN_USERS.
+    Revoking an already revoked token succeeds again.
     """
+    if user.name not in settings.service_token_admin_users:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Service token revocation requires an administrator"
+        )
     try:
         record: model.ServiceToken = await bus.handle(commands.RevokeServiceToken(jti=jti))
     except model.ServiceTokenNotFound as e:

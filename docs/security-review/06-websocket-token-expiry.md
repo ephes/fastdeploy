@@ -3,9 +3,14 @@
 ## Issue Title
 **WebSocket connections are forcibly closed on JWT token expiry without graceful re-authentication mechanism**
 
-## Status (2026-10-06)
+## Status (2026-11-06)
 
-**Partially addressed.** Server-side expiry handling was hardened together with the websocket
+**Partially addressed.** Control sends now have a 5-second budget and all control/endpoint
+callers wait at most 1 second for close handshakes; the server then finishes transport
+teardown in the background under its own deadline. Connection and expiry-task cleanup completes
+even when a peer stops reading.
+
+Server-side expiry handling was hardened together with the websocket
 authentication fixes: there is at most one expiry timer per connection, a successful
 re-authentication on the same connection (same user) cancels and replaces it, and disconnecting
 cancels it, so a stale timer can no longer close a re-authenticated session or a newer connection

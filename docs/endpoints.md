@@ -50,12 +50,14 @@ The token is recorded with its id (`jti`) so it can be revoked.
 
 ### DELETE /service-token/{jti}
 **Purpose**: Revoke a service token. Deployments can no longer be started with it
-**Authentication**: User token required
+**Authentication**: Administrator user token (`SERVICE_TOKEN_ADMIN_USERS`) required
 **Response** (revoking an already revoked token succeeds again and keeps the first time):
 ```json
 {"detail": "Service token <jti> revoked", "jti": "<jti>", "revoked_at": "<datetime>"}
 ```
-**404 Not Found**: no service token with this id was issued
+**403 Forbidden**: current user is not an allowlisted administrator; checked before looking up the id
+
+**404 Not Found**: no service token with this id was issued (administrators only)
 
 ### GET /users/me
 **Purpose**: Get current authenticated user
@@ -431,6 +433,14 @@ tab with a full receive buffer) is closed with code `1013` and forgotten, so it 
 the other clients nor the request that produced the event. Events are not queued for it: reconnect,
 authenticate again and reload the current state over the REST endpoints.
 
+Control messages (authentication success/failure and expiry warnings) also have a 5-second
+send budget. All control and endpoint-cleanup callers wait at most 1 second for a close,
+including duplicate-id refusal. Cleanup removes connection state and cancels expiry callbacks
+even if the peer stops reading. A close that outlasts this wait continues in the background
+under the ASGI server's transport-close deadline, allowing its TCP teardown to finish;
+cleanup for an old socket never removes a replacement
+using the same client id. A timed-out authentication-success send closes with code `1013`.
+
 Event publication diagnostics at INFO contain only the event class and its `id`, `service_id` and
 `deployment_id` when present. Event payloads (including context, configuration, names and messages)
 are omitted from these logs and the publisher emits no stdout output. Authorized websocket delivery
@@ -446,7 +456,7 @@ may still contain details supplied by a handler. Deployed-service insertion emit
 | `POST /token` | None (username/password) |
 | `GET /users/me` | User Token |
 | `POST /service-token` | Administrator user token (`SERVICE_TOKEN_ADMIN_USERS`) |
-| `DELETE /service-token/{jti}` | User Token |
+| `DELETE /service-token/{jti}` | Administrator user token (`SERVICE_TOKEN_ADMIN_USERS`) |
 | `GET /services/*` | User Token |
 | `POST /services/sync` | User Token |
 | `DELETE /services/*` | User Token |
