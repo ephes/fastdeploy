@@ -331,6 +331,15 @@ deployment (camel case keys, dates) and treats it as the oldest state of that de
 websocket or a list fetch already delivered is kept. It returns `null` when the session ended while it was
 waiting; the caller then does nothing (the deploy button does not navigate to the deployment).
 
+History hydration uses a per-request set of ids changed by websocket events, including deletions.
+Those ids are skipped when the older HTTP page arrives; the sets are discarded on completion.
+History pages are requested explicitly (50 rows, descending id cursor, optional service filter).
+The store keeps a separate history id list and cursor so new events cannot shift the next page.
+Events older than the loaded cursor update the cache without appearing across an unloaded gap;
+those rows become visible when their history page is requested.
+A refresh or service change increments a generation to invalidate the previous page request;
+logout additionally resets paging state and invalidates every response through the session guard.
+
 ## Deployment Architecture
 
 ### Service Definition

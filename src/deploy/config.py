@@ -25,11 +25,11 @@ class Settings(BaseSettings):
     admin_email: str = "jochen-fastdeploy@wersdoerfer.de"
     password_hash_algorithm: str = Field("bcrypt")
     token_sign_algorithm: typing.Literal["HS256", "HS384", "HS512"] = "HS256"
-    access_token_expire_minutes: int = 30
-    deployment_access_token_expire_minutes: int = 480
-    deployment_orphan_reconcile_delay_seconds: int = 300
+    access_token_expire_minutes: int = Field(30, ge=1, le=525600)
+    deployment_access_token_expire_minutes: int = Field(480, ge=1, le=525600)
+    deployment_orphan_reconcile_delay_seconds: int = Field(300, ge=0, le=31536000)
     # Upper limit for the lifetime of a service token in days.
-    service_token_max_expire_days: int = 90
+    service_token_max_expire_days: int = Field(90, ge=1, le=3650)
     # No implicit admins: configure existing user names explicitly.
     service_token_admin_users: list[str] = []
     # Keyed by the authenticated service name, never by request context.
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # Expired service token records and revoked ones are deleted once their
     # expiry / revocation is older than this many days (on token issue and
     # via "commands.py purgeservicetokens").
-    service_token_retention_days: int = Field(30, ge=1)
+    service_token_retention_days: int = Field(30, ge=1, le=3650)
     # Failed logins on POST /token allowed per (user name, client address) and
     # per client address inside one window (seconds). Further attempts get
     # 429 until enough failures left the window. A limit <= 0 turns the
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     login_failure_window_seconds: int = Field(15 * 60, ge=1)
     # A websocket connection that has not authenticated this many seconds after
     # it was accepted is closed.
-    websocket_auth_timeout_seconds: float = Field(10.0, gt=0)
+    websocket_auth_timeout_seconds: float = Field(10.0, gt=0, le=86400, allow_inf_nan=False)
     # Upper limit for the JSON encoded context of POST /deployments/ in bytes.
     deployment_context_max_bytes: int = Field(64 * 1024, ge=2)
     database_url: str = "postgresql+asyncpg:///deploy"
@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     ]
     project_root: Path = ROOT_DIR
     services_dir_name: str = Field("services", alias="services_root")
-    default_expire_minutes: int = 15
+    default_expire_minutes: int = Field(15, ge=1, le=525600)
     api_url: str = Field("http://localhost:8000", alias="api_url")
     services_sync_path: str = Field("/services/sync/", alias="services_sync_path")
     repository: str = Field("sqlite", alias="repository")

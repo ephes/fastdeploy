@@ -1,4 +1,5 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
+import { markRaw } from "vue";
 
 import { getClient, HttpClient } from "./httpClient";
 import { rememberSession } from "./session";
@@ -18,10 +19,22 @@ export const useDeployments = defineStore("deployments", {
        * Look up deployments by id.
        */
       deployments: {} as DeploymentById,
+      pendingFetches: [] as Set<number>[],
+      historyIds: [] as number[],
+      historyBeforeId: null as number | null,
+      historyServiceId: undefined as number | undefined,
+      historyHasMore: true,
+      historyLoading: false,
+      historyError: "",
+      historyGeneration: 0,
       client: getClient(),
     };
   },
   getters: {
+    historyDeployments: (state): Deployment[] => state.historyIds
+      .map((id) => state.deployments[id])
+      .filter((deployment) => !!deployment)
+      .sort((a, b) => b.id - a.id),
     /**
      * Get deployments optionally filtered by service id.
      *
@@ -137,18 +150,50 @@ export const useDeployments = defineStore("deployments", {
       this.deployments[started.id] = started;
       return started;
     },
-    /**
-     * Fetch all deployments from the backend and store them in the
-     * store by id.
-     */
-    async fetchDeployments() {
+    /** Fetch a bounded history page; only an explicit load-more extends it. */
+    async fetchDeployments(serviceId?: number, loadMore = false) {
+      if (loadMore && (this.historyLoading || !this.historyHasMore)) return;
       const isCurrentSession = rememberSession();
-      const deployments: Deployment[] = await this.client.get<Promise<Deployment[]>>("deployments/");
-      if (!isCurrentSession()) {
-        return;
+      if (!loadMore) {
+        this.historyGeneration++;
+        this.historyIds = [];
+        this.historyBeforeId = null;
+        this.historyServiceId = serviceId;
+        this.historyHasMore = true;
       }
-      for (const deployment of deployments) {
-        this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
+      const generation = this.historyGeneration;
+      const isCurrent = () => isCurrentSession() && generation === this.historyGeneration;
+      const changed = markRaw(new Set<number>());
+      this.pendingFetches.push(changed);
+      this.historyLoading = true;
+      this.historyError = "";
+      const params = new URLSearchParams({ limit: "50" });
+      if (this.historyServiceId !== undefined) params.set("service_id", String(this.historyServiceId));
+      if (this.historyBeforeId !== null) params.set("before_id", String(this.historyBeforeId));
+      try {
+        const deployments = await this.client.get<Deployment[]>(`deployments/?${params}`);
+        if (!isCurrent()) return;
+        for (const deployment of deployments) {
+          if (!changed.has(deployment.id)) {
+            this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
+          }
+          if (this.deployments[deployment.id] && !this.historyIds.includes(deployment.id)) {
+            this.historyIds.push(deployment.id);
+          }
+        }
+        // Advance using the server page even when an event deleted its last row.
+        if (deployments.length) this.historyBeforeId = deployments[deployments.length - 1].id;
+        this.historyHasMore = deployments.length === 50;
+        if (this.historyHasMore && this.historyBeforeId !== null) {
+          // First-page events arrived before a cursor existed: hide older gaps.
+          const oldestId = this.historyBeforeId;
+          this.historyIds = this.historyIds.filter((id) => id >= oldestId);
+        }
+      } catch {
+        if (isCurrent()) this.historyError = "Could not load deployment history. Try again.";
+      } finally {
+        this.pendingFetches = this.pendingFetches.filter((pending) => pending !== changed);
+        if (isCurrent()) this.historyLoading = false;
       }
     },
     /**
@@ -162,10 +207,17 @@ export const useDeployments = defineStore("deployments", {
     onMessage(message: Message) {
       if (message.type === "deployment") {
         const deployment = message as Deployment;
+        for (const pending of this.pendingFetches) pending.add(deployment.id);
         if (deployment.deleted) {
           delete this.deployments[deployment.id];
+          this.historyIds = this.historyIds.filter((id) => id !== deployment.id);
         } else {
           this.deployments[deployment.id] = deployment;
+          if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
+              && (this.historyBeforeId === null || deployment.id > this.historyBeforeId)
+              && !this.historyIds.includes(deployment.id)) {
+            this.historyIds.push(deployment.id);
+          }
         }
       }
     },

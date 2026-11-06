@@ -86,7 +86,13 @@ class ServiceTokenOut(BaseModel):
     expires_at: datetime
 
 
-@router.post("/service-token", responses={403: {"description": "Service token issuance requires an administrator"}})
+@router.post(
+    "/service-token",
+    responses={
+        403: {"description": "Service token issuance requires an administrator"},
+        422: {"description": "Unknown service/user, blank origin or invalid token lifetime"},
+    },
+)
 async def service_token(
     service_in: ServiceIn,
     user: Annotated[User, Depends(get_current_active_user)],
@@ -105,13 +111,16 @@ async def service_token(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Service token issuance requires an administrator"
         )
-    token, record = await auth.issue_service_token(
-        service=service_in.service,
-        origin=service_in.origin,
-        user=user.name,
-        expires_delta=timedelta(days=service_in.expiration_in_days),
-        uow=bus.uow,
-    )
+    try:
+        token, record = await auth.issue_service_token_for_existing(
+            service=service_in.service,
+            origin=service_in.origin,
+            user=user.name,
+            days=service_in.expiration_in_days,
+            uow=bus.uow,
+        )
+    except auth.ServiceTokenIssueRefused as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)) from e
     return ServiceTokenOut(service_token=token, token_type="bearer", jti=record.jti, expires_at=record.expires_at)
 
 

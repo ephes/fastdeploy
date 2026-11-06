@@ -197,3 +197,39 @@ describe("Deployment Store Actions", () => {
     );
   });
 });
+
+
+describe("Deployment list hydration", () => {
+  beforeEach(() => initPinia());
+
+  it.each(["finish", "delete", "new"])("preserves a %s event during a list fetch", async (kind) => {
+    const store = useDeployments();
+    let respond!: (value: any) => void;
+    store.client = { get: () => new Promise((resolve) => (respond = resolve)) } as any;
+    if (kind !== "new") store.onMessage(deployment as any);
+    const fetching = store.fetchDeployments();
+    const newer = pythonToJavascript({
+      ...apiDeployment,
+      finished: "2021-11-23T10:03:05.000000",
+      deleted: kind === "delete",
+    });
+    store.onMessage(newer as any);
+    respond([apiDeployment]);
+    await fetching;
+    if (kind === "delete") {
+      expect(store.deployments[1]).toBeUndefined();
+    } else {
+      expect(store.deployments[1]).toStrictEqual(newer);
+    }
+    expect(store.pendingFetches).toEqual([]);
+  });
+
+  it("allows an ordinary refresh of an existing row", async () => {
+    const store = useDeployments();
+    store.onMessage(deployment as any);
+    const newer = { ...apiDeployment, finished: "2021-11-23T10:03:05.000000" };
+    store.client = { get: vi.fn().mockResolvedValue([newer]) } as any;
+    await store.fetchDeployments();
+    expect(store.deployments[1]).toStrictEqual(pythonToJavascript(newer));
+  });
+});

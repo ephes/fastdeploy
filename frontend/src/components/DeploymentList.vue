@@ -1,26 +1,28 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
+import { computed, watch } from 'vue';
 
 import { useDeployments } from '../stores/deployment';
 
 const deploymentStore = useDeployments();
-deploymentStore.fetchDeployments();
 
 const route = useRoute();
+const serviceId = computed(() => Number(route.params.serviceId) || undefined);
+watch(serviceId, (id) => deploymentStore.fetchDeployments(id), { immediate: true });
 </script>
 
 <template>
   <div>
     <h1>Deployments</h1>
     <table>
-      <tr>
+      <thead><tr>
         <th>id</th>
         <th>service_id</th>
         <th>origin</th>
         <th>user</th>
         <th>deployments</th>
-      </tr>
-      <tr v-for="deployment of deploymentStore.getDeploymentsByService(Number(route.params.serviceId))" :key="deployment.id">
+      </tr></thead>
+      <tbody><tr v-for="deployment of deploymentStore.historyDeployments" :key="deployment.id">
         <td>{{ deployment.id }}</td>
         <td>{{ deployment.serviceId }}</td>
         <td>{{ deployment.origin }}</td>
@@ -31,7 +33,12 @@ const route = useRoute();
             >details for {{ deployment.id }}</router-link
           >
         </td>
-      </tr>
+      </tr></tbody>
     </table>
+    <p v-if="deploymentStore.historyError" role="alert">{{ deploymentStore.historyError }}</p>
+    <button v-if="deploymentStore.historyHasMore" :disabled="deploymentStore.historyLoading"
+      @click="deploymentStore.fetchDeployments(serviceId, true)">
+      {{ deploymentStore.historyLoading ? 'Loading…' : 'Load more' }}
+    </button>
   </div>
 </template>

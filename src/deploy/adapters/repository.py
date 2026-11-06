@@ -202,7 +202,14 @@ class AbstractDeploymentRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[model.Deployment]:
+    async def list(
+        self,
+        *,
+        limit: int | None = None,
+        before_id: int | None = None,
+        service_id: int | None = None,
+        unfinished_only: bool = False,
+    ) -> list[model.Deployment]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -240,8 +247,16 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
-    async def list(self):
-        stmt = select(model.Deployment)
+    async def list(self, *, limit=None, before_id=None, service_id=None, unfinished_only=False):
+        stmt = select(model.Deployment).order_by(model.Deployment.id.desc())
+        if before_id is not None:
+            stmt = stmt.where(model.Deployment.id < before_id)
+        if service_id is not None:
+            stmt = stmt.where(model.Deployment.service_id == service_id)
+        if unfinished_only:
+            stmt = stmt.where(model.Deployment.finished.is_(None))
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
@@ -349,8 +364,16 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
             return None
         return last_successful.id
 
-    async def list(self):
-        return list(self._deployments)
+    async def list(self, *, limit=None, before_id=None, service_id=None, unfinished_only=False):
+        deployments = [
+            d
+            for d in self._deployments
+            if d.id is not None
+            and (before_id is None or d.id < before_id)
+            and (service_id is None or d.service_id == service_id)
+            and (not unfinished_only or d.finished is None)
+        ]
+        return sorted(deployments, key=lambda d: d.id, reverse=True)[:limit]
 
 
 class AbstractStepRepository(abc.ABC):

@@ -38,6 +38,9 @@ username=<username>&password=<password>
 }
 ```
 `expiration_in_days` defaults to 1 and may be at most `SERVICE_TOKEN_MAX_EXPIRE_DAYS` (default 90).
+The service and current user must exist and `origin` must contain non-whitespace text,
+as in CLI issuance. Invalid issuance returns **422** without recording a token;
+non-admins are refused with **403** before issuance validation.
 The token is recorded with its id (`jti`) so it can be revoked.
 
 **Response**:
@@ -227,7 +230,20 @@ does not change the result. The cleanup, `PUT /deployments/finish/` and `POST /s
 row, so a deploy task that finishes or reports a step at the same time is never marked as orphaned.
 
 ### GET /deployments/
-**Purpose**: List all deployments; orphaned deployments are finished as failed first
+**Purpose**: List a bounded history page; orphaned unfinished deployments are finished as failed first.
+Completed history is excluded from the orphan scan.
+
+**Query parameters** (additive; the response remains a JSON array):
+- `limit`: 1–200, default **50**.
+- `before_id`: positive deployment id, exclusive cursor; return ids strictly below it.
+- `service_id`: optional positive id, filters on the server (an unknown service returns `[]`).
+
+Rows are ordered by **descending id**. Pass the last row's id as `before_id` for
+subsequent pages, retaining the same service filter. An empty page ends history;
+a short page also means no more rows at that time. A full final page may be followed
+by an empty one. New inserts appear on refresh without shifting older pages;
+this is cursor traversal, not a database snapshot.
+
 **Authentication**: User token required
 **Response**:
 ```json
@@ -242,6 +258,14 @@ row, so a deploy task that finishes or reports a step at the same time is never 
   }
 ]
 ```
+
+The web UI keeps newer websocket updates and deletions when an older in-flight list
+response arrives. Logging out also invalidates pending list responses.
+
+The web UI initially loads 50 rows and offers **Load more**. Switching services
+starts a fresh history page. Events remain live during paging and logout discards
+pending pages. API consumers that previously expected the full history must now
+iterate pages; CLI deployment operations do not consume this history endpoint.
 
 ### GET /deployments/{deployment_id}
 **Purpose**: Get deployment details with steps
