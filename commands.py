@@ -33,6 +33,7 @@ import uvicorn  # noqa
 
 from rich import print as rprint  # noqa
 from rich.prompt import Prompt  # noqa
+from sqlalchemy.exc import NoResultFound  # noqa
 
 from deploy.adapters.filesystem import working_directory  # noqa
 from deploy.auth import ServiceTokenIssueRefused, get_password_hash, issue_service_token_for_existing  # noqa
@@ -46,7 +47,7 @@ CWD = str(Path(__file__).parent.resolve())
 cli = typer.Typer()
 
 
-async def createuser_async(username, password_hash) -> events.UserCreated:
+async def createuser_async(username, password_hash) -> events.UserCreated | None:
     bus = await get_bus_for_cli()
 
     class UserCreatedHandler:
@@ -55,13 +56,22 @@ async def createuser_async(username, password_hash) -> events.UserCreated:
         async def __call__(self, event: events.UserCreated):
             self.user_event = event
 
-    handle_user_created = UserCreatedHandler()
+    try:
+        async with bus.uow as uow:
+            try:
+                await uow.users.get(username)
+            except NoResultFound:
+                pass
+            else:
+                return None
 
-    bus.event_handlers[events.UserCreated].append(handle_user_created)
-    cmd = commands.CreateUser(username=username, password_hash=password_hash)
-    await bus.handle(cmd)
-    await bus.uow.close()
-    return handle_user_created.user_event
+        handle_user_created = UserCreatedHandler()
+        bus.event_handlers[events.UserCreated].append(handle_user_created)
+        cmd = commands.CreateUser(username=username, password_hash=password_hash)
+        await bus.handle(cmd)
+        return handle_user_created.user_event
+    finally:
+        await bus.uow.close()
 
 
 @cli.command()
@@ -80,11 +90,14 @@ def createuser():
     rprint(f"creating user {username}")
     try:
         user_created = asyncio.run(createuser_async(username, password_hash))
-        rprint("created: ", user_created)
+        if user_created is None:
+            rprint(f"user {username} already exists")
+        else:
+            rprint("created: ", user_created)
     except Exception as e:
         rprint(f"failed to create user {username}")
         rprint(f"{e}")
-        sys.exit(0)
+        sys.exit(1)
 
 
 async def _syncservices(force: bool):

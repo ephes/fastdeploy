@@ -131,7 +131,10 @@ is lost.
 `listservicetokens` lists the issued service tokens with their id (`jti`),
 service, user, origin, expiry and revocation state. `revokeservicetoken <jti>`
 revokes a service token, so deployments can no longer be started with it. It
-exits with status 1 if no token with this id was issued.
+exits with status 1 if no token with this id was issued. Inventory includes active
+and revoked records, never the JWT itself; an empty inventory prints nothing
+and exits successfully. Revocation success identifies the JTI, service, user and
+revocation time. Omitting the required JTI is a usage error (status 2).
 
 ```shell
 python commands.py listservicetokens
@@ -143,7 +146,9 @@ python commands.py revokeservicetoken <jti>
 Deletes the records of service tokens that expired or were revoked more than
 `--older-than-days` days ago (default: `SERVICE_TOKEN_RETENTION_DAYS`, 30).
 Such tokens are rejected anyway. The same cleanup also runs whenever a new
-service token is issued.
+service token is issued. An explicit `--older-than-days` must be positive;
+zero or negative values exit with status 2 before purging. Success prints the
+deleted record count and the effective retention period.
 
 ```shell
 python commands.py purgeservicetokens
@@ -153,6 +158,16 @@ python commands.py purgeservicetokens --older-than-days 7
 ## createuser
 
 Creates a new user in the system. Username and password can be set via environment variables (useful for automation with Ansible) or interactively via the command line.
+
+Set both `INITIAL_USER_NAME` and `INITIAL_PASSWORD_HASH` to supply an existing
+password hash without prompting. Otherwise the command prompts for a username
+and a hidden password, then hashes the password before creating the user.
+Successful creation exits with status 0. Failed creation prints a diagnostic
+and exits with status 1 so automation can detect the failure.
+If the username already exists, the command reports that and exits with status 0
+without changing its password. The bundled Ansible bootstrap tasks can therefore
+run again. Other automation that previously relied on all creation errors
+returning success must now handle status 1.
 
 ```shell
 # Using just (recommended)
@@ -180,3 +195,15 @@ just test-js
 # Run with coverage
 just coverage
 ```
+
+The account/token CLI contract tests run without PostgreSQL:
+
+```shell
+just test-python tests/unit/commands_cli_test.py
+```
+
+They use synthetic records and fake async collaborators to check inventory
+fields, revocation dispatch and refusals, purge retention and argument validation,
+bootstrap credentials and exit status, and token-helper unit-of-work cleanup
+on success and failure. The full Python suite still requires isolated PostgreSQL
+and also verifies that repeated bootstrap preserves the stored user and password.
