@@ -78,45 +78,30 @@ syncservices:
 
 # === Development Server ===
 
-# Check if services are already running
-check-ports:
-    @echo "Checking for running services..."
-    @if lsof -i :8000 > /dev/null 2>&1; then \
-        echo "❌ Port 8000 already in use (FastAPI)"; \
-        echo "   PID: $(lsof -ti :8000)"; \
-        exit 1; \
-    fi
-    @if lsof -i :5432 > /dev/null 2>&1; then \
-        echo "⚠️  Port 5432 already in use (PostgreSQL)"; \
-        echo "   This might be your system PostgreSQL - checking..."; \
-        if pgrep -f "postgres -D databases/postgres" > /dev/null; then \
-            echo "   ❌ Local dev PostgreSQL already running"; \
-            echo "   PID: $(pgrep -f 'postgres -D databases/postgres')"; \
-            exit 1; \
-        else \
-            echo "   ✓ System PostgreSQL detected, will use it"; \
-        fi; \
-    fi
-    @if lsof -i :5173 > /dev/null 2>&1; then \
-        echo "❌ Port 5173 already in use (Vite)"; \
-        echo "   PID: $(lsof -ti :5173)"; \
-        exit 1; \
-    fi
-    @if lsof -i :8001 > /dev/null 2>&1; then \
-        echo "❌ Port 8001 already in use (MkDocs)"; \
-        echo "   PID: $(lsof -ti :8001)"; \
-        exit 1; \
-    fi
-    @echo "✓ All ports available"
+# Check only the ports used by the requested stack (full or backend)
+check-ports scope="full":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{scope}}" in
+        full) ports=(5432 8000 5173 8001) ;;
+        backend) ports=(5432 8000) ;;
+        *) echo "Unknown stack: {{scope}} (use full or backend)" >&2; exit 1 ;;
+    esac
+    command -v lsof >/dev/null || { echo "lsof is required for port checks" >&2; exit 1; }
+    for port in "${ports[@]}"; do
+        if lsof -nP -iTCP:"$port" -sTCP:LISTEN; then
+            echo "Port $port already in use; stop its owner before starting this stack" >&2
+            exit 1
+        fi
+    done
+    echo "✓ Requested ports available"
 
-# Kill any leftover processes from previous runs
+# Refuse to signal processes whose ownership cannot be established
 cleanup:
-    @echo "Cleaning up any leftover processes..."
-    @-pkill -f "postgres -D databases/postgres" 2>/dev/null || true
-    @-pkill -f "uvicorn deploy.entrypoints.fastapi_app:app" 2>/dev/null || true
-    @-pkill -f "mkdocs serve" 2>/dev/null || true
-    @-pkill -f "npm run dev" 2>/dev/null || true
-    @echo "✓ Cleanup complete"
+    @echo "Refusing cleanup: this command has no verified process ownership." >&2
+    @echo "Press Ctrl+C in this checkout's just dev / just dev-backend terminal; Honcho stops its own children." >&2
+    @echo "For individually started services, stop them in their original terminals." >&2
+    @exit 1
 
 # Start development server (all services)
 dev: check-ports
@@ -126,7 +111,7 @@ dev: check-ports
     honcho start
 
 # Start development server (backend only: postgres + fastapi)
-dev-backend: check-ports
+dev-backend: (check-ports "backend")
     @echo "Starting backend services (postgres + fastapi)..."
     honcho start postgres uvicorn
 
@@ -299,7 +284,7 @@ help:
     @echo ""
     @echo "Troubleshooting:"
     @echo "  just status         # Check service status"
-    @echo "  just cleanup        # Kill leftover processes"
+    @echo "  just cleanup        # Explain safe shutdown; refuses unverified process kills"
     @echo "  just check-ports    # Check if ports are in use"
     @echo ""
     @echo "For more commands: just --list"

@@ -167,6 +167,27 @@ just docs-serve    # MkDocs documentation
 honcho start
 ```
 
+### Ports and stopping development services
+
+| Command | Required TCP ports |
+| --- | --- |
+| `just dev` / `just check-ports` | PostgreSQL 5432, FastAPI 8000, Vite 5173, MkDocs 8001 |
+| `just dev-backend` / `just check-ports backend` | PostgreSQL 5432, FastAPI 8000 |
+
+A listener on any required port blocks startup without killing anything. Both
+stacks start their own PostgreSQL, so a system PostgreSQL on 5432 is also a
+conflict. Backend-only runs ignore frontend/docs listeners. These checks describe
+the default configuration; changing individual service ports requires updating
+the preflight accordingly.
+
+Keep Honcho in the foreground. Press Ctrl+C in the terminal that started this
+checkout's stack; Honcho stops the children it started. Stop individual service
+recipes in their original terminals. `just cleanup` exits nonzero with these
+instructions: it has no verified ownership information and never searches command
+names or trusts stale PID files. It cannot safely stop a detached/leftover server.
+If the original supervisor is gone, identify the specific process and checkout
+manually before stopping it; the recipe provides no account-wide kill fallback.
+
 ### Running tests
 
 ```shell
@@ -292,7 +313,7 @@ Common commands:
 - `just lint` - Check code style
 - `just typecheck` - Run type checking
 - `just status` - Check service status
-- `just cleanup` - Kill leftover processes
+- `just cleanup` - Refuse unverified process kills and explain safe shutdown
 
 For help: `just help`
 

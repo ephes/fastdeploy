@@ -304,6 +304,12 @@ Unreleased
   issued, and on demand with `python commands.py purgeservicetokens [--older-than-days N]`.
 
 
+### Development process scope
+- Use foreground Honcho for owned stack shutdown; `just cleanup` now refuses
+  unverified process kills instead of using account-wide command-name patterns.
+- Backend-only startup checks PostgreSQL/FastAPI ports only; full-stack startup
+  checks all four ports and refuses any required listener, including system Postgres.
+
 ### Development setup
 - Document a complete fresh-checkout sequence with locked frontend installation,
   required environment, and explicit setup-PostgreSQL handoff to Honcho.

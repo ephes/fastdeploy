@@ -33,7 +33,8 @@ if name == "psql" and "-c" in args:
 elif name == "psql":
     sys.stdin.read()
 elif name == "lsof":
-    sys.exit(1)
+    ports = os.environ.get("LISTEN_PORTS", "").split(",")
+    sys.exit(0 if any(a in ("-iTCP:" + p, ":" + p) for p in ports for a in args) else 1)
 elif name == "pg_ctl":
     (root / "postgres-running").write_text(str("start" in args))
 elif name == "npm":
@@ -43,7 +44,7 @@ elif name == "uv" and args[:1] == ["venv"]:
     (root / ".venv/bin/activate").touch()
 elif name == "uv" and "secrets" in " ".join(args):
     print("synthetic-local-key")
-elif name == "honcho":
+elif name == "honcho" and os.environ.get("PORT_TEST") != "1":
     assert (root / "postgres-running").read_text() == "False"
     assert (root / "frontend-installed").exists()
     assert os.environ["SECRET_KEY"]
@@ -56,7 +57,21 @@ def recipe_env(tmp_path):
     (tmp_path / "justfile").write_text((ROOT / "justfile").read_text())
     commands = tmp_path / "bin"
     commands.mkdir()
-    for name in ("psql", "createdb", "createuser", "pg_dump", "uv", "npm", "initdb", "pg_ctl", "lsof", "honcho"):
+    for name in (
+        "psql",
+        "createdb",
+        "createuser",
+        "pg_dump",
+        "uv",
+        "npm",
+        "initdb",
+        "pg_ctl",
+        "lsof",
+        "honcho",
+        "pkill",
+        "kill",
+        "pgrep",
+    ):
         tool = commands / name
         tool.write_text(TOOL.format(python=sys.executable))
         tool.chmod(0o755)
@@ -127,3 +142,44 @@ def test_database_sql_application_failure_propagates(recipe_env):
     result = run_recipe(recipe_env, "db-create")
     assert result.returncode != 0
     assert "Databases created" not in result.stdout
+
+
+@pytest.mark.parametrize("port", ["5173", "8001"])
+def test_backend_ignores_frontend_and_docs_listeners(recipe_env, port):
+    backend = run_recipe(recipe_env, "dev-backend", LISTEN_PORTS=port, PORT_TEST="1")
+    assert backend.returncode == 0, backend.stderr
+    invoked = calls(recipe_env)
+    assert ["honcho", "start", "postgres", "uvicorn"] in invoked
+    assert not any(c[0] == "lsof" and f"-iTCP:{port}" in c for c in invoked)
+    full = run_recipe(recipe_env, "dev", LISTEN_PORTS=port, PORT_TEST="1")
+    assert full.returncode != 0
+    assert f"Port {port} already in use" in full.stderr
+    assert ["honcho", "start"] not in calls(recipe_env)
+
+
+@pytest.mark.parametrize("recipe", ["dev", "dev-backend"])
+@pytest.mark.parametrize("port", ["5432", "8000"])
+def test_backend_ports_block_both_stacks_without_signals(recipe_env, recipe, port):
+    result = run_recipe(recipe_env, recipe, LISTEN_PORTS=port, PORT_TEST="1")
+    assert result.returncode != 0
+    assert f"Port {port} already in use" in result.stderr
+    assert all(c[0] == "lsof" for c in calls(recipe_env))
+
+
+def test_cleanup_refuses_unknown_or_stale_ownership(recipe_env):
+    root, _ = recipe_env
+    # Invented/recycled identity files cannot grant ownership to a signal command.
+    (root / ".honcho.pid").write_text("12345")
+    (root / "calls").touch()
+    result = run_recipe(recipe_env, "cleanup")
+    assert result.returncode != 0
+    assert "Refusing cleanup" in result.stderr
+    assert "Ctrl+C" in result.stderr
+    assert calls(recipe_env) == []
+
+
+def test_unknown_port_scope_refuses_before_tools(recipe_env):
+    (recipe_env[0] / "calls").touch()
+    result = run_recipe(recipe_env, "check-ports", "unknown")
+    assert result.returncode != 0
+    assert calls(recipe_env) == []

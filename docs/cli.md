@@ -61,6 +61,17 @@ prompts for the initial account; it preserves existing users on reruns.
 - `just frontend` - Start Vue.js frontend only
 - `just docs-serve` - Start documentation server only
 
+`just dev` checks 5432/8000/5173/8001; `just dev-backend` checks only
+5432/8000. A listener on a required port (including system PostgreSQL) blocks
+startup; no preflight kills processes. These are the default service ports.
+
+To stop a stack, press Ctrl+C in its original foreground Honcho terminal. Honcho
+stops its own children, leaving other checkouts alone. Stop individual recipes in
+their original terminals. `just cleanup` refuses with a nonzero exit because it
+has no verified supervisor ownership; it does not match process names, read stale
+PID files, or stop detached leftovers. Identify leftover processes and their
+checkout manually if the original supervisor is gone.
+
 ### Testing
 - `just test` - Run all tests (Python + JavaScript)
 - `just test-python [ARGS]` - Run Python tests with optional arguments
@@ -85,8 +96,8 @@ prompts for the initial account; it preserves existing users on reruns.
 
 ### Utilities
 - `just status` - Show project and service status
-- `just check-ports` - Check if required ports are available
-- `just cleanup` - Kill leftover processes
+- `just check-ports [full|backend]` - Check the requested stack's TCP listeners
+- `just cleanup` - Refuse unverified process kills (nonzero exit); print shutdown instructions
 - `just python-version` - Show current Python version
 - `just notebook` - Start Jupyter notebook
 - `just jupyterlab` - Start JupyterLab
