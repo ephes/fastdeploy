@@ -126,6 +126,7 @@ class TestRunDeploySecure:
         call_env = mock_popen.call_args[1]["env"]
         assert "DEPLOY_CONFIG_FILE" in call_env
         assert call_env["DEPLOY_CONFIG_FILE"] == str(mock_config_path)
+        assert float(call_env["DEPLOYMENT_MAX_RUNTIME_SECONDS"]) > 0
 
         # Verify sensitive data not in subprocess environment
         assert "ACCESS_TOKEN" not in call_env

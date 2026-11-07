@@ -12,6 +12,7 @@ import os
 import sys
 import textwrap
 import time
+from contextlib import asynccontextmanager
 from unittest.mock import patch
 
 import pytest
@@ -28,14 +29,19 @@ class RecordingClient:
     def __init__(self):
         self.posted = []
 
-    async def post(self, url, json=None):
+    @asynccontextmanager
+    async def stream(self, method, url, json=None):
         self.posted.append(json)
 
         class Response:
+            async def aiter_raw(self, chunk_size):
+                if False:
+                    yield b""
+
             def raise_for_status(self):
                 pass
 
-        return Response()
+        yield Response()
 
 
 @pytest.fixture
