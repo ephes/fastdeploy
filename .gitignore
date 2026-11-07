@@ -44,3 +44,7 @@ site/
 
 # mac
 .DS_Store
+
+# Browser regression artifacts
+frontend/test-results/
+frontend/playwright-report/

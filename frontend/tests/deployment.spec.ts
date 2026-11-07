@@ -162,6 +162,7 @@ describe("Deployment Store Actions", () => {
     servicesStore.client = {
       post: vi.fn().mockRejectedValue({
         message: "Forbidden",
+        response: { status: 403 },
         body: { detail: "Service token issuance requires an administrator" },
       }),
       options: { headers: {} },

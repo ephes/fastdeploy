@@ -99,3 +99,7 @@ jobs:
         run: npm test
       - name: Type check and build (vue-tsc, vite)
         run: npm run build
+      - name: Install Chromium for keyboard regression
+        run: npx playwright install --with-deps chromium
+      - name: Native login keyboard test (synthetic API)
+        run: npm run test:browser
