@@ -1,9 +1,12 @@
+import asyncio
 from datetime import datetime, timedelta
+from threading import BoundedSemaphore
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import NoResultFound
 
 from ... import auth
 from ...config import settings
@@ -14,6 +17,7 @@ from ..dependencies import get_current_active_user
 from ..helper_models import Bus
 
 router = APIRouter()
+login_capacity = BoundedSemaphore(settings.login_max_concurrent)
 
 
 class UserOut(BaseModel):
@@ -51,21 +55,30 @@ async def login_for_access_token(
             detail="Too many failed login attempts",
             headers={"Retry-After": str(retry_after)},
         )
-    # Count the attempt before the (slow) password check and take it back on
-    # success, so parallel requests cannot overrun the limit.
+    if not login_capacity.acquire(blocking=False):
+        raise HTTPException(
+            status_code=429, detail="Login capacity reached; try again shortly", headers={"Retry-After": "1"}
+        )
     attempt = login_throttle.begin_attempt(form_data.username, address)
     try:
-        user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from None
+        try:
+            user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)
+        except (auth.InvalidCredentials, NoResultFound):
+            login_throttle.record_failure(attempt)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from None
+        except asyncio.CancelledError:
+            login_throttle.record_failure(attempt)
+            raise
+        except Exception:
+            login_throttle.discard_attempt(attempt)
+            raise
+        login_throttle.record_success(attempt)
     finally:
-        # also when the request was cancelled: an attempt without a login stays counted
-        login_throttle.record_failure(attempt)
-    login_throttle.record_success(attempt)
+        login_capacity.release()
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = auth.create_access_token(
         payload={"user": user.name, "type": "user"}, expires_delta=access_token_expires

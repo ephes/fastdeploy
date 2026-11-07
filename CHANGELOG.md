@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Fixed
+- Authentication backend failures now return a safe 500 with category-only diagnostics,
+  preserving the failed-password allowance. Invalid credentials still return 401.
+- Bound process-wide login work with `LOGIN_MAX_CONCURRENT` (default 4, 1–64).
+  Saturation returns 429/Retry-After without queuing work; cancellation retains the
+  slot until a running password check exits. Requires an API restart.
 - Validate task retry counts (1–8) and finite initial backoff (0–10 seconds) before
   deployment-script startup, on assignment and at the request helper boundary.
   Defaults and exponential retry delays are unchanged; invalid inputs no longer

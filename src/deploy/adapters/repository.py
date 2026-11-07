@@ -96,10 +96,16 @@ class InMemoryServiceRepository(AbstractServiceRepository):
             self._services[service.id - 1] = service
 
     async def get(self, service_id):
-        return next(s for s in self._services if s.id == service_id)
+        for service in self._services:
+            if service.id == service_id:
+                return service
+        raise NoResultFound("Service not found")
 
     async def get_by_name(self, name):
-        return next(s for s in self._services if s.name == name)
+        for service in self._services:
+            if service.name == name:
+                return service
+        raise NoResultFound("Service not found")
 
     async def list(self):
         return list(self._services)
@@ -161,7 +167,10 @@ class InMemoryUserRepository(AbstractUserRepository):
         user.id = len(self._users)
 
     async def get(self, name):
-        return next(u for u in self._users if u.name == name)
+        for user in self._users:
+            if user.name == name:
+                return user
+        raise NoResultFound("User not found")
 
     async def list(self):
         return list(self._users)
