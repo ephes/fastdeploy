@@ -5,8 +5,11 @@ that are used as dependencies for fastAPI routers.
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jwt import InvalidTokenError
+from sqlalchemy.exc import NoResultFound
 
 from ..auth import (
+    InvalidCredentials,
     config_from_token,
     deployment_from_token,
     service_from_token,
@@ -29,7 +32,7 @@ async def get_current_active_user(
 ) -> User:
     try:
         return await user_from_token(token, bus.uow)
-    except Exception:
+    except (InvalidCredentials, InvalidTokenError, NoResultFound):
         raise CREDENTIALS_EXCEPTION from None
 
 
@@ -39,7 +42,7 @@ async def get_current_active_service(
 ) -> Service:
     try:
         return await service_from_token(token, bus.uow)
-    except Exception:
+    except (InvalidCredentials, InvalidTokenError, NoResultFound):
         raise CREDENTIALS_EXCEPTION from None
 
 
@@ -49,12 +52,12 @@ async def get_current_active_deployment(
 ) -> Deployment:
     try:
         return await deployment_from_token(token, bus.uow)
-    except Exception:
+    except (InvalidCredentials, InvalidTokenError, NoResultFound):
         raise CREDENTIALS_EXCEPTION from None
 
 
 async def get_current_config(token: str = Depends(OAUTH2_SCHEME)):
     try:
         return await config_from_token(token)
-    except Exception:
+    except (InvalidCredentials, InvalidTokenError, NoResultFound):
         raise CREDENTIALS_EXCEPTION from None

@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     # expiry / revocation is older than this many days (on token issue and
     # via "commands.py purgeservicetokens").
     service_token_retention_days: int = Field(30, ge=1, le=3650)
+    # Process-wide fail-fast admission; independent of failed-password buckets.
+    login_max_concurrent: int = Field(4, ge=1, le=64)
     # Failed logins on POST /token allowed per (user name, client address) and
     # per client address inside one window (seconds). Further attempts get
     # 429 until enough failures left the window. A limit <= 0 turns the

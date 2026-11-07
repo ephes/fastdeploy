@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from passlib.context import CryptContext  # type: ignore
+from sqlalchemy.exc import NoResultFound
 
 from . import views
 from .config import settings
@@ -26,6 +27,32 @@ def verify_password(plain, hashed):
     return PWD_CONTEXT.verify(plain, hashed)
 
 
+class InvalidCredentials(ValueError):
+    """Expected rejection of a password or token."""
+
+
+async def _password_work(function, *args):
+    # Cancelling to_thread does not stop its thread. Keep the request and its
+    # admission slot alive until that work exits, including repeated cancellation.
+    work = asyncio.create_task(asyncio.to_thread(function, *args))
+    cancelled = False
+    while not work.done():
+        try:
+            await asyncio.shield(work)
+        except asyncio.CancelledError:
+            cancelled = True
+        except Exception:
+            if not cancelled:
+                raise
+            break
+    if cancelled:
+        # Retrieve any exception without replacing the cancellation.
+        if not work.cancelled():
+            work.exception()
+        raise asyncio.CancelledError
+    return work.result()
+
+
 async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWork) -> User:
     """
     Authenticate a user against the database. Raise an exception if the
@@ -34,27 +61,27 @@ async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWor
     """
     try:
         user = await views.get_user_by_name(username, uow)
-    except Exception:
+    except NoResultFound:
         # Spend the same time as a real password check, so the response time
         # does not tell whether the user exists. (Only the first dummy check
         # of a process takes longer: it creates the hash to check against.)
-        await asyncio.to_thread(PWD_CONTEXT.dummy_verify)
+        await _password_work(PWD_CONTEXT.dummy_verify)
         raise
 
     # The hash is deliberately slow: check it in a worker thread, otherwise
     # every login attempt blocks the event loop (and with it step reports of
     # running deployments) for the duration of the check.
     try:
-        verified = await asyncio.to_thread(verify_password, password, user.password)
-    except Exception:
+        verified = await _password_work(verify_password, password, user.password)
+    except ValueError:
         # The hash library refuses some input right away, without doing the
         # work (bcrypt: a password with a NUL byte or longer than 4096
         # characters; an unusable stored hash). Spend the check anyway, so
         # such input cannot tell existing users from unknown ones either.
-        await asyncio.to_thread(PWD_CONTEXT.dummy_verify)
-        raise ValueError("invalid password") from None
+        await _password_work(PWD_CONTEXT.dummy_verify)
+        raise InvalidCredentials("invalid password") from None
     if not verified:
-        raise ValueError("invalid password")
+        raise InvalidCredentials("invalid password")
     return user
 
 
@@ -113,11 +140,11 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
     """
     payload = token_to_payload(token)
     if payload.get("type") != "user":
-        raise ValueError("not an access token")
+        raise InvalidCredentials("not an access token")
 
     username = payload.get("user")
     if username is None:
-        raise ValueError("no user name")
+        raise InvalidCredentials("no user name")
 
     return await views.get_user_by_name(username, uow)
 
@@ -205,29 +232,29 @@ async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
     """
     payload = token_to_payload(token)
     if payload.get("type") != "service":
-        raise ValueError("not a service token")
+        raise InvalidCredentials("not a service token")
 
     servicename = payload.get("service")
     if servicename is None:
-        raise ValueError("no service name")
+        raise InvalidCredentials("no service name")
 
     username = payload.get("user")
     if not username:
-        raise ValueError("no user name")
+        raise InvalidCredentials("no user name")
 
     jti = payload.get("jti")
     if jti is None and not legacy_service_tokens_accepted(datetime.now(timezone.utc)):
-        raise ValueError("legacy service token without jti is no longer accepted")
+        raise InvalidCredentials("legacy service token without jti is no longer accepted")
 
     async with uow as uow:
         if jti is not None:
             record = await uow.service_tokens.get_by_jti(jti)
             if record is None:
-                raise ValueError("unknown service token")
+                raise InvalidCredentials("unknown service token")
             if record.revoked:
-                raise ValueError("service token has been revoked")
+                raise InvalidCredentials("service token has been revoked")
             if record.service != servicename or record.user != username:
-                raise ValueError("service token does not match its record")
+                raise InvalidCredentials("service token does not match its record")
         # raises if the user who obtained the token has been deleted
         await uow.users.get(username)
         service = await uow.services.get_by_name(servicename)
@@ -243,11 +270,11 @@ async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployme
     """
     payload = token_to_payload(token)
     if payload.get("type") != "deployment":
-        raise ValueError("not a deployment token")
+        raise InvalidCredentials("not a deployment token")
 
     deployment_id = payload.get("deployment")
     if deployment_id is None:
-        raise ValueError("no deployment id")
+        raise InvalidCredentials("no deployment id")
 
     async with uow as uow:
         deployment = await uow.deployments.get(deployment_id)
@@ -260,6 +287,6 @@ async def config_from_token(token: str):
     """
     payload = token_to_payload(token)
     if payload.get("type") != "config":
-        raise ValueError("not a config token")
+        raise InvalidCredentials("not a config token")
 
     return payload

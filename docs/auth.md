@@ -215,3 +215,17 @@ application environment before restarting FastDeploy. Both values are JSON. No d
 or token rotation is required. Existing tokens are subject to the restore input policy on their
 next restore request. The deployment roles that render FastDeploy's environment need to support
 both settings before they can be set on a managed host.
+
+### Authentication failures and capacity
+
+Invalid credentials retain the existing 401 response. Database and other unexpected
+backend failures return a generic 500, with an exception category in the API log
+(`request_failed category=...`), never passwords, tokens, SQL or exception text.
+Backend failure does not consume the failed-password allowance or erase earlier failures.
+
+`LOGIN_MAX_CONCURRENT` (default 4, range 1–64) limits complete authentication
+operations per API process, independently of address/username throttling. Saturation
+returns 429 with `Retry-After: 1` immediately, without queuing a hash or recording a
+password failure. Cancellation holds capacity until any running hash thread exits.
+Cancelled attempts remain counted under the existing failed-login policy.
+With multiple API processes each process has its own capacity and attempt counters.

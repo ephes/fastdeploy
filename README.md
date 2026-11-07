@@ -93,6 +93,7 @@ SERVICE_TOKEN_RETENTION_DAYS=30  # Delete expired/revoked token records older th
 LOGIN_FAILURE_LIMIT=10  # failed attempts per user name and client address inside the window
 LOGIN_ADDRESS_FAILURE_LIMIT=50  # failed attempts per client address for any user names
 LOGIN_FAILURE_WINDOW_SECONDS=900
+LOGIN_MAX_CONCURRENT=4  # process-wide authentication work limit, 1–64; saturation returns 429
 
 # Request limits
 WEBSOCKET_AUTH_TIMEOUT_SECONDS=10  # close a websocket connection that has not authenticated by then

@@ -138,6 +138,13 @@ class LoginThrottle:
         if attempt is not None:
             attempt.pending = False
 
+    def discard_attempt(self, attempt: Attempt | None) -> None:
+        """Backend failure: remove only this attempt, preserving earlier failures."""
+        if attempt is not None:
+            attempt.pending = False
+            for key in (attempt.pair_key, attempt.address_key):
+                self._store(key, [other for other in self._attempts.get(key, []) if other is not attempt])
+
     def record_success(self, attempt: Attempt | None) -> None:
         """
         This attempt logged in: take exactly this attempt back and forget the

@@ -1,10 +1,11 @@
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.websockets import WebSocketState
@@ -14,7 +15,10 @@ from ..config import settings
 from .helper_models import Bus
 from .routers import deployed_services, deployments, services, steps, users
 
+logger = logging.getLogger(__name__)
 app = FastAPI()
+
+
 app.include_router(users.router)
 app.include_router(steps.router)
 app.include_router(services.router)
@@ -34,7 +38,13 @@ app.add_middleware(
 @app.middleware("http")
 async def private_responses(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """Keep credentials and complete service configurations out of HTTP caches."""
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        # Handle before ServerErrorMiddleware: its exception handler re-raises
+        # and would let the ASGI server print backend exception text.
+        logger.error("request_failed category=%s", type(exc).__name__)
+        response = JSONResponse(status_code=500, content={"detail": "Internal server error"})
     if request.url.path.rstrip("/") in {"/token", "/service-token", "/services", "/deployed-services"}:
         response.headers["Cache-Control"] = "private, no-store"
         response.headers.add_vary_header("Authorization")
