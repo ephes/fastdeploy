@@ -226,7 +226,8 @@ class ConnectionManager:
         ``BROADCAST_SEND_TIMEOUT_SECONDS``, so the broadcast as a whole is
         bounded and one slow client delays neither the other clients nor the
         publisher for longer than that. A client which exceeds the budget is
-        disconnected; it has to reconnect and fetch the current state.
+        disconnected, as is a client whose send fails; it has to reconnect
+        and fetch the current state.
         """
         text = message.model_dump_json()
         connections = list(self.active_connections.items())
@@ -247,6 +248,8 @@ class ConnectionManager:
             await close_websocket(websocket, status.WS_1013_TRY_AGAIN_LATER)
         except Exception:  # one broken connection must not stop the broadcast
             logger.info("broadcast to websocket client %s failed", client_id, exc_info=True)
+            self.disconnect(client_id, websocket)
+            await close_websocket(websocket, status.WS_1013_TRY_AGAIN_LATER)
 
     async def publish(self, channel, event):  # noqa: ARG002 -- channel is part of the publisher interface; all clients get every event
         await self.broadcast(event)

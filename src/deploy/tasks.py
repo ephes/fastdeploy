@@ -8,10 +8,10 @@ import subprocess
 import sys
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .auth import create_access_token
@@ -110,6 +110,12 @@ MAX_LOGGED_RESULT_KEYS = 10
 MAX_LOGGED_RESULT_KEY_SIZE = 40
 
 
+RetryAttempts = Annotated[int, Field(ge=1, le=8)]
+RetryBackoff = Annotated[float, Field(ge=0, le=10, allow_inf_nan=False)]
+retry_attempts_adapter = TypeAdapter(RetryAttempts)
+retry_backoff_adapter = TypeAdapter(RetryBackoff)
+
+
 class DeployTask(BaseSettings):
     """
     Run a complete deployment for a service:
@@ -118,7 +124,7 @@ class DeployTask(BaseSettings):
       - post finished steps back to application server
     """
 
-    model_config = SettingsConfigDict(env_file=None)
+    model_config = SettingsConfigDict(env_file=None, validate_assignment=True)
 
     # passed on to the deploy script as ``deployment_id`` in its config file
     deployment_id: str
@@ -131,12 +137,19 @@ class DeployTask(BaseSettings):
     deployment_max_runtime_seconds: float = Field(
         settings.deployment_max_runtime_seconds, gt=0, le=86400, allow_inf_nan=False
     )
-    attempts: int = 4
+    attempts: RetryAttempts = 4
     # Finishing the deployment gets more attempts: if it is lost, the deployment stays
     # active and blocks new deployments of the service until it becomes stale.
-    finish_attempts: int = 6
-    sleep_on_fail: float = 3.0
+    finish_attempts: RetryAttempts = 6
+    sleep_on_fail: RetryBackoff = 3.0
     client: Any = None
+
+    @field_validator("attempts", "finish_attempts", "sleep_on_fail", mode="before")
+    @classmethod
+    def reject_boolean_retry_settings(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("retry settings must be numeric, not boolean")
+        return value
 
     @property
     def headers(self):
@@ -187,6 +200,8 @@ class DeployTask(BaseSettings):
         exponential backoff. Raises the last error when all attempts failed or the
         error is not retryable.
         """
+        attempts = retry_attempts_adapter.validate_python(attempts, strict=True)
+        backoff = retry_backoff_adapter.validate_python(self.sleep_on_fail, strict=True)
         for attempt in range(attempts):
             try:
                 await self.request_once(method, url, **kwargs)
@@ -194,7 +209,7 @@ class DeployTask(BaseSettings):
             except httpx.HTTPError as e:
                 if not self.is_retryable(e) or attempt == attempts - 1:
                     raise
-                await asyncio.sleep(self.sleep_on_fail * 2**attempt)
+                await asyncio.sleep(backoff * 2**attempt)
 
     async def request_once(self, method: str, url: str, **kwargs) -> None:
         """Discard bounded wire data, without decoding or logging response bodies."""

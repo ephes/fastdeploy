@@ -133,7 +133,16 @@ so `4xx` responses remain non-retryable regardless of body size or speed. Oversi
 failures and follow the same retries; every opened response is closed.
 Connection errors and `5xx` responses are retried with
 exponential backoff (4 attempts per step, 6 for finishing the deployment, starting at 3 seconds), so a short API
-restart, for example while fastdeploy deploys itself, does not leave the deployment active. A retried step report
+restart, for example while fastdeploy deploys itself, does not leave the deployment active.
+`DeployTask` retry configuration (`attempts`, `finish_attempts`, `sleep_on_fail`, or
+`ATTEMPTS`, `FINISH_ATTEMPTS`, `SLEEP_ON_FAIL` when invoking the task directly)
+is validated before the deployment script starts, and on assignment. Attempts must
+be integers from 1 through 8, and the initial backoff must be finite from 0 through
+10 seconds. Booleans are refused. The request helper also validates its attempt
+override and backoff before any client call; invalid inputs raise a validation error
+instead of silently succeeding or sleeping. The largest accepted retry sequence
+has seven waits totalling 1270 seconds, plus the bounded response attempts; the
+deployment runtime deadline still caps reporting while its script runs. A retried step report
 that the API had already processed (only the response was lost) is recognized by its name and started timestamp and
 changes nothing. `4xx` responses are not
 retried. A step that still cannot be reported is dropped and logged to the task's stderr (the fastdeploy service

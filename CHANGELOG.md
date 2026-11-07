@@ -2,6 +2,13 @@ Unreleased
 ==========
 
 ### Fixed
+- Validate task retry counts (1–8) and finite initial backoff (0–10 seconds) before
+  deployment-script startup, on assignment and at the request helper boundary.
+  Defaults and exponential retry delays are unchanged; invalid inputs no longer
+  silently skip API calls. Requires a task-runner update.
+- Forget and close websocket connections after ordinary broadcast send errors,
+  cancelling expiry timers while preserving healthy peers and replacements.
+  Requires updating/restarting the backend.
 - Bound deployment output/reporting and process exit with `DEPLOYMENT_MAX_RUNTIME_SECONDS`
   (default 1800, finite >0 and <=86400). Expiry uses owned-group termination,
   secure-config cleanup and failure reporting. Requires a task-runner update.

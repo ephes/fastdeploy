@@ -619,3 +619,101 @@ async def test_reauthentication_success_send_is_bounded(uow, valid_access_token_
     socket.release_close.set()
     await asyncio.sleep(0)
     assert_forgotten(cm, client_id)
+
+
+@pytest.mark.parametrize("error_type", [OSError, RuntimeError])
+async def test_broadcast_error_forgets_state_once_without_receive_disconnect(test_message, error_type):
+    cm = ConnectionManager()
+    failed_id, healthy_id = uuid4(), uuid4()
+
+    class Broken(RecordingWebsocket):
+        sends = 0
+        closes = 0
+
+        async def send_text(self, message):
+            self.sends += 1
+            raise error_type("synthetic send failure")
+
+        async def close(self, code=1000, reason=None):
+            self.closes += 1
+            await super().close(code, reason)
+
+    broken, healthy = Broken(), RecordingWebsocket()
+    for client_id, ws in ((failed_id, broken), (healthy_id, healthy)):
+        await cm.connect(client_id, ws)
+        cm.active_connections[client_id] = ws
+        cm.principals[client_id] = "synthetic"
+    await cm.close_on_expire(failed_id, datetime.now(timezone.utc) + timedelta(minutes=1))
+    expiry = cm.expiry_tasks[failed_id]
+
+    await cm.broadcast(test_message)
+    await asyncio.wait_for(asyncio.gather(expiry, return_exceptions=True), 1)
+    assert expiry.cancelled()
+    assert_forgotten(cm, failed_id)
+    assert broken.close_code == 1013
+    await cm.broadcast(test_message)
+    assert (broken.sends, broken.closes) == (1, 1)
+    assert healthy.sent == [test_message.model_dump_json()] * 2
+    assert cm.principals == {healthy_id: "synthetic"}
+    cm.disconnect(healthy_id, healthy)
+
+
+@pytest.mark.parametrize("error_type", [OSError, RuntimeError])
+async def test_broadcast_error_preserves_replacement_and_its_expiry(test_message, error_type):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    class FailingLater(RecordingWebsocket):
+        async def send_text(self, message):
+            entered.set()
+            await release.wait()
+            raise error_type("synthetic stale send failure")
+
+    old, replacement = FailingLater(), RecordingWebsocket()
+    await cm.connect(client_id, old)
+    cm.active_connections[client_id] = old
+    broadcasting = asyncio.create_task(cm.broadcast(test_message))
+    await asyncio.wait_for(entered.wait(), 1)
+    cm.disconnect(client_id, old)
+    await cm.connect(client_id, replacement)
+    cm.active_connections[client_id] = replacement
+    cm.principals[client_id] = "replacement"
+    await cm.close_on_expire(client_id, datetime.now(timezone.utc) + timedelta(minutes=1))
+    expiry = cm.expiry_tasks[client_id]
+    try:
+        release.set()
+        await asyncio.wait_for(broadcasting, 1)
+        assert cm.all_connections == {client_id: replacement}
+        assert cm.active_connections == {client_id: replacement}
+        assert cm.principals == {client_id: "replacement"}
+        assert cm.expiry_tasks == {client_id: expiry}
+        assert not expiry.done()
+        assert old.closed and not replacement.closed
+    finally:
+        cm.disconnect(client_id, replacement)
+        await asyncio.gather(expiry, return_exceptions=True)
+
+
+async def test_broadcast_error_close_wait_is_bounded(test_message, short_broadcast_budget):
+    cm = ConnectionManager()
+    client_id = uuid4()
+
+    class BrokenWithStuckClose(StuckWebsocket):
+        async def send_text(self, message):
+            raise OSError("synthetic send failure")
+
+    broken = BrokenWithStuckClose(stuck_close=True)
+    await cm.connect(client_id, broken)
+    cm.active_connections[client_id] = broken
+    try:
+        await asyncio.wait_for(cm.broadcast(test_message), 1)
+        assert_forgotten(cm, client_id)
+        assert not broken.closed
+        assert not broken.close_cancelled
+    finally:
+        broken.release_close.set()
+        pending = set(websocket_module._pending_closes)
+        await asyncio.wait_for(asyncio.gather(*pending), 1)
+    assert broken.closed
+    assert not websocket_module._pending_closes

@@ -106,7 +106,8 @@ API_URL=http://localhost:8000
 
 Deploy tasks stop their owned process group when the runtime budget expires and clean up
 temporary config files before reporting failure. Each API report/finish response is
-limited to 4096 wire bytes and 10 seconds per attempt; see [runner limits](docs/deployment.md).
+limited to 4096 wire bytes and 10 seconds per attempt. Task retry counts must be
+1–8 and initial backoff 0–10 finite seconds (defaults 4/6 attempts, 3 seconds); see [runner limits](docs/deployment.md).
 
 Only one deployment per service runs at a time: `POST /deployments/` returns `409 Conflict` (naming the running deployment id) while the service has an active deployment. See [docs/endpoints.md](docs/endpoints.md#post-deployments).
 
