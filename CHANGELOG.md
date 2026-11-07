@@ -2,6 +2,10 @@ Unreleased
 ==========
 
 ### Fixed
+- Censor task names and result payloads in the retained Ansible JSON callback when
+  task `no_log` or result `_ansible_no_log` is set. Add skipped/unreachable
+  observations using supported states, explicit outcomes and ignored-failure
+  metadata. Requires installing the updated callback with retained runners.
 - Reconcile service refreshes authoritatively, retaining intervening websocket
   mutations and confirmed deletions; ignore superseded fetch results/errors.
 - Preserve newer step updates/deletions during hydration and deduplicate running
