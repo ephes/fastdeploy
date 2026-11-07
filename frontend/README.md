@@ -43,3 +43,20 @@ requires a confirmed result belonging to the current login session.
 Service history links use `/deployments?serviceId=7`. Reloading, sharing and browser
 back/forward retain the filter. Each filter change starts a new bounded page from
 the newest deployments and drops old cursor/response state.
+
+## Dependency security
+
+Use Node 24 and `npm ci`, then `npm audit --package-lock-only` to audit the
+complete lock (including development dependencies). The November refresh uses
+Vitest/UI 4.1.12 and happy-dom 21.0.4. Their mock server and DOM execution
+advisories affect developer/CI tooling, not the shipped Vue bundle.
+
+The remaining glob/minimatch advisories require scoped overrides under
+`js-beautify`: glob 14.0.4 and its EditorConfig dependency's minimatch 11.0.5.
+Upstream js-beautify still requests vulnerable major ranges; these overrides
+apply only to that chain. `tests/toolchain.spec.ts` exercises its public CLI's
+glob expansion and EditorConfig matching with synthetic files. Remove the
+overrides when upstream accepts patched ranges. Full lock audit: zero findings.
+The previous lock reported GHSA-qxg6-89mg-rqv8, GHSA-xp26-3454-mjgp,
+GHSA-834v-8h66-3h79, GHSA-c8p4-j97h-3vg8, GHSA-5fpq-26gf-qwcr,
+GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249 (eight affected package nodes).

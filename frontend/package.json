@@ -22,15 +22,23 @@
     "@playwright/test": "^1.65.0",
     "@types/node": "^24.9.2",
     "@vitejs/plugin-vue": "^6.0.1",
-    "@vitest/ui": "^4.1.11",
+    "@vitest/ui": "^4.1.12",
     "@vue/test-utils": "^2.4.6",
-    "happy-dom": "^20.0.10",
+    "happy-dom": "^21.0.4",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "vue-tsc": "^3.1.2"
   },
   "prettier": {
     "vueIndentScriptAndStyle": true
+  },
+  "overrides": {
+    "js-beautify": {
+      "glob": "^14.0.4",
+      "editorconfig": {
+        "minimatch": "^11.0.5"
+      }
+    }
   }
 }

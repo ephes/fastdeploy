@@ -47,6 +47,9 @@ Unreleased
   environment and interactive credentials without exposing passwords or hashes.
 
 ### Security
+- Refresh Vitest/UI and happy-dom and scope patched glob/minimatch overrides to
+  js-beautify, clearing all eight affected frontend development dependency nodes.
+  Verify glob/EditorConfig compatibility with synthetic CLI fixtures; no deploy needed.
 - Bound websocket authentication/expiry control sends to 5 seconds and close handshakes
   waits (including endpoint cleanup) to 1 second, preserving connection and timer cleanup.
   Let the server finish transport teardown under its own deadline after that wait.
