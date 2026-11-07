@@ -42,13 +42,29 @@ db-start:
 
 # Create development databases
 db-create:
-    @echo "Creating development databases..."
-    createdb deploy || echo "Database 'deploy' already exists"
-    createuser deploy || echo "User 'deploy' already exists"
-    createdb deploy_test || echo "Database 'deploy_test' already exists"
-    @echo "Copying schema to test database..."
-    pg_dump deploy | psql deploy_test
-    @echo "✓ Databases created"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Creating development databases..."
+    database_exists() {
+        psql -X -v ON_ERROR_STOP=1 -At --dbname postgres -c "SELECT 1 FROM pg_database WHERE datname = '$1'"
+    }
+    deploy_exists=$(database_exists deploy)
+    if [ "$deploy_exists" != "1" ]; then
+        createdb deploy
+    fi
+    role_exists=$(psql -X -v ON_ERROR_STOP=1 -At --dbname postgres -c "SELECT 1 FROM pg_roles WHERE rolname = 'deploy'")
+    if [ "$role_exists" != "1" ]; then
+        createuser deploy
+    fi
+    test_exists=$(database_exists deploy_test)
+    if [ "$test_exists" != "1" ]; then
+        createdb deploy_test
+        echo "Copying schema to new test database..."
+        pg_dump --schema-only deploy | psql -X -v ON_ERROR_STOP=1 --dbname deploy_test
+    else
+        echo "Database 'deploy_test' already exists; leaving it unchanged"
+    fi
+    echo "✓ Databases created"
 
 # Create initial user (interactive or via environment variables)
 createuser:
@@ -272,10 +288,8 @@ help:
     @echo "=== fastDeploy Development Help ==="
     @echo ""
     @echo "Quick Start:"
-    @echo "  just install        # Install dependencies"
-    @echo "  just db-init        # Initialize database (first time only)"
-    @echo "  just db-create      # Create databases"
-    @echo "  just dev            # Start all services"
+    @echo "  Follow README.md Quick Start for tools, environment, locked installs,"
+    @echo "  database setup, initial user, and stopping setup Postgres before just dev."
     @echo ""
     @echo "Common Tasks:"
     @echo "  just test           # Run all tests"

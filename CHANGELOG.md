@@ -304,6 +304,12 @@ Unreleased
   issued, and on demand with `python commands.py purgeservicetokens [--older-than-days N]`.
 
 
+### Development setup
+- Document a complete fresh-checkout sequence with locked frontend installation,
+  required environment, and explicit setup-PostgreSQL handoff to Honcho.
+- Database setup checks catalog existence, propagates PostgreSQL/pipeline errors,
+  and leaves existing test databases unchanged; only new ones receive schema.
+
 ### Development
 - GitHub Actions CI (`.github/workflows/ci.yml`) runs `just lint`, `just typecheck` and the
   pytest suite against a `postgres:17` service container, plus the frontend Vitest suite and

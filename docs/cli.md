@@ -14,12 +14,31 @@ just help
 
 ## Quick Start Commands
 
+Use the [README Quick Start](https://github.com/ephes/fastdeploy#quick-start)
+for required tools and the full explanation. From a fresh checkout, in one shell:
+
 ```shell
-just install        # Install dependencies
-just db-init        # Initialize database (first time only)
-just db-create      # Create databases
-just dev            # Start all services
+just install
+source .venv/bin/activate
+npm --prefix frontend ci
+export SECRET_KEY="$(uv run python -c 'import secrets; print(secrets.token_hex(32))')"
+export PATH_FOR_DEPLOY="$PATH"
+export DATABASE_URL=postgresql+asyncpg:///deploy
+just db-init
+pg_ctl -D databases/postgres -l databases/postgres.log -w start
+just db-create
+just createuser
+pg_ctl -D databases/postgres -m fast -w stop
+just dev
 ```
+
+Keep these environment values for future shells (or save them in the root `.env`).
+Stop setup PostgreSQL before handing ownership to Honcho. `just db-create`
+preserves existing resources and only copies schema into a newly created test
+database; failures propagate. A failed schema copy can leave that new database
+incomplete; inspect it and explicitly recreate it only if disposable. Pytest
+initializes its own tables. `just createuser` initializes application tables and
+prompts for the initial account; it preserves existing users on reruns.
 
 ## Development Commands
 

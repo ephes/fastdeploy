@@ -9,61 +9,57 @@ A deployment automation platform that enables both technical and non-technical u
 ## Requirements
 
 - Python 3.10+ (fully compatible with Python 3.13)
-- PostgreSQL
-- Node.js and npm (for frontend development)
-- uv (for Python package management)
+- PostgreSQL client and server tools
+- Node.js 24 and npm (for frontend development)
+- uv (for Python package management), just, and lsof
 
 ## Quick Start
 
+Install Python 3.12 (used by `just install`), uv, just, PostgreSQL client/server
+commands (`initdb`, `pg_ctl`, `postgres`, `psql`, `createdb`, `createuser`,
+`pg_dump`), lsof, and Node.js 24 with npm. Put these tools on PATH. Run from the
+repository root in one shell; the activated environment supplies Honcho and MkDocs.
+This sequence assumes a fresh local cluster and free default service ports.
+
 ```shell
-# Install dependencies
 just install
-
-# Initialize and setup database
-just db-init        # First time only
-just db-start       # In a separate terminal
-just db-create      # Create deploy and deploy_test databases
-just createuser     # Create initial user
-
-# Start all development services
-just dev            # Starts postgres, fastapi, frontend, and docs
-
-# Note: The project uses a src layout for Python code.
-# The backend package 'deploy' is located at src/deploy/
+source .venv/bin/activate
+npm --prefix frontend ci
+export SECRET_KEY="$(uv run python -c 'import secrets; print(secrets.token_hex(32))')"
+export PATH_FOR_DEPLOY="$PATH"
+export DATABASE_URL=postgresql+asyncpg:///deploy
+just db-init
+pg_ctl -D databases/postgres -l databases/postgres.log -w start
+just db-create
+just createuser
+pg_ctl -D databases/postgres -m fast -w stop
+just dev
 ```
 
-## Installation for development
+`just createuser` prompts for a username and password and creates the application
+tables. The exports configure the CLI and development processes in this shell;
+for later shells, save the same values in a git-ignored root `.env` (see below).
+`PATH_FOR_DEPLOY` is the executable search path passed to deployment subprocesses;
+no deployments are needed for setup. Do not run `just syncservices` against real
+service data.
 
-### Create a venv & activate it and install the dev requirements
-```shell
-uv venv -p python3.13  # or python3.12, python3.11, python3.10
-source .venv/bin/activate  # or .venv/bin/activate.fish for fish shell
-uv sync
-```
+Setup PostgreSQL runs only between `pg_ctl start` and `pg_ctl stop`. After the
+stop completes, Honcho (`just dev`) owns PostgreSQL and the other development
+processes. Press Ctrl+C in that terminal to stop the stack. `just db-start` is an
+alternative foreground server for manual work; stop it before `just dev`.
 
-### Set up the database
+### Rerunning database setup
 
-#### Using justfile (recommended):
-```shell
-just db-init        # Initialize PostgreSQL database
-just db-start       # Start PostgreSQL (in a different terminal)
-just db-create      # Create deploy and deploy_test databases
-just createuser     # Create initial user and tables
-just syncservices   # Sync services from filesystem to database
-```
-
-#### Or manually:
-```shell
-initdb databases/postgres
-postgres -D databases/postgres  # in a different terminal tab
-createdb deploy
-createuser deploy
-python commands.py createuser  # will also create the tables
-
-# Create a test database and copy the schema over
-createdb deploy_test
-pg_dump deploy | psql deploy_test
-```
+`just db-init` is first-time only. With PostgreSQL running, `just db-create`
+checks catalog existence and creates only missing databases and the `deploy`
+role. Connection, permission, dump, and SQL errors fail the command. Only a newly
+created `deploy_test` receives a schema-only dump; an existing test database is
+never overwritten. Pytest creates its own tables in the test database.
+If schema copying fails, inspect the diagnostic: the newly created test database
+may be incomplete. Rerunning preserves it; explicitly remove/recreate it only if
+it is disposable and you intend to discard it. Never point tests at real data.
+The application schema is initialized by `just createuser`, whose reruns preserve
+an existing user's password.
 
 ## Configuration
 
