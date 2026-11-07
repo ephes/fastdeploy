@@ -265,6 +265,37 @@ Registered services must provide a deployment script that:
    - Return non-zero for failure
    - Handle exceptions gracefully
 
+### Retained Ansible JSON callback
+
+Runners selecting `ansible/callback_plugins/json_cb.py` receive one JSON line per
+terminal callback. Each line has a zero-based `position`, UTC `start`/`end`
+timestamps (the next observation starts at the preceding end), task `name`,
+`state`, `outcome`, `ignore_errors`, `error_message` and `misc` result data.
+The states remain compatible with the server:
+
+| Callback | State | Outcome |
+| --- | --- | --- |
+| OK | `success` | `ok` |
+| Failed, including ignored failures | `failure` | `failed` |
+| Skipped | `success` | `skipped` |
+| Unreachable | `failure` | `unreachable` |
+
+Skipped means no work was required; `outcome` distinguishes it from executed work.
+Ignored failures retain `failure` with `ignore_errors: true`; ignoring an Ansible
+error does not report that step as successful. Unreachable hosts always fail.
+Timing measures the interval between observations, not per-host execution time.
+
+Task `no_log` or result `_ansible_no_log` censors the entire payload before message
+extraction/serialization. The name becomes `censored task`, `error_message` is
+empty and `misc` contains only a `censored` marker; status, position and timing
+remain available. Otherwise Ansible's callback serializer supplies `misc`, omitting
+internal and verbosity-controlled fields. Install the updated callback with the
+retained runner before its next use; this change does not deploy it.
+
+Run the callback regressions with `uv run pytest tests/unit/json_callback_test.py`.
+They use synthetic tasks/results and the development `ansible-core` dependency;
+no playbooks or host connections are involved.
+
 ## Security Model
 
 FastDeploy uses a multi-user security model:

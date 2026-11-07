@@ -85,6 +85,7 @@ module-root = "src"
 
 [dependency-groups]
 dev = [
+    "ansible-core>=2.16",
     "coverage>=7.6.3",
     "honcho>=2.0.0",
     "ipdb>=0.13.13",
