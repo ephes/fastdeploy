@@ -142,21 +142,30 @@ The system separates read and write operations:
 
 #### Message Bus Pattern
 
-The message bus provides centralized command and event handling:
+`MessageBus.handle()` dispatches a command or event and drains the events
+collected from the unit of work in FIFO order. Each successful handler appends
+new events behind pending work; event handlers run in registration order. For
+example, a command producing `first` and `second`, where handling `first`
+produces `nested`, dispatches `first`, `second`, then `nested`, exactly once.
 
-```python
-class MessageBus:
-    async def handle(self, message: Message):
-        """Route messages to appropriate handlers"""
-        queue = [message]
-        while queue:
-            message = queue.pop(0)
-            if isinstance(message, Command):
-                await self.handle_command(message)
-            elif isinstance(message, Event):
-                await self.handle_event(message)
-            queue.extend(self.uow.collect_new_events())
-```
+After follow-ups finish, `handle()` returns the initial command handler's result.
+Event handler return values do not replace it; an initial event returns `None`.
+A subsequent sequential call starts with its own message and no completed work
+left over from the preceding successful call.
+
+An ordinary event-handler exception is logged and later handlers/events continue.
+Command-handler exceptions propagate to the caller and abort that dispatch before
+collecting its generated events; this does not promise rollback of the unit of
+work's pending events.
+`asyncio.CancelledError` propagates during either kind of handler await, without
+running later handlers. Diagnostic message prefixes contain message type and ids,
+not command/event payloads; exception tracebacks are retained.
+
+`uv run pytest tests/unit/messagebus_dispatch_test.py` protects these existing
+contracts with synthetic command/event classes and a fake unit of work. Tests
+assert observable call order/results; cancellation uses synchronization events
+rather than timing sleeps. The existing `messagebus_logging_test.py` separately
+checks metadata diagnostic fields.
 
 Benefits:
 - Decoupled components
