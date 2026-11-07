@@ -21,7 +21,9 @@ alerts back to the service list.
 Deployment details refetch steps on navigation, show loading/error/retry states,
 and never display a former deployment's steps. Metadata absent from loaded history
 is identified explicitly. Older responses for the same deployment cannot overwrite
-a newer fetch.
+a newer fetch. Step hydration also preserves updates/deletions received by
+websocket while that request is pending; repeated hydration keeps each running
+step only once in scroll history.
 
 Run `npm test` and `npm run build`. The native browser regression uses only intercepted
 synthetic API/WebSocket fixtures: run `npx playwright install chromium` then
@@ -33,12 +35,17 @@ Each delete action names its service and asks for confirmation that its deployme
 history will also be deleted. While deletion is pending, the same action cannot
 be repeated. A refusal or transport failure stays visible in the row, which is
 removed only after a successful response or a confirmed deletion event. Refresh
-before retrying an uncertain deletion.
+before retrying an uncertain deletion. Refresh replaces the service snapshot,
+removing absent rows while preserving add/update/delete events received during
+the request. Only the latest refresh owns its result and loading/error state.
 
 Deploy buttons run one launch request at a time per service and show contextual
 feedback for token, active-deployment and transport failures. Check history before
 retrying an uncertain start; the UI never retries launches automatically. Navigation
-requires a confirmed result belonging to the current login session.
+requires a confirmed result belonging to the current login session and the
+view/route where the launch began. Leaving the view (including navigating away
+and back or changing its query) retires that navigation intent. A late confirmed
+deployment remains in the store without redirecting or retrying the launch.
 
 Service history links use `/deployments?serviceId=7`. Reloading, sharing and browser
 back/forward retain the filter. Each filter change starts a new bounded page from
