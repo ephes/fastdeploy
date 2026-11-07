@@ -1,5 +1,6 @@
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from unittest.mock import patch
 
 import httpx
@@ -18,6 +19,10 @@ class Response:
     def json(self):
         return self.content
 
+    async def aiter_raw(self, chunk_size):
+        if False:
+            yield b""
+
     def raise_for_status(self):
         pass
 
@@ -27,6 +32,10 @@ class Client:
         self.post_calls = []
         self.current_id = 0
         self.raise_connect_error = False
+
+    @asynccontextmanager
+    async def stream(self, method, url, **kwargs):
+        yield await getattr(self, method)(url, **kwargs)
 
     async def put(self, url, json=None):
         return Response({})
@@ -125,7 +134,7 @@ class DeployProc:
     ],
 )
 async def test_deploy_steps_post(stdout_lines, expected_steps, task):
-    with patch("deploy.tasks.asyncio", new=DeployProc(stdout_lines)):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=DeployProc(stdout_lines).create_subprocess_exec):
         await task.deploy_steps()
     actual_steps = [{"name": step["name"]} for step in task.client.post_calls]
     assert actual_steps == expected_steps
@@ -150,7 +159,7 @@ async def test_deploy_steps_post(stdout_lines, expected_steps, task):
 )
 async def test_task_run_deploy(predefined_steps, deploy_lines, steps_posted, task):
     # task.steps = [Step(**predefined) for predefined in predefined_steps if "name" in predefined]
-    with patch("deploy.tasks.asyncio", new=DeployProc(deploy_lines)):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=DeployProc(deploy_lines).create_subprocess_exec):
         await task.run_deploy()
     post_calls = []
     for step in task.client.post_calls:
@@ -161,7 +170,10 @@ async def test_task_run_deploy(predefined_steps, deploy_lines, steps_posted, tas
 
 async def test_task_run_deploy_marks_failure_on_nonzero_exit(task):
     with (
-        patch("deploy.tasks.asyncio", new=DeployProc([None], returncode=126)),
+        patch(
+            "deploy.tasks.asyncio.create_subprocess_exec",
+            new=DeployProc([None], returncode=126).create_subprocess_exec,
+        ),
         pytest.raises(RuntimeError, match="deploy script exited with code 126"),
     ):
         await task.run_deploy()
@@ -189,7 +201,7 @@ async def test_deploy_steps_drains_stdout_after_process_exits(task):
     # Process exits after reading line 1, but lines 2-4 are still buffered
     mock_proc = DeployProc(stdout_lines, exit_after_line=1)
 
-    with patch("deploy.tasks.asyncio", new=mock_proc):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=mock_proc.create_subprocess_exec):
         await task.deploy_steps()
 
     # All 4 steps should be posted, not just the first one
@@ -305,7 +317,7 @@ async def test_deploy_steps_keeps_draining_stdout_after_failed_post(task_kwargs,
 async def test_deploy_steps_logs_nameless_result_bounded_without_values(task, capsys):
     secret = "s3cr3t-value"
     nameless = {"token": secret, "k" * 500: secret} | {f"key{i}": secret for i in range(50)}
-    with patch("deploy.tasks.asyncio", new=DeployProc([nameless, None])):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=DeployProc([nameless, None]).create_subprocess_exec):
         await task.deploy_steps()
 
     assert task.client.post_calls == []
@@ -326,7 +338,7 @@ async def test_deploy_steps_keeps_draining_stdout_after_invalid_step(task, capsy
     proc = DeployProc(stdout_lines)
 
     with (
-        patch("deploy.tasks.asyncio", new=proc),
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
         patch.object(DeployTask, "finish_step", side_effect=[ValueError("boom"), None]) as finish_step,
     ):
         await task.deploy_steps()
@@ -424,7 +436,7 @@ async def test_cancelled_deployment_reports_failure_before_finishing(task):
 async def test_deploy_steps_skips_json_that_is_not_an_object(task):
     proc = DeployProc([[], "a string", 42, {"name": "step1"}, None])
 
-    with patch("deploy.tasks.asyncio", new=proc):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec):
         await task.deploy_steps()
 
     assert [step["name"] for step in task.client.post_calls] == ["step1"]

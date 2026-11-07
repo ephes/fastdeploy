@@ -98,6 +98,16 @@ below the services directory) is one argument, the path of the script. It is not
 it or in `SUDO_USER` is not interpreted, so a `deploy_script` cannot carry extra arguments or commands. sudo sees the
 same command as before, so existing sudoers rules keep matching.
 
+`DEPLOYMENT_MAX_RUNTIME_SECONDS` limits stdout draining, step reporting/retry waits and
+process exit from the moment the task owns the created subprocess. Startup precedes
+the deadline so cancellation cannot lose the process-group handle. The default is 1800 seconds
+(30 minutes); configure a finite value greater than zero and at most 86400 seconds in
+the API environment or `.env`. The launcher passes it to the detached task. The elapsed
+deadline applies to silent and continuously producing scripts alike. On expiry, the
+owned process group is stopped, its secure config is removed and failure is reported
+before finishing. Cleanup and final failure/finish reports have their own bounded waits
+outside this deadline; it is separate from orphan reconciliation.
+
 The deploy task owns the deploy script it starts. The script runs in its own process group, and the task waits for
 it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
 U+FFFD (a step result containing them is still reported, with the replacement character; any other such line is
@@ -116,6 +126,11 @@ The deploy task (the detached `python -m deploy.tasks` process that runs the dep
 every named JSON line as a report and does not filter states: a line with any other state, or without
 `state` (which defaults to `pending`), receives a non-retried 422 and a dropped-step stderr
 diagnostic, and changes nothing.
+Each report/finish attempt streams at most 4096 response wire bytes and has a
+10-second elapsed budget covering headers, body and closure. Success bodies are discarded without
+decoding or logging them; error statuses are checked immediately without reading bodies,
+so `4xx` responses remain non-retryable regardless of body size or speed. Oversized bodies and elapsed timeouts count as transport
+failures and follow the same retries; every opened response is closed.
 Connection errors and `5xx` responses are retried with
 exponential backoff (4 attempts per step, 6 for finishing the deployment, starting at 3 seconds), so a short API
 restart, for example while fastdeploy deploys itself, does not leave the deployment active. A retried step report

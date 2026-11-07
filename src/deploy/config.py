@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     token_sign_algorithm: typing.Literal["HS256", "HS384", "HS512"] = "HS256"
     access_token_expire_minutes: int = Field(30, ge=1, le=525600)
     deployment_access_token_expire_minutes: int = Field(480, ge=1, le=525600)
+    deployment_max_runtime_seconds: float = Field(1800.0, gt=0, le=86400, allow_inf_nan=False)
     deployment_orphan_reconcile_delay_seconds: int = Field(300, ge=0, le=31536000)
     # Upper limit for the lifetime of a service token in days.
     service_token_max_expire_days: int = Field(90, ge=1, le=3650)

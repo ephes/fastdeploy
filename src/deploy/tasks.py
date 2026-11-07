@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .auth import create_access_token
@@ -43,6 +43,7 @@ def run_deploy(environment):  # pragma no cover
     # Create minimal environment with only config file path
     clean_env = {
         "DEPLOY_CONFIG_FILE": str(config_path),
+        "DEPLOYMENT_MAX_RUNTIME_SECONDS": str(settings.deployment_max_runtime_seconds),
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": os.environ.get("HOME", "/tmp"),
         "LANG": os.environ.get("LANG", "en_US.UTF-8"),
@@ -101,6 +102,8 @@ MAX_ASYNCIO_STDOUT_SIZE = 1024 * 1024 * 10  # 10 MiB, longer output lines are sk
 # How long the deploy script's process group gets to exit after SIGTERM, and
 # again after SIGKILL, when the deploy task stops reading its output early.
 DEPLOY_STOP_TIMEOUT = 10.0
+REPORT_RESPONSE_MAX_BYTES = 4096
+REPORT_RESPONSE_TIMEOUT_SECONDS = 10.0
 MAX_STEP_MESSAGE_SIZE = 4096
 # A JSON object without a name is logged with at most this many keys, each shortened to this size
 MAX_LOGGED_RESULT_KEYS = 10
@@ -125,6 +128,9 @@ class DeployTask(BaseSettings):
     deployment_finish_url: str
     context: DeploymentContext
     path_for_deploy: str
+    deployment_max_runtime_seconds: float = Field(
+        settings.deployment_max_runtime_seconds, gt=0, le=86400, allow_inf_nan=False
+    )
     attempts: int = 4
     # Finishing the deployment gets more attempts: if it is lost, the deployment stays
     # active and blocks new deployments of the service until it becomes stale.
@@ -183,13 +189,32 @@ class DeployTask(BaseSettings):
         """
         for attempt in range(attempts):
             try:
-                r = await getattr(self.client, method)(url, **kwargs)
-                r.raise_for_status()
+                await self.request_once(method, url, **kwargs)
                 return
             except httpx.HTTPError as e:
                 if not self.is_retryable(e) or attempt == attempts - 1:
                     raise
                 await asyncio.sleep(self.sleep_on_fail * 2**attempt)
+
+    async def request_once(self, method: str, url: str, **kwargs) -> None:
+        """Discard bounded wire data, without decoding or logging response bodies."""
+
+        async def exchange():
+            async with self.client.stream(method, url, **kwargs) as response:
+                # Status alone decides error retries; never read an error body.
+                response.raise_for_status()
+                size = 0
+                async for chunk in response.aiter_raw(chunk_size=1024):
+                    size += len(chunk)
+                    if size > REPORT_RESPONSE_MAX_BYTES:
+                        raise httpx.ReadError("report response exceeds byte limit", request=response.request)
+
+        try:
+            # Includes headers, body reads and stream closure, even with a peer
+            # that keeps sending bytes within the client's inactivity timeout.
+            await asyncio.wait_for(exchange(), timeout=REPORT_RESPONSE_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError as error:
+            raise httpx.ReadTimeout("report response exceeded elapsed limit") from error
 
     async def send_step(self, step_url, step, attempts: int | None = None) -> bool:
         """
@@ -278,66 +303,75 @@ class DeployTask(BaseSettings):
                 start_new_session=True,
             )
 
-            # True while inside an output line longer than the stream limit
-            # whose end has not been read yet.
-            skipping = False
-            while True:
-                started = datetime.now(timezone.utc)
-                try:
-                    data = await proc.stdout.readuntil(b"\n")
-                except asyncio.IncompleteReadError as e:
-                    # End of output: what is left is a last line without a
-                    # newline, or nothing.
-                    data = e.partial
-                except asyncio.LimitOverrunError as e:
-                    # The line is longer than the stream limit and still in the
-                    # buffer. Drop this part and keep dropping until its newline
-                    # was read, instead of abandoning the script or mistaking
-                    # the end of the line for a step result.
-                    await proc.stdout.readexactly(e.consumed)
-                    if not skipping:
-                        self.log(f"skipped a deploy output line longer than {MAX_ASYNCIO_STDOUT_SIZE} bytes")
-                    skipping = True
-                    continue
-                if not data:
-                    break
-                if skipping:
-                    # the rest of the over-limit line, up to its newline
-                    skipping = False
-                    continue
+            async def subprocess_phase():
+                nonlocal reaped
+                # True while inside an output line longer than the stream limit
+                # whose end has not been read yet.
+                skipping = False
+                while True:
+                    started = datetime.now(timezone.utc)
+                    try:
+                        data = await proc.stdout.readuntil(b"\n")
+                    except asyncio.IncompleteReadError as e:
+                        # End of output: what is left is a last line without a
+                        # newline, or nothing.
+                        data = e.partial
+                    except asyncio.LimitOverrunError as e:
+                        # The line is longer than the stream limit and still in the
+                        # buffer. Drop this part and keep dropping until its newline
+                        # was read, instead of abandoning the script or mistaking
+                        # the end of the line for a step result.
+                        await proc.stdout.readexactly(e.consumed)
+                        if not skipping:
+                            self.log(f"skipped a deploy output line longer than {MAX_ASYNCIO_STDOUT_SIZE} bytes")
+                        skipping = True
+                        continue
+                    if not data:
+                        break
+                    if skipping:
+                        # the rest of the over-limit line, up to its newline
+                        skipping = False
+                        continue
 
-                # Do NOT check proc.returncode here. The process may have exited
-                # but still have buffered stdout data that must be processed.
-                # readuntil() reports the end only after all buffered output is read.
+                    # Do NOT check proc.returncode here. The process may have exited
+                    # but still have buffered stdout data that must be processed.
+                    # readuntil() reports the end only after all buffered output is read.
 
-                # Bytes that are not valid UTF-8 are replaced (U+FFFD) instead of
-                # raising: a line that is no step result is skipped below anyway,
-                # and a step result with a damaged character is still reported.
-                decoded = data.decode("UTF-8", errors="replace")
-                try:
-                    step_result = json.loads(decoded)
-                except json.decoder.JSONDecodeError:
-                    continue
-                if not isinstance(step_result, dict):
-                    # valid JSON, but not a step result (for example a list) -> skip
-                    continue
-                # if name is None there's something wrong -> skip
-                result_name = step_result.get("name")
-                if result_name is None:
-                    # should not happen
-                    self.log(f"step result not posted: {self.describe_nameless_result(step_result, len(data))}")
-                    continue
-                step_result["started"] = started
-                try:
-                    await self.finish_step(step_result)
-                except Exception as e:
-                    # Keep draining stdout, otherwise the deploy script blocks on a full pipe.
-                    self.log(f"could not report step {result_name!r}: {type(e).__name__}: {e}")
+                    # Bytes that are not valid UTF-8 are replaced (U+FFFD) instead of
+                    # raising: a line that is no step result is skipped below anyway,
+                    # and a step result with a damaged character is still reported.
+                    decoded = data.decode("UTF-8", errors="replace")
+                    try:
+                        step_result = json.loads(decoded)
+                    except json.decoder.JSONDecodeError:
+                        continue
+                    if not isinstance(step_result, dict):
+                        # valid JSON, but not a step result (for example a list) -> skip
+                        continue
+                    # if name is None there's something wrong -> skip
+                    result_name = step_result.get("name")
+                    if result_name is None:
+                        # should not happen
+                        self.log(f"step result not posted: {self.describe_nameless_result(step_result, len(data))}")
+                        continue
+                    step_result["started"] = started
+                    try:
+                        await self.finish_step(step_result)
+                    except Exception as e:
+                        # Keep draining stdout, otherwise the deploy script blocks on a full pipe.
+                        self.log(f"could not report step {result_name!r}: {type(e).__name__}: {e}")
 
-            return_code = await proc.wait()
-            reaped = True
-            if return_code != 0:
-                raise RuntimeError(f"deploy script exited with code {return_code}")
+                return_code = await proc.wait()
+                reaped = True
+                if return_code != 0:
+                    raise RuntimeError(f"deploy script exited with code {return_code}")
+
+            try:
+                await asyncio.wait_for(subprocess_phase(), timeout=self.deployment_max_runtime_seconds)
+            except asyncio.TimeoutError as error:
+                raise RuntimeError(
+                    f"deploy script exceeded the runtime limit of {self.deployment_max_runtime_seconds} seconds"
+                ) from error
 
         finally:
             try:

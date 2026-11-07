@@ -78,6 +78,7 @@ PATH_FOR_DEPLOY=/path/to/deploy
 DATABASE_URL=postgresql+asyncpg:///deploy
 
 # Deployment configuration
+DEPLOYMENT_MAX_RUNTIME_SECONDS=1800  # Deploy output/reporting and process exit; finite >0, <=86400 seconds
 SUDO_USER=deploy  # User to run deployment scripts as (default: jochen)
 DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS=300  # Ignore very new deployments during orphan reconciliation
 
@@ -102,6 +103,10 @@ API_URL=http://localhost:8000
 ```
 
 `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` adds a safety window before unfinished deployments are considered orphaned by reconciliation on read endpoints and before starting a new deployment. It counts from the latest activity of the deployment (its start or the last reported step). Orphaned deployments are finished as failed with a `deployment orphaned` failure step that records the reason, see [docs/endpoints.md](docs/endpoints.md#orphaned-deployments). Increase the delay if step creation is delayed in your environment.
+
+Deploy tasks stop their owned process group when the runtime budget expires and clean up
+temporary config files before reporting failure. Each API report/finish response is
+limited to 4096 wire bytes and 10 seconds per attempt; see [runner limits](docs/deployment.md).
 
 Only one deployment per service runs at a time: `POST /deployments/` returns `409 Conflict` (naming the running deployment id) while the service has an active deployment. See [docs/endpoints.md](docs/endpoints.md#post-deployments).
 

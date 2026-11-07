@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Fixed
+- Bound deployment output/reporting and process exit with `DEPLOYMENT_MAX_RUNTIME_SECONDS`
+  (default 1800, finite >0 and <=86400). Expiry uses owned-group termination,
+  secure-config cleanup and failure reporting. Requires a task-runner update.
+- Stream report/finish responses with 4096-byte wire and 10-second elapsed limits per
+  attempt, closing responses and retrying budget failures as transport errors.
 - `createuser` exits with status 1 when creation fails, allowing automation to
   detect the failure. An existing username exits with status 0 without changing
   its password, preserving repeated bootstrap in the bundled Ansible tasks.
