@@ -31,6 +31,7 @@ export const useServices = defineStore("services", {
       services: {} as ServiceById,
       servicesLoading: false,
       servicesError: "",
+      deleteErrors: {} as Record<number, string>,
       /**
        * Error message received from backend when trying to fetch
        * a service token.
@@ -133,25 +134,25 @@ export const useServices = defineStore("services", {
         return false;
       }
     },
-    /**
-     * Delete a service from the store. This is called by the event
-     * handler when a service message is received which has the deleted
-     * attribute set to true.
-     *
-     * @param service_id {number} - The id of the service to delete
-     */
-    async deleteService(service_id: number) {
+    /** Delete only the requested row after a confirmed current-session response. */
+    async deleteService(serviceId: number): Promise<boolean> {
       const isCurrentSession = rememberSession();
-      this.client
-        .delete<number>(`/services/${service_id}`)
-        .then((deletedId) => {
-          if (isCurrentSession()) {
-            delete this.services[deletedId];
-          }
-        })
-        .catch((err) => {
-          console.log("delete service error: ", err);
-        });
+      delete this.deleteErrors[serviceId];
+      try {
+        await this.client.delete(`/services/${serviceId}`);
+        if (!isCurrentSession()) return false;
+        delete this.services[serviceId];
+        return true;
+      } catch (error: any) {
+        if (isCurrentSession()) {
+          this.deleteErrors[serviceId] = error?.response?.status === 409
+            ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
+            : error?.response?.status === 404
+              ? "This service no longer exists. Refresh services."
+              : "Could not confirm deletion. Refresh services before retrying.";
+        }
+        return false;
+      }
     },
     /**
      * Fetch all services from the backend. Used to display the list
@@ -192,6 +193,7 @@ export const useServices = defineStore("services", {
      * @param serviceName {string} - The name of the service for the service token
      * @param origin {string} - The origin of the service token (frontend, github)
      * @param expirationInDays {number} - The expiration of the service token in days (1 - 90 by default)
+     * @param onError optional request-local error callback instead of shared list feedback
      * @returns serviceToken {string | null} - The service token or null on error
      */
     async fetchServiceToken(
@@ -238,6 +240,7 @@ export const useServices = defineStore("services", {
         const service = message as ServiceWithId;
         if (service.deleted) {
           delete this.services[service.id];
+          delete this.deleteErrors[service.id];
         } else {
           this.services[service.id] = service;
         }

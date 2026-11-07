@@ -26,3 +26,20 @@ a newer fetch.
 Run `npm test` and `npm run build`. The native browser regression uses only intercepted
 synthetic API/WebSocket fixtures: run `npx playwright install chromium` then
 `npm run test:browser`. CI installs Chromium and runs the same keyboard check on Linux.
+
+## Service actions and history
+
+Each delete action names its service and asks for confirmation that its deployment
+history will also be deleted. While deletion is pending, the same action cannot
+be repeated. A refusal or transport failure stays visible in the row, which is
+removed only after a successful response or a confirmed deletion event. Refresh
+before retrying an uncertain deletion.
+
+Deploy buttons run one launch request at a time per service and show contextual
+feedback for token, active-deployment and transport failures. Check history before
+retrying an uncertain start; the UI never retries launches automatically. Navigation
+requires a confirmed result belonging to the current login session.
+
+Service history links use `/deployments?serviceId=7`. Reloading, sharing and browser
+back/forward retain the filter. Each filter change starts a new bounded page from
+the newest deployments and drops old cursor/response state.

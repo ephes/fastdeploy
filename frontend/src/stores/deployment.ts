@@ -120,17 +120,21 @@ export const useDeployments = defineStore("deployments", {
      *
      * @param serviceName {string} the name of the service to deploy
      * @param client {HttpClient} the http client to use - settable for testing
+     * @param onTokenError optional request-local token error feedback
      * @returns deployment {Deployment | null} the started deployment, null on issuance failure or session end
      */
     async startDeployment(
       serviceName: string,
-      client: HttpClient = getClient()
+      client: HttpClient = getClient(),
+      onTokenError?: (message: string) => void
     ): Promise<Deployment | null> {
       const isCurrentSession = rememberSession();
       const servicesStore = useServices();
       const serviceToken = await servicesStore.fetchServiceToken(
         serviceName,
-        "frontend"
+        "frontend",
+        1,
+        onTokenError
       );
       if (!isCurrentSession() || !serviceToken) {
         return null;

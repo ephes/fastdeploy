@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Fixed
+- Confirm named service/history deletion, await its result, retain rows on failure
+  and show retryable row errors; prevent duplicate pending deletion/launch actions.
+- Show contextual launch failures and navigate only on current-session success.
+- Roundtrip service history filters through deployment URL queries, resetting
+  paging on navigation and rejecting obsolete responses. Requires a frontend build.
 - Use a labeled native login form with credential autocomplete, announced errors
   and duplicate-submit protection; add a Chromium keyboard regression to CI.
 - Keep service/deployment details reactive to route and store changes, with explicit
