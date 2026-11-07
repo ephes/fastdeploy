@@ -78,6 +78,13 @@ mypy_path = "src"
 
 [tool.uv]
 package = true
+# Pending 3.10 security fixes: do not introduce additional advisories there while
+# upgrading the 3.11+ graph. See docs/dependency-security.md; never ignore its audit.
+constraint-dependencies = [
+    "filelock==3.32.7; python_version < '3.11'",
+    "virtualenv==21.7.13; python_version < '3.11'",
+    "tornado==6.5.9; python_version < '3.11'",
+]
 
 [tool.uv.build-backend]
 module-name = "deploy"

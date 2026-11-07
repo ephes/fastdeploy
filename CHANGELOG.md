@@ -54,6 +54,12 @@ Unreleased
   environment and interactive credentials without exposing passwords or hashes.
 
 ### Security
+- Pending: refresh Python advisory chains for Python 3.11+, retaining baseline
+  filelock/virtualenv/Tornado on Python 3.10 to avoid new exposures. The supported
+  3.10 graph remains vulnerable; this branch is blocked from merge until compatible
+  fixes or an explicit Python support decision are available.
+- Add independent frozen Python 3.10/3.13 and full npm lock audits on push and
+  weekly schedule, with fatal export failures and synthetic gate regressions.
 - Refresh Vitest/UI and happy-dom and scope patched glob/minimatch overrides to
   js-beautify, clearing all eight affected frontend development dependency nodes.
   Verify glob/EditorConfig compatibility with synthetic CLI fixtures; no deploy needed.

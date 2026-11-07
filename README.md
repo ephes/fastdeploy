@@ -212,6 +212,24 @@ and in `frontend/` `npm ci`, `npm test` (Vitest) and `npm run build` (vue-tsc an
 workflow has read-only permissions, uses no secrets and does not deploy; deploys go through the
 Ansible playbooks.
 
+### Dependency advisory checks
+
+Run `python scripts/audit_python.py` with Python 3.10 and 3.13, and in
+`frontend/` run `npm audit --package-lock-only`. The Python command first exports
+all groups/extras from the frozen lock, then runs pip-audit 2.10.1 for that
+interpreter. Export or audit failure is fatal; temporary files are removed.
+CI has independent read-only Python and npm audit jobs on every push and weekly
+Monday schedule. No advisory ignores or failure suppression are used.
+
+**Pending compatibility blocker:** the November Python refresh is incomplete on
+Python 3.10. The fixed dnspython, filelock and Tornado releases require 3.11+;
+resolving for the supported 3.10 interpreter retains vulnerable baseline versions (filelock/virtualenv/Tornado are constrained
+to avoid introducing new 3.10 advisories).
+The new 3.10 audit therefore fails and this branch must not merge until patched
+compatible dependencies exist or Python support is explicitly revised. See
+[the exact exposure and validation](docs/dependency-security.md). No version or
+Python support change is made here.
+
 ### Code quality
 
 ```shell

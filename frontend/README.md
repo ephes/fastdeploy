@@ -67,3 +67,8 @@ overrides when upstream accepts patched ranges. Full lock audit: zero findings.
 The previous lock reported GHSA-qxg6-89mg-rqv8, GHSA-xp26-3454-mjgp,
 GHSA-834v-8h66-3h79, GHSA-c8p4-j97h-3vg8, GHSA-5fpq-26gf-qwcr,
 GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249 (eight affected package nodes).
+
+CI runs the full-lock npm audit independently of Python audits on pushes and a
+weekly Monday schedule. The root README documents `python scripts/audit_python.py`
+for the Python 3.10/3.13 matrix. These gates currently expose the unresolved
+Python 3.10 compatibility blocker; that audit must not be ignored or suppressed.
