@@ -2,6 +2,13 @@ Unreleased
 ==========
 
 ### Fixed
+- Reconcile service refreshes authoritatively, retaining intervening websocket
+  mutations and confirmed deletions; ignore superseded fetch results/errors.
+- Preserve newer step updates/deletions during hydration and deduplicate running
+  scroll history. Retain route/session guards and retry cleanup.
+- Retire launch navigation when the originating view/route changes; retain a
+  confirmed deployment without redirecting from a newer page or retrying it.
+  These UI fixes require a frontend build; no deploy is performed here.
 - Confirm named service/history deletion, await its result, retain rows on failure
   and show retryable row errors; prevent duplicate pending deletion/launch actions.
 - Show contextual launch failures and navigate only on current-session success.

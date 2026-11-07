@@ -11,7 +11,7 @@ import { getClient } from "../src/stores/httpClient";
 
 const routerPush = vi.fn();
 vi.mock("vue-router", () => ({
-  useRouter: () => ({ push: routerPush }),
+  useRouter: () => ({ push: routerPush, currentRoute: { value: null } }),
 }));
 
 /**

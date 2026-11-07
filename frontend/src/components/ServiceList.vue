@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { onBeforeUnmount, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useServices } from '../stores/service';
@@ -10,6 +10,8 @@ import ProgressCount from './ProgressCount.vue';
 const serviceStore = useServices();
 const deploymentStore = useDeployments();
 const router = useRouter();
+let viewActive = true;
+onBeforeUnmount(() => { viewActive = false; });
 const pendingDeletes = reactive<Record<number, boolean>>({});
 const pendingStarts = reactive<Record<number, boolean>>({});
 const startErrors = reactive<Record<number, string>>({});
@@ -41,18 +43,20 @@ async function startDeployment(id: number, serviceName: string) {
   pendingStarts[id] = true;
   startErrors[id] = '';
   const isCurrentSession = rememberSession();
+  const launchRoute = router.currentRoute.value;
+  const ownsView = () => viewActive && router.currentRoute.value === launchRoute && isCurrentSession();
   try {
     const deployment = await deploymentStore.startDeployment(serviceName, undefined, message => {
-      if (isCurrentSession()) startErrors[id] = `Could not start ${serviceName}: ${message}`;
+      if (ownsView()) startErrors[id] = `Could not start ${serviceName}: ${message}`;
     });
-    if (!isCurrentSession()) return;
+    if (!ownsView()) return;
     if (!deployment) {
       if (!startErrors[id]) startErrors[id] = `Could not obtain a deployment token for ${serviceName}. Check permissions and retry.`;
       return;
     }
     await router.push({ name: 'deployment-detail', params: { id: deployment.id } });
   } catch (error: any) {
-    if (!isCurrentSession()) return;
+    if (!ownsView()) return;
     startErrors[id] = error?.response?.status === 409
       ? `A deployment is already running for ${serviceName}. Check its history before retrying.`
       : `Could not confirm deployment start for ${serviceName}. Check its history before retrying.`;

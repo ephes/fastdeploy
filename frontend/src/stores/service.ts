@@ -1,3 +1,4 @@
+import { markRaw } from "vue";
 import { getClient } from "./httpClient";
 import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
@@ -29,6 +30,8 @@ export const useServices = defineStore("services", {
        * Services are retrievable by id from this object.
        */
       services: {} as ServiceById,
+      fetchGeneration: 0,
+      pendingFetches: [] as Set<number>[],
       servicesLoading: false,
       servicesError: "",
       deleteErrors: {} as Record<number, string>,
@@ -141,6 +144,7 @@ export const useServices = defineStore("services", {
       try {
         await this.client.delete(`/services/${serviceId}`);
         if (!isCurrentSession()) return false;
+        for (const pending of this.pendingFetches) pending.add(serviceId);
         delete this.services[serviceId];
         return true;
       } catch (error: any) {
@@ -160,16 +164,31 @@ export const useServices = defineStore("services", {
      */
     async fetchServices() {
       const isCurrentSession = rememberSession();
+      const generation = ++this.fetchGeneration;
+      const isCurrent = () => isCurrentSession() && generation === this.fetchGeneration;
+      const changed = markRaw(new Set<number>());
+      this.pendingFetches.push(changed);
       this.servicesLoading = true;
       this.servicesError = "";
       try {
         const services = await this.client.get<ServiceWithId[]>("services/");
-        if (!isCurrentSession()) return;
-        for (const service of services) this.services[service.id] = service;
+        if (!isCurrent()) return;
+        const snapshot: ServiceById = {};
+        for (const service of services) {
+          if (!changed.has(service.id)) snapshot[service.id] = service;
+        }
+        for (const id of changed) {
+          if (this.services[id]) snapshot[id] = this.services[id];
+        }
+        this.services = snapshot;
+        for (const id of Object.keys(this.deleteErrors)) {
+          if (!snapshot[Number(id)]) delete this.deleteErrors[Number(id)];
+        }
       } catch {
-        if (isCurrentSession()) this.servicesError = "Could not load services. Try logging in again.";
+        if (isCurrent()) this.servicesError = "Could not load services. Try logging in again.";
       } finally {
-        if (isCurrentSession()) this.servicesLoading = false;
+        this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
+        if (isCurrent()) this.servicesLoading = false;
       }
     },
     /**
@@ -238,6 +257,7 @@ export const useServices = defineStore("services", {
     onMessage(message: Message) {
       if (message.type === "service") {
         const service = message as ServiceWithId;
+        for (const pending of this.pendingFetches) pending.add(service.id);
         if (service.deleted) {
           delete this.services[service.id];
           delete this.deleteErrors[service.id];

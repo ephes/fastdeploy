@@ -1,3 +1,4 @@
+import { markRaw } from "vue";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
 import { rememberSession } from "./session";
@@ -15,6 +16,7 @@ export const useSteps = defineStore("steps", {
        * Stores all steps by step id.
        */
       steps: {} as StepById,
+      pendingFetches: [] as Set<number>[],
       fetchGenerations: {} as Record<number, number>,
       /**
        * Stores all steps by deployment id.
@@ -113,7 +115,7 @@ export const useSteps = defineStore("steps", {
         if (step.state == "running") {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
             this.stepsInProgressByDeployment[step.deploymentId] = [step];
-          } else {
+          } else if (!this.stepsInProgressByDeployment[step.deploymentId].some(existing => existing.id === step.id)) {
             // Add step to the list of steps in progress
             // to be able to scroll to the step before last step in progress.
             this.stepsInProgressByDeployment[step.deploymentId] = [step, ...this.stepsInProgressByDeployment[step.deploymentId]];
@@ -130,6 +132,10 @@ export const useSteps = defineStore("steps", {
      * @param step {Step} The step to delete
      */
     deleteStep(step: Step) {
+      if (step.deploymentId && this.stepsInProgressByDeployment[step.deploymentId]) {
+        this.stepsInProgressByDeployment[step.deploymentId] = this.stepsInProgressByDeployment[step.deploymentId]
+          .filter(existing => existing.id !== step.id);
+      }
       if (step.id in this.steps) {
         delete this.steps[step.id];
       }
@@ -153,12 +159,17 @@ export const useSteps = defineStore("steps", {
       const isCurrentSession = rememberSession();
       const generation = (this.fetchGenerations[deploymentId] ?? 0) + 1;
       this.fetchGenerations[deploymentId] = generation;
-      const steps = await this.client.get<Promise<Object[]>>(url);
-      if (!isCurrentSession() || this.fetchGenerations[deploymentId] !== generation) {
-        return;
-      }
-      for (const apiStep of steps) {
-        this.addStep(pythonToJavascript(apiStep) as Step);
+      const changed = markRaw(new Set<number>());
+      this.pendingFetches.push(changed);
+      try {
+        const steps = await this.client.get<Promise<Object[]>>(url);
+        if (!isCurrentSession() || this.fetchGenerations[deploymentId] !== generation) return;
+        for (const apiStep of steps) {
+          const step = pythonToJavascript(apiStep) as Step;
+          if (!changed.has(step.id)) this.addStep(step);
+        }
+      } finally {
+        this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
       }
     },
     /**
@@ -170,6 +181,7 @@ export const useSteps = defineStore("steps", {
     onMessage(message: Message) {
       if (message.type === "step") {
         const step = message as Step;
+        for (const pending of this.pendingFetches) pending.add(step.id);
         if (step.deleted) {
           this.deleteStep(step);
         } else {

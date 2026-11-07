@@ -8,7 +8,7 @@ import { useAuth } from '../src/stores/auth';
 
 const originalConfirm = window.confirm;
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
-vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }));
+vi.mock('vue-router', () => ({ useRouter: () => ({ push, currentRoute: { value: null } }) }));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
