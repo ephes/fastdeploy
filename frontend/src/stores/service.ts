@@ -29,6 +29,8 @@ export const useServices = defineStore("services", {
        * Services are retrievable by id from this object.
        */
       services: {} as ServiceById,
+      servicesLoading: false,
+      servicesError: "",
       /**
        * Error message received from backend when trying to fetch
        * a service token.
@@ -157,12 +159,16 @@ export const useServices = defineStore("services", {
      */
     async fetchServices() {
       const isCurrentSession = rememberSession();
-      const services = await this.client.get<Promise<ServiceWithId[]>>("services/")
-      if (!isCurrentSession()) {
-        return;
-      }
-      for (const service of services) {
-        this.services[service.id] = service;
+      this.servicesLoading = true;
+      this.servicesError = "";
+      try {
+        const services = await this.client.get<ServiceWithId[]>("services/");
+        if (!isCurrentSession()) return;
+        for (const service of services) this.services[service.id] = service;
+      } catch {
+        if (isCurrentSession()) this.servicesError = "Could not load services. Try logging in again.";
+      } finally {
+        if (isCurrentSession()) this.servicesLoading = false;
       }
     },
     /**
@@ -191,9 +197,10 @@ export const useServices = defineStore("services", {
     async fetchServiceToken(
       serviceName: string,
       origin: string,
-      expirationInDays: number = 1
+      expirationInDays: number = 1,
+      onError?: (message: string) => void
     ) {
-      this.serviceTokenErrorMessage = "";
+      if (!onError) this.serviceTokenErrorMessage = "";
       const isCurrentSession = rememberSession();
       try {
         const response = await (<Promise<{ service_token: string }>>(
@@ -209,8 +216,13 @@ export const useServices = defineStore("services", {
         if (!isCurrentSession()) {
           return null;
         }
-        this.serviceTokenErrorMessage =
-          err.message + " " + JSON.stringify(err.body);
+        const detail = err?.body?.detail;
+        const status = err?.response?.status;
+        const message = [403, 404, 422].includes(status) && typeof detail === "string"
+          ? detail.slice(0, 512)
+          : "Could not issue a service token. Check your permissions and inputs, then retry.";
+        if (onError) onError(message);
+        else this.serviceTokenErrorMessage = message;
         return null;
       }
     },

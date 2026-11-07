@@ -15,6 +15,7 @@ export const useSteps = defineStore("steps", {
        * Stores all steps by step id.
        */
       steps: {} as StepById,
+      fetchGenerations: {} as Record<number, number>,
       /**
        * Stores all steps by deployment id.
        */
@@ -150,8 +151,10 @@ export const useSteps = defineStore("steps", {
         "steps/?" +
         new URLSearchParams({ deployment_id: deploymentId.toString() });
       const isCurrentSession = rememberSession();
+      const generation = (this.fetchGenerations[deploymentId] ?? 0) + 1;
+      this.fetchGenerations[deploymentId] = generation;
       const steps = await this.client.get<Promise<Object[]>>(url);
-      if (!isCurrentSession()) {
+      if (!isCurrentSession() || this.fetchGenerations[deploymentId] !== generation) {
         return;
       }
       for (const apiStep of steps) {

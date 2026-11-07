@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Fixed
+- Use a labeled native login form with credential autocomplete, announced errors
+  and duplicate-submit protection; add a Chromium keyboard regression to CI.
+- Keep service/deployment details reactive to route and store changes, with explicit
+  loading, missing and retry states. Fence token results and step fetches so late
+  responses cannot replace the current identity/result. Requires a frontend build.
 - Preserve generic 500 responses for unexpected service-delete and deployment
   start/finish failures; only established missing/conflict/validation cases are 4xx.
 - Close partially initialized bootstrap resources on startup failures, preserving
