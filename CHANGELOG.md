@@ -53,6 +53,9 @@ Unreleased
   request is in flight; ordinary refreshes and logout guards are retained.
 
 ### Tests
+- Synthetic message-bus regressions for FIFO follow-ups, initial command results,
+  event-handler recovery, command failure and cancellation during handler awaits.
+  Protects existing dispatch behavior; no runtime change or deployment required.
 - Add database-free CLI regression coverage for service-token inventory,
   revocation, purge retention/validation and resource cleanup, plus initial-user
   environment and interactive credentials without exposing passwords or hashes.
