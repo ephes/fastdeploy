@@ -432,6 +432,10 @@ connection has 5 seconds to take it. A connection that does not (for example a s
 tab with a full receive buffer) is closed with code `1013` and forgotten, so it can delay neither
 the other clients nor the request that produced the event. Events are not queued for it: reconnect,
 authenticate again and reload the current state over the REST endpoints.
+Ordinary transport send errors also forget and close that connection with code `1013`,
+without waiting for a receive-side disconnect. This removes its principal and expiry
+timer and preserves healthy peers and any newer connection using the same client id.
+The caller waits at most 1 second for transport close.
 
 Control messages (authentication success/failure and expiry warnings) also have a 5-second
 send budget. All control and endpoint-cleanup callers wait at most 1 second for a close,
