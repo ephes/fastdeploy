@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.exc import NoResultFound
 
 from ... import views
 from ...config import settings
@@ -105,7 +106,7 @@ async def finish_deployment(
     cmd = commands.FinishDeployment(deployment_id=deployment.id)
     try:
         await bus.handle(cmd)
-    except Exception as e:
+    except views.DeploymentNotFound as e:
         raise HTTPException(status_code=404, detail="Deployment not found") from e
     return {"detail": f"Deployment {deployment.id} finished"}
 
@@ -192,8 +193,8 @@ async def start_deployment(
                 "deployment_id": e.deployment_id,
             },
         ) from e
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Something went wrong") from e
+    except NoResultFound as e:
+        raise HTTPException(status_code=404, detail="Service not found") from e
 
     started_event = handle_deployment_started.event
     # convert to string because url_for returns a URL and pydantic does not like that

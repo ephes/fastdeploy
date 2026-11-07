@@ -518,3 +518,13 @@ All endpoints may return these standard error responses:
   ```json
   {"detail": "Internal server error"}
   ```
+
+### Mutation failures
+
+Service deletion and deployment finish return 404 only for an established missing
+record. Deployment starts retain validation (413/422) and active-deployment (409)
+responses; a missing service at the initial start lookup is 404. A concurrent
+deletion after that lookup can instead fail the transaction with 500. Unexpected database, commit
+or storage failures return a generic 500, never backend exception details. A 500
+is not confirmation that the mutation succeeded: inspect deployment history before
+retrying a start, since a response can be lost after a commit.

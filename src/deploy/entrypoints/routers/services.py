@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy.exc import NoResultFound
 
 from ... import views
 from ...domain import commands, model
@@ -49,7 +50,7 @@ async def delete_service(service_id: int, bus: Bus = Depends()) -> dict:
             status_code=status.HTTP_409_CONFLICT,
             detail={"message": str(e), "deployment_id": e.deployment_id},
         ) from e
-    except Exception as e:
+    except NoResultFound as e:
         raise HTTPException(status_code=404, detail="Service does not exist") from e
     return {"detail": f"Service {service_id} deleted"}
 

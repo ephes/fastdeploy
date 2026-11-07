@@ -2,6 +2,10 @@ Unreleased
 ==========
 
 ### Fixed
+- Preserve generic 500 responses for unexpected service-delete and deployment
+  start/finish failures; only established missing/conflict/validation cases are 4xx.
+- Close partially initialized bootstrap resources on startup failures, preserving
+  the primary exception if cleanup also fails. Requires an API/tool update.
 - Authentication backend failures now return a safe 500 with category-only diagnostics,
   preserving the failed-password allowance. Invalid credentials still return 401.
 - Bound process-wide login work with `LOGIN_MAX_CONCURRENT` (default 4, 1–64).

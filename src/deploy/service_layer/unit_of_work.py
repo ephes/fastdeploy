@@ -90,9 +90,16 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         Being able to explicitly control when the connection is closed.
         This is called at the end of each web request via `bootstrap.get_bus`.
         """
-        await self.session.close()
-        await self.connection.close()
-        await self.engine.dispose()
+        try:
+            session = getattr(self, "session", None)
+            if session is not None:
+                await session.close()
+        finally:
+            try:
+                if self.connection is not None:
+                    await self.connection.close()
+            finally:
+                await self.engine.dispose()
 
     async def __aenter__(self):
         self.services = repository.SqlAlchemyServiceRepository(self.session)

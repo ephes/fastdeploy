@@ -524,3 +524,12 @@ describe('DeploymentStore', () => {
 - Efficient query patterns with SQLAlchemy
 - Async command and event processing
 - Concurrent request handling
+
+### Bootstrap resource ownership
+
+Bootstrap closes its internally allocated unit of work if connection, mapper,
+schema or bus construction fails, including partially initialized connections.
+Cleanup attempts session, connection and engine teardown even if an earlier close
+fails; a startup failure remains the primary exception if cleanup also fails.
+A supplied unit of work stays owned by the caller. After successful construction,
+HTTP dependency teardown closes the bus; CLI callers must close `bus.uow`.
