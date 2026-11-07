@@ -6,14 +6,14 @@ import { useDeployments } from "../src/stores/deployment";
 import { useAuth } from "../src/stores/auth";
 import DeploymentList from "../src/components/DeploymentList.vue";
 
-const { route } = vi.hoisted(() => ({ route: { params: {} as Record<string, string> } }));
+const { route } = vi.hoisted(() => ({ route: { query: {} as Record<string, string> } }));
 vi.mock("vue-router", () => ({ useRoute: () => route }));
 const row = (id: number, service_id = 1) => ({ id, service_id, origin: "fixture", user: "fixture-user", type: "deployment" });
 const page = Array.from({ length: 50 }, (_, i) => row(100 - i));
 
 beforeEach(() => {
   initPinia();
-  route.params = reactive({ serviceId: "1" });
+  route.query = reactive({ serviceId: "1" });
 });
 
 it("loads bounded pages explicitly and keeps events during load more", async () => {
@@ -69,7 +69,7 @@ it("navigates service history and exposes load more and errors", async () => {
   await flushPromises();
   expect(get).toHaveBeenCalledTimes(2);
   expect(wrapper.find("button").exists()).toBe(false);
-  route.params.serviceId = "2";
+  route.query.serviceId = "2";
   await flushPromises();
   expect(get).toHaveBeenLastCalledWith("deployments/?limit=50&service_id=2");
   expect(wrapper.find('[role="alert"]').text()).toContain("Could not load deployment history");

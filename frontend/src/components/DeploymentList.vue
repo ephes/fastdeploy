@@ -7,7 +7,11 @@ import { useDeployments } from '../stores/deployment';
 const deploymentStore = useDeployments();
 
 const route = useRoute();
-const serviceId = computed(() => Number(route.params.serviceId) || undefined);
+const serviceId = computed(() => {
+  const value = route.query.serviceId;
+  const id = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN;
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+});
 watch(serviceId, (id) => deploymentStore.fetchDeployments(id), { immediate: true });
 </script>
 
