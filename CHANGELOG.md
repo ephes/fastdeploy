@@ -8,6 +8,12 @@ Unreleased
 - Serialize per-connection WebSocket sends, including the lock wait in the send
   deadline; discard stale queued frames on disconnect. Drain manager-owned sockets,
   expiry timers and close tasks during FastAPI lifespan shutdown. Requires a backend restart.
+- Stop/reap the owned detached process group and remove its config when the
+  launcher supervisor cannot start, with a 300 ms total cleanup budget. Preserve
+  the startup error as the failure cause.
+- Bound private config reads/writes to 1 MiB and validate UTF-8/JSON and required field
+  shapes. Configured invalid files fail closed before task startup with value-free
+  diagnostics. Unset config paths retain environment fallback. Requires a task-runner update.
 - Limit history reconciliation to 50 oldest eligible deployments per request,
   selecting ids with a single bulk activity query before locked rechecks.
 - Refuse overlapping/reentrant calls on one message bus before replacing its

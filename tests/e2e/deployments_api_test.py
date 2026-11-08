@@ -800,3 +800,58 @@ async def test_finish_after_orphan_cleanup_keeps_failure(app, uow, service_in_db
     async with uow:
         steps = await uow.steps.get_steps_by_deployment(orphan.id)
     assert_finished_as_orphaned(steps)
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_supervisor_start_failure_records_one_failed_launch(
+    app, uow, valid_service_token_in_db, monkeypatch, tmp_path
+):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from deploy import tasks
+
+    child = Mock(pid=73001)
+    monkeypatch.setattr(tasks.subprocess, "Popen", Mock(return_value=child))
+    monkeypatch.setattr(tasks.os, "killpg", Mock(side_effect=ProcessLookupError))
+    supervisor = Mock()
+    supervisor.start.side_effect = RuntimeError("supervisor unavailable")
+    monkeypatch.setattr(tasks, "threading", SimpleNamespace(Thread=Mock(return_value=supervisor)))
+    failed = await post_start_deployment(app, valid_service_token_in_db)
+    assert failed.status_code == 500
+    async with uow:
+        [deployment] = await uow.deployments.list()
+        [step] = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert deployment.finished is not None
+    assert (step.name, step.state) == (model.LAUNCH_FAILED_STEP_NAME, "failure")
+    child.wait.assert_called_once()
+    assert not list(tmp_path.glob("deploy_*.json"))
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_oversized_serialized_config_records_failed_launch(
+    app, uow, valid_service_token_in_db, monkeypatch, tmp_path
+):
+    from unittest.mock import Mock
+
+    from deploy import tasks
+    from deploy.secure_config import CONFIG_MAX_BYTES
+
+    monkeypatch.setattr(settings, "deployment_context_max_bytes", CONFIG_MAX_BYTES * 2)
+    spawn = Mock()
+    monkeypatch.setattr(tasks.subprocess, "Popen", spawn)
+    context = {"env": {"value": "\u2603" * (CONFIG_MAX_BYTES // 6)}}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            app.url_path_for("start_deployment"),
+            json=context,
+            headers={"authorization": f"Bearer {valid_service_token_in_db}"},
+        )
+    assert response.status_code == 500
+    spawn.assert_not_called()
+    async with uow:
+        [deployment] = await uow.deployments.list()
+        [step] = await uow.steps.get_steps_by_deployment(deployment.id)
+    assert deployment.finished is not None
+    assert (step.name, step.state) == (model.LAUNCH_FAILED_STEP_NAME, "failure")
+    assert not list(tmp_path.glob("deploy_*.json"))
