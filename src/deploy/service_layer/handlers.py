@@ -262,31 +262,32 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
     Start a deployment. The list of deployment steps is fetched from the
     configuration of the service to deploy or the last successful deployment.
     """
-    # get the service that we are deploying from database
-    async with uow:
-        service = await uow.services.get(command.service_id)
-
-    # look up the deployment steps from last deployment / service.data / default
-    # and create new deployment
-    steps = await views.get_steps_to_do_from_service(service, uow)
-    deployment = model.Deployment(
-        service_id=command.service_id,
-        origin=command.origin,
-        user=command.user,
-        context=command.context,
-        started=datetime.now(timezone.utc),
-        finished=None,
-        steps=steps,
-    )
-
-    # actually start the deployment
     async with uow:
         # Single-flight per service: lock the service row so concurrent starts
         # for the same service are serialized, reconcile orphaned deployments and
         # refuse if another deployment is still active. The lock is held until
         # the commit below, which also makes the new deployment visible.
         await uow.services.lock_for_deployment(command.service_id)
+        service = await uow.services.get(command.service_id)
         await finish_orphans_or_raise_if_running(command.service_id, uow)
+
+        # Plan inside this transaction: the public planning view opens its own
+        # UOW, whose exit would roll back and release our service lock.
+        previous_steps = await views.get_steps_from_last_deployment(service, uow)
+        steps = (
+            [model.Step.new_pending_from_old(step) for step in previous_steps]
+            if previous_steps
+            else await views.get_steps_to_do_from_service(service)
+        )
+        deployment = model.Deployment(
+            service_id=command.service_id,
+            origin=command.origin,
+            user=command.user,
+            context=command.context,
+            started=datetime.now(timezone.utc),
+            finished=None,
+            steps=steps,
+        )
 
         # Store the deployment and its planned steps in one transaction, before the
         # deploy task exists: the detached task may report its first step right

@@ -2,6 +2,8 @@ Unreleased
 ==========
 
 ### Fixed
+- Load the deployment launch definition under the service lock and retain it
+  through planning and admission, avoiding stale scripts after concurrent sync.
 - Censor task names and result payloads in the retained Ansible JSON callback when
   task `no_log` or result `_ansible_no_log` is set. Add skipped/unreachable
   observations using supported states, explicit outcomes and ignored-failure
@@ -53,6 +55,8 @@ Unreleased
   request is in flight; ordinary refreshes and logout guards are retained.
 
 ### Tests
+- Race identical and conflicting step reports on independent PostgreSQL connections;
+  assert actual row-lock blocking, one persisted result and one processed event.
 - Synthetic message-bus regressions for FIFO follow-ups, initial command results,
   event-handler recovery, command failure and cancellation during handler awaits.
   Protects existing dispatch behavior; no runtime change or deployment required.
