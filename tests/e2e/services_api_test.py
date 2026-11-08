@@ -212,3 +212,15 @@ async def test_sync_services_empty_directory_force(app, uow, valid_access_token_
     }
     async with uow:
         assert await uow.services.list() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.db("in_memory")
+async def test_sync_bad_config_returns_bounded_validation_error(app, services_filesystem, valid_access_token_in_db):
+    source = services_filesystem.root / "bad-source"
+    source.mkdir()
+    (source / "config.json").write_text('{"ansible_playbook": 12}')
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/services/sync", headers={"authorization": f"Bearer {valid_access_token_in_db}"})
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid playbook path"}

@@ -66,6 +66,7 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://deploy.staging.wersdoerfer.de",
     ]
+    service_playbook_roots: list[Path] = []
     project_root: Path = ROOT_DIR
     services_dir_name: str = Field("services", alias="services_root")
     default_expire_minutes: int = Field(15, ge=1, le=525600)

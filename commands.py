@@ -35,7 +35,7 @@ from rich import print as rprint  # noqa
 from rich.prompt import Prompt  # noqa
 from sqlalchemy.exc import NoResultFound  # noqa
 
-from deploy.adapters.filesystem import working_directory  # noqa
+from deploy.adapters.filesystem import ServiceConfigError, working_directory  # noqa
 from deploy.auth import ServiceTokenIssueRefused, get_password_hash, issue_service_token_for_existing  # noqa
 from deploy.bootstrap import get_bus_for_cli  # noqa
 from deploy.config import settings  # noqa
@@ -123,6 +123,9 @@ def syncservices(
     rprint("syncing services")
     try:
         result = asyncio.run(_syncservices(force))
+    except ServiceConfigError as e:
+        typer.echo(f"sync refused: {e}", err=True)
+        sys.exit(1)
     except ServiceSyncRefused as e:
         rprint(f"[red]sync refused:[/red] {e.reason}")
         rprint(f"would delete: {', '.join(e.would_delete)}")
