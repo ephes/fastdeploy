@@ -114,7 +114,7 @@ class TestSecureConfig:
     def test_read_deployment_config_success(self, secure_config, temp_dir):
         """Test reading a valid configuration file."""
         # Create a config file manually with correct permissions
-        config_data = {"deployment_id": "test-123", "access_token": "secret-token", "context": {"key": "value"}}
+        config_data = json.loads(make_config(secure_config).read_text())
 
         config_file = temp_dir / "test_config.json"
 
@@ -258,7 +258,7 @@ class TestGetConfigFromEnv:
 
     def test_get_config_from_env_success(self, tmp_path):
         """Test successfully reading config from DEPLOY_CONFIG_FILE env var."""
-        config_data = {"deployment_id": "env-test-123", "access_token": "env-token", "context": {"env": "test"}}
+        config_data = json.loads(make_config(SecureConfig(tmp_path)).read_text())
 
         # Create secure config file
         config_file = tmp_path / "env_config.json"
@@ -281,10 +281,11 @@ class TestGetConfigFromEnv:
 
     def test_get_config_from_env_invalid_file(self):
         """Test when DEPLOY_CONFIG_FILE points to invalid file."""
-        with patch.dict(os.environ, {"DEPLOY_CONFIG_FILE": "/nonexistent/file.json"}):
-            result = get_config_from_env()
-
-        assert result is None
+        with (
+            patch.dict(os.environ, {"DEPLOY_CONFIG_FILE": "/nonexistent/file.json"}),
+            pytest.raises(ValueError, match=r"^Invalid deployment configuration$"),
+        ):
+            get_config_from_env()
 
     def test_get_config_from_env_insecure_permissions(self, tmp_path):
         """Test when config file has insecure permissions."""
@@ -295,10 +296,11 @@ class TestGetConfigFromEnv:
         # Make it world-readable
         config_file.chmod(0o644)
 
-        with patch.dict(os.environ, {"DEPLOY_CONFIG_FILE": str(config_file)}):
-            result = get_config_from_env()
-
-        assert result is None
+        with (
+            patch.dict(os.environ, {"DEPLOY_CONFIG_FILE": str(config_file)}),
+            pytest.raises(ValueError, match=r"^Invalid deployment configuration$"),
+        ):
+            get_config_from_env()
 
 
 class TestIntegration:

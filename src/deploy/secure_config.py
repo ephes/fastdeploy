@@ -16,6 +16,40 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+CONFIG_MAX_BYTES = 1024 * 1024
+INVALID_CONFIG = "Invalid deployment configuration"
+_REQUIRED_STRINGS = (
+    "deployment_id",
+    "access_token",
+    "deploy_script",
+    "steps_url",
+    "deployment_finish_url",
+    "path_for_deploy",
+)
+
+
+def _read_config(fd: int) -> dict[str, Any]:
+    # The descriptor is already type/mode checked. Bound actual bytes, including
+    # growth after fstat, before decoding or parsing any config values.
+    with os.fdopen(fd, "rb") as file:
+        raw = file.read(CONFIG_MAX_BYTES + 1)
+    try:
+        if len(raw) > CONFIG_MAX_BYTES:
+            raise ValueError()
+        data = json.loads(raw.decode("utf-8"))
+        if not isinstance(data, dict) or any(not isinstance(data.get(key), str) for key in _REQUIRED_STRINGS):
+            raise ValueError()
+        context = data.get("context")
+        if not isinstance(context, dict) or ("env" in context and not isinstance(context["env"], dict)):
+            raise ValueError()
+        if "ssh_auth_sock" in data and not isinstance(data["ssh_auth_sock"], str):
+            raise ValueError()
+        return data
+    except (ValueError, RecursionError):
+        # Decoder/shape errors must never expose the input or token values.
+        raise ValueError(INVALID_CONFIG) from None
+
+
 # Retain descriptors so an unlinked inode cannot be reused as an owned config.
 _temp_files: dict[Path, int] = {}
 _cleanup_lock = threading.RLock()
@@ -117,6 +151,14 @@ class SecureConfig:
         if ssh_auth_sock:
             config_data["ssh_auth_sock"] = ssh_auth_sock
 
+        # Refuse serialized oversize at admission, where launch failure can be
+        # persisted. Count the same ASCII escaping/indentation used by json.dump.
+        size = 0
+        for chunk in json.JSONEncoder(indent=2).iterencode(config_data):
+            size += len(chunk.encode("utf-8"))
+            if size > CONFIG_MAX_BYTES:
+                raise ValueError(INVALID_CONFIG)
+
         # Create temp file with secure permissions
         fd, temp_path = tempfile.mkstemp(prefix=f"deploy_{deployment_id}_", suffix=".json", dir=str(self.config_dir))
 
@@ -157,8 +199,7 @@ class SecureConfig:
             fd = _open_config(config_path, os.O_RDONLY)
         except FileNotFoundError as e:
             raise FileNotFoundError(f"Config file not found: {config_path}") from e
-        with os.fdopen(fd) as f:
-            return json.load(f)
+        return _read_config(fd)
 
     @staticmethod
     def cleanup_config(config_path: Path) -> bool:
@@ -216,10 +257,10 @@ def get_config_from_env() -> dict[str, Any] | None:
     This is the ONLY environment variable we'll use for deployments.
 
     Returns:
-        Configuration dictionary or None if not available
+        Configuration dictionary or None only when DEPLOY_CONFIG_FILE is unset
     """
     config_file = os.environ.get("DEPLOY_CONFIG_FILE")
-    if not config_file:
+    if config_file is None:
         return None
 
     config_path = Path(config_file)
@@ -228,5 +269,6 @@ def get_config_from_env() -> dict[str, Any] | None:
     try:
         return handler.read_deployment_config(config_path)
     except Exception as e:
-        logger.error(f"Failed to read config from {config_file}: {e}")
-        return None
+        logger.error("deployment_config_read_failed category=%s", type(e).__name__)
+        # A configured but invalid file must not fall back to environment credentials.
+        raise ValueError(INVALID_CONFIG) from None

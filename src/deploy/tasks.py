@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
@@ -62,7 +63,57 @@ def run_deploy(environment):  # pragma no cover
         finally:
             secure_config.cleanup_config(config_path)
 
-    threading.Thread(target=cleanup_after_exit, daemon=True, name="deployment-config-cleanup").start()
+    try:
+        threading.Thread(target=cleanup_after_exit, daemon=True, name="deployment-config-cleanup").start()
+    except BaseException as error:
+        # Popen succeeded: we own its new process group even if supervision did not.
+        try:
+            stop_launch_process(process)
+        finally:
+            secure_config.cleanup_config(config_path)
+        if isinstance(error, Exception):
+            raise RuntimeError("Could not start deployment supervisor") from error
+        raise
+
+
+# Launcher supervision failure is synchronous on the API loop. Allow only
+# 100 ms each for TERM, KILL and reaping (300 ms total), then report failure.
+LAUNCH_STOP_TIMEOUT_SECONDS = 0.1
+
+
+def stop_launch_process(process: subprocess.Popen) -> None:
+    """Stop only the just-created session's group, then reap its leader."""
+    try:
+        gone = False
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(process.pid, sig)
+            except ProcessLookupError:
+                gone = True
+                break
+            deadline = time.monotonic() + LAUNCH_STOP_TIMEOUT_SECONDS
+            while True:
+                process.poll()  # reap the leader even when descendants outlive it
+                try:
+                    os.killpg(process.pid, 0)
+                except ProcessLookupError:
+                    gone = True
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                time.sleep(min(0.05, remaining))
+            if gone:
+                break
+        if not gone:
+            DeployTask.log("launcher group exit not confirmed within cleanup budget")
+    except Exception as error:
+        DeployTask.log(f"launcher group cleanup failed: {type(error).__name__}")
+    finally:
+        try:
+            process.wait(timeout=LAUNCH_STOP_TIMEOUT_SECONDS)
+        except Exception as error:
+            DeployTask.log(f"launcher reap failed: {type(error).__name__}")
 
 
 class DeploymentContext(BaseModel):

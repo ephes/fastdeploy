@@ -92,6 +92,26 @@ FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `
 
 Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Orphaned unfinished deployments do not block (they are finished as part of a successful start; a rejected start changes nothing), and deployments older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` (default: `480`) do not block.
 
+Private deployment configs are read from the validated descriptor with a 1 MiB
+UTF-8 byte limit (including growth after opening). The JSON root and `context`
+must be objects; `context.env`, when present, must be an object. The required
+`deployment_id`, `access_token`, `deploy_script`, `steps_url`,
+`deployment_finish_url` and `path_for_deploy` fields must be strings, as must
+optional `ssh_auth_sock`. Size, decoding, JSON and shape failures return
+`Invalid deployment configuration` without including config values in diagnostics.
+The writer enforces the same serialized byte limit before creating a file or
+starting a child, so oversized generated configs are recorded as launch failures.
+When `DEPLOY_CONFIG_FILE` is set, any read failure stops task startup; only an
+unset variable permits the legacy environment fallback.
+
+The launcher supervises its detached child with a cleanup thread. If that thread
+cannot start, it sends TERM then, if needed, KILL only to the new child's owned
+process group, reaps the leader, and removes its credential config before reporting
+launch failure. This exceptional synchronous path allows 100 ms for TERM,
+100 ms for KILL and 100 ms for reaping (300 ms total), limiting API-loop delay.
+Unconfirmed cleanup is reported with category-only diagnostics. The original startup error is retained as the launch error's cause.
+The API records one failed launch and releases the service for a later attempt.
+
 The deploy task starts the deploy script as `sudo -u <SUDO_USER> <script> --config <config file>`. This is an
 argument list executed without a shell: `deploy_script` from the service's `config.json` (an absolute path, or a path
 below the services directory) is one argument, the path of the script. It is not split into words and shell syntax in
