@@ -119,3 +119,14 @@ it("dispatches existing valid domain and control variants", () => {
   socket.receive({ message: "Client left" });
   expect(store.onMessage).toHaveBeenCalledTimes(4);
 });
+
+it.each(["hasOwnProperty", "has_own_property", "started"])("ignores undeclared %s fields before conversion", (key) => {
+  const client = createWebsocketClient();
+  client.initWebsocketConnection("ws://synthetic", "token");
+  const store = { onMessage: vi.fn() };
+  client.registerStore(store);
+  const message: Record<string, unknown> = { type: "service", id: 1, name: "synthetic", data: {}, [key]: { toString: null } };
+  expect(() => Socket.instances[0].receive(message)).not.toThrow();
+  expect(store.onMessage).toHaveBeenCalledOnce();
+  expect(store.onMessage).toHaveBeenCalledWith({ type: "service", id: 1, name: "synthetic", data: {} });
+});

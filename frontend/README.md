@@ -73,7 +73,8 @@ GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249 (eight affected package nodes).
 Replacing a socket retires its callbacks and pending reconnect waits. Only the
 current socket can authenticate or update stores. Incoming frames must match the
 existing service, deployment, step, user, authentication or control shapes before
-conversion/dispatch. Malformed JSON or fields close the connection and show
+conversion/dispatch. Only declared domain fields enter converters; unrelated
+extra fields are ignored. Malformed JSON or fields close the connection and show
 “Invalid websocket message; refresh to resynchronize.” Refresh the page to fetch
 current state and reconnect; malformed frames never trigger logout or automatic
 retry. Diagnostics exclude frame contents.

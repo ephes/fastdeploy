@@ -11,6 +11,15 @@ const readyState: { [key: number]: string } = {
   3: "CLOSED",
 };
 
+// Only declared domain fields enter the generic case/date converters. Extra
+// wire keys could shadow Object methods or be mistaken for date properties.
+const domainFields: Record<string, string[]> = {
+  service: ["type", "id", "name", "data", "deleted"],
+  deployment: ["type", "id", "service_id", "origin", "user", "started", "finished", "context", "deleted"],
+  step: ["type", "id", "deployment_id", "name", "state", "message", "started", "finished", "deleted"],
+  user: ["type", "id", "name"],
+};
+
 function isRecord(value: unknown): value is Record<string, any> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -246,7 +255,11 @@ export function createWebsocketClient(): WebsocketClient {
         // special handling for authentication response
         this.onAuthenticationMessage(message as AuthenticationMessage);
       } else {
-        this.notifyStores(message);
+        const fields = domainFields[message.type as string];
+        const domainMessage = Object.fromEntries(
+          Object.entries(message).filter(([key]) => fields.includes(key))
+        );
+        this.notifyStores(domainMessage as Message);
       }
     },
     /**
