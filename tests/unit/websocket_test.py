@@ -337,8 +337,10 @@ async def test_websocket_expiry_closes_connection_and_cleans_up():
 async def test_broadcast_continues_after_failing_connection(test_message):
     cm = ConnectionManager()
     broken, healthy = RecordingWebsocket(fail_on_send=True), RecordingWebsocket()
-    cm.active_connections[uuid4()] = broken
-    cm.active_connections[uuid4()] = healthy
+    for socket in (broken, healthy):
+        client_id = uuid4()
+        await cm.connect(client_id, socket)
+        cm.active_connections[client_id] = socket
 
     await cm.broadcast(test_message)
 
@@ -370,7 +372,7 @@ async def test_websocket_failing_authentication_does_not_touch_replacement_conne
     assert not await cm.authenticate(client_id, valid_access_token, uow)
 
     assert old.closed
-    assert old.sent[-1]["status"] == "failure"
+    assert old.sent[-1]["type"] == "warning"  # stale rejection sends no further frame
     assert not new.closed
     assert new.sent == []
     assert cm.all_connections[client_id] is new
@@ -475,12 +477,12 @@ async def test_broadcast_is_bounded_when_slow_client_does_not_close_either(test_
     assert not slow.closed
     assert not slow.close_cancelled
     assert_forgotten(cm, slow_id)
-    pending = set(websocket_module._pending_closes)
+    pending = set(cm.close_tasks)
     assert pending
     slow.release_close.set()
     await asyncio.wait_for(asyncio.gather(*pending), 0.5)
     assert slow.closed
-    assert not websocket_module._pending_closes
+    assert not cm.close_tasks
 
 
 async def test_broadcast_timeout_does_not_remove_replacement_connection(test_message, short_broadcast_budget):
@@ -508,7 +510,9 @@ async def test_broadcast_keeps_event_order_per_client(short_broadcast_budget):
 
     cm = ConnectionManager()
     healthy = RecordingWebsocket()
-    cm.active_connections[uuid4()] = healthy
+    client_id = uuid4()
+    await cm.connect(client_id, healthy)
+    cm.active_connections[client_id] = healthy
 
     for number in range(5):
         await cm.broadcast(Numbered(number=number))
@@ -713,7 +717,7 @@ async def test_broadcast_error_close_wait_is_bounded(test_message, short_broadca
         assert not broken.close_cancelled
     finally:
         broken.release_close.set()
-        pending = set(websocket_module._pending_closes)
+        pending = set(cm.close_tasks)
         await asyncio.wait_for(asyncio.gather(*pending), 1)
     assert broken.closed
-    assert not websocket_module._pending_closes
+    assert not cm.close_tasks

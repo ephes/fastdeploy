@@ -451,6 +451,18 @@ separate steps.
    }
    ```
 
+Sends on each connection are serialized with an asyncio lock: broadcasts and
+authentication/control responses cannot overlap. The send deadline includes time
+waiting for that lock. Failed or cancelled transport sends retire their queue before
+releasing the lock, including queued final control frames. Disconnect discards queued frames for that socket; a reused
+client id gets independent send ownership. Other clients keep independent queues.
+
+FastAPI lifespan shutdown stops connection admission, forgets current sockets,
+closes them concurrently and drains only this manager's close and expiry tasks.
+The drain gets two seconds before remaining tasks are cancelled and awaited.
+A subsequent lifespan starts with empty connection state. Late request teardown
+uses a bounded close without creating detached tasks after shutdown.
+
 Slow clients: every event is sent to all authenticated connections at the same time, and each
 connection has 5 seconds to take it. A connection that does not (for example a suspended browser
 tab with a full receive buffer) is closed with code `1013` and forgotten, so it can delay neither

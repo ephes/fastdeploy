@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket, WebSocketDisconnect, status
@@ -10,13 +11,24 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.websockets import WebSocketState
 
-from ..adapters.websocket import close_websocket
+from ..adapters.websocket import connection_manager
 from ..config import settings
 from .helper_models import Bus
 from .routers import deployed_services, deployments, services, steps, users
 
 logger = logging.getLogger(__name__)
-app = FastAPI()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    connection_manager.startup()
+    try:
+        yield
+    finally:
+        await connection_manager.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 app.include_router(users.router)
@@ -117,6 +129,6 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
             websocket.client_state != WebSocketState.DISCONNECTED
             and websocket.application_state != WebSocketState.DISCONNECTED
         ):
-            await close_websocket(websocket, close_code, close_reason)
+            await connection_manager.close_socket(websocket, close_code, close_reason)
     if was_authenticated:
         await connection_manager.broadcast(Message(message="Client left"))

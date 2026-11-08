@@ -16,8 +16,12 @@ from deploy.service_layer import unit_of_work
 
 
 @pytest.fixture
-def cm():
-    return ConnectionManager()
+def cm(monkeypatch):
+    from deploy.entrypoints import fastapi_app
+
+    manager = ConnectionManager()
+    monkeypatch.setattr(fastapi_app, "connection_manager", manager)
+    return manager
 
 
 @pytest.fixture
@@ -259,9 +263,9 @@ async def test_endpoint_cleanup_cannot_wait_forever_for_close(cm, monkeypatch):
     assert not socket.close_cancelled
     assert not socket.close_finished
     assert cm.all_connections == cm.expiry_tasks == {}
-    pending = set(websocket_module._pending_closes)
+    pending = set(cm.close_tasks)
     assert pending
     socket.release_close.set()
     await asyncio.wait_for(asyncio.gather(*pending), 0.5)
     assert socket.close_finished
-    assert not websocket_module._pending_closes
+    assert not cm.close_tasks

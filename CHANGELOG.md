@@ -2,6 +2,9 @@ Unreleased
 ==========
 
 ### Fixed
+- Serialize per-connection WebSocket sends, including the lock wait in the send
+  deadline; discard stale queued frames on disconnect. Drain manager-owned sockets,
+  expiry timers and close tasks during FastAPI lifespan shutdown. Requires a backend restart.
 - Limit history reconciliation to 50 oldest eligible deployments per request,
   selecting ids with a single bulk activity query before locked rechecks.
 - Refuse overlapping/reentrant calls on one message bus before replacing its
