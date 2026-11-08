@@ -1,10 +1,11 @@
 import abc
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, delete, or_, select, text
 from sqlalchemy.exc import NoResultFound
 
 from ..domain import model
+from . import orm
 
 
 class AbstractServiceRepository(abc.ABC):
@@ -211,6 +212,11 @@ class AbstractDeploymentRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_orphaned_ids(self, *, activity_before: datetime, limit: int) -> list[int]:
+        """Oldest eligible unfinished ids, bounded before materialization."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def list(
         self,
         *,
@@ -255,6 +261,34 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         stmt = select(model.Deployment).where(model.Deployment.service_id == service_id)
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def get_orphaned_ids(self, *, activity_before: datetime, limit: int) -> list[int]:
+        # One bulk predicate includes every step's activity, without loading
+        # deployment/step models or doing per-deployment activity queries.
+        open_or_recent = (
+            select(orm.steps.c.id)
+            .where(
+                orm.steps.c.deployment_id == orm.deployments.c.id,
+                or_(
+                    orm.steps.c.state.in_(("pending", "running")),
+                    orm.steps.c.started > activity_before,
+                    orm.steps.c.finished > activity_before,
+                ),
+            )
+            .exists()
+        )
+        stmt = (
+            select(orm.deployments.c.id)
+            .where(
+                orm.deployments.c.finished.is_(None),
+                orm.deployments.c.started <= activity_before,
+                ~open_or_recent,
+            )
+            .order_by(orm.deployments.c.id)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars())
 
     async def list(self, *, limit=None, before_id=None, service_id=None, unfinished_only=False):
         stmt = select(model.Deployment).order_by(model.Deployment.id.desc())
@@ -346,6 +380,32 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
     async def get_unfinished_by_service(self, service_id):
         return [d for d in self._deployments if d.service_id == service_id and d.finished is None]
+
+    async def get_orphaned_ids(self, *, activity_before: datetime, limit: int) -> list[int]:
+        def recent(value: datetime | None) -> bool:
+            if value is None:
+                return False
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            return value > activity_before
+
+        candidates: list[int] = []
+        for deployment in sorted(self._deployments, key=lambda d: d.id or 0):
+            if deployment.id is None or deployment.finished is not None or deployment.started is None:
+                continue
+            if recent(deployment.started):
+                continue
+            steps = (
+                await self.step_repository.get_steps_by_deployment(deployment.id)
+                if self.step_repository is not None
+                else []
+            )
+            if any(s.state in ("pending", "running") or recent(s.started) or recent(s.finished) for s in steps):
+                continue
+            candidates.append(deployment.id)
+            if len(candidates) >= limit:
+                break
+        return candidates
 
     async def get_last_successful_deployment_id(self, service_id):
         last_successful = None

@@ -7,6 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 from deploy.domain import commands, events
+from deploy.entrypoints.helper_models import Bus
 from deploy.service_layer.messagebus import MessageBus
 
 
@@ -197,3 +198,76 @@ async def test_cancellation_propagates_without_running_later_handlers(cancel_dur
     assert records
     assert all(record.levelno < logging.ERROR for record in records)
     assert all("private-payload" not in record.getMessage() for record in records)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("wrapped", [False, True])
+async def test_reentrant_handle_refused_without_losing_outer_events(wrapped):
+    source = EventSource()
+    calls = []
+
+    async def command_handler(command):
+        calls.append(command.label)
+        if command.label == "initial":
+            source.publish(Followup(label="first"), Followup(label="second"))
+        return command.label
+
+    async def handler(event):
+        calls.append(event.label)
+        if event.label == "first":
+            with pytest.raises(RuntimeError, match="already handling"):
+                await bus.handle(StartChain(label="reentrant"))
+
+    bus = make_bus(source, command_handler, [handler])
+    if wrapped:
+        bus = Bus(bus)
+    assert await bus.handle(StartChain()) == "initial"
+    assert calls == ["initial", "first", "second"]
+    assert await bus.handle(StartChain(label="later")) == "later"
+    assert calls == ["initial", "first", "second", "later"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ending", ["success", "failure", "cancel"])
+@pytest.mark.parametrize("wrapped", [False, True])
+async def test_overlapping_handle_refused_and_ownership_released(ending, wrapped):
+    source = EventSource()
+    entered, resume = asyncio.Event(), asyncio.Event()
+    calls = []
+
+    async def command_handler(command):
+        calls.append(command.label)
+        if command.label == "initial":
+            source.publish(Followup(label="first"), Followup(label="second"))
+        return command.label
+
+    async def handler(event):
+        calls.append(event.label)
+        if event.label == "first":
+            entered.set()
+            await resume.wait()
+            if ending == "failure":
+                raise ValueError("synthetic event failure")
+
+    bus = make_bus(source, command_handler, [handler])
+    if wrapped:
+        bus = Bus(bus)
+    active = asyncio.create_task(bus.handle(StartChain()))
+    try:
+        await asyncio.wait_for(entered.wait(), 5)
+        with pytest.raises(RuntimeError, match="already handling"):
+            await bus.handle(StartChain(label="overlap"))
+        assert calls == ["initial", "first"]
+    finally:
+        if ending == "cancel":
+            active.cancel()
+        resume.set()
+        results = await asyncio.gather(active, return_exceptions=True)
+    if ending == "cancel":
+        assert isinstance(results[0], asyncio.CancelledError)
+        assert calls == ["initial", "first"]
+    else:
+        assert results == ["initial"]
+        assert calls == ["initial", "first", "second"]
+    assert await bus.handle(StartChain(label="later")) == "later"
+    assert calls[-1] == "later"

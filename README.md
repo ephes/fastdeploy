@@ -200,6 +200,8 @@ default, for example:
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost/deploy_test just test-python
 ```
 
+History reads reconcile at most 50 oldest eligible orphaned deployments per request,
+using a bulk activity query and locked rechecks. Repeated reads drain the backlog.
 Deployment history uses bounded pages: the UI shows the newest 50 deployments and
 loads older pages with **Load more**. API consumers use `limit` (default 50, maximum
 200), `before_id` and optional `service_id`; see [the paging contract](docs/endpoints.md#get-deployments).

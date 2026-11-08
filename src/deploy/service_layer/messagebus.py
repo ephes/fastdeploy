@@ -25,26 +25,34 @@ class MessageBus:
         self.uow = uow
         self.event_handlers = event_handlers
         self.command_handlers = command_handlers
+        self._handling = False
 
     async def handle(self, message: Message) -> Any:
         """
         Handle a message and all events raised while handling it. Returns
         the result of the command handler if the message was a command.
+        One operation owns this bus/UOW; overlapping calls raise RuntimeError.
         """
-        result = None
-        initial = message
-        self.queue = [message]
-        while self.queue:
-            message = self.queue.pop(0)
-            if isinstance(message, events.Event):
-                await self.handle_event(message)
-            elif isinstance(message, commands.Command):
-                handler_result = await self.handle_command(message)
-                if message is initial:
-                    result = handler_result
-            else:
-                raise Exception(f"{message} was not an Event or Command")
-        return result
+        if self._handling:
+            raise RuntimeError("Message bus is already handling a message")
+        self._handling = True
+        try:
+            result = None
+            initial = message
+            self.queue = [message]
+            while self.queue:
+                message = self.queue.pop(0)
+                if isinstance(message, events.Event):
+                    await self.handle_event(message)
+                elif isinstance(message, commands.Command):
+                    handler_result = await self.handle_command(message)
+                    if message is initial:
+                        result = handler_result
+                else:
+                    raise Exception(f"{message} was not an Event or Command")
+            return result
+        finally:
+            self._handling = False
 
     async def handle_event(self, event: events.Event):
         for handler in self.event_handlers[type(event)]:

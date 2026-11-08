@@ -60,8 +60,10 @@ class DeploymentWithDetailsUrl(Deployment):
 
 class Bus(MessageBus):
     def __init__(self, bus: MessageBus = Depends(get_bus)):
-        self.uow = bus.uow
-        self.cm = bus.cm
-        self.fs = bus.fs
-        self.event_handlers = bus.event_handlers
-        self.command_handlers = bus.command_handlers
+        super().__init__(
+            fs=bus.fs,
+            cm=bus.cm,
+            uow=bus.uow,
+            event_handlers=bus.event_handlers,
+            command_handlers=bus.command_handlers,
+        )

@@ -2,6 +2,10 @@ Unreleased
 ==========
 
 ### Fixed
+- Limit history reconciliation to 50 oldest eligible deployments per request,
+  selecting ids with a single bulk activity query before locked rechecks.
+- Refuse overlapping/reentrant calls on one message bus before replacing its
+  active queue; release ownership after success, failure or cancellation.
 - Preserve handler/commit failures and cancellation when UOW rollback also fails;
   record a bounded cleanup category and retain request resource teardown.
 - Load the deployment launch definition under the service lock and retain it
