@@ -201,7 +201,10 @@ lifetime (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) can no longer r
 and do not block new deployments either. Concurrent starts for the same service are serialized
 by a database row lock on the service, so exactly one of them succeeds.
 
-**Start order**: the deployment and its planned steps are committed in one transaction before the
+**Start order**: the service definition is loaded after taking the service row lock.
+Planning and launch use that snapshot, so a service sync committed before the lock
+is acquired supplies the current script and configuration. The lock stays held
+through admission. The deployment and its planned steps are committed in one transaction before the
 detached deploy task is started, so a task that reports its first step immediately finds the planned
 steps. If the deploy task cannot be started, the deployment is finished as failed at once: its planned
 steps are removed and a step named `deployment launch failed` with state `failure` records the error
