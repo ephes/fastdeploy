@@ -201,6 +201,9 @@ lifetime (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) can no longer r
 and do not block new deployments either. Concurrent starts for the same service are serialized
 by a database row lock on the service, so exactly one of them succeeds.
 
+Admission flush, planned-step insertion or commit failures roll back the entire
+admission and do not launch a task or publish a deployment start.
+
 **Start order**: the service definition is loaded after taking the service row lock.
 Planning and launch use that snapshot, so a service sync committed before the lock
 is acquired supplies the current script and configuration. The lock stays held
@@ -306,6 +309,12 @@ ownership check.
 ```
 
 ## Step Management Endpoints
+
+Finishing and step reporting serialize on the deployment row. If the final report
+commits first, finishing preserves it and removes remaining open steps. If finishing
+commits first, a later report is refused because the deployment has finished; it
+cannot recreate removed steps. Repeated finishing preserves the original finish
+time and publishes no second completion event.
 
 ### POST /steps/
 **Purpose**: Report the progress or the result of a step

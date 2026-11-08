@@ -86,5 +86,46 @@ async def test_equal_and_conflicting_reports(database, independent_bus, publishe
         deployment = await uow.deployments.get(deployment_id)
     assert [(s.name, s.state, s.message) for s in steps] == [("final", "success", "synthetic")]
     assert deployment.finished is None
-    assert sum(isinstance(event, events.StepProcessed) for _, event in publisher.events) == 1
+    assert sum(type(event) is events.StepProcessed for _, event in publisher.events) == 1
     assert not any(isinstance(event, events.DeploymentFinished) for _, event in publisher.events)
+
+
+@pytest.mark.parametrize("first_kind", ["report", "finish"])
+async def test_finish_and_final_report_lock_orders(database, independent_bus, publisher, monkeypatch, first_kind):
+    setup, first, second = [await independent_bus() for _ in range(3)]
+    deployment_id, now = await seed(setup)
+    async with setup.uow as uow:
+        await uow.steps.add(
+            model.Step(name="earlier", state="success", deployment_id=deployment_id, started=now, finished=now)
+        )
+        await uow.steps.add(model.Step(name="unused", state="pending", deployment_id=deployment_id))
+        await uow.commit()
+    report = commands.ProcessStep(
+        deployment_id=deployment_id, name="final", state="success", started=now, finished=now, message="result"
+    )
+    finish = commands.FinishDeployment(deployment_id=deployment_id)
+    pair = (report, finish) if first_kind == "report" else (finish, report)
+    results = await run_locked_pair(database, monkeypatch, first, pair[0], second, pair[1])
+    assert results[0] is None
+    if first_kind == "report":
+        assert results[1] is None
+    else:
+        assert isinstance(results[1], ValueError)
+        assert str(results[1]) == "deployment has already finished"
+    async with setup.uow as uow:
+        deployment = await uow.deployments.get(deployment_id)
+        steps = await uow.steps.get_steps_by_deployment(deployment_id)
+    finished = deployment.finished
+    assert finished is not None
+    expected = [("earlier", "success"), ("final", "success")] if first_kind == "report" else [("earlier", "success")]
+    assert sorted((s.name, s.state) for s in steps) == expected
+    await first.handle(finish)
+    async with setup.uow as uow:
+        assert (await uow.deployments.get(deployment_id)).finished == finished
+    assert sum(isinstance(event, events.DeploymentFinished) for _, event in publisher.events) == 1
+    assert sum(type(event) is events.StepProcessed for _, event in publisher.events) == (
+        2 if first_kind == "report" else 0
+    )
+    assert sum(isinstance(event, events.StepDeleted) for _, event in publisher.events) == (
+        1 if first_kind == "report" else 2
+    )

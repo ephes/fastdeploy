@@ -55,6 +55,8 @@ Unreleased
   request is in flight; ordinary refreshes and logout guards are retained.
 
 ### Tests
+- Cover both database lock orders for finishing versus the final step report,
+  and admission rollback on flush, planned-step insertion and deferred commit faults.
 - Race identical and conflicting step reports on independent PostgreSQL connections;
   assert actual row-lock blocking, one persisted result and one processed event.
 - Synthetic message-bus regressions for FIFO follow-ups, initial command results,
