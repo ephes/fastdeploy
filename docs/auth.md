@@ -229,3 +229,9 @@ returns 429 with `Retry-After: 1` immediately, without queuing a hash or recordi
 password failure. Cancellation holds capacity until any running hash thread exits.
 Cancelled attempts remain counted under the existing failed-login policy.
 With multiple API processes each process has its own capacity and attempt counters.
+
+Login rechecks the persisted user id and password hash after password verification.
+A concurrent password rotation, deletion or replacement refuses the old login.
+Password hashing runs outside database locks.
+Service token origins must be nonblank strings of at most 255 Unicode characters,
+without NUL; HTTP and CLI reject invalid origins before issuance or retention cleanup.

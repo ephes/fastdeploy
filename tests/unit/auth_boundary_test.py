@@ -124,7 +124,7 @@ async def test_cancellation_holds_capacity_until_real_hash_work_finishes(monkeyp
 
     monkeypatch.setattr(users, "login_capacity", threading.BoundedSemaphore(1))
     monkeypatch.setattr(
-        auth.views, "get_user_by_name", AsyncMock(return_value=SimpleNamespace(name="user", password="hash"))
+        auth.views, "get_user_by_name", AsyncMock(return_value=SimpleNamespace(id=1, name="user", password="hash"))
     )
     monkeypatch.setattr(auth, "verify_password", verify)
     task = asyncio.create_task(
