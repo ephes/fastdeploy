@@ -96,7 +96,7 @@ async def test_deployed_service_add_emits_no_stdout(capsys):
     deployed_service = model.DeployedService(deployment_id=41, config={"password": "private-payload"})
     await repository.add(deployed_service)
     session.add.assert_called_once_with(deployed_service)
-    assert deployed_service in repository.seen
+    assert repository.seen[id(deployed_service)] is deployed_service
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""

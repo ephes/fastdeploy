@@ -36,6 +36,7 @@ async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWor
         active_ids = await active_deployment_ids(command.service_id, uow, now)
         if active_ids:
             raise model.ServiceHasActiveDeployment(command.service_id, active_ids[0])
+        await uow.service_tokens.revoke_for_service(service.name, now)
         await uow.services.delete(service)
         service.delete()
         await uow.commit()
@@ -74,6 +75,7 @@ async def sync_services(
                     model.SkippedService(name=service.name, reason=f"deployment {active_ids[0]} is still running")
                 )
                 continue
+            await uow.service_tokens.revoke_for_service(service.name, now)
             await uow.services.delete(service)
             service.delete()
             deleted.append(service)

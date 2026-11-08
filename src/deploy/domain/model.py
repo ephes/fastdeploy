@@ -108,13 +108,14 @@ class Step(EventsMixin):
         self.message = message
 
     def __eq__(self, other):
+        if not isinstance(other, Step):
+            return NotImplemented
+        if self.id is None or other.id is None:
+            return self is other
         return self.id == other.id
 
     def __repr__(self):
         return f"Step(id={self.id}, name={self.name}, state={self.state}, deployment={self.deployment_id})"
-
-    def __hash__(self):
-        return hash((self.name, self.deployment_id, self.started))
 
     @classmethod
     def new_pending_from_old(cls, other):
@@ -346,10 +347,11 @@ class Deployment(EventsMixin):
         return f"Deployment(id={self.id}, service_id={self.service_id})"
 
     def __eq__(self, other):
+        if not isinstance(other, Deployment):
+            return NotImplemented
+        if self.id is None or other.id is None:
+            return self is other
         return self.id == other.id
-
-    def __hash__(self):
-        return hash((self.service_id, self.started))
 
     def process_step(self, step: Step) -> list[Step]:
         """

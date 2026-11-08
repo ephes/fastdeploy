@@ -95,10 +95,10 @@ async def test_events_mixin_events_are_consumable_by_unit_of_work():
             self.seen = seen
 
     class Uow(AbstractUnitOfWork):
-        services: Any = Repository(set())
-        deployments: Any = Repository(set())
-        steps: Any = Repository(set())
-        users: Any = Repository({instance})
+        services: Any = Repository({})
+        deployments: Any = Repository({})
+        steps: Any = Repository({})
+        users: Any = Repository({id(instance): instance})
 
         async def _commit(self):
             pass
