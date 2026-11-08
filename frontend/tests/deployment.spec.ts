@@ -12,7 +12,8 @@ const apiDeployment = {
   service_id: 1,
   origin: "GitHub",
   user: "deploy",
-  created: "2021-11-23T10:03:01.000000",
+  started: "2021-11-23T10:03:01.000000",
+  finished: null,
   type: "deployment",
 };
 

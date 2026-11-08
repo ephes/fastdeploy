@@ -2,6 +2,9 @@ Unreleased
 ==========
 
 ### Fixed
+- Fence browser WebSocket callbacks and reconnect waits to the current socket.
+  Validate domain/control envelopes and allowlist converted fields before dispatch; invalid frames close the
+  connection with a payload-free diagnostic and require a refresh. Requires a frontend build.
 - Limit history reconciliation to 50 oldest eligible deployments per request,
   selecting ids with a single bulk activity query before locked rechecks.
 - Refuse overlapping/reentrant calls on one message bus before replacing its

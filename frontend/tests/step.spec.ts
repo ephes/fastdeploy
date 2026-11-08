@@ -8,6 +8,7 @@ const apiStep: object = {
   id: 1,
   name: "Create unix user deploy",
   state: "pending",
+  message: "",
   deployment_id: 1,
   started: "2021-11-23T10:04:01.276123",
   finished: null,
