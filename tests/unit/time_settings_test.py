@@ -19,7 +19,7 @@ def test_websocket_timeout_rejects_invalid_values(value):
     ("field", "maximum", "minimum"),
     [
         ("access_token_expire_minutes", 525600, 1),
-        ("deployment_access_token_expire_minutes", 525600, 1),
+        ("deployment_access_token_expire_minutes", 525600, 76),
         ("default_expire_minutes", 525600, 1),
         ("deployment_orphan_reconcile_delay_seconds", 31536000, 0),
         ("service_token_max_expire_days", 3650, 1),

@@ -128,6 +128,17 @@ owned process group is stopped, its secure config is removed and failure is repo
 before finishing. Cleanup and final failure/finish reports have their own bounded waits
 outside this deadline; it is separate from orphan reconciliation.
 
+At startup, `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES * 60` must be at least
+`DEPLOYMENT_MAX_RUNTIME_SECONDS + 2731`. The allowance covers three 10-second
+process teardown waits, two final API retry sequences (each at most eight
+10-second attempts plus 1,270 seconds of backoff), and one second for integer JWT
+expiry rounding. The default runtime therefore requires at least a 76-minute
+deployment token; the default token remains 480 minutes. Shorter combinations
+refuse startup. Open-step deployments retain their single-flight protection
+through runtime and this finalization allowance, including admission and deletion
+checks. This bound covers the runner's permitted waits, not unbounded OS scheduling
+or an external process it lacks permission to signal.
+
 The deploy task owns the deploy script it starts. The script runs in its own process group, and the task waits for
 it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
 U+FFFD (a step result containing them is still reported, with the replacement character; any other such line is
@@ -233,6 +244,17 @@ The registration process creates:
 - Proper file permissions and ownership
 
 #### Service Configuration
+Service definitions are admitted before any synchronization writes or events.
+JSON configs and YAML playbooks reject repeated mapping keys at any depth (also
+collisions introduced by YAML merges); diagnostics do not include configuration
+values. Ordinary aliases remain supported within the existing depth/node budget.
+An optional `deploy_script` must be a nonblank string without NULs, naming one
+executable. Optional `steps` must be a list of objects, each with a nonblank string
+`name` of at most 255 characters without NULs. Missing fields retain the default script/placeholder behavior;
+unknown service and step fields are preserved. Explicit steps must be valid even
+when `ansible_playbook` replaces them with playbook-derived steps. Any invalid
+service refuses the entire sync, including when `--force` is used.
+
 The `config.json` contains:
 
 ```json

@@ -2,8 +2,10 @@ import typing
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .runner_limits import DEPLOYMENT_FINALIZATION_SECONDS
 
 ROOT_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 
@@ -74,6 +76,14 @@ class Settings(BaseSettings):
     services_sync_path: str = Field("/services/sync/", alias="services_sync_path")
     repository: str = Field("sqlite", alias="repository")
     sudo_user: str = Field("jochen", alias="sudo_user")
+
+    @model_validator(mode="after")
+    def deployment_token_covers_runner(self) -> "Settings":
+        if self.deployment_access_token_expire_minutes * 60 < (
+            self.deployment_max_runtime_seconds + DEPLOYMENT_FINALIZATION_SECONDS
+        ):
+            raise ValueError("deployment token lifetime must cover runtime and bounded finalization")
+        return self
 
     @property
     def fastapi_app(self):
