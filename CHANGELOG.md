@@ -2,6 +2,8 @@ Unreleased
 ==========
 
 ### Fixed
+- Reject malformed JWT numeric dates as invalid credentials, including overflow.
+- Give browser login submissions latest-attempt ownership and private request options.
 - Validate service-token origins against storage limits before issuance or cleanup.
 - Recheck current credentials after password verification before issuing a login token.
 - Fence browser WebSocket callbacks and reconnect waits to the current socket.

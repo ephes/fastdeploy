@@ -25,6 +25,7 @@ export const useAuth = defineStore("auth", {
        * their response if it changed while they were waiting.
        */
       sessionId: 0 as number,
+      loginAttemptId: 0 as number,
       /**
        * The websocket client of the current session, kept to be able
        * to dispose it on logout.
@@ -106,6 +107,8 @@ export const useAuth = defineStore("auth", {
      * 401, so we just show a generic message.
      */
     async login() {
+      const attemptId = ++this.loginAttemptId;
+      this.errorMessage = null;
       if (!this.username || !this.password) {
         this.errorMessage = "Please enter a username and password";
         return;
@@ -117,14 +120,14 @@ export const useAuth = defineStore("auth", {
         "grant_type=password&" +
         new URLSearchParams(formData as any).toString();
       const client = this.client;
-      const options: any = client.options;
-      options["body"] = body;
-      options.headers["Content-Type"] = "application/x-www-form-urlencoded";
-      const sessionId = this.sessionId;
+      const options: any = {
+        body,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      };
       await client
-        .post<{ access_token: string }>("/token")
+        .post<{ access_token: string }>("/token", undefined, options)
         .then((response) => {
-          if (this.sessionId !== sessionId) {
+          if (this.loginAttemptId !== attemptId) {
             // a logout or another login happened meanwhile: this
             // response belongs to an attempt that is over
             return;
@@ -137,7 +140,7 @@ export const useAuth = defineStore("auth", {
           }
         })
         .catch((err) => {
-          if (this.sessionId !== sessionId) {
+          if (this.loginAttemptId !== attemptId) {
             return;
           }
           if (err.response === undefined) {
@@ -167,6 +170,7 @@ export const useAuth = defineStore("auth", {
      *   drop their response.
      */
     endSession() {
+      this.loginAttemptId++;
       this.sessionId++;
       this.accessToken = null;
       this.password = "";

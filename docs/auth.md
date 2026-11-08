@@ -235,3 +235,10 @@ A concurrent password rotation, deletion or replacement refuses the old login.
 Password hashing runs outside database locks.
 Service token origins must be nonblank strings of at most 255 Unicode characters,
 without NUL; HTTP and CLI reject invalid origins before issuance or retention cleanup.
+
+JWT `iat`/`exp` claims accept finite integral numbers and legacy integer strings;
+booleans, fractional dates and nonfinite numbers are invalid credentials.
+Future `iat`, optional `exp` and whole-second expiry comparison remain supported.
+Each browser login submission owns its result, superseding earlier submissions
+(including when the new form is incomplete). Logout also invalidates pending attempts.
+Form-encoded password bodies live only in per-request options, never shared client defaults.

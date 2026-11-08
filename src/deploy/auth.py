@@ -107,6 +107,18 @@ def create_access_token(payload: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
+def _numeric_date(value) -> int:
+    # Retain integral strings/floats used by legacy callers, without truncating
+    # fractions or treating booleans as timestamps. int normalizes nonfinite
+    # numbers to ValueError/OverflowError for the credential boundary below.
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("unsupported numeric date")
+    result = int(value)
+    if isinstance(value, float) and value != result:
+        raise ValueError("fractional numeric date")
+    return result
+
+
 def token_to_payload(token: str):
     """
     Parse a JWT token and return a dict of its payload.
@@ -125,13 +137,13 @@ def token_to_payload(token: str):
 
     if "iat" in payload:
         try:
-            int(payload["iat"])
-        except (ValueError, TypeError) as exc:
+            _numeric_date(payload["iat"])
+        except (ValueError, TypeError, OverflowError) as exc:
             raise jwt.InvalidIssuedAtError("Issued At claim (iat) must be an integer.") from exc
     if "exp" in payload:
         try:
-            expires_at = int(payload["exp"])
-        except (ValueError, TypeError) as exc:
+            expires_at = _numeric_date(payload["exp"])
+        except (ValueError, TypeError, OverflowError) as exc:
             raise jwt.DecodeError("Expiration Time claim (exp) must be an integer.") from exc
         if expires_at < int(datetime.now(timezone.utc).timestamp()):
             raise jwt.ExpiredSignatureError("Signature has expired.")
