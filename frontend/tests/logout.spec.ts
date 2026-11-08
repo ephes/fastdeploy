@@ -213,8 +213,9 @@ describe("Logout", () => {
     authStore.password = "alice-password";
     const options: any = { headers: {} };
     authStore.client = {
-      async post() {
-        expect(options.body).toContain("alice-password");
+      async post(_url: string, _data: unknown, requestOptions: any) {
+        expect(requestOptions.body).toContain("alice-password");
+        expect(options).not.toHaveProperty("body");
         const error: any = Error("Unauthorized");
         error.response = { status: 401 };
         throw error;
