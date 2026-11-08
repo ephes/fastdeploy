@@ -135,3 +135,53 @@ async def test_last_successful_deployment_requires_all_steps_successful(uow, ser
     await add(30, [])  # no steps at all
     await add(20, ["success"], finished=False)  # still running
     assert await last_successful_id() == successful.id
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_reconciliation_candidates_match_activity_and_limit(uow, service_in_db):
+    from deploy import views
+
+    now = datetime.now(timezone.utc)
+    old = now - views.ORPHAN_RECONCILE_DELAY - timedelta(minutes=1)
+    expected = []
+    async with uow:
+        for started, state, step_started, step_finished, finished in [
+            (old, "success", old, old, None),
+            (old, "failure", old, old, None),
+            (old, None, None, None, None),
+            (old, "pending", old, None, None),
+            (old, "running", old, None, None),
+            (now, None, None, None, None),
+            (None, None, None, None, None),
+            (old, "success", now, old, None),
+            (old, "success", old, now, None),
+            (old, "success", old, old, now),
+        ]:
+            deployment = model.Deployment(
+                service_id=service_in_db.id, origin="test", user="test", started=started, finished=finished
+            )
+            await uow.deployments.add(deployment)
+            await uow.flush()
+            steps = []
+            if state:
+                step = model.Step(
+                    deployment_id=deployment.id,
+                    name="synthetic",
+                    state=state,
+                    started=step_started,
+                    finished=step_finished,
+                )
+                await uow.steps.add(step)
+                steps.append(step)
+            if views.deployment_is_orphaned(deployment, steps, now):
+                expected.append(deployment.id)
+        await uow.commit()
+    async with uow:
+        assert (
+            await uow.deployments.get_orphaned_ids(activity_before=now - views.ORPHAN_RECONCILE_DELAY, limit=2)
+            == expected[:2]
+        )
+        assert (
+            await uow.deployments.get_orphaned_ids(activity_before=now - views.ORPHAN_RECONCILE_DELAY, limit=50)
+            == expected
+        )

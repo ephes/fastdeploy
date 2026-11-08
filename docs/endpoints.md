@@ -242,7 +242,15 @@ does not change the result. The cleanup, `PUT /deployments/finish/` and `POST /s
 row, so a deploy task that finishes or reports a step at the same time is never marked as orphaned.
 
 ### GET /deployments/
-**Purpose**: List a bounded history page; orphaned unfinished deployments are finished as failed first.
+**Purpose**: List a bounded history page; reconcile at most 50 oldest eligible
+orphaned deployments first. One candidate query filters unfinished deployments
+using all step activity and open states before applying the batch limit, without
+loading the full unfinished history or querying activity once per deployment.
+Each candidate is still checked under its existing service/deployment locks.
+Repeated history requests drain a stable eligible backlog; recent/running rows do
+not block older candidates. The returned history page keeps its requested size,
+order and cursor regardless of the maintenance batch. Detail reads still reconcile
+only their authorized deployment.
 Completed history is excluded from the orphan scan.
 
 **Query parameters** (additive; the response remains a JSON array):

@@ -12,6 +12,7 @@ from .domain import model
 from .service_layer import unit_of_work
 
 OPEN_STEP_STATES = {"pending", "running"}
+ORPHAN_RECONCILE_BATCH_SIZE = 50
 ORPHAN_RECONCILE_DELAY = timedelta(seconds=settings.deployment_orphan_reconcile_delay_seconds)
 # After the deployment token has expired the deploy task can neither report
 # steps nor finish the deployment, so it can no longer hold the service lock.
@@ -209,24 +210,14 @@ async def get_orphaned_unfinished_deployment_ids(
     uow: unit_of_work.AbstractUnitOfWork,
 ) -> list[int]:
     """
-    Return orphaned unfinished deployments (see ``deployment_is_orphaned``).
+    Return at most 50 oldest orphaned unfinished deployment ids.
+    The database filters all step activity before limiting candidates.
 
     These deployments are reconciled with FinishOrphanedDeployment.
     """
-    orphaned_ids: list[int] = []
-    now = datetime.now(timezone.utc)
+    cutoff = datetime.now(timezone.utc) - ORPHAN_RECONCILE_DELAY
     async with uow:
-        deployments = await uow.deployments.list(unfinished_only=True)
-        for deployment in deployments:
-            if deployment.id is None or deployment.finished is not None:
-                continue
-            if deployment_is_too_new_for_reconciliation(deployment, now):
-                # cheap pre-check, step activity can only make it newer
-                continue
-            deployment_steps = await uow.steps.get_steps_by_deployment(deployment.id)
-            if deployment_is_orphaned(deployment, deployment_steps, now):
-                orphaned_ids.append(deployment.id)
-    return orphaned_ids
+        return await uow.deployments.get_orphaned_ids(activity_before=cutoff, limit=ORPHAN_RECONCILE_BATCH_SIZE)
 
 
 async def is_orphaned_unfinished_deployment(
