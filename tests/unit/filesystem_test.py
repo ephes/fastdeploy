@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from deploy.adapters.filesystem import working_directory
+from deploy.adapters.filesystem import ServiceConfigError, working_directory
 
 
 def test_list_only_directories(services_filesystem):
@@ -18,7 +18,7 @@ def test_config_has_to_be_dict(services_filesystem):
     config_path = service_path / "config.json"
     with config_path.open("w") as config_file:
         config_file.write("[]")
-    with pytest.raises(TypeError):
+    with pytest.raises(ServiceConfigError):
         services_filesystem.get_config_by_name("service")
 
 

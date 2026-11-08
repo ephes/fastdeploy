@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import NoResultFound
 
 from ... import views
+from ...adapters.filesystem import ServiceConfigError
 from ...domain import commands, model
 from ..dependencies import get_current_active_user
 from ..helper_models import Bus
@@ -94,6 +95,8 @@ async def sync_services(
     cmd = commands.SyncServices(force=force)
     try:
         result: model.ServiceSyncResult = await bus.handle(cmd)
+    except ServiceConfigError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except model.ServiceSyncRefused as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

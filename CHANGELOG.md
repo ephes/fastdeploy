@@ -2,6 +2,8 @@ Unreleased
 ==========
 
 ### Fixed
+- Bound service config/playbook reads, validate shapes and refuse aliases or traversal
+  outside approved roots before sync writes. Add explicit SERVICE_PLAYBOOK_ROOTS approval.
 - Reject malformed JWT numeric dates as invalid credentials, including overflow.
 - Give browser login submissions latest-attempt ownership and private request options.
 - Validate service-token origins against storage limits before issuance or cleanup.

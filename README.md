@@ -311,3 +311,17 @@ For help: `just help`
 - **Code Quality**: ruff (linting/formatting), mypy (type checking), pre-commit hooks
 - **Deployment**: Ansible playbooks for Linux hosts
 - **Real-time**: WebSockets for deployment monitoring
+
+Service sync reads UTF-8 JSON configs and YAML playbooks only from regular files,
+with a 1 MiB file limit, depth 32 and 50,000 structural nodes/events. Playbooks must
+be nonempty lists of play objects; tasks must be lists of objects with string names
+when named. Invalid sources refuse the entire sync before database changes (HTTP
+422 or CLI exit 1). `--force` only overrides deletion-count safety.
+
+Config directories/leaves and playbooks may not use symlinks below their configured
+roots; parent traversal is refused. Relative playbooks are relative to `PROJECT_ROOT`.
+Absolute playbooks must be below `PROJECT_ROOT`, the configured services root, or
+an administrator-approved root in `SERVICE_PLAYBOOK_ROOTS='["/path/to/playbooks"]'`
+(default `[]`). Move external playbooks under these roots or explicitly approve
+their directory before syncing. File descriptors retain the admitted file during
+reads, including when paths are replaced concurrently.

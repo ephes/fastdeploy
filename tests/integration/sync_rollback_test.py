@@ -86,3 +86,19 @@ async def test_mid_sync_fault_restores_services_and_history(
         "gone-a",
         "gone-b",
     ]
+
+
+async def test_bad_source_preflight_keeps_committed_services(independent_bus, services_filesystem):
+    setup, syncer = await independent_bus(), await independent_bus()
+    async with setup.uow as uow:
+        await uow.services.add(model.Service(name="keep", data={"original": True}))
+        await uow.commit()
+    for name, content in (("new", "{}"), ("invalid", '{"ansible_playbook": 12}')):
+        path = services_filesystem.root / name
+        path.mkdir()
+        (path / "config.json").write_text(content)
+    with pytest.raises(ValueError):
+        await syncer.handle(commands.SyncServices(force=True))
+    async with setup.uow as uow:
+        rows = await uow.services.list()
+        assert [(s.name, s.data) for s in rows] == [("keep", {"original": True})]
