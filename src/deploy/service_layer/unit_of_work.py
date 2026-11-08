@@ -67,7 +67,7 @@ class AbstractUnitOfWork(abc.ABC):
 
     def collect_new_events(self):
         for repo in [self.services, self.deployments, self.steps, self.users]:
-            for model in repo.seen:
+            for model in repo.seen.values():
                 model.raise_recorded_events()
                 while model.events:
                     yield model.events.pop(0)

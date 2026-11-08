@@ -1,7 +1,7 @@
 import abc
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, delete, or_, select, text
+from sqlalchemy import and_, delete, or_, select, text, update
 from sqlalchemy.exc import NoResultFound
 
 from ..domain import model
@@ -10,15 +10,15 @@ from . import orm
 
 class AbstractServiceRepository(abc.ABC):
     def __init__(self) -> None:
-        self.seen: set[model.Service] = set()
+        self.seen: dict[int, model.Service] = {}
 
     async def add(self, service: model.Service):
         await self._add(service)
-        self.seen.add(service)
+        self.seen[id(service)] = service
 
     async def delete(self, service):
         await self._delete(service)
-        self.seen.add(service)
+        self.seen[id(service)] = service
 
     @abc.abstractmethod
     async def _add(self, service: model.Service) -> None:
@@ -121,7 +121,7 @@ class InMemoryServiceRepository(AbstractServiceRepository):
 
 class AbstractUserRepository(abc.ABC):
     def __init__(self) -> None:
-        self.seen: set[model.User] = set()
+        self.seen: dict[int, model.User] = {}
 
     @abc.abstractmethod
     async def _add(self, user: model.User) -> None:
@@ -129,7 +129,7 @@ class AbstractUserRepository(abc.ABC):
 
     async def add(self, user: model.User) -> None:
         await self._add(user)
-        self.seen.add(user)
+        self.seen[id(user)] = user
 
     @abc.abstractmethod
     async def get(self, name) -> model.User:
@@ -179,7 +179,7 @@ class InMemoryUserRepository(AbstractUserRepository):
 
 class AbstractDeploymentRepository(abc.ABC):
     def __init__(self) -> None:
-        self.seen: set[model.Deployment] = set()
+        self.seen: dict[int, model.Deployment] = {}
 
     @abc.abstractmethod
     async def _add(self, deployment: model.Deployment) -> None:
@@ -187,7 +187,7 @@ class AbstractDeploymentRepository(abc.ABC):
 
     async def add(self, deployment: model.Deployment) -> None:
         await self._add(deployment)
-        self.seen.add(deployment)
+        self.seen[id(deployment)] = deployment
 
     @abc.abstractmethod
     async def get(self, deployment_id: int) -> model.Deployment:
@@ -447,7 +447,7 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
 
 class AbstractStepRepository(abc.ABC):
     def __init__(self) -> None:
-        self.seen: set[model.Step] = set()
+        self.seen: dict[int, model.Step] = {}
 
     @abc.abstractmethod
     async def _add(self, step: model.Step) -> None:
@@ -455,7 +455,7 @@ class AbstractStepRepository(abc.ABC):
 
     async def add(self, step: model.Step) -> None:
         await self._add(step)
-        self.seen.add(step)
+        self.seen[id(step)] = step
 
     @abc.abstractmethod
     async def get(self, step_id: int) -> model.Step:
@@ -467,7 +467,7 @@ class AbstractStepRepository(abc.ABC):
 
     async def delete(self, step: model.Step) -> None:
         await self._delete(step)
-        self.seen.add(step)
+        self.seen[id(step)] = step
 
     @abc.abstractmethod
     async def get_steps_by_deployment(self, deployment_id: int) -> list[model.Step]:
@@ -537,7 +537,7 @@ class InMemoryStepRepository(AbstractStepRepository):
 
 class AbstractDeployedServiceRepository(abc.ABC):
     def __init__(self) -> None:
-        self.seen: set[model.DeployedService] = set()
+        self.seen: dict[int, model.DeployedService] = {}
 
     @abc.abstractmethod
     async def _add(self, deployed_service: model.DeployedService) -> None:
@@ -545,7 +545,7 @@ class AbstractDeployedServiceRepository(abc.ABC):
 
     async def add(self, deployed_service: model.DeployedService) -> None:
         await self._add(deployed_service)
-        self.seen.add(deployed_service)
+        self.seen[id(deployed_service)] = deployed_service
 
     # @abc.abstractmethod
     # async def _delete(self, deployed_service: model.DeployedService) -> None:
@@ -601,6 +601,11 @@ class AbstractServiceTokenRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def revoke_for_service(self, service: str, revoked_at: datetime) -> None:
+        """Retire the service's tokens within the caller's deletion transaction."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def delete_stale(self, cutoff: datetime) -> int:
         """
         Delete records of tokens that expired or were revoked before
@@ -627,6 +632,13 @@ class SqlAlchemyServiceTokenRepository(AbstractServiceTokenRepository):
         stmt = select(model.ServiceToken).order_by(model.ServiceToken.id)
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def revoke_for_service(self, service, revoked_at):
+        await self.session.execute(
+            update(model.ServiceToken)
+            .where(model.ServiceToken.service == service, model.ServiceToken.revoked_at.is_(None))
+            .values(revoked_at=revoked_at)
+        )
 
     async def delete_stale(self, cutoff):
         token = model.ServiceToken
@@ -655,6 +667,11 @@ class InMemoryServiceTokenRepository(AbstractServiceTokenRepository):
 
     async def list(self):
         return list(self._service_tokens)
+
+    async def revoke_for_service(self, service, revoked_at):
+        for token in self._service_tokens:
+            if token.service == service:
+                token.revoke(revoked_at)
 
     async def delete_stale(self, cutoff):
         kept = [t for t in self._service_tokens if not t.is_stale(cutoff)]

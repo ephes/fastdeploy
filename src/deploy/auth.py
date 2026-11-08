@@ -166,7 +166,13 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
 
 
 async def issue_service_token(
-    *, service: str, origin: str, user: str, expires_delta: timedelta, uow: AbstractUnitOfWork
+    *,
+    service: str,
+    origin: str,
+    user: str,
+    expires_delta: timedelta,
+    uow: AbstractUnitOfWork,
+    expected_service_id: int | None = None,
 ) -> tuple[str, ServiceToken]:
     """
     Record a new service token and return the signed JWT for it. The JWT
@@ -182,6 +188,16 @@ async def issue_service_token(
         expires_at=issued_at + expires_delta,
     )
     async with uow:
+        if expected_service_id is not None:
+            # Same row lock as deletion: issuance either commits before deletion
+            # and is revoked by it, or refuses a vanished/replaced service.
+            await uow.services.lock_for_deployment(expected_service_id)
+            try:
+                current = await uow.services.get_by_name(service)
+            except NoResultFound:
+                raise ServiceTokenIssueRefused("service changed during issuance") from None
+            if current.id != expected_service_id:
+                raise ServiceTokenIssueRefused("service changed during issuance")
         await uow.service_tokens.add(record)
         # opportunistic cleanup: every issued token adds a row (the frontend
         # issues a 1-day token per deployment), so drop long dead records here
@@ -223,10 +239,16 @@ async def issue_service_token_for_existing(
         # both tables are small; listing avoids repository specific "not found" exceptions
         if not any(u.name == user for u in await uow.users.list()):
             raise ServiceTokenIssueRefused(f"unknown user {user!r}")
-        if not any(s.name == service for s in await uow.services.list()):
+        target = next((s for s in await uow.services.list() if s.name == service), None)
+        if target is None or target.id is None:
             raise ServiceTokenIssueRefused(f"unknown service {service!r}")
     return await issue_service_token(
-        service=service, origin=origin, user=user, expires_delta=timedelta(days=days), uow=uow
+        service=service,
+        origin=origin,
+        user=user,
+        expires_delta=timedelta(days=days),
+        uow=uow,
+        expected_service_id=target.id,
     )
 
 

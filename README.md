@@ -325,3 +325,8 @@ an administrator-approved root in `SERVICE_PLAYBOOK_ROOTS='["/path/to/playbooks"
 (default `[]`). Move external playbooks under these roots or explicitly approve
 their directory before syncing. File descriptors retain the admitted file during
 reads, including when paths are replaced concurrently.
+
+Repositories track pending events by Python object identity, retaining each object
+once through flush, id assignment and timestamp changes. Equivalent ORM instances
+keep their own event queues. Step and Deployment compare persisted ids, treat
+unsaved instances as distinct, and are unhashable because their identity can change.

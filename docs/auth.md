@@ -242,3 +242,11 @@ Future `iat`, optional `exp` and whole-second expiry comparison remain supported
 Each browser login submission owns its result, superseding earlier submissions
 (including when the new form is incomplete). Logout also invalidates pending attempts.
 Form-encoded password bodies live only in per-request options, never shared client defaults.
+
+Deleting a service, including a forced filesystem sync deletion, revokes its recorded
+service tokens in the same transaction. A later service with the same name requires
+new tokens. Failed deletions roll back token retirement. Issuance and deletion use
+the service row lock: a racing issuance is either committed before deletion and
+revoked, or refused when its service identity has changed. Legacy tokens without
+`jti` cannot be retired individually; keep their optional migration grace disabled
+when reusing service names.

@@ -2,6 +2,9 @@ Unreleased
 ==========
 
 ### Fixed
+- Track event-bearing objects independently of mutable entity hashes and transient ids.
+- Revoke service tokens transactionally on service deletion/sync deletion; serialize
+  issuance with deletion so name reuse does not restore recorded token authority.
 - Bound service config/playbook reads, validate shapes and refuse aliases or traversal
   outside approved roots before sync writes. Add explicit SERVICE_PLAYBOOK_ROOTS approval.
 - Reject malformed JWT numeric dates as invalid credentials, including overflow.
