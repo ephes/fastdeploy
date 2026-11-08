@@ -2,6 +2,8 @@ Unreleased
 ==========
 
 ### Fixed
+- Preserve handler/commit failures and cancellation when UOW rollback also fails;
+  record a bounded cleanup category and retain request resource teardown.
 - Load the deployment launch definition under the service lock and retain it
   through planning and admission, avoiding stale scripts after concurrent sync.
 - Censor task names and result payloads in the retained Ansible JSON callback when
@@ -55,6 +57,8 @@ Unreleased
   request is in flight; ordinary refreshes and logout guards are retained.
 
 ### Tests
+- Inject mid-sync save/delete faults in real transactions to protect atomic service
+  additions, edits, history cascades and post-commit service events.
 - Cover both database lock orders for finishing versus the final step report,
   and admission rollback on flush, planned-step insertion and deferred commit faults.
 - Race identical and conflicting step reports on independent PostgreSQL connections;
