@@ -82,6 +82,27 @@ def _check_structure(value):
         pending.extend((child, depth + 1) for child in children)
 
 
+def _unique_mapping(pairs):
+    result = {}
+    for key, value in pairs:
+        try:
+            if key in result:
+                raise ServiceConfigError("service config contains duplicate mapping keys")
+            result[key] = value
+        except TypeError:
+            raise ServiceConfigError("service config contains an invalid mapping key") from None
+    return result
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    def construct_mapping(self, node, deep=False):
+        # Flattening removes merge keys; refuse repeated ones before that happens.
+        if sum(key.tag == "tag:yaml.org,2002:merge" for key, _ in node.value) > 1:
+            raise ServiceConfigError("service config contains duplicate mapping keys")
+        self.flatten_mapping(node)
+        return _unique_mapping(self.construct_pairs(node, deep=deep))
+
+
 def _load_document(content: str, *, playbook=False):
     try:
         if playbook:
@@ -93,13 +114,31 @@ def _load_document(content: str, *, playbook=False):
                     depth -= 1
                 if depth > MAX_CONFIG_DEPTH or count > MAX_CONFIG_NODES:
                     raise ServiceConfigError("playbook exceeds depth or node limit")
-            value = yaml.safe_load(content)
+            value = yaml.load(content, Loader=_UniqueKeySafeLoader)
         else:
-            value = json.loads(content)
+            value = json.loads(content, object_pairs_hook=_unique_mapping)
         _check_structure(value)
         return value
     except (ValueError, RecursionError, yaml.YAMLError):
         raise ServiceConfigError("service config has invalid syntax, depth or structure") from None
+
+
+def _validate_service_definition(data):
+    if "deploy_script" in data:
+        script = data["deploy_script"]
+        if not isinstance(script, str) or not script.strip() or "\x00" in script:
+            raise ServiceConfigError("deploy_script must be a nonempty executable path")
+    if "steps" in data:
+        steps = data["steps"]
+        if not isinstance(steps, list) or not all(
+            isinstance(step, dict)
+            and isinstance(step.get("name"), str)
+            and 0 < len(step["name"]) <= 255
+            and step["name"].strip()
+            and "\x00" not in step["name"]
+            for step in steps
+        ):
+            raise ServiceConfigError("steps must be a list of objects with nonblank names of at most 255 characters")
 
 
 class Filesystem(AbstractFilesystem):
@@ -123,8 +162,10 @@ class Filesystem(AbstractFilesystem):
         data_dict = _load_document(_read_regular(self.root, Path(name) / "config.json"))
         if not isinstance(data_dict, dict):
             raise ServiceConfigError("service config must be an object")
+        _validate_service_definition(data_dict)
         if "ansible_playbook" in data_dict:
             data_dict["steps"] = get_steps_from_playbook(data_dict["ansible_playbook"], config_root=self.root)
+        _validate_service_definition(data_dict)
         return data_dict
 
 
