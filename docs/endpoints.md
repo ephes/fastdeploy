@@ -112,6 +112,10 @@ deployments and steps. Two guards protect against wiping the history by accident
 - A service with a running deployment is never deleted, not even with `force=true`. It is reported
   in `skipped` and removed by a later sync once the deployment has finished.
 
+All additions, edits and deletions in a sync commit together. A database failure
+rolls back service changes and history cascades, and publishes no success events;
+a later request can retry the entire sync.
+
 The web frontend's sync button shows a refusal, including the services that would be deleted,
 and offers a "force sync" button that retries with `force=true` after a confirmation dialog.
 

@@ -542,3 +542,10 @@ Cleanup attempts session, connection and engine teardown even if an earlier clos
 fails; a startup failure remains the primary exception if cleanup also fails.
 A supplied unit of work stays owned by the caller. After successful construction,
 HTTP dependency teardown closes the bus; CLI callers must close `bus.uow`.
+
+A UOW exit always attempts rollback. If a handler, commit or cancellation is
+already failing, an ordinary rollback failure is logged once as `uow_rollback_failed` with
+only its exception category (at most 100 characters); the initiating exception
+continues to the caller. With no initiating failure, the rollback error propagates.
+Cancellation or process-exit signals raised during rollback propagate directly.
+Request teardown still attempts session, connection and engine closure.

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import abc
+import logging
 
 from ..adapters import repository
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractSession(abc.ABC):
@@ -41,8 +44,15 @@ class AbstractUnitOfWork(abc.ABC):
     async def __aenter__(self) -> AbstractUnitOfWork:
         return self
 
-    async def __aexit__(self, *args):
-        await self.rollback()
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        try:
+            await self.rollback()
+        except Exception as cleanup_error:
+            if exc_type is None:
+                raise
+            # Keep the initiating failure (including cancellation) and record
+            # only a bounded category, never cleanup messages or a traceback.
+            logger.error("uow_rollback_failed category=%s", type(cleanup_error).__name__[:100])
 
     async def commit(self):
         await self._commit()
