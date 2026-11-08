@@ -346,3 +346,30 @@ async def test_createuser_helper_dispatch_and_cleanup(commands_module, monkeypat
     else:
         bus.handle.assert_awaited_once_with(commands.CreateUser(username="sample-new", password_hash="synthetic-hash"))
     uow.close.assert_awaited_once_with()
+
+
+@pytest.mark.parametrize("length", [255, 256])
+def test_cli_unicode_origin_storage_limit(commands_module, runner, monkeypatch, length):
+    from deploy.service_layer.unit_of_work import InMemoryUnitOfWork
+
+    uow = InMemoryUnitOfWork()
+
+    async def setup_bus():
+        await uow.users.add(model.User(name="sample"))
+        await uow.services.add(model.Service(name="sample"))
+        return SimpleNamespace(uow=uow)
+
+    uow.close = AsyncMock()
+    monkeypatch.setattr(commands_module, "get_bus_for_cli", setup_bus)
+    cleanup = AsyncMock(wraps=uow.service_tokens.delete_stale)
+    monkeypatch.setattr(uow.service_tokens, "delete_stale", cleanup)
+    result = runner.invoke(
+        commands_module.cli,
+        ["issueservicetoken", "--service", "sample", "--user", "sample", "--days", "1", "--origin", "界" * length],
+    )
+    assert result.exit_code == (0 if length == 255 else 1), result.output
+    if length == 256:
+        assert result.stdout == ""
+        assert len(result.stderr) < 250
+        cleanup.assert_not_called()
+        assert not uow.committed

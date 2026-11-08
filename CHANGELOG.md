@@ -2,6 +2,8 @@ Unreleased
 ==========
 
 ### Fixed
+- Validate service-token origins against storage limits before issuance or cleanup.
+- Recheck current credentials after password verification before issuing a login token.
 - Fence browser WebSocket callbacks and reconnect waits to the current socket.
   Validate domain/control envelopes and allowlist converted fields before dispatch; invalid frames close the
   connection with a payload-free diagnostic and require a refresh. Requires a frontend build.

@@ -71,8 +71,9 @@ async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWor
     # The hash is deliberately slow: check it in a worker thread, otherwise
     # every login attempt blocks the event loop (and with it step reports of
     # running deployments) for the duration of the check.
+    credential = (user.id, user.password)
     try:
-        verified = await _password_work(verify_password, password, user.password)
+        verified = await _password_work(verify_password, password, credential[1])
     except ValueError:
         # The hash library refuses some input right away, without doing the
         # work (bcrypt: a password with a NUL byte or longer than 4096
@@ -82,7 +83,10 @@ async def authenticate_user(username: str, password: str, uow: AbstractUnitOfWor
         raise InvalidCredentials("invalid password") from None
     if not verified:
         raise InvalidCredentials("invalid password")
-    return user
+    current = await views.get_user_by_name(username, uow)
+    if (current.id, current.password) != credential:
+        raise InvalidCredentials("credentials changed")
+    return current
 
 
 def create_access_token(payload: dict, expires_delta: timedelta | None = None):
@@ -199,8 +203,10 @@ async def issue_service_token_for_existing(
     max_days = settings.service_token_max_expire_days
     if not 1 <= days <= max_days:
         raise ServiceTokenIssueRefused(f"days must be between 1 and {max_days} (SERVICE_TOKEN_MAX_EXPIRE_DAYS)")
-    if not origin.strip():
+    if isinstance(origin, str) and not origin.strip():
         raise ServiceTokenIssueRefused("origin must not be empty")
+    if not isinstance(origin, str) or len(origin) > 255 or "\x00" in origin:
+        raise ServiceTokenIssueRefused("origin must be a nonblank string of at most 255 characters without NUL")
     async with uow:
         # both tables are small; listing avoids repository specific "not found" exceptions
         if not any(u.name == user for u in await uow.users.list()):
