@@ -13,7 +13,7 @@ type Environment = {
 }
 
 type Message = {
-  type?: "service" | "deployment" | "step" | "authentication";
+  type?: "service" | "deployment" | "step" | "authentication" | "user" | "warning";
 };
 
 type AuthenticationMessage = Message & {

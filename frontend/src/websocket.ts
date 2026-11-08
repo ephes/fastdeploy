@@ -11,10 +11,45 @@ const readyState: { [key: number]: string } = {
   3: "CLOSED",
 };
 
+function isRecord(value: unknown): value is Record<string, any> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// Validate the wire representation before date conversion or store dispatch.
+function validMessage(value: unknown): value is Message {
+  if (!isRecord(value)) return false;
+  const id = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+  const date = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v) && Number.isFinite(Date.parse(v));
+  const optionalDate = (v: unknown) => v === null || date(v);
+  if (value.deleted !== undefined && typeof value.deleted !== "boolean") return false;
+  switch (value.type) {
+    case "authentication":
+      return ["success", "failure"].includes(value.status) &&
+        (value.detail == null || typeof value.detail === "string");
+    case "service":
+      return id(value.id) && typeof value.name === "string" && isRecord(value.data);
+    case "deployment":
+      return id(value.id) && id(value.service_id) && typeof value.origin === "string" &&
+        typeof value.user === "string" && date(value.started) && optionalDate(value.finished);
+    case "step":
+      return id(value.id) && id(value.deployment_id) && typeof value.name === "string" &&
+        ["pending", "running", "success", "failure"].includes(value.state) &&
+        typeof value.message === "string" && optionalDate(value.started) && optionalDate(value.finished);
+    case "user":
+      return id(value.id) && typeof value.name === "string";
+    case "warning":
+      return typeof value.detail === "string";
+    default:
+      // Existing endpoint's informational control messages have no type.
+      return value.type === undefined && typeof value.message === "string";
+  }
+}
+
 export function createWebsocketClient(): WebsocketClient {
   /**
    * Create a websocket client
    */
+  let generation = 0;
   const client: WebsocketClient = {
     /**
      * The websocket client id which is used to identify the websocket client
@@ -82,7 +117,6 @@ export function createWebsocketClient(): WebsocketClient {
         }
         return;
       }
-      console.log(event);
       console.log("Successfully connected to the echo websocket server..");
       const websocketStore = useWebsocketStore();
       websocketStore.handling = "on open";
@@ -109,6 +143,8 @@ export function createWebsocketClient(): WebsocketClient {
         // typescript happy. Disposed: logged out, do not reconnect.
         return;
       }
+      const connection = this.connection;
+      const closingGeneration = generation;
       const websocketStore = useWebsocketStore();
       websocketStore.handling = "on close";
       websocketStore.connection = readyState[this.connection.readyState];
@@ -116,7 +152,7 @@ export function createWebsocketClient(): WebsocketClient {
       while (this.retryCount < 3) {
         this.retryCount++;
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        if (this.disposed) {
+        if (this.disposed || generation !== closingGeneration || this.connection !== connection) {
           // logged out while waiting: the token of this loop is void
           return;
         }
@@ -183,8 +219,28 @@ export function createWebsocketClient(): WebsocketClient {
       if (this.disposed) {
         return;
       }
-      console.log("Received message from websocket server: ", event.data);
-      const message = JSON.parse(event.data) as Message;
+      let message: any;
+      try {
+        if (typeof event.data !== "string") throw new Error();
+        message = JSON.parse(event.data);
+        if (!validMessage(message)) throw new Error();
+      } catch {
+        // Retire queued callbacks as well as installed handlers. Recovery is an
+        // explicit refresh, avoiding a reconnect loop on a broken protocol.
+        generation++;
+        const connection = this.connection;
+        if (connection) {
+          connection.onopen = connection.onclose = connection.onmessage = null;
+          try { connection.close(); } catch { /* Already unavailable. */ }
+        }
+        useWebsocketStore().protocolError = "Invalid websocket message; refresh to resynchronize.";
+        useWebsocketStore().handling = useWebsocketStore().protocolError;
+        useWebsocketStore().connection = "CLOSED";
+        useWebsocketStore().authentication = "not authenticated";
+        console.warn("Invalid websocket message; refresh to resynchronize.");
+        return;
+      }
+      if (!("type" in message) || message.type === "warning") return;
       useWebsocketStore().receivedMessage();
       if (message.type === "authentication") {
         // special handling for authentication response
@@ -206,19 +262,29 @@ export function createWebsocketClient(): WebsocketClient {
       }
       // create the websocket connection
       const websocketStore = useWebsocketStore();
+      websocketStore.protocolError = "";
       websocketStore.handling = "init connection";
+      const previous = this.connection;
+      if (previous) {
+        previous.onclose = previous.onopen = previous.onmessage = null;
+        previous.close();
+      }
+      const currentGeneration = ++generation;
       this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
       websocketStore.connection = readyState[this.connection.readyState];
       console.log("connecting to websocket: ", this.connection);
 
       // register event listeners for the websocket connection
-      this.connection.onclose = this.onConnectionClose.bind(
-        this,
-        accessToken,
-        websocketUrl
-      );
-      this.connection.onopen = this.onConnectionOpen.bind(this, accessToken);
-      this.connection.onmessage = this.onMessage.bind(this);
+      const isCurrent = () => !this.disposed && generation === currentGeneration;
+      this.connection.onclose = (event) => {
+        if (isCurrent()) return this.onConnectionClose(accessToken, websocketUrl, event);
+      };
+      this.connection.onopen = (event) => {
+        if (isCurrent()) this.onConnectionOpen(accessToken, event);
+      };
+      this.connection.onmessage = (event) => {
+        if (isCurrent()) this.onMessage(event);
+      };
     },
     /**
      * Send access token as message (json string) to the websocket server.

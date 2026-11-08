@@ -14,6 +14,7 @@ export const useWebsocketStore = defineStore("websocket", {
        * (CLOSED, OPEN, CLOSING, CONNECTING).
        */
       connection: "not connected" as string,
+      protocolError: "",
       /**
        * Information about the websocket authentication status
        */
