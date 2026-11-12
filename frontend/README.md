@@ -78,3 +78,6 @@ extra fields are ignored. Malformed JSON or fields close the connection and show
 “Invalid websocket message; refresh to resynchronize.” Refresh the page to fetch
 current state and reconnect; malformed frames never trigger logout or automatic
 retry. Diagnostics exclude frame contents.
+
+CI runs the full-lock npm audit independently of the Python audits on pushes and a
+weekly Monday schedule; the root README documents the Python audit.

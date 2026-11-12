@@ -33,6 +33,7 @@ nav:
   - Deployment: deployment.md
   - Test Dummy Service: test-dummy.md
   - Security: systemd-hardening.md
+  - Dependency security: dependency-security.md
 
 plugins:
   - render_swagger
