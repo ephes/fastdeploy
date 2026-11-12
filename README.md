@@ -133,7 +133,10 @@ Lifecycle settings are validated at startup (defaults are unchanged):
 2,700 seconds for the largest supported failure/finish retry sequences, and
 one second for JWT expiry rounding. With the default 1,800-second runtime,
 the minimum token lifetime is 76 minutes (default remains 480). An open-step
-deployment keeps the service single-flight guard throughout this interval.
+deployment keeps the service single-flight guard throughout this interval. The
+allowance does not include launch latency (API launch, interpreter start, sudo), so
+leave some headroom above the minimum. The API passes the token lifetime to the
+runner process, which checks the same rule when it starts.
 
 Invalid or oversized values stop startup instead of overflowing date arithmetic or
 silently disabling the websocket authentication deadline.
@@ -331,8 +334,9 @@ For help: `just help`
 Service sync reads UTF-8 JSON configs and YAML playbooks only from regular files,
 with a 1 MiB file limit, depth 32 and 50,000 structural nodes/events. Playbooks must
 be nonempty lists of play objects; tasks must be lists of objects with string names
-when named. JSON and YAML mapping keys must be unique, including nested mappings and YAML
-merge collisions; ordinary YAML aliases remain supported within the same budgets.
+when named. JSON and YAML mapping keys must be unique, including nested mappings; a YAML
+mapping may hold at most one `<<` merge key. Merges follow YAML merge rules (explicit
+keys override merged ones), and ordinary aliases remain supported within the same budgets.
 When supplied, `deploy_script` must be a nonempty executable path without NULs;
 `steps` must be a list of objects with nonblank string `name` values of at most 255 characters without NULs.
 Omitting these fields keeps the default script and placeholder step behavior.

@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from deploy import views
-from deploy.adapters.filesystem import ServiceConfigError
+from deploy.adapters.filesystem import ServiceConfigError, _load_document
 from deploy.config import Settings
 from deploy.domain import commands, model
 
@@ -65,7 +65,8 @@ DUPLICATE_DOCUMENTS = [
     ('{"ansible_playbook":"play.yml"}', "- hosts: local\n  vars: {private-sentinel: 1, private-sentinel: 2}\n"),
     ('{"ansible_playbook":"play.yml"}', "- hosts: local\n  hosts: replaced\n"),
     ('{"ansible_playbook":"play.yml"}', "- hosts: local\n  vars: {<<: {one: 1}, <<: {two: 2}}\n"),
-    ('{"ansible_playbook":"play.yml"}', "- hosts: local\n  vars: {<<: {one: 1}, one: 2}\n"),
+    ('{"ansible_playbook":"play.yml"}', "- hosts: local\n  vars: {<<: {one: 1, one: 2}}\n"),
+    ('{"ansible_playbook":"play.yml"}', "- hosts: local\n  vars: {<<: {one: 1}, two: 2, two: 3}\n"),
     ('{"ansible_playbook":"play.yml"}', "- hosts: local\n  tasks: [{name: ''}]\n"),
     ('{"ansible_playbook":"play.yml","steps":null}', "- hosts: local\n"),
 ]
@@ -140,6 +141,7 @@ async def test_valid_extension_fields_and_yaml_aliases_survive_sync(bus, service
     (directory / "config.json").write_text('{"ansible_playbook":"play.yml"}')
     (root / "play.yml").write_text(
         "- hosts: local\n  vars: {one: &shared {value: 1}, two: *shared}\n  tasks:\n    - &task {name: synthetic}\n    - *task\n"
+        "    - {<<: *task, name: overridden}\n    - {<<: [{name: first}, {name: second}]}\n"
     )
     await bus.handle(commands.SyncServices())
     async with bus.uow as uow:
@@ -149,4 +151,11 @@ async def test_valid_extension_fields_and_yaml_aliases_survive_sync(bus, service
         {"name": "Gathering Facts"},
         {"name": "synthetic"},
         {"name": "synthetic"},
+        {"name": "overridden"},
+        {"name": "first"},
     ]
+
+
+def test_yaml_merges_follow_merge_rules_and_keep_plain_keys():
+    playbook = "- vars: {<<: [{a: 1, b: 1}, {a: 2, c: 2}], b: 3, =: equals}\n"
+    assert _load_document(playbook, playbook=True) == [{"vars": {"a": 1, "b": 3, "c": 2, "=": "equals"}}]

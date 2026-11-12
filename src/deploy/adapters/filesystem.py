@@ -95,12 +95,37 @@ def _unique_mapping(pairs):
 
 
 class _UniqueKeySafeLoader(yaml.SafeLoader):
-    def construct_mapping(self, node, deep=False):
-        # Flattening removes merge keys; refuse repeated ones before that happens.
-        if sum(key.tag == "tag:yaml.org,2002:merge" for key, _ in node.value) > 1:
+    def _check_mapping_keys(self, node):
+        # Aliases share nodes; check each node once so merge chains of aliases stay linear.
+        checked = self.__dict__.setdefault("_checked_mapping_nodes", set())
+        if id(node) in checked:
+            return
+        checked.add(id(node))
+        # Check the keys written in this mapping before flattening removes merge keys. Keys
+        # merged in with "<<" follow the YAML merge rules: explicit keys override merged
+        # ones and earlier merge sources win over later ones. Merge sources are flattened,
+        # not constructed, so check their own keys here as well.
+        merges = 0
+        explicit = []
+        for key_node, value_node in node.value:
+            if key_node.tag == "tag:yaml.org,2002:value":
+                key_node.tag = "tag:yaml.org,2002:str"  # as flatten_mapping does for a bare "="
+            if key_node.tag != "tag:yaml.org,2002:merge":
+                explicit.append((self.construct_object(key_node, deep=True), None))
+                continue
+            merges += 1
+            sources = value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
+            for source in sources:
+                if isinstance(source, yaml.MappingNode):
+                    self._check_mapping_keys(source)
+        if merges > 1:
             raise ServiceConfigError("service config contains duplicate mapping keys")
-        self.flatten_mapping(node)
-        return _unique_mapping(self.construct_pairs(node, deep=deep))
+        _unique_mapping(explicit)
+
+    def construct_mapping(self, node, deep=False):
+        if isinstance(node, yaml.MappingNode):
+            self._check_mapping_keys(node)
+        return super().construct_mapping(node, deep=deep)
 
 
 def _load_document(content: str, *, playbook=False):

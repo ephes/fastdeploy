@@ -136,8 +136,11 @@ expiry rounding. The default runtime therefore requires at least a 76-minute
 deployment token; the default token remains 480 minutes. Shorter combinations
 refuse startup. Open-step deployments retain their single-flight protection
 through runtime and this finalization allowance, including admission and deletion
-checks. This bound covers the runner's permitted waits, not unbounded OS scheduling
-or an external process it lacks permission to signal.
+checks. This bound covers the runner's permitted waits, not launch latency (API
+launch, interpreter start, sudo), unbounded OS scheduling or an external process it
+lacks permission to signal; leave some headroom above the minimum. The API passes
+`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` to the runner process along with the runtime,
+so the runner admits the same combination when it imports its settings.
 
 The deploy task owns the deploy script it starts. The script runs in its own process group, and the task waits for
 it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
@@ -245,9 +248,11 @@ The registration process creates:
 
 #### Service Configuration
 Service definitions are admitted before any synchronization writes or events.
-JSON configs and YAML playbooks reject repeated mapping keys at any depth (also
-collisions introduced by YAML merges); diagnostics do not include configuration
-values. Ordinary aliases remain supported within the existing depth/node budget.
+JSON configs and YAML playbooks reject repeated mapping keys at any depth and more
+than one `<<` merge key per mapping; diagnostics do not include configuration
+values. Merges follow the YAML merge rules: an explicit key overrides a merged one
+and earlier merge sources win over later ones. Ordinary aliases remain supported
+within the existing depth/node budget.
 An optional `deploy_script` must be a nonblank string without NULs, naming one
 executable. Optional `steps` must be a list of objects, each with a nonblank string
 `name` of at most 255 characters without NULs. Missing fields retain the default script/placeholder behavior;

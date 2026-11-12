@@ -51,6 +51,8 @@ def run_deploy(environment):  # pragma no cover
     clean_env = {
         "DEPLOY_CONFIG_FILE": str(config_path),
         "DEPLOYMENT_MAX_RUNTIME_SECONDS": str(settings.deployment_max_runtime_seconds),
+        # The runner re-validates settings at import; pass the lifetime the runtime was admitted with.
+        "DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES": str(settings.deployment_access_token_expire_minutes),
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": os.environ.get("HOME", "/tmp"),
         "LANG": os.environ.get("LANG", "en_US.UTF-8"),
