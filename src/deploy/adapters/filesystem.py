@@ -82,6 +82,52 @@ def _check_structure(value):
         pending.extend((child, depth + 1) for child in children)
 
 
+def _unique_mapping(pairs):
+    result = {}
+    for key, value in pairs:
+        try:
+            if key in result:
+                raise ServiceConfigError("service config contains duplicate mapping keys")
+            result[key] = value
+        except TypeError:
+            raise ServiceConfigError("service config contains an invalid mapping key") from None
+    return result
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    def _check_mapping_keys(self, node):
+        # Aliases share nodes; check each node once so merge chains of aliases stay linear.
+        checked = self.__dict__.setdefault("_checked_mapping_nodes", set())
+        if id(node) in checked:
+            return
+        checked.add(id(node))
+        # Check the keys written in this mapping before flattening removes merge keys. Keys
+        # merged in with "<<" follow the YAML merge rules: explicit keys override merged
+        # ones and earlier merge sources win over later ones. Merge sources are flattened,
+        # not constructed, so check their own keys here as well.
+        merges = 0
+        explicit = []
+        for key_node, value_node in node.value:
+            if key_node.tag == "tag:yaml.org,2002:value":
+                key_node.tag = "tag:yaml.org,2002:str"  # as flatten_mapping does for a bare "="
+            if key_node.tag != "tag:yaml.org,2002:merge":
+                explicit.append((self.construct_object(key_node, deep=True), None))
+                continue
+            merges += 1
+            sources = value_node.value if isinstance(value_node, yaml.SequenceNode) else [value_node]
+            for source in sources:
+                if isinstance(source, yaml.MappingNode):
+                    self._check_mapping_keys(source)
+        if merges > 1:
+            raise ServiceConfigError("service config contains duplicate mapping keys")
+        _unique_mapping(explicit)
+
+    def construct_mapping(self, node, deep=False):
+        if isinstance(node, yaml.MappingNode):
+            self._check_mapping_keys(node)
+        return super().construct_mapping(node, deep=deep)
+
+
 def _load_document(content: str, *, playbook=False):
     try:
         if playbook:
@@ -93,13 +139,31 @@ def _load_document(content: str, *, playbook=False):
                     depth -= 1
                 if depth > MAX_CONFIG_DEPTH or count > MAX_CONFIG_NODES:
                     raise ServiceConfigError("playbook exceeds depth or node limit")
-            value = yaml.safe_load(content)
+            value = yaml.load(content, Loader=_UniqueKeySafeLoader)
         else:
-            value = json.loads(content)
+            value = json.loads(content, object_pairs_hook=_unique_mapping)
         _check_structure(value)
         return value
     except (ValueError, RecursionError, yaml.YAMLError):
         raise ServiceConfigError("service config has invalid syntax, depth or structure") from None
+
+
+def _validate_service_definition(data):
+    if "deploy_script" in data:
+        script = data["deploy_script"]
+        if not isinstance(script, str) or not script.strip() or "\x00" in script:
+            raise ServiceConfigError("deploy_script must be a nonempty executable path")
+    if "steps" in data:
+        steps = data["steps"]
+        if not isinstance(steps, list) or not all(
+            isinstance(step, dict)
+            and isinstance(step.get("name"), str)
+            and 0 < len(step["name"]) <= 255
+            and step["name"].strip()
+            and "\x00" not in step["name"]
+            for step in steps
+        ):
+            raise ServiceConfigError("steps must be a list of objects with nonblank names of at most 255 characters")
 
 
 class Filesystem(AbstractFilesystem):
@@ -123,8 +187,10 @@ class Filesystem(AbstractFilesystem):
         data_dict = _load_document(_read_regular(self.root, Path(name) / "config.json"))
         if not isinstance(data_dict, dict):
             raise ServiceConfigError("service config must be an object")
+        _validate_service_definition(data_dict)
         if "ansible_playbook" in data_dict:
             data_dict["steps"] = get_steps_from_playbook(data_dict["ansible_playbook"], config_root=self.root)
+        _validate_service_definition(data_dict)
         return data_dict
 
 

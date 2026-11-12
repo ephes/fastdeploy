@@ -2,6 +2,14 @@ Unreleased
 ==========
 
 ### Fixed
+- Reject startup when the deployment token cannot cover the configured runtime
+  plus bounded teardown/final reporting (2731 seconds). The default runtime
+  requires at least 76 token minutes; defaults are unchanged. The runner process
+  receives the token lifetime so it validates the same combination. Requires an API restart.
+- Reject duplicate JSON/YAML mapping keys (and repeated `<<` merge keys) and malformed
+  deploy_script/steps before service sync changes records or emits events. Preserve
+  extension fields, bounded ordinary YAML aliases and standard merge overrides.
+  Requires an API/CLI update.
 - Track event-bearing objects independently of mutable entity hashes and transient ids.
 - Revoke service tokens transactionally on service deletion/sync deletion; serialize
   issuance with deletion so name reuse does not restore recorded token authority.

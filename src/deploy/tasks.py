@@ -18,6 +18,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from .auth import create_access_token
 from .config import settings
 from .domain.model import Deployment, Step
+from .runner_limits import (
+    DEPLOY_STOP_TIMEOUT,
+    REPORT_RESPONSE_TIMEOUT_SECONDS,
+    RETRY_MAX_ATTEMPTS,
+    RETRY_MAX_BACKOFF_SECONDS,
+)
 from .secure_config import SecureConfig, get_config_from_env
 
 
@@ -45,6 +51,8 @@ def run_deploy(environment):  # pragma no cover
     clean_env = {
         "DEPLOY_CONFIG_FILE": str(config_path),
         "DEPLOYMENT_MAX_RUNTIME_SECONDS": str(settings.deployment_max_runtime_seconds),
+        # The runner re-validates settings at import; pass the lifetime the runtime was admitted with.
+        "DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES": str(settings.deployment_access_token_expire_minutes),
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": os.environ.get("HOME", "/tmp"),
         "LANG": os.environ.get("LANG", "en_US.UTF-8"),
@@ -152,17 +160,15 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
 MAX_ASYNCIO_STDOUT_SIZE = 1024 * 1024 * 10  # 10 MiB, longer output lines are skipped as a whole
 # How long the deploy script's process group gets to exit after SIGTERM, and
 # again after SIGKILL, when the deploy task stops reading its output early.
-DEPLOY_STOP_TIMEOUT = 10.0
 REPORT_RESPONSE_MAX_BYTES = 4096
-REPORT_RESPONSE_TIMEOUT_SECONDS = 10.0
 MAX_STEP_MESSAGE_SIZE = 4096
 # A JSON object without a name is logged with at most this many keys, each shortened to this size
 MAX_LOGGED_RESULT_KEYS = 10
 MAX_LOGGED_RESULT_KEY_SIZE = 40
 
 
-RetryAttempts = Annotated[int, Field(ge=1, le=8)]
-RetryBackoff = Annotated[float, Field(ge=0, le=10, allow_inf_nan=False)]
+RetryAttempts = Annotated[int, Field(ge=1, le=RETRY_MAX_ATTEMPTS)]
+RetryBackoff = Annotated[float, Field(ge=0, le=RETRY_MAX_BACKOFF_SECONDS, allow_inf_nan=False)]
 retry_attempts_adapter = TypeAdapter(RetryAttempts)
 retry_backoff_adapter = TypeAdapter(RetryBackoff)
 

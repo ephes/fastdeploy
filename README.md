@@ -128,6 +128,16 @@ Lifecycle settings are validated at startup (defaults are unchanged):
 | `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` | 0–31536000 seconds (one year); zero disables the safety window |
 | `WEBSOCKET_AUTH_TIMEOUT_SECONDS` | finite, greater than 0 and at most 86400 seconds (one day) |
 
+`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES * 60` must be at least
+`DEPLOYMENT_MAX_RUNTIME_SECONDS + 2731`: 30 seconds for process teardown,
+2,700 seconds for the largest supported failure/finish retry sequences, and
+one second for JWT expiry rounding. With the default 1,800-second runtime,
+the minimum token lifetime is 76 minutes (default remains 480). An open-step
+deployment keeps the service single-flight guard throughout this interval. The
+allowance does not include launch latency (API launch, interpreter start, sudo), so
+leave some headroom above the minimum. The API passes the token lifetime to the
+runner process, which checks the same rule when it starts.
+
 Invalid or oversized values stop startup instead of overflowing date arithmetic or
 silently disabling the websocket authentication deadline.
 
@@ -324,7 +334,15 @@ For help: `just help`
 Service sync reads UTF-8 JSON configs and YAML playbooks only from regular files,
 with a 1 MiB file limit, depth 32 and 50,000 structural nodes/events. Playbooks must
 be nonempty lists of play objects; tasks must be lists of objects with string names
-when named. Invalid sources refuse the entire sync before database changes (HTTP
+when named. JSON and YAML mapping keys must be unique, including nested mappings; a YAML
+mapping may hold at most one `<<` merge key. Merges follow YAML merge rules (explicit
+keys override merged ones), and ordinary aliases remain supported within the same budgets.
+When supplied, `deploy_script` must be a nonempty executable path without NULs;
+`steps` must be a list of objects with nonblank string `name` values of at most 255 characters without NULs.
+Omitting these fields keeps the default script and placeholder step behavior.
+Unknown configuration and step fields are preserved. Explicit steps are validated
+even when a playbook supplies the final steps.
+Invalid sources refuse the entire sync before database changes (HTTP
 422 or CLI exit 1). `--force` only overrides deletion-count safety.
 
 Config directories/leaves and playbooks may not use symlinks below their configured

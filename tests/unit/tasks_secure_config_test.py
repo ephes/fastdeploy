@@ -127,6 +127,9 @@ class TestRunDeploySecure:
         assert "DEPLOY_CONFIG_FILE" in call_env
         assert call_env["DEPLOY_CONFIG_FILE"] == str(mock_config_path)
         assert float(call_env["DEPLOYMENT_MAX_RUNTIME_SECONDS"]) > 0
+        assert int(call_env["DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES"]) * 60 >= float(
+            call_env["DEPLOYMENT_MAX_RUNTIME_SECONDS"]
+        )
 
         # Verify sensitive data not in subprocess environment
         assert "ACCESS_TOKEN" not in call_env
