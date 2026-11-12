@@ -8,7 +8,7 @@ A deployment automation platform that enables both technical and non-technical u
 
 ## Requirements
 
-- Python 3.10+ (fully compatible with Python 3.13)
+- Python 3.11+ (fully compatible with Python 3.14)
 - PostgreSQL
 - Node.js and npm (for frontend development)
 - uv (for Python package management)
@@ -36,7 +36,7 @@ just dev            # Starts postgres, fastapi, frontend, and docs
 
 ### Create a venv & activate it and install the dev requirements
 ```shell
-uv venv -p python3.13  # or python3.12, python3.11, python3.10
+uv venv -p python3.13  # or python3.14, python3.12, python3.11
 source .venv/bin/activate  # or .venv/bin/activate.fish for fish shell
 uv sync
 ```
@@ -213,6 +213,15 @@ loads older pages with **Load more**. API consumers use `limit` (default 50, max
 and in `frontend/` `npm ci`, `npm test` (Vitest) and `npm run build` (vue-tsc and Vite). The
 workflow has read-only permissions, uses no secrets and does not deploy; deploys go through the
 Ansible playbooks.
+
+### Dependency advisory checks
+
+Run `python scripts/audit_python.py` with Python 3.11 (the lowest supported version) and 3.14
+(the deployed version), and in `frontend/` run `npm audit --package-lock-only`. The Python
+command first exports all groups and extras from the frozen lock, then runs pip-audit 2.10.1
+for that interpreter. An export or audit failure is fatal; temporary files are removed. CI runs
+independent read-only Python and npm audit jobs on every push and on a weekly Monday schedule.
+No advisories are ignored. See [dependency security](docs/dependency-security.md).
 
 ### Code quality
 

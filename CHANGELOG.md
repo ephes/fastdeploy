@@ -96,6 +96,16 @@ Unreleased
   environment and interactive credentials without exposing passwords or hashes.
 
 ### Security
+- Require Python 3.11 or later and refresh dnspython 2.9.2, filelock 4.2.10, Tornado 6.6.1,
+  virtualenv 21.15.6 and setuptools 84.2.1 (with distlib 0.4.4 and packaging 26.3, which
+  virtualenv needs). This clears CVE-2026-114605 (dnspython, runtime through FastAPI's email
+  validation), 13 filelock, 3 Tornado and 11 virtualenv CVEs and GHSA-xmj3-9gf7-h52w
+  (setuptools). The fixed dnspython, filelock and Tornado releases need Python 3.11+, and
+  Python 3.10 is end of life; nothing deploys or tests FastDeploy on 3.10 (production uses
+  3.14, CI 3.13). Dropping 3.10 also clears the 3.10-only ansible-core 2.17.14 advisory
+  PYSEC-2026-3458. Requires a dependency sync on deploy.
+- Add independent frozen Python 3.11/3.14 and full npm lock audits on push and a weekly
+  schedule, with fatal export failures and synthetic gate regressions.
 - Refresh Vitest/UI and happy-dom and scope patched glob/minimatch overrides to
   js-beautify, clearing all eight affected frontend development dependency nodes.
   Verify glob/EditorConfig compatibility with synthetic CLI fixtures; no deploy needed.
