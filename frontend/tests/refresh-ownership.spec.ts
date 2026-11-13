@@ -154,3 +154,27 @@ it('shows bounded service-name failure feedback and allows retry from the mounte
   await flushPromises(); expect(store.serviceNames).toEqual(['new']); expect(wrapper.text()).not.toContain('Could not load');
   wrapper.unmount();
 });
+
+it.each(['success', 'error'])('a history refresh that loses ownership after %s leaves a retry message', async outcome => {
+  const store = useDeployments(); store.deployments[3] = { id: 3, serviceId: 1 } as any; store.historyIds = [3];
+  const response = deferred<any[]>(); store.client = { get: vi.fn().mockReturnValue(response.promise) } as any;
+  let owned = true;
+  const fetch = store.fetchDeployments(undefined, false, () => owned);
+  owned = false;
+  if (outcome === 'success') response.resolve([{ id: 3, service_id: 1 }]); else response.reject(new Error('fixture'));
+  await fetch;
+  expect(store.historyLoading).toBe(false);
+  expect(store.historyError).toContain('Could not load deployment history');
+});
+
+it('a started deployment survives an older in-flight history page that predates it', async () => {
+  const store = useDeployments(); const page = deferred<any[]>();
+  store.client = { get: vi.fn().mockReturnValue(page.promise) } as any;
+  vi.spyOn(useServices(), 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  const history = store.fetchDeployments();
+  const client = { options: { headers: {} as Record<string, string> }, post: vi.fn().mockResolvedValue({ id: 9, service_id: 1 }) };
+  await store.startDeployment('service-1', client as any);
+  page.resolve([{ id: 8, service_id: 1 }]); await history;
+  expect(store.deployments[9]).toBeDefined();
+  expect(store.historyIds).toContain(8);
+});

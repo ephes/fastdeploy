@@ -446,11 +446,16 @@ Generated configurations and descriptor-bound cleanup follow the same existing c
 
 ### Frontend reconnect snapshots
 
-After a replacement websocket authenticates, mounted stores refresh services,
-available names, the currently visible history pages and previously hydrated
-deployment steps. Repeated authentication on one socket coalesces into one refresh.
-History refresh is bounded by the number of pages already visible; it does not
-drain older history. Complete step snapshots remove absent rows from both maps
+After a replacement websocket authenticates, the client refreshes services,
+available names, the deployment history (the pages already loaded, or the first
+page of the last history filter when none was loaded) and previously hydrated
+deployment steps, whether or not a view showing them is mounted. Repeated
+authentication on one socket coalesces into one refresh. History refresh is
+bounded by the number of pages already visible; it does not drain older history.
+If a history refresh loses ownership (another socket replacement or logout) after
+it cleared the page, the history shows the retry message instead of an empty list.
+A deployment started while a history request is in flight is kept even when that
+older page does not list it yet. Complete step snapshots remove absent rows from both maps
 and the running-step scroll index. Live events received during a request retain
 ownership of their ids. Logout, socket replacement and newer requests fence late results.
 

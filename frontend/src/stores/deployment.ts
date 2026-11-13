@@ -147,6 +147,8 @@ export const useDeployments = defineStore("deployments", {
         // started, but the session it was started in is over
         return null;
       }
+      // A history request already in flight must not delete the new row.
+      for (const pending of this.pendingFetches) pending.add(started.id);
       const known = this.deployments[started.id];
       if (known) {
         return known;
@@ -166,7 +168,11 @@ export const useDeployments = defineStore("deployments", {
         this.historyHasMore = true;
       }
       const generation = this.historyGeneration;
-      const isCurrent = () => isCurrentSession() && ownsRefresh() && generation === this.historyGeneration;
+      const ownsHistory = () => isCurrentSession() && generation === this.historyGeneration;
+      const isCurrent = () => ownsHistory() && ownsRefresh();
+      // A refresh that loses its owner after clearing the page must not leave an
+      // empty, idle history behind: show the retry message instead.
+      const historyError = "Could not load deployment history. Try again.";
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
       this.historyLoading = true;
@@ -176,7 +182,10 @@ export const useDeployments = defineStore("deployments", {
       if (this.historyBeforeId !== null) params.set("before_id", String(this.historyBeforeId));
       try {
         const deployments = await this.client.get<Deployment[]>(`deployments/?${params}`);
-        if (!isCurrent()) return;
+        if (!isCurrent()) {
+          if (ownsHistory()) this.historyError = historyError;
+          return;
+        }
         const present = new Set(deployments.map(deployment => deployment.id));
         const oldest = deployments.length === 50 ? deployments[deployments.length - 1].id : 0;
         const upper = loadMore ? this.historyBeforeId : null;
@@ -205,10 +214,10 @@ export const useDeployments = defineStore("deployments", {
           this.historyIds = this.historyIds.filter((id) => id >= oldestId);
         }
       } catch {
-        if (isCurrent()) this.historyError = "Could not load deployment history. Try again.";
+        if (ownsHistory()) this.historyError = historyError;
       } finally {
         this.pendingFetches = this.pendingFetches.filter((pending) => pending !== changed);
-        if (isCurrentSession() && generation === this.historyGeneration) this.historyLoading = false;
+        if (ownsHistory()) this.historyLoading = false;
       }
     },
     /**
