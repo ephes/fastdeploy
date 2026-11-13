@@ -3,6 +3,10 @@ import { pythonToJavascript } from "./converters";
 import { WebsocketClient, Message, AuthenticationMessage } from "./typings";
 import { useWebsocketStore } from "./stores/websocket";
 import { useAuth } from "./stores/auth";
+import { useServices } from "./stores/service";
+import { useDeployments } from "./stores/deployment";
+import { useSteps } from "./stores/step";
+import { rememberSession } from "./stores/session";
 
 const readyState: { [key: number]: string } = {
   0: "CONNECTING",
@@ -59,6 +63,8 @@ export function createWebsocketClient(): WebsocketClient {
    * Create a websocket client
    */
   let generation = 0;
+  let authenticatedGeneration = -1;
+  let hasAuthenticated = false;
   const client: WebsocketClient = {
     /**
      * The websocket client id which is used to identify the websocket client
@@ -211,6 +217,35 @@ export function createWebsocketClient(): WebsocketClient {
         websocketStore.handling = "on authentication message";
         websocketStore.authentication = "authenticated";
         this.retryCount = 0; // reset retry count for next onConnectionClose event
+        if (authenticatedGeneration !== generation) {
+          authenticatedGeneration = generation;
+          const reconnect = hasAuthenticated;
+          hasAuthenticated = true;
+          if (reconnect) {
+            const refreshGeneration = generation;
+            const isCurrentSession = rememberSession();
+            const ownsRefresh = () => !this.disposed && generation === refreshGeneration && isCurrentSession();
+            const services = useServices(), deployments = useDeployments(), steps = useSteps();
+            // Revisit only the already visible number of pages, never drain history.
+            const pages = Math.max(1, Math.ceil(deployments.historyIds.length / 50));
+            const serviceId = deployments.historyServiceId;
+            const refreshHistory = async () => {
+              const firstPage = deployments.fetchDeployments(serviceId, false, ownsRefresh);
+              const historyGeneration = deployments.historyGeneration;
+              await firstPage;
+              for (let page = 1; page < pages && ownsRefresh() && deployments.historyGeneration === historyGeneration
+                  && deployments.historyHasMore && !deployments.historyError; page++) {
+                await deployments.fetchDeployments(serviceId, true, ownsRefresh);
+              }
+            };
+            const relevant = new Set([...Object.keys(steps.stepsByDeployment), ...Object.keys(steps.fetchGenerations)]);
+            // Store actions retain event-touched ids; all failures are observed.
+            void Promise.allSettled([
+              services.fetchServices(ownsRefresh), services.fetchServiceNames(ownsRefresh), refreshHistory(),
+              ...[...relevant].map(id => steps.fetchStepsFromDeployment(Number(id), ownsRefresh)),
+            ]);
+          }
+        }
       } else {
         websocketStore.handling = "on authentication message";
         websocketStore.authentication = "authentication failure";

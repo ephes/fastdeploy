@@ -98,3 +98,59 @@ it.each(['token', 'start', 'query', 'return'])('late launch preserves newer navi
   expect(useDeployments().deployments[7].serviceId).toBe(1);
   expect(issue).toHaveBeenCalledTimes(1); expect(fetch).toHaveBeenCalledTimes(1); wrapper.unmount();
 });
+
+it('removes absent steps from all indexes while retaining live changes and other deployments', async () => {
+  const store = useSteps();
+  for (const id of [1, 2, 3]) store.addStep({ id, deploymentId: 1, name: 'old', state: 'running' } as any);
+  store.addStep({ id: 9, deploymentId: 2, name: 'other', state: 'running' } as any);
+  const response = deferred<any[]>(); store.client = { get: vi.fn().mockReturnValue(response.promise) } as any;
+  const fetch = store.fetchStepsFromDeployment(1);
+  store.onMessage({ id: 2, deploymentId: 1, type: 'step', deleted: true } as any);
+  store.onMessage({ id: 4, deploymentId: 1, type: 'step', state: 'running', name: 'live' } as any);
+  store.onMessage({ id: 3, deploymentId: 1, type: 'step', state: 'success', name: 'updated' } as any);
+  response.resolve([apiStep(2), apiStep(5)]); await fetch;
+  expect(Object.keys(store.steps)).toEqual(['3', '4', '5', '9']);
+  expect(Object.keys(store.stepsByDeployment[1])).toEqual(['3', '4', '5']);
+  expect(store.stepsInProgressByDeployment[1].map(step => step.id).sort()).toEqual([3, 4, 5]);
+  expect(store.stepsInProgressByDeployment[2].map(step => step.id)).toEqual([9]);
+});
+
+it('awaits service names, fences older results, contains errors, retries and resets session state', async () => {
+  const store = useServices(); const old = deferred<string[]>(); const latest = deferred<string[]>();
+  store.client = { get: vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise) } as any;
+  const first = store.fetchServiceNames(); const second = store.fetchServiceNames();
+  latest.resolve(['new']); await second; old.resolve(['old']); await first; await flushPromises();
+  expect(store.serviceNames).toEqual(['new']);
+  store.client.get = vi.fn().mockRejectedValue(new Error('private diagnostic'));
+  await store.fetchServiceNames(); expect(store.serviceNamesError).toContain('Could not load');
+  expect(store.serviceNames).toEqual(['new']); expect(store.serviceNamesLoading).toBe(false);
+  store.client.get = vi.fn().mockResolvedValue(['retry']); await store.fetchServiceNames();
+  expect(store.serviceNames).toEqual(['retry']); expect(store.serviceNamesError).toBe('');
+  const late = deferred<string[]>(); store.client.get = vi.fn().mockReturnValue(late.promise);
+  const pending = store.fetchServiceNames(); useAuth().endSession(); late.resolve(['secret']); await pending;
+  expect(store.serviceNames).toEqual([]); expect(store.serviceNamesLoading).toBe(false); expect(store.serviceNamesError).toBe('');
+});
+
+
+it('an obsolete service-name failure cannot clear loading or set feedback for a newer request', async () => {
+  const store = useServices(), old = deferred<string[]>(), latest = deferred<string[]>();
+  store.client = { get: vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise) } as any;
+  const first = store.fetchServiceNames(), second = store.fetchServiceNames();
+  old.reject(new Error('obsolete')); await first;
+  expect(store.serviceNamesLoading).toBe(true); expect(store.serviceNamesError).toBe('');
+  latest.resolve(['current']); await second;
+  expect(store.serviceNamesLoading).toBe(false); expect(store.serviceNames).toEqual(['current']);
+});
+
+it('shows bounded service-name failure feedback and allows retry from the mounted Services view', async () => {
+  const store = useServices();
+  store.client = { get: vi.fn().mockRejectedValueOnce(new Error('private')).mockResolvedValueOnce(['new']) } as any;
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: ServiceList }] });
+  await router.push('/'); await router.isReady();
+  const wrapper = mount(ServiceList, { global: { plugins: [getActivePinia()!, router] } });
+  await store.fetchServiceNames(); await flushPromises();
+  expect(wrapper.text()).toContain('Could not load service names'); expect(wrapper.text()).not.toContain('private');
+  await wrapper.findAll('button').find(button => button.text() === 'Retry service names')!.trigger('click');
+  await flushPromises(); expect(store.serviceNames).toEqual(['new']); expect(wrapper.text()).not.toContain('Could not load');
+  wrapper.unmount();
+});

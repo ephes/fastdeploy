@@ -69,6 +69,11 @@ async function startDeployment(id: number, serviceName: string) {
 <template>
   <div>
     <h1>Services</h1>
+    <p v-if="serviceStore.serviceNamesLoading" role="status">Loading service names…</p>
+    <p v-if="serviceStore.serviceNamesError" role="alert">
+      {{ serviceStore.serviceNamesError }}
+      <button @click="serviceStore.fetchServiceNames()">Retry service names</button>
+    </p>
     <div v-if="serviceStore.getAvailableServiceNames.length">
       <button @click="serviceStore.syncServices()">sync</button>
     </div>

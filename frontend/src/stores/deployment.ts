@@ -155,7 +155,7 @@ export const useDeployments = defineStore("deployments", {
       return started;
     },
     /** Fetch a bounded history page; only an explicit load-more extends it. */
-    async fetchDeployments(serviceId?: number, loadMore = false) {
+    async fetchDeployments(serviceId?: number, loadMore = false, ownsRefresh: () => boolean = () => true) {
       if (loadMore && (this.historyLoading || !this.historyHasMore)) return;
       const isCurrentSession = rememberSession();
       if (!loadMore) {
@@ -166,7 +166,7 @@ export const useDeployments = defineStore("deployments", {
         this.historyHasMore = true;
       }
       const generation = this.historyGeneration;
-      const isCurrent = () => isCurrentSession() && generation === this.historyGeneration;
+      const isCurrent = () => isCurrentSession() && ownsRefresh() && generation === this.historyGeneration;
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
       this.historyLoading = true;
@@ -177,6 +177,17 @@ export const useDeployments = defineStore("deployments", {
       try {
         const deployments = await this.client.get<Deployment[]>(`deployments/?${params}`);
         if (!isCurrent()) return;
+        const present = new Set(deployments.map(deployment => deployment.id));
+        const oldest = deployments.length === 50 ? deployments[deployments.length - 1].id : 0;
+        const upper = loadMore ? this.historyBeforeId : null;
+        for (const deployment of Object.values(this.deployments)) {
+          if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
+              && deployment.id >= oldest && (upper === null || deployment.id < upper)
+              && !present.has(deployment.id) && !changed.has(deployment.id)) {
+            delete this.deployments[deployment.id];
+            this.historyIds = this.historyIds.filter(id => id !== deployment.id);
+          }
+        }
         for (const deployment of deployments) {
           if (!changed.has(deployment.id)) {
             this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
@@ -197,7 +208,7 @@ export const useDeployments = defineStore("deployments", {
         if (isCurrent()) this.historyError = "Could not load deployment history. Try again.";
       } finally {
         this.pendingFetches = this.pendingFetches.filter((pending) => pending !== changed);
-        if (isCurrent()) this.historyLoading = false;
+        if (isCurrentSession() && generation === this.historyGeneration) this.historyLoading = false;
       }
     },
     /**

@@ -235,3 +235,21 @@ async def test_sync_services_keeps_service_whose_deployment_reported_recently(bu
     assert result.skipped == [
         model.SkippedService(name=service_in_db.name, reason=f"deployment {deployment.id} is still running")
     ]
+
+
+@pytest.mark.asyncio
+async def test_sync_acquires_ownership_before_reading_source(in_memory_uow, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from deploy import views
+    from deploy.service_layer.handlers import sync_services
+
+    lock = AsyncMock()
+    monkeypatch.setattr(in_memory_uow.services, "lock_for_sync", lock, raising=False)
+
+    async def source(fs):
+        lock.assert_awaited_once()
+        return []
+
+    monkeypatch.setattr(views, "get_services_from_filesystem", source)
+    await sync_services(commands.SyncServices(), in_memory_uow, None)
