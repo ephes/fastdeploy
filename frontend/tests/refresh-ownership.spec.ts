@@ -178,3 +178,15 @@ it('a started deployment survives an older in-flight history page that predates 
   expect(store.deployments[9]).toBeDefined();
   expect(store.historyIds).toContain(8);
 });
+
+it('a history page served after a start still updates the started row', async () => {
+  const store = useDeployments(); const page = deferred<any[]>();
+  store.client = { get: vi.fn().mockReturnValue(page.promise) } as any;
+  vi.spyOn(useServices(), 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  const history = store.fetchDeployments();
+  const client = { options: { headers: {} as Record<string, string> }, post: vi.fn().mockResolvedValue({ id: 9, service_id: 1, finished: null }) };
+  await store.startDeployment('service-1', client as any);
+  const finished = '2026-11-01T00:00:00Z';
+  page.resolve([{ id: 9, service_id: 1, finished }]); await history;
+  expect(store.deployments[9].finished).toEqual(new Date(finished));
+});

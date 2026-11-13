@@ -20,6 +20,7 @@ export const useDeployments = defineStore("deployments", {
        */
       deployments: {} as DeploymentById,
       pendingFetches: [] as Set<number>[],
+      pendingStarts: [] as Set<number>[],
       historyIds: [] as number[],
       historyBeforeId: null as number | null,
       historyServiceId: undefined as number | undefined,
@@ -147,8 +148,9 @@ export const useDeployments = defineStore("deployments", {
         // started, but the session it was started in is over
         return null;
       }
-      // A history request already in flight must not delete the new row.
-      for (const pending of this.pendingFetches) pending.add(started.id);
+      // A history request already in flight must not delete the new row, but it
+      // may still replace it with the (newer) server state of that row.
+      for (const pending of this.pendingStarts) pending.add(started.id);
       const known = this.deployments[started.id];
       if (known) {
         return known;
@@ -174,7 +176,9 @@ export const useDeployments = defineStore("deployments", {
       // empty, idle history behind: show the retry message instead.
       const historyError = "Could not load deployment history. Try again.";
       const changed = markRaw(new Set<number>());
+      const startedMeanwhile = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
+      this.pendingStarts.push(startedMeanwhile);
       this.historyLoading = true;
       this.historyError = "";
       const params = new URLSearchParams({ limit: "50" });
@@ -192,7 +196,8 @@ export const useDeployments = defineStore("deployments", {
         for (const deployment of Object.values(this.deployments)) {
           if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
               && deployment.id >= oldest && (upper === null || deployment.id < upper)
-              && !present.has(deployment.id) && !changed.has(deployment.id)) {
+              && !present.has(deployment.id) && !changed.has(deployment.id)
+              && !startedMeanwhile.has(deployment.id)) {
             delete this.deployments[deployment.id];
             this.historyIds = this.historyIds.filter(id => id !== deployment.id);
           }
@@ -217,6 +222,7 @@ export const useDeployments = defineStore("deployments", {
         if (ownsHistory()) this.historyError = historyError;
       } finally {
         this.pendingFetches = this.pendingFetches.filter((pending) => pending !== changed);
+        this.pendingStarts = this.pendingStarts.filter((pending) => pending !== startedMeanwhile);
         if (ownsHistory()) this.historyLoading = false;
       }
     },
