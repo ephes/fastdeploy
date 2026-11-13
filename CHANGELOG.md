@@ -2,6 +2,15 @@ Unreleased
 ==========
 
 ### Fixed
+- Refresh authoritative frontend snapshots after authenticated websocket reconnect;
+  remove absent steps/history rows while preserving intervening live events and
+  deployments started during the request; a history refresh that loses ownership
+  shows the retry message instead of an empty list.
+- Fence service-name requests by generation and session, retain confirmed names on
+  failure and show a retry action. Requires a frontend rebuild.
+- Serialize service sync source reads and database decisions through commit using a
+  transaction advisory lock; refuse duplicate private runner JSON members at every depth.
+  Requires an API/CLI and runner package update.
 - Reject startup when the deployment token cannot cover the configured runtime
   plus bounded teardown/final reporting (2731 seconds). The default runtime
   requires at least 76 token minutes; defaults are unchanged. The runner process

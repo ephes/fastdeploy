@@ -130,3 +130,25 @@ def test_empty_config_path_does_not_fall_back(monkeypatch):
     monkeypatch.setenv("DEPLOY_CONFIG_FILE", "")
     with pytest.raises(ValueError, match=f"^{INVALID}$"):
         get_config_from_env()
+
+
+@pytest.mark.parametrize(
+    "field,duplicate",
+    [
+        ("access_token", '"access_token":"first","access_token":"token-sentinel"'),
+        ("deploy_script", '"deploy_script":"/first","deploy_script":"/second"'),
+        ("context", '"context":{"env":{"KEY":"first","KEY":"token-sentinel"}}'),
+        ("context", '"context":{"extra":{"nested":1,"nested":2}}'),
+    ],
+)
+def test_duplicate_members_refuse_at_every_depth(tmp_path, monkeypatch, caplog, field, duplicate):
+    data = config()
+    del data[field]
+    raw = json.dumps(data)[:-1] + "," + duplicate + "}"
+    path = private_file(tmp_path, raw.encode())
+    with pytest.raises(ValueError, match=f"^{INVALID}$"):
+        SecureConfig(tmp_path).read_deployment_config(path)
+    monkeypatch.setenv("DEPLOY_CONFIG_FILE", str(path))
+    with pytest.raises(ValueError, match=f"^{INVALID}$"):
+        get_config_from_env()
+    assert "token-sentinel" not in caplog.text

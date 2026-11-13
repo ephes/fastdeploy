@@ -1,10 +1,14 @@
 import { vi, beforeEach, afterEach, it, expect } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import WebsocketStatus from "../src/components/WebsocketStatus.vue";
 import { initPinia } from "./conftest";
 import { createWebsocketClient } from "../src/websocket";
 import { useWebsocketStore } from "../src/stores/websocket";
 import { useAuth } from "../src/stores/auth";
+
+import { useServices } from "../src/stores/service";
+import { useDeployments } from "../src/stores/deployment";
+import { useSteps } from "../src/stores/step";
 
 class Socket {
   static CLOSED = 3;
@@ -129,4 +133,61 @@ it.each(["hasOwnProperty", "has_own_property", "started"])("ignores undeclared %
   expect(() => Socket.instances[0].receive(message)).not.toThrow();
   expect(store.onMessage).toHaveBeenCalledOnce();
   expect(store.onMessage).toHaveBeenCalledWith({ type: "service", id: 1, name: "synthetic", data: {} });
+});
+
+
+it("resnapshots mounted stores on authenticated reconnect, coalescing repeated auth", async () => {
+  const client = createWebsocketClient();
+  const services = useServices(), deployments = useDeployments(), steps = useSteps();
+  for (const store of [services, deployments, steps]) client.registerStore(store);
+  services.services = { 1: { id: 1, name: "kept", data: {} }, 2: { id: 2, name: "deleted offline", data: {} } };
+  deployments.deployments[7] = { id: 7, serviceId: 1, finished: null } as any;
+  deployments.deployments[8] = { id: 8, serviceId: 2, finished: null } as any;
+  deployments.historyIds = [8, 7];
+  steps.addStep({ id: 1, deploymentId: 7, state: "running" } as any);
+  steps.addStep({ id: 2, deploymentId: 8, state: "running" } as any);
+  const finished = "2026-11-13T12:00:00Z";
+  const get = vi.fn(async (url: string) => {
+    if (url === "services/") return [{ id: 1, name: "kept", data: {} }];
+    if (url === "services/names/") return ["kept"];
+    if (url.startsWith("deployments/")) return [{ id: 7, service_id: 1, finished }];
+    return [];
+  });
+  for (const store of [services, deployments, steps]) store.client = { get } as any;
+  client.initWebsocketConnection("ws://synthetic", "token");
+  Socket.instances[0].receive({ type: "authentication", status: "success" });
+  expect(get).not.toHaveBeenCalled();
+  Socket.instances[0].readyState = 3;
+  const closing = Socket.instances[0].onclose({});
+  await vi.advanceTimersByTimeAsync(1000); await closing;
+  const replacement = Socket.instances[1];
+  replacement.receive({ type: "authentication", status: "success" });
+  replacement.receive({ type: "authentication", status: "success" });
+  await flushPromises();
+  expect(Object.keys(services.services)).toEqual(["1"]);
+  expect(deployments.historyIds).toEqual([7]);
+  expect(deployments.deployments[7].finished).toEqual(new Date(finished));
+  expect(deployments.deployments[8]).toBeUndefined();
+  expect(steps.steps).toEqual({});
+  expect(steps.stepsInProgressByDeployment[7]).toEqual([]);
+  expect(get.mock.calls.filter(([url]) => url === "services/")).toHaveLength(1);
+});
+
+it.each(["logout", "replacement"])("fences a reconnect refresh after %s", async outcome => {
+  const client = createWebsocketClient();
+  const services = useServices();
+  let resolve!: (value: any[]) => void;
+  const response = new Promise<any[]>(yes => { resolve = yes; });
+  services.client = { get: vi.fn().mockReturnValue(response) } as any;
+  useDeployments().client = { get: vi.fn().mockResolvedValue([]) } as any;
+  client.initWebsocketConnection("ws://synthetic", "token");
+  Socket.instances[0].receive({ type: "authentication", status: "success" });
+  client.initWebsocketConnection("ws://synthetic", "token");
+  Socket.instances[1].receive({ type: "authentication", status: "success" });
+  await flushPromises(); expect(services.client.get).toHaveBeenCalled();
+  if (outcome === "logout") { client.dispose(); useAuth().endSession(); }
+  else client.initWebsocketConnection("ws://synthetic", "replacement");
+  resolve([{ id: 99, name: "obsolete", data: {} }]); await flushPromises();
+  expect(services.services).toEqual({}); expect(services.serviceNames).toEqual([]);
+  expect(services.servicesLoading).toBe(false); expect(services.serviceNamesLoading).toBe(false);
 });

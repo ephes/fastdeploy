@@ -53,6 +53,9 @@ export const useServices = defineStore("services", {
        * List of available service names.
        */
       serviceNames: [] as string[],
+      serviceNamesGeneration: 0,
+      serviceNamesLoading: false,
+      serviceNamesError: "",
       client: getClient(),
     };
   },
@@ -162,10 +165,10 @@ export const useServices = defineStore("services", {
      * Fetch all services from the backend. Used to display the list
      * of services.
      */
-    async fetchServices() {
+    async fetchServices(ownsRefresh: () => boolean = () => true) {
       const isCurrentSession = rememberSession();
       const generation = ++this.fetchGeneration;
-      const isCurrent = () => isCurrentSession() && generation === this.fetchGeneration;
+      const isCurrent = () => isCurrentSession() && ownsRefresh() && generation === this.fetchGeneration;
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
       this.servicesLoading = true;
@@ -188,20 +191,27 @@ export const useServices = defineStore("services", {
         if (isCurrent()) this.servicesError = "Could not load services. Try logging in again.";
       } finally {
         this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
-        if (isCurrent()) this.servicesLoading = false;
+        if (isCurrentSession() && generation === this.fetchGeneration) this.servicesLoading = false;
       }
     },
     /**
      * Fetch all available service names from backend and store
      * them in the store.
      */
-    async fetchServiceNames() {
+    async fetchServiceNames(ownsRefresh: () => boolean = () => true) {
       const isCurrentSession = rememberSession();
-      this.client.get<string[]>("services/names/").then((names) => {
-        if (isCurrentSession()) {
-          this.serviceNames = names;
-        }
-      });
+      const generation = ++this.serviceNamesGeneration;
+      const isCurrent = () => isCurrentSession() && ownsRefresh() && generation === this.serviceNamesGeneration;
+      this.serviceNamesLoading = true;
+      this.serviceNamesError = "";
+      try {
+        const names = await this.client.get<string[]>("services/names/");
+        if (isCurrent()) this.serviceNames = names;
+      } catch {
+        if (isCurrent()) this.serviceNamesError = "Could not load service names. Try again.";
+      } finally {
+        if (isCurrentSession() && generation === this.serviceNamesGeneration) this.serviceNamesLoading = false;
+      }
     },
     /**
      * Fetch a service token for a service. This service token then can

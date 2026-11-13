@@ -41,6 +41,11 @@ class AbstractServiceRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def lock_for_sync(self) -> None:
+        """Serialize the complete service sync until commit or rollback."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def lock_for_deployment(self, service_id: int) -> None:
         """
         Serialize deployment starts for a service until the current
@@ -74,6 +79,10 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
     async def _delete(self, service):
         stmt = delete(model.Service).where(model.Service.id == service.id)
         await self.session.execute(stmt)
+
+    async def lock_for_sync(self) -> None:
+        # Stable application namespace; transaction-scoped, including empty tables.
+        await self.session.execute(text("SELECT pg_advisory_xact_lock(17012017, 1)"))
 
     async def lock_for_deployment(self, service_id):
         # Row lock on the service (PostgreSQL ``SELECT ... FOR UPDATE``). Concurrent
@@ -113,6 +122,9 @@ class InMemoryServiceRepository(AbstractServiceRepository):
 
     async def _delete(self, service):
         self._services = [s for s in self._services if s.id != service.id]
+
+    async def lock_for_sync(self) -> None:
+        return None
 
     async def lock_for_deployment(self, service_id: int) -> None:  # noqa: ARG002
         # In-memory repositories never suspend, so check and insert cannot interleave.

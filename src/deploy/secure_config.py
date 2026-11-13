@@ -28,6 +28,15 @@ _REQUIRED_STRINGS = (
 )
 
 
+def _unique_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(INVALID_CONFIG)
+        result[key] = value
+    return result
+
+
 def _read_config(fd: int) -> dict[str, Any]:
     # The descriptor is already type/mode checked. Bound actual bytes, including
     # growth after fstat, before decoding or parsing any config values.
@@ -36,7 +45,7 @@ def _read_config(fd: int) -> dict[str, Any]:
     try:
         if len(raw) > CONFIG_MAX_BYTES:
             raise ValueError()
-        data = json.loads(raw.decode("utf-8"))
+        data = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_members)
         if not isinstance(data, dict) or any(not isinstance(data.get(key), str) for key in _REQUIRED_STRINGS):
             raise ValueError()
         context = data.get("context")

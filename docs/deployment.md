@@ -431,3 +431,44 @@ not rename paths concurrently between the final identity check and unlink.
 5. **Production**: Register FastDeploy for self-deployment when ready
 
 This workflow allows rapid development while maintaining production deployment capabilities.
+
+### Concurrent service sync and private runner configuration
+
+Service sync holds a database transaction advisory lock before reading either
+filesystem definitions or database services, through commit/rollback. Concurrent
+syncs wait and then read current inputs; no stale source snapshot is retried.
+Per-service deletion locks and active-deployment/deletion-count safeguards still apply.
+
+Private runner JSON refuses duplicate object members at every depth, including
+credentials, executable paths and nested environment values. Invalid inputs produce
+`Invalid deployment configuration` without exposing member names or values.
+Generated configurations and descriptor-bound cleanup follow the same existing contract.
+
+### Frontend reconnect snapshots
+
+After a replacement websocket authenticates, the client refreshes services,
+available names, the deployment history (the pages already loaded, or the first
+page of the last history filter when none was loaded) and previously hydrated
+deployment steps, whether or not a view showing them is mounted. Repeated
+authentication on one socket coalesces into one refresh. History refresh is
+bounded by the number of pages already visible; it does not drain older history.
+If a history refresh loses ownership (another socket replacement or logout) after
+it cleared the page, the history shows the retry message instead of an empty list.
+A deployment started while a history request is in flight is kept even when that
+older page does not list it yet. Complete step snapshots remove absent rows from both maps
+and the running-step scroll index. Live events received during a request retain
+ownership of their ids. Logout, socket replacement and newer requests fence late results.
+
+Service-name requests are awaited and latest-request owned. A failed request keeps
+confirmed names and shows a generic retry message on Services; retry clears it.
+Session reset clears names, loading and errors. No raw server error enters this feedback.
+
+### API interruption before launch
+
+The plan and its initial running/pending steps commit before child launch. If the
+API process dies in that gap, restart does not relaunch the plan. Open steps keep
+it active beyond the orphan reconciliation grace period until the deployment-token
+lifetime expires. It then counts as stale and permits a subsequent start, but
+remains unfinished: ordinary orphan reconciliation applies only to plans without
+open steps. Automatically finishing such expired open-step plans requires a
+separate recovery-policy change; the grace period alone cannot prove no worker exists.

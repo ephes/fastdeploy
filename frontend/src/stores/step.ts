@@ -152,7 +152,7 @@ export const useSteps = defineStore("steps", {
      *
      * @param deploymentId {number} The deployment id
      */
-    async fetchStepsFromDeployment(deploymentId: number) {
+    async fetchStepsFromDeployment(deploymentId: number, ownsRefresh: () => boolean = () => true) {
       const url =
         "steps/?" +
         new URLSearchParams({ deployment_id: deploymentId.toString() });
@@ -163,7 +163,11 @@ export const useSteps = defineStore("steps", {
       this.pendingFetches.push(changed);
       try {
         const steps = await this.client.get<Promise<Object[]>>(url);
-        if (!isCurrentSession() || this.fetchGenerations[deploymentId] !== generation) return;
+        if (!isCurrentSession() || !ownsRefresh() || this.fetchGenerations[deploymentId] !== generation) return;
+        const present = new Set(steps.map(apiStep => (apiStep as any).id as number));
+        for (const step of Object.values(this.stepsByDeployment[deploymentId] ?? {})) {
+          if (!present.has(step.id) && !changed.has(step.id)) this.deleteStep(step);
+        }
         for (const apiStep of steps) {
           const step = pythonToJavascript(apiStep) as Step;
           if (!changed.has(step.id)) this.addStep(step);

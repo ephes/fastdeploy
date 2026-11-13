@@ -20,6 +20,7 @@ export const useDeployments = defineStore("deployments", {
        */
       deployments: {} as DeploymentById,
       pendingFetches: [] as Set<number>[],
+      pendingStarts: [] as Set<number>[],
       historyIds: [] as number[],
       historyBeforeId: null as number | null,
       historyServiceId: undefined as number | undefined,
@@ -147,6 +148,9 @@ export const useDeployments = defineStore("deployments", {
         // started, but the session it was started in is over
         return null;
       }
+      // A history request already in flight must not delete the new row, but it
+      // may still replace it with the (newer) server state of that row.
+      for (const pending of this.pendingStarts) pending.add(started.id);
       const known = this.deployments[started.id];
       if (known) {
         return known;
@@ -155,7 +159,7 @@ export const useDeployments = defineStore("deployments", {
       return started;
     },
     /** Fetch a bounded history page; only an explicit load-more extends it. */
-    async fetchDeployments(serviceId?: number, loadMore = false) {
+    async fetchDeployments(serviceId?: number, loadMore = false, ownsRefresh: () => boolean = () => true) {
       if (loadMore && (this.historyLoading || !this.historyHasMore)) return;
       const isCurrentSession = rememberSession();
       if (!loadMore) {
@@ -166,9 +170,15 @@ export const useDeployments = defineStore("deployments", {
         this.historyHasMore = true;
       }
       const generation = this.historyGeneration;
-      const isCurrent = () => isCurrentSession() && generation === this.historyGeneration;
+      const ownsHistory = () => isCurrentSession() && generation === this.historyGeneration;
+      const isCurrent = () => ownsHistory() && ownsRefresh();
+      // A refresh that loses its owner after clearing the page must not leave an
+      // empty, idle history behind: show the retry message instead.
+      const historyError = "Could not load deployment history. Try again.";
       const changed = markRaw(new Set<number>());
+      const startedMeanwhile = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
+      this.pendingStarts.push(startedMeanwhile);
       this.historyLoading = true;
       this.historyError = "";
       const params = new URLSearchParams({ limit: "50" });
@@ -176,7 +186,22 @@ export const useDeployments = defineStore("deployments", {
       if (this.historyBeforeId !== null) params.set("before_id", String(this.historyBeforeId));
       try {
         const deployments = await this.client.get<Deployment[]>(`deployments/?${params}`);
-        if (!isCurrent()) return;
+        if (!isCurrent()) {
+          if (ownsHistory()) this.historyError = historyError;
+          return;
+        }
+        const present = new Set(deployments.map(deployment => deployment.id));
+        const oldest = deployments.length === 50 ? deployments[deployments.length - 1].id : 0;
+        const upper = loadMore ? this.historyBeforeId : null;
+        for (const deployment of Object.values(this.deployments)) {
+          if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
+              && deployment.id >= oldest && (upper === null || deployment.id < upper)
+              && !present.has(deployment.id) && !changed.has(deployment.id)
+              && !startedMeanwhile.has(deployment.id)) {
+            delete this.deployments[deployment.id];
+            this.historyIds = this.historyIds.filter(id => id !== deployment.id);
+          }
+        }
         for (const deployment of deployments) {
           if (!changed.has(deployment.id)) {
             this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
@@ -194,10 +219,11 @@ export const useDeployments = defineStore("deployments", {
           this.historyIds = this.historyIds.filter((id) => id >= oldestId);
         }
       } catch {
-        if (isCurrent()) this.historyError = "Could not load deployment history. Try again.";
+        if (ownsHistory()) this.historyError = historyError;
       } finally {
         this.pendingFetches = this.pendingFetches.filter((pending) => pending !== changed);
-        if (isCurrent()) this.historyLoading = false;
+        this.pendingStarts = this.pendingStarts.filter((pending) => pending !== startedMeanwhile);
+        if (ownsHistory()) this.historyLoading = false;
       }
     },
     /**

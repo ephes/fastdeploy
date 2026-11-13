@@ -52,9 +52,10 @@ async def sync_services(
     delete all or more than half of the services and is not forced. Services
     with an active deployment are never deleted, they are reported as skipped.
     """
-    source_services = await views.get_services_from_filesystem(fs)
-    now = datetime.now(timezone.utc)
     async with uow:
+        await uow.services.lock_for_sync()
+        source_services = await views.get_services_from_filesystem(fs)
+        now = datetime.now(timezone.utc)
         target_services = await uow.services.list()
         updated_services, candidates = model.sync_services(source_services, target_services)
         model.check_sync_deletions(source_services, target_services, candidates, command.force)
