@@ -41,7 +41,7 @@ from deploy.service_layer.messagebus import MessageBus
 )
 @pytest.mark.parametrize("fails", [False, True])
 async def test_messagebus_logs_metadata_only(message, fails, caplog):
-    failure = RuntimeError("handler failed")
+    failure = RuntimeError("private-exception-canary SQL parameters secret")
     handler = AsyncMock(side_effect=failure if fails else None, return_value="result")
     # A callable's repr can also hold bound arguments containing secrets.
     handler.__str__ = Mock(return_value="private-handler-payload")
@@ -78,15 +78,16 @@ async def test_messagebus_logs_metadata_only(message, fails, caplog):
             f"id={getattr(message, 'id', None)} "
             f"service_id={getattr(message, 'service_id', None)} "
             f"deployment_id={getattr(message, 'deployment_id', None)}"
+            + (" category=RuntimeError" if record.levelno == logging.ERROR else "")
         )
         assert "private-payload" not in diagnostic
         assert "private-handler-payload" not in diagnostic
     errors = [record for record in records if record.levelno == logging.ERROR]
     assert len(errors) == int(fails)
     if fails:
-        assert errors[0].exc_info[1] is failure
-        assert errors[0].exc_info[2] is not None
-        assert "Traceback" in caplog.text
+        assert errors[0].exc_info is None
+        assert "Traceback" not in caplog.text
+        assert "private-exception-canary" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -100,3 +101,39 @@ async def test_deployed_service_add_emits_no_stdout(capsys):
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_event", [False, True])
+async def test_storage_failure_diagnostics_omit_sql_and_parameters(is_event, caplog):
+    from sqlalchemy.exc import OperationalError
+
+    failure = OperationalError(
+        "private-sql-canary", {"password": "private-param-canary"}, RuntimeError("private-cause-canary")
+    )
+    uow = Mock()
+    uow.collect_new_events.side_effect = failure
+    handler, next_handler = AsyncMock(), AsyncMock()
+    message = (
+        events.ServiceUpdated(id=7, name="synthetic", data={})
+        if is_event
+        else commands.FinishDeployment(deployment_id=41)
+    )
+    bus = MessageBus(
+        fs=Mock(),
+        cm=Mock(),
+        uow=uow,
+        event_handlers={type(message): [handler, next_handler]},
+        command_handlers={type(message): handler},
+    )
+    with caplog.at_level(logging.ERROR, logger="deploy.service_layer.messagebus"):
+        if is_event:
+            await bus.handle(message)
+            next_handler.assert_awaited_once()
+        else:
+            with pytest.raises(OperationalError) as error:
+                await bus.handle(message)
+            assert error.value is failure
+    assert "category=OperationalError" in caplog.text
+    assert "private-" not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)

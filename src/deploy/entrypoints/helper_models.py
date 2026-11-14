@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..bootstrap import get_bus
+from ..domain.model import admitted_step_start
 from ..service_layer.messagebus import MessageBus
 
 
@@ -38,6 +39,11 @@ class StepResult(StepBase):
     started: datetime
     finished: datetime
     message: str = Field(max_length=MAX_STEP_MESSAGE_LENGTH)
+
+    @field_validator("started")
+    @classmethod
+    def validate_started(cls, value: datetime) -> datetime:
+        return admitted_step_start(value)
 
 
 class Deployment(BaseModel):

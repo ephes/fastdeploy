@@ -82,8 +82,9 @@ class AbstractUnitOfWork(abc.ABC):
 
 
 class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
-    def __init__(self, engine, session_factory):
+    def __init__(self, engine, session_factory, *, owns_engine: bool = True):
         self.engine = engine
+        self.owns_engine = owns_engine
         self.session_factory = session_factory
         self.connection = None
 
@@ -109,7 +110,8 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
                 if self.connection is not None:
                     await self.connection.close()
             finally:
-                await self.engine.dispose()
+                if self.owns_engine:
+                    await self.engine.dispose()
 
     async def __aenter__(self):
         self.services = repository.SqlAlchemyServiceRepository(self.session)

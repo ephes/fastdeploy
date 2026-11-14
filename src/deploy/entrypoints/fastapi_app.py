@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from starlette.websockets import WebSocketState
 
 from ..adapters.websocket import connection_manager
+from ..bootstrap import database_lifespan
 from ..config import settings
 from .helper_models import Bus
 from .routers import deployed_services, deployments, services, steps, users
@@ -21,11 +22,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    connection_manager.startup()
-    try:
-        yield
-    finally:
-        await connection_manager.shutdown()
+    async with database_lifespan(_app):
+        connection_manager.startup()
+        try:
+            yield
+        finally:
+            await connection_manager.shutdown()
 
 
 app = FastAPI(lifespan=lifespan)

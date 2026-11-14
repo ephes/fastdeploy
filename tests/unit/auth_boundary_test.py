@@ -146,3 +146,37 @@ async def test_cancellation_holds_capacity_until_real_hash_work_finishes(monkeyp
     assert not login_throttle._attempts[("pair", "user", "first")][0].pending
     assert users.login_capacity.acquire(blocking=False)
     users.login_capacity.release()
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure", "cancel"])
+async def test_login_holds_pair_reservation_across_window(monkeypatch, outcome):
+    from deploy.login_throttle import LoginThrottle
+
+    now = [1000.0]
+    throttle = LoginThrottle(limit=1, address_limit=2, window_seconds=60, clock=lambda: now[0])
+    monkeypatch.setattr(users, "login_throttle", throttle)
+    monkeypatch.setattr(users, "login_capacity", threading.BoundedSemaphore(2))
+    entered, finish = asyncio.Event(), asyncio.Event()
+
+    async def authenticate(*args):
+        entered.set()
+        await finish.wait()
+        if outcome == "failure":
+            raise auth.InvalidCredentials("invalid password")
+        return SimpleNamespace(name="user")
+
+    monkeypatch.setattr(auth, "authenticate_user", authenticate)
+    bus = SimpleNamespace(uow=object())
+    task = asyncio.create_task(users.login_for_access_token(request("same"), credentials(), bus))
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        now[0] += 120
+        with pytest.raises(HTTPException) as refused:
+            await users.login_for_access_token(request("same"), credentials(), bus)
+        assert refused.value.status_code == 429
+    finally:
+        if outcome == "cancel":
+            task.cancel()
+        finish.set()
+        await asyncio.gather(task, return_exceptions=True)
+    assert throttle.retry_after("user", "same") is None

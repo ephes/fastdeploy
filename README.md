@@ -376,3 +376,16 @@ Repositories track pending events by Python object identity, retaining each obje
 once through flush, id assignment and timestamp changes. Equivalent ORM instances
 keep their own event queues. Step and Deployment compare persisted ids, treat
 unsaved instances as distinct, and are unhashable because their identity can change.
+
+
+API lifespan owns one database engine; each request/websocket owns its session.
+Normal serving performs no schema creation. Run the explicit setup CLI before
+first startup; see [resource ownership](docs/architecture.md#bootstrap-resource-ownership).
+Launch admission rechecks service credentials under database locks; changed
+revocation, expiry or issuer authority during a wait returns 401 without a runner.
+JWT identities are checked before storage access; see [authentication](docs/auth.md).
+Step reports require timezone-aware starts within five minutes of server time in
+the future; accepted starts normalize to UTC and finishes remain server-owned.
+Pending login checks retain their pair/address reservations until verification
+settles, even beyond the failure window. Message-bus failure logs contain only
+categories and IDs, without exception messages or tracebacks.

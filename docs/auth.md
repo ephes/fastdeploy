@@ -250,3 +250,33 @@ the service row lock: a racing issuance is either committed before deletion and
 revoked, or refused when its service identity has changed. Legacy tokens without
 `jti` cannot be retired individually; keep their optional migration grace disabled
 when reusing service names.
+
+
+### Launch-time service authority and identity claims
+
+`POST /deployments/` carries its service JWT into admission and checks it again
+after acquiring the service lock. In the same transaction it locks the token
+record, then the issuing user, and checks revocation, record/JWT expiry, current
+user existence and selected service identity. Deletion/sync take service then
+token locks; individual revocation takes only the token lock. The shared user
+lock prevents deletion until admission commits. Changed authority during a wait
+returns 401 without creating deployments, steps or runners. The legacy cutoff
+is rechecked too. Trusted internal StartDeployment callers may omit the JWT;
+the HTTP route always supplies it.
+
+User/service names must be nonblank strings of at most 255 characters without
+NUL. A present `jti` must be a nonblank string of at most 64 characters without
+NUL; explicit null is invalid. A missing `jti` follows the legacy policy. Legacy
+origins may be empty, otherwise obeying the 255-character string/NUL boundary.
+Deployment IDs are JSON integers in 1–2147483647; booleans, floats, numeric
+strings, arrays and objects are invalid. Malformed signed identity claims return
+401 before repository access. Numeric-date compatibility is unchanged.
+
+Pending password work remains counted against its pair/address allowances even
+beyond `LOGIN_FAILURE_WINDOW_SECONDS` or completed-key eviction. Ownership lasts
+until verification settles, including cancellation waiting for the hash thread.
+Completed failures expire according to the original attempt start time. Success
+and discard remove their own reservation; success also clears completed failures
+for its pair, preserving other pending owners. A pending-only limit returns
+`Retry-After: 1` because completion time is unknown. Global admission bounds live
+owners; completed key storage retains its cap, exempting pending keys until settlement.

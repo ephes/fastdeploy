@@ -1,7 +1,7 @@
 import abc
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import events as events_module
 
@@ -238,6 +238,19 @@ class ServiceHasActiveDeployment(Exception):
         super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
 
 
+# Runner clocks may be up to five minutes ahead of the API clock.
+MAX_STEP_FUTURE_SKEW = timedelta(minutes=5)
+
+
+def admitted_step_start(timestamp: datetime) -> datetime:
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        raise ValueError("step started must include a timezone")
+    normalized = timestamp.astimezone(timezone.utc)
+    if normalized > datetime.now(timezone.utc) + MAX_STEP_FUTURE_SKEW:
+        raise ValueError("step started exceeds the five minute future skew limit")
+    return normalized
+
+
 def as_utc(timestamp: datetime) -> datetime:
     """
     A timestamp without a timezone counts as local time, which is also how the
@@ -378,6 +391,8 @@ class Deployment(EventsMixin):
         * Determine which step is now running and add it to the list
           of modified steps, too
         """
+        reported_started = admitted_step_start(step.started) if step.started is not None else None
+
         if step.state not in REPORTED_STEP_STATES:
             raise ValueError("reported step state must be running, success or failure")
 
@@ -395,8 +410,7 @@ class Deployment(EventsMixin):
         # report touched have none) and keeps the reported started timestamp, so
         # name and started identify the report; steps that merely share a name
         # differ in it.
-        if step.started is not None:
-            reported_started = as_utc(step.started)
+        if reported_started is not None:
             for processed_step in steps:
                 if processed_step.finished is None or processed_step.started is None:
                     continue
@@ -405,6 +419,8 @@ class Deployment(EventsMixin):
                 if (processed_step.state, processed_step.message or "") != (step.state, step.message or ""):
                     raise StepReportConflict(deployment_id=self.id, name=step.name)
                 return []
+
+        step.started = reported_started
 
         # find out whether the step is already known
         known_step = None

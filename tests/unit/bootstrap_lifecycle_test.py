@@ -9,7 +9,7 @@ from deploy.service_layer.unit_of_work import SqlAlchemyUnitOfWork
 pytestmark = pytest.mark.asyncio
 
 
-@pytest.mark.parametrize("factory", ["request", "cli", "direct"])
+@pytest.mark.parametrize("factory", ["cli", "direct"])
 @pytest.mark.parametrize("stage", ["connect", "bootstrap"])
 @pytest.mark.parametrize("cleanup_fails", [False, True])
 async def test_startup_failure_closes_owned_resources(monkeypatch, factory, stage, cleanup_fails):
@@ -29,9 +29,7 @@ async def test_startup_failure_closes_owned_resources(monkeypatch, factory, stag
     monkeypatch.setattr(bootstrap, "create_async_engine", Mock(return_value=engine))
     monkeypatch.setattr(bootstrap, "sessionmaker", Mock(return_value=session_factory))
     with pytest.raises(RuntimeError) as caught:
-        if factory == "request":
-            await anext(bootstrap.get_bus())
-        elif factory == "cli":
+        if factory == "cli":
             await bootstrap.get_bus_for_cli()
         else:
             await bootstrap.bootstrap()
@@ -50,16 +48,10 @@ async def test_failed_engine_connect_still_disposes_engine(monkeypatch):
     engine.dispose.assert_awaited_once()
 
 
-async def test_successful_request_closes_on_exit_but_cli_transfers_ownership(monkeypatch):
+async def test_successful_cli_transfers_ownership(monkeypatch):
     uow = SimpleNamespace(close=AsyncMock())
     bus = SimpleNamespace(uow=uow)
     monkeypatch.setattr(bootstrap, "bootstrap", AsyncMock(return_value=bus))
-    request = bootstrap.get_bus()
-    assert await anext(request) is bus
-    uow.close.assert_not_awaited()
-    await request.aclose()
-    uow.close.assert_awaited_once()
-    uow.close.reset_mock()
     assert await bootstrap.get_bus_for_cli() is bus
     uow.close.assert_not_awaited()
 

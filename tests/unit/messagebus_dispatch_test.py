@@ -120,7 +120,9 @@ async def test_event_failure_continues_handlers_and_generated_chain(caplog):
     records = [record for record in caplog.records if record.name == "deploy.service_layer.messagebus"]
     errors = [record for record in records if record.levelno == logging.ERROR]
     assert len(errors) == 1
-    assert errors[0].exc_info[1] is failure
+    assert errors[0].exc_info is None
+    assert "category=RuntimeError" in errors[0].getMessage()
+    assert str(failure) not in caplog.text
     assert "Exception handling event=Followup" in errors[0].getMessage()
     assert all("private-payload" not in record.getMessage() for record in records)
 
@@ -150,7 +152,9 @@ async def test_command_failure_propagates_without_dispatching_generated_events_i
     records = [record for record in caplog.records if record.name == "deploy.service_layer.messagebus"]
     errors = [record for record in records if record.levelno == logging.ERROR]
     assert len(errors) == 1
-    assert errors[0].exc_info[1] is failure
+    assert errors[0].exc_info is None
+    assert "category=RuntimeError" in errors[0].getMessage()
+    assert str(failure) not in caplog.text
     assert "Exception handling command=StartChain" in errors[0].getMessage()
     assert all("private-payload" not in record.getMessage() for record in records)
 

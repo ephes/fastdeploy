@@ -150,6 +150,17 @@ def token_to_payload(token: str):
     return payload
 
 
+def _identity_string(value: object, *, maximum: int = 255, allow_empty: bool = False) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) > maximum
+        or "\x00" in value
+        or (not value.strip() and not (allow_empty and value == ""))
+    ):
+        raise InvalidCredentials("invalid identity claim")
+    return value
+
+
 async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
     """
     Turn a JWT token into a User model.
@@ -159,8 +170,7 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
         raise InvalidCredentials("not an access token")
 
     username = payload.get("user")
-    if username is None:
-        raise InvalidCredentials("no user name")
+    username = _identity_string(username)
 
     return await views.get_user_by_name(username, uow)
 
@@ -274,32 +284,39 @@ async def service_from_token(token: str, uow: AbstractUnitOfWork) -> Service:
     if payload.get("type") != "service":
         raise InvalidCredentials("not a service token")
 
-    servicename = payload.get("service")
-    if servicename is None:
-        raise InvalidCredentials("no service name")
+    async with uow:
+        return await service_from_payload(payload, uow)
 
-    username = payload.get("user")
-    if not username:
-        raise InvalidCredentials("no user name")
 
+async def service_from_payload(payload: dict, uow: AbstractUnitOfWork, *, for_update: bool = False) -> Service:
+    """Validate current authority in the caller's transaction; never open a nested UOW."""
+    servicename = _identity_string(payload.get("service"))
+    username = _identity_string(payload.get("user"))
+    origin = _identity_string(payload.get("origin", ""), allow_empty=True)
     jti = payload.get("jti")
-    if jti is None and not legacy_service_tokens_accepted(datetime.now(timezone.utc)):
+    if "jti" in payload:
+        jti = _identity_string(jti, maximum=64)
+    elif not legacy_service_tokens_accepted(datetime.now(timezone.utc)):
         raise InvalidCredentials("legacy service token without jti is no longer accepted")
 
-    async with uow as uow:
-        if jti is not None:
-            record = await uow.service_tokens.get_by_jti(jti)
-            if record is None:
-                raise InvalidCredentials("unknown service token")
-            if record.revoked:
-                raise InvalidCredentials("service token has been revoked")
-            if record.service != servicename or record.user != username:
-                raise InvalidCredentials("service token does not match its record")
-        # raises if the user who obtained the token has been deleted
-        await uow.users.get(username)
-        service = await uow.services.get_by_name(servicename)
-
-    service.origin = payload.get("origin", "")
+    record = await uow.service_tokens.get_by_jti(jti, for_update=for_update) if jti is not None else None
+    # A shared user row lock prevents deletion until admission commits. Read
+    # the clock after all credential locks, which may have waited for a writer.
+    await uow.users.get(username, for_update=for_update)
+    now = datetime.now(timezone.utc)
+    if jti is not None:
+        if record is None:
+            raise InvalidCredentials("unknown service token")
+        if record.revoked:
+            raise InvalidCredentials("service token has been revoked")
+        if record.expires_at <= now:
+            raise InvalidCredentials("service token has expired")
+        if record.service != servicename or record.user != username:
+            raise InvalidCredentials("service token does not match its record")
+    elif not legacy_service_tokens_accepted(now):
+        raise InvalidCredentials("legacy service token without jti is no longer accepted")
+    service = await uow.services.get_by_name(servicename)
+    service.origin = origin
     service.user = username
     return service
 
@@ -313,8 +330,8 @@ async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployme
         raise InvalidCredentials("not a deployment token")
 
     deployment_id = payload.get("deployment")
-    if deployment_id is None:
-        raise InvalidCredentials("no deployment id")
+    if type(deployment_id) is not int or not 1 <= deployment_id <= 2**31 - 1:
+        raise InvalidCredentials("invalid deployment id")
 
     async with uow as uow:
         deployment = await uow.deployments.get(deployment_id)
