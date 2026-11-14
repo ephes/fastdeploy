@@ -1,4 +1,4 @@
-import { mande, MandeInstance } from "mande";
+import { mande, MandeInstance, Options } from "mande";
 import { useAuth } from "./auth";
 import { useSettings } from "./config";
 
@@ -11,34 +11,52 @@ import { useSettings } from "./config";
 
 export type HttpClient = MandeInstance;
 
-/**
- * Just a dummy function to make the type checker happy. Only
- * get's triggered via tests, because fetch is not available
- * when called from jest.
- *
- * @param input {RequestInfo}
- * @param init {RequestInit | undefined }
- * @returns response { Promise<Response> }
- */
-const dummyFetch = async (
-  input: RequestInfo,
-  init?: RequestInit | undefined
-) => {
-  // just a dummy function because fetch is not
-  // available during tests
-  return new Response();
-};
+/** Whole request budget, including reading/decoding the response body. */
+export const REQUEST_TIMEOUT_MS = 30_000;
 
-/**
- * Use settings from config store and set fetch for tests.
- * Otherwise just mande.
- *
- * @returns client {HttpClient} unauthenticated client
- */
-export const getClientWithoutAuth = ():HttpClient => {
-  const settings = useSettings();
-  const localFetch = typeof fetch != 'undefined' ? fetch : dummyFetch;
-  const client:HttpClient = mande(settings.api, {}, localFetch);
+async function withDeadline<T>(request: (signal: AbortSignal) => Promise<T>, caller?: AbortSignal | null): Promise<T> {
+  if (caller?.aborted) throw caller.reason ?? new DOMException("Request cancelled", "AbortError");
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancel!: () => void;
+  const interrupted = new Promise<never>((_resolve, reject) => {
+    const abort = (reason: unknown) => {
+      // Settle even when a transport does not cooperate with cancellation.
+      reject(reason);
+      controller.abort(reason);
+    };
+    cancel = () => abort(caller?.reason ?? new DOMException("Request cancelled", "AbortError"));
+    caller?.addEventListener("abort", cancel, { once: true });
+    timer = setTimeout(() => abort(new DOMException(
+      "Request timed out. Refresh before retrying a deployment or sync.", "TimeoutError"
+    )), REQUEST_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([interrupted, request(controller.signal)]);
+  } finally {
+    clearTimeout(timer);
+    caller?.removeEventListener("abort", cancel);
+  }
+}
+
+/** Keep mande's public overloads, with a fresh signal and options for each call. */
+export const getClientWithoutAuth = (): HttpClient => {
+  const client = mande(useSettings().api);
+  for (const method of ["get", "delete", "post", "put", "patch"] as const) {
+    const send = client[method].bind(client) as (...args: any[]) => Promise<unknown>;
+    client[method] = ((...args: any[]) => {
+      const hasUrl = typeof args[0] === "string" || typeof args[0] === "number";
+      const reads = method === "get" || method === "delete";
+      const url = hasUrl ? args[0] : "";
+      const data = hasUrl ? args[1] : args[0];
+      const options: Options | undefined = reads
+        ? (hasUrl ? args[1] : args[0])
+        : (hasUrl ? args[2] : args[1]);
+      return withDeadline(signal => reads
+        ? send(url, { ...options, signal })
+        : send(url, data, { ...options, signal }), options?.signal);
+    }) as typeof client[typeof method];
+  }
   return client;
 };
 

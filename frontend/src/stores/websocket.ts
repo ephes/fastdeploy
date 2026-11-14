@@ -1,14 +1,7 @@
-import { stat } from "fs";
 import { defineStore, acceptHMRUpdate } from "pinia";
 
-/**
- *
- * This store holds status information about the websocket connection.
- * Users should be able to see whether the websocket is connected or not.
- */
-export const useWebsocketStore = defineStore("websocket", {
-  state: () => {
-    return {
+function initialState() {
+  return {
       /**
        * Information about the websocket connection status
        * (CLOSED, OPEN, CLOSING, CONNECTING).
@@ -28,9 +21,20 @@ export const useWebsocketStore = defineStore("websocket", {
        * in milliseconds.
        *
        */
+      messageActive: false,
       lastMessageReceived: Date.now() - 5 * 60 * 1000
-    };
-  },
+  };
+}
+
+const activityTimers = new WeakMap<object, ReturnType<typeof setTimeout>>();
+
+/**
+ *
+ * This store holds status information about the websocket connection.
+ * Users should be able to see whether the websocket is connected or not.
+ */
+export const useWebsocketStore = defineStore("websocket", {
+  state: initialState,
   getters: {
     /**
      * Returns whether the websocket is "online"
@@ -48,8 +52,7 @@ export const useWebsocketStore = defineStore("websocket", {
      * @returns {boolean}
      */
      recentlyReceivedMessage: (state): boolean => {
-       const milliSecondsSince = Date.now() - state.lastMessageReceived;
-       return milliSecondsSince < 1000;
+       return state.messageActive;
      }
   },
   actions: {
@@ -65,10 +68,19 @@ export const useWebsocketStore = defineStore("websocket", {
     /**
      * Received a message from the websocket.
      */
-    async receivedMessage() {
+    receivedMessage() {
+      clearTimeout(activityTimers.get(this));
       this.lastMessageReceived = Date.now();
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      this.lastMessageReceived = this.lastMessageReceived - 1000;
+      this.messageActive = true;
+      activityTimers.set(this, setTimeout(() => {
+        activityTimers.delete(this);
+        this.messageActive = false;
+      }, 1000));
+    },
+    $reset() {
+      clearTimeout(activityTimers.get(this));
+      activityTimers.delete(this);
+      this.$patch(initialState());
     }
   },
 });

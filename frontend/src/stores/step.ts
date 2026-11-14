@@ -2,7 +2,7 @@ import { markRaw } from "vue";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
 import { rememberSession } from "./session";
-import { pythonToJavascript } from "../converters";
+import { stepSnapshot } from "../restAdmission";
 import { Step, StepById, Message, Deployment } from "../typings";
 
 /**
@@ -162,14 +162,18 @@ export const useSteps = defineStore("steps", {
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
       try {
-        const steps = await this.client.get<Promise<Object[]>>(url);
+        const response = await this.client.get<unknown>(url);
         if (!isCurrentSession() || !ownsRefresh() || this.fetchGenerations[deploymentId] !== generation) return;
-        const present = new Set(steps.map(apiStep => (apiStep as any).id as number));
+        const steps = stepSnapshot(response, deploymentId);
+        // A step id cannot move between deployments or corrupt another index.
+        if (steps.some(step => this.steps[step.id] && this.steps[step.id].deploymentId !== deploymentId)) {
+          throw new Error("Invalid REST snapshot");
+        }
+        const present = new Set(steps.map(step => step.id));
         for (const step of Object.values(this.stepsByDeployment[deploymentId] ?? {})) {
           if (!present.has(step.id) && !changed.has(step.id)) this.deleteStep(step);
         }
-        for (const apiStep of steps) {
-          const step = pythonToJavascript(apiStep) as Step;
+        for (const step of steps) {
           if (!changed.has(step.id)) this.addStep(step);
         }
       } finally {

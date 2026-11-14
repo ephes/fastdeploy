@@ -315,6 +315,48 @@ class WebSocketClient {
 }
 ```
 
+### Frontend transport lifetime
+
+The websocket activity indicator stays lit for one second after the latest admitted
+message. Each status store owns one replaceable expiry timer, including during
+bursts. Resetting the store (also on logout) cancels that timer; an old session
+cannot expire activity in a later one.
+
+Every frontend HTTP call has a 30-second whole-request deadline, including response
+body reading and decoding. A private AbortController forwards caller cancellation
+to fetch. Both cancellation and deadline expiry settle the call even if the
+transport ignores abort; timers and caller listeners are retired on every outcome.
+Expiry is reported as `TimeoutError`, caller cancellation as `AbortError` (or the
+caller's supplied reason). Store loading flags and pending event fences are then
+released by their existing completion paths. No request is automatically retried.
+A timed-out deployment or service sync may already have reached the server: refresh
+its state before deciding whether to retry.
+
+### REST snapshot admission
+
+Step hydration first builds a complete isolated snapshot. Every row needs a positive
+safe integer id, the requested deployment id, string name/message, one of
+`pending`, `running`, `success`, `failure`, and `started`/`finished` as null or
+parseable ISO datetime strings. Duplicate ids and ids already owned by another
+cached deployment reject the entire response. Only declared fields are copied;
+unknown keys (including object-method names and camel-case aliases) never enter
+the case/date converter. Dates are normalized before any deletion or insertion.
+A rejected response leaves the step map, deployment map and scroll history intact;
+the caller shows the existing retry feedback, and pending event fences are released.
+
+Services likewise require a complete list with unique positive safe integer ids,
+string names and object (non-null, non-array) data. Available names require an
+array of unique strings. Both responses are checked before publication, keep the
+last good state on rejection and use fixed, payload-free request-local error
+messages. Valid snapshots still preserve websocket-touched ids, including deletes.
+
+An optional `deleted` flag on step or service rows must be a boolean, as on the
+websocket. REST and websocket admission share the identifier, timestamp, step-state
+and deletion predicates in `frontend/src/wireValues.ts`, so both paths keep one
+wire contract.
+All admission runs after the existing session/refresh-generation ownership checks;
+obsolete responses cannot publish data or failure feedback over a newer request.
+
 ### Login Session
 
 Everything the web UI holds for a logged-in user belongs to one login session and ends with it
