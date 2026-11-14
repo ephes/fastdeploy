@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Fixed
+- Admit complete step REST snapshots before reconciling any indexes. Reject malformed,
+  duplicate or wrong-deployment rows and project declared fields while preserving live
+  event/session fences and last-good state. Requires a frontend rebuild.
+- Validate service rows and available-name lists before publication; retain last-good
+  state with bounded request-local feedback for invalid responses. Requires a frontend rebuild.
 - Keep websocket activity visible for a full second after the latest message with
   one owned timer; cancel activity expiry on store/session reset. Requires a frontend rebuild.
 - Bound frontend HTTP calls, including response decoding, to 30 seconds. Compose

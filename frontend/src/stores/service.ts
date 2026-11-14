@@ -1,5 +1,6 @@
 import { markRaw } from "vue";
 import { getClient } from "./httpClient";
+import { serviceSnapshot, serviceNamesSnapshot } from "../restAdmission";
 import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
@@ -174,10 +175,10 @@ export const useServices = defineStore("services", {
       this.servicesLoading = true;
       this.servicesError = "";
       try {
-        const services = await this.client.get<ServiceWithId[]>("services/");
+        const services = await this.client.get<unknown>("services/");
         if (!isCurrent()) return;
         const snapshot: ServiceById = {};
-        for (const service of services) {
+        for (const service of Object.values(serviceSnapshot(services))) {
           if (!changed.has(service.id)) snapshot[service.id] = service;
         }
         for (const id of changed) {
@@ -205,8 +206,8 @@ export const useServices = defineStore("services", {
       this.serviceNamesLoading = true;
       this.serviceNamesError = "";
       try {
-        const names = await this.client.get<string[]>("services/names/");
-        if (isCurrent()) this.serviceNames = names;
+        const names = await this.client.get<unknown>("services/names/");
+        if (isCurrent()) this.serviceNames = serviceNamesSnapshot(names);
       } catch {
         if (isCurrent()) this.serviceNamesError = "Could not load service names. Try again.";
       } finally {

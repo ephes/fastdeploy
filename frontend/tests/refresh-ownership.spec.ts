@@ -16,7 +16,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 const service = (id: number, name = `service-${id}`) => ({ id, name, data: {}, type: 'service' as const });
-const apiStep = (id: number) => ({ id, deployment_id: 1, name: `step-${id}`, state: 'running', type: 'step' });
+const apiStep = (id: number) => ({ id, deployment_id: 1, name: `step-${id}`, state: 'running', type: 'step', message: '', started: null, finished: null });
 beforeEach(() => initPinia());
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 

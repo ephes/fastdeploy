@@ -140,9 +140,9 @@ it('ignores an older fetch of the same deployment while retaining other deployme
   const wrapper = page.mount();
   await page.router.push('/deployments/2'); await flushPromises();
   await page.router.push('/deployments/1'); await flushPromises();
-  latest.resolve([{ id: 3, deployment_id: 1, name: 'latest', state: 'success' }]); await flushPromises();
-  second.resolve([{ id: 2, deployment_id: 2, name: 'second-only', state: 'success' }]);
-  first.resolve([{ id: 3, deployment_id: 1, name: 'obsolete', state: 'pending' }]); await flushPromises();
+  latest.resolve([{ id: 3, deployment_id: 1, name: 'latest', state: 'success', message: '', started: null, finished: null }]); await flushPromises();
+  second.resolve([{ id: 2, deployment_id: 2, name: 'second-only', state: 'success', message: '', started: null, finished: null }]);
+  first.resolve([{ id: 3, deployment_id: 1, name: 'obsolete', state: 'pending', message: '', started: null, finished: null }]); await flushPromises();
   expect(wrapper.text()).toContain('latest');
   expect(wrapper.text()).not.toContain('obsolete');
   expect(wrapper.text()).not.toContain('second-only');
