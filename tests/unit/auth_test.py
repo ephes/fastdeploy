@@ -204,7 +204,8 @@ async def test_service_from_token_without_user_is_rejected(service_in_db, uow, m
         settings, "legacy_service_tokens_accepted_until", datetime.now(timezone.utc) + timedelta(days=1)
     )
     token = create_access_token({"type": "service", "service": service_in_db.name}, timedelta(minutes=5))
-    with pytest.raises(ValueError, match="no user name"):
+    # The identity claim shape check refuses the missing user before any lookup.
+    with pytest.raises(ValueError, match="invalid identity claim"):
         await service_from_token(token, uow)
 
 

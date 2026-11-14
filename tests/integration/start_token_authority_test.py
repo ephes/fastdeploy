@@ -37,8 +37,14 @@ async def test_http_start_rechecks_after_waiting_for_service_lock(independent_bu
         await original(self, service_id)
 
     monkeypatch.setattr(repository.SqlAlchemyServiceRepository, "lock_for_deployment", signal_lock)
-    launched = Mock(side_effect=lambda deployment, service: deployment.record(events.DeploymentStarted))
-    monkeypatch.setattr(model.Deployment, "start_deployment_task", launched)
+    launched = Mock()
+
+    def start_task(deployment, service):
+        # A plain function binds like the real method; a class-level Mock would not.
+        launched(service)
+        deployment.record(events.DeploymentStarted)
+
+    monkeypatch.setattr(model.Deployment, "start_deployment_task", start_task)
     previous = app.dependency_overrides.copy()
     app.dependency_overrides[get_bus] = lambda: starter
     try:

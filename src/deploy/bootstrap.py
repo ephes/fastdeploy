@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from starlette.requests import HTTPConnection
 
 from .adapters import filesystem, orm
@@ -89,8 +90,14 @@ def inject_dependencies(handler, dependencies):
 
 @asynccontextmanager
 async def database_lifespan(app):
-    """Own a lazy connection pool for one app lifetime. Serving never creates schema."""
-    engine = create_async_engine(settings.database_url, echo=False)
+    """Own one engine for the app lifetime. Serving never creates schema.
+
+    NullPool keeps the per-request connection behaviour of the former
+    engine-per-request setup: websockets hold their bus connection for their
+    whole lifetime, so a shared bounded pool would let open dashboards or idle
+    unauthenticated sockets starve runner step reports and deployment starts.
+    """
+    engine = create_async_engine(settings.database_url, echo=False, poolclass=NullPool)
     failed = False
     try:
         orm.start_mappers()

@@ -542,7 +542,7 @@ describe('DeploymentStore', () => {
 ## Performance Considerations
 
 ### Database Optimization
-- Connection pooling with asyncpg
+- One shared asyncpg engine per app lifetime; one unpooled connection per request or websocket (see Bootstrap resource ownership)
 - Prepared statements for frequent queries
 - Index optimization for common access patterns
 - Query result caching where appropriate
@@ -570,7 +570,7 @@ describe('DeploymentStore', () => {
 
 ### Current Implementation
 - Async I/O throughout the stack with FastAPI and asyncpg
-- Database connection pooling
+- One shared engine without a connection pool, bounded by PostgreSQL `max_connections`
 - WebSocket connection management
 - Stateless API design allowing multiple instances
 
@@ -582,10 +582,13 @@ describe('DeploymentStore', () => {
 
 ### Bootstrap resource ownership
 
-FastAPI lifespan owns one SQLAlchemy engine/pool and session factory. Each HTTP
+FastAPI lifespan owns one SQLAlchemy engine and session factory. Each HTTP
 request or websocket gets its own UOW, connection and session, closed at dependency
-teardown. Only lifespan shutdown disposes the pool, after draining the connection
-manager. Engine construction is lazy: startup neither checks connectivity nor
+teardown. The engine uses `NullPool`: a websocket keeps its connection for its whole
+lifetime, so a bounded shared pool would let open dashboards or idle unauthenticated
+sockets block runner step reports and deployment starts. Concurrency is bounded by
+PostgreSQL `max_connections`, as with the former engine-per-request setup. Only
+lifespan shutdown disposes the engine, after draining the connection manager. Engine construction is lazy: startup neither checks connectivity nor
 creates schema. Normal serving needs ordinary read/write permissions without
 schema creation privileges.
 

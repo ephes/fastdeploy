@@ -8,7 +8,9 @@ Unreleased
 - Admit timezone-aware step start times with a five-minute future-skew bound;
   normalize starts to UTC while preserving server finish times and retry identity.
 - Share the API database engine for one lifespan, with isolated request sessions
-  and explicit CLI schema setup instead of per-request table creation.
+  and explicit CLI schema setup instead of per-request table creation. The shared
+  engine uses no connection pool (NullPool): each request or websocket still opens
+  its own connection, so long-lived websockets cannot exhaust a shared pool.
 - Remove raw exception messages and tracebacks from message-bus failure logs,
   preserving bounded categories, IDs and command/event outcomes.
 - Keep pending login reservations through window expiry and key pruning until
