@@ -9,6 +9,7 @@ or descendant survives when reading its output stops early.
 import asyncio
 import contextlib
 import os
+import signal
 import sys
 import textwrap
 import time
@@ -344,11 +345,123 @@ async def test_normal_exit_does_not_signal_the_process_group(task, run_child):
         """
     )
 
-    with patch.object(tasks.os, "killpg") as killpg:
+    with patch.object(tasks.os, "killpg", side_effect=ProcessLookupError) as killpg:
         await task.deploy_steps()
 
-    killpg.assert_not_called()
+    assert all(call.args[1] == 0 for call in killpg.call_args_list)
     assert [step["name"] for step in task.client.posted] == ["only"]
+
+
+async def test_successful_leader_drains_owned_descendant_before_finish(task, run_child, tmp_path, monkeypatch):
+    monkeypatch.setattr(tasks, "DEPLOY_STOP_TIMEOUT", 0.3)
+    run_child(
+        """
+        import os, subprocess, sys, time
+        out = sys.argv[1]
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(300)"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        time.sleep(0.2)
+        with open(os.path.join(out, "pids"), "w") as f:
+            f.write(f"{os.getpid()} {child.pid}")
+        """
+    )
+    canary = await real_create_subprocess_exec(
+        sys.executable, "-c", "import time; time.sleep(300)", start_new_session=True
+    )
+    pids = []
+    at_finish = []
+
+    async def finish(self):
+        at_finish.append([is_alive(pid) for pid in read_pids(tmp_path)])
+
+    try:
+        with patch.object(DeployTask, "finish_deployment", finish):
+            await asyncio.wait_for(task.run_deploy(), 5)
+        pids = read_pids(tmp_path)
+        assert at_finish == [[False, False]]
+        assert is_alive(canary.pid)
+    finally:
+        if not pids and (tmp_path / "pids").exists():
+            pids = read_pids(tmp_path)
+        for pid in pids:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(pid, signal.SIGKILL)
+        canary.kill()
+        await canary.wait()
+
+
+async def test_repeated_cancel_keeps_one_cleanup_owner_until_reap(task, run_child, tmp_path, monkeypatch):
+    monkeypatch.setattr(tasks, "DEPLOY_STOP_TIMEOUT", 0.3)
+    seen = run_child(
+        WAITING_CHILD
+        % """import signal
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    open(os.path.join(out, "ready"), "w").close()
+    print("started", flush=True)"""
+    )
+    term_sent = asyncio.Event()
+    real_killpg = os.killpg
+    signals = []
+    cleanup_liveness = []
+    original_cleanup = tasks.SecureConfig.cleanup_config
+
+    def killpg(pgid, sig):
+        if sig:
+            signals.append(sig)
+        real_killpg(pgid, sig)
+        if sig == signal.SIGTERM:
+            term_sent.set()
+
+    def cleanup(config_path):
+        cleanup_liveness.append([is_alive(pid) for pid in pids])
+        return original_cleanup(config_path)
+
+    monkeypatch.setattr(tasks.os, "killpg", killpg)
+    monkeypatch.setattr(tasks.SecureConfig, "cleanup_config", staticmethod(cleanup))
+    running = asyncio.create_task(task.deploy_steps())
+    pids = await wait_for_pids(tmp_path)
+    try:
+
+        async def ready():
+            # The external child's filesystem marker cannot set an asyncio.Event.
+            while not (tmp_path / "ready").exists():  # noqa: ASYNC110
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(ready(), 2)
+        running.cancel("first cancellation")
+        await asyncio.wait_for(term_sent.wait(), 2)
+        running.cancel("second cancellation")
+        await asyncio.sleep(0)
+        running.cancel("third cancellation")
+        with pytest.raises(asyncio.CancelledError, match="first cancellation"):
+            await running
+        assert [pid for pid in pids if is_alive(pid)] == []
+        assert cleanup_liveness == [[False, False]]
+        assert signals == [signal.SIGTERM, signal.SIGKILL]
+        assert len(seen["cleanups"]) == 1
+    finally:
+        for pid in pids:
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(pid, signal.SIGKILL)
+        if not running.done():
+            running.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await running
+
+
+async def test_unconfirmed_group_cleanup_cannot_finish_successfully(task, run_child):
+    run_child("pass")
+    with (
+        patch.object(DeployTask, "stop_deploy_process", return_value=False),
+        patch.object(DeployTask, "finish_deployment") as finish,
+        pytest.raises(RuntimeError, match="cleanup could not be confirmed"),
+    ):
+        await task.run_deploy()
+
+    assert [step["state"] for step in task.client.posted] == ["failure"]
+    finish.assert_awaited_once()
 
 
 # --- the deploy command is an argument list, not a shell command line ---

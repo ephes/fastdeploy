@@ -146,13 +146,20 @@ The deploy task owns the deploy script it starts. The script runs in its own pro
 it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
 U+FFFD (a step result containing them is still reported, with the replacement character; any other such line is
 skipped like every line that is not a step result), and a line longer than 10 MiB is skipped as a whole, up to its
-newline, with one message on the task's stderr. When the task stops reading early (an unexpected error or a cancelled
-task), it sends `SIGTERM` to the script's process group and waits up to 10 seconds for every member of the group to
-exit, not only the script itself. Members that are still alive then get `SIGKILL`. Only after that does the task
-remove the config file and report the failure. Limit: the task runs as the `fastdeploy` user and can only signal
-processes it is allowed to signal. A script started through `sudo -u deploy` runs as another user, so the signal may
-be refused (this is logged to the task's stderr, and the task does not wait); such a script then ends when it next
-writes to its closed output pipe, which happens as soon as the deploy task exits.
+newline, with one message on the task's stderr. On every exit path, including a successful leader exit, the task
+checks its owned group. Remaining descendants receive `SIGTERM`, with up to 10 seconds to exit, then `SIGKILL`
+with another 10-second wait. Reaping the leader has a separate 10-second limit. A foreground script whose group
+has already exited receives no termination signal. Services must start through a service manager or deliberately
+detach into a separate session; background processes left in the script's group are owned by the runner even
+when they close stdout. Unrelated process groups are never signalled.
+
+One shielded cleanup task owns this sequence through repeated cancellation. The config is retired only after
+cleanup settles, then the original error or cancellation is propagated. Only confirmed group exit and leader
+reaping permit a successful outcome. Permission errors, an unconfirmed group exit or a reap timeout are logged;
+on an otherwise successful run they cause failure. The config is still retired after this bounded, unconfirmed
+outcome. Limit: the `fastdeploy` user can only signal processes it has permission to signal, including scripts
+started through `sudo -u deploy`. An unconfirmed cleanup is not proof that those processes stopped; operators
+must investigate the runner's stderr diagnostics before recovery.
 
 The deploy task (the detached `python -m deploy.tasks` process that runs the deploy script) reports each step to
 `POST /steps/` and finally calls `PUT /deployments/finish/`. Scripts report a step with the state
@@ -160,6 +167,12 @@ The deploy task (the detached `python -m deploy.tasks` process that runs the dep
 every named JSON line as a report and does not filter states: a line with any other state, or without
 `state` (which defaults to `pending`), receives a non-retried 422 and a dropped-step stderr
 diagnostic, and changes nothing.
+JSON members must be unique at every depth. Records may contain at most 64 nested object/array levels;
+nonfinite numbers and integers beyond the interpreter's digit limit are refused. Duplicate members, excessive
+nesting, numeric/resource decoder errors and malformed lines beginning with `{` or `[` are invalid protocol
+evidence, logged without their values. The runner drains later lines and preserves a nonzero script exit as
+the primary failure, but even an exit-zero script cannot succeed after invalid protocol evidence. Ordinary
+non-JSON console lines and valid non-object JSON remain skippable.
 Each report/finish attempt streams at most 4096 response wire bytes and has a
 10-second elapsed budget covering headers, body and closure. Success bodies are discarded without
 decoding or logging them; error statuses are checked immediately without reading bodies,
@@ -179,8 +192,11 @@ has seven waits totalling 1270 seconds, plus the bounded response attempts; the
 deployment runtime deadline still caps reporting while its script runs. A retried step report
 that the API had already processed (only the response was lost) is recognized by its name and started timestamp and
 changes nothing. `4xx` responses are not
-retried. A step that still cannot be reported is dropped and logged to the task's stderr (the fastdeploy service
-journal), and the task keeps reading the deploy script output; lines that are not a JSON object with a `name` are
+retried. A step that still cannot be reported is logged to the task's stderr (the fastdeploy service
+journal), and the task keeps reading the deploy script output. Any unacknowledged report, including a local
+report-construction failure, makes the run incomplete even if the script exits zero: it must report an accepted
+`failed step` before calling finish. A later accepted ordinary step does not erase earlier report loss.
+Lines that are not a JSON object with a `name` are
 skipped. A JSON object without a `name` is logged to the task's stderr with its size and up to 10 shortened keys,
 never its values. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
 deployment is finished afterwards; if finishing fails after a failed deploy, the original error is kept. If the failed
