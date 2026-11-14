@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import NoResultFound
 
-from .. import views
+from .. import auth, views
 from ..adapters.filesystem import AbstractFilesystem
 from ..domain import commands, events, model
 from ..service_layer.unit_of_work import AbstractUnitOfWork
@@ -272,6 +272,18 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
         # the commit below, which also makes the new deployment visible.
         await uow.services.lock_for_deployment(command.service_id)
         service = await uow.services.get(command.service_id)
+        if command.service_token is not None:
+            try:
+                payload = auth.token_to_payload(command.service_token)
+                if payload.get("type") != "service":
+                    raise auth.InvalidCredentials("not a service token")
+                current = await auth.service_from_payload(payload, uow, for_update=True)
+                auth.token_to_payload(command.service_token)  # expiry after credential lock waits
+                if current.id != command.service_id:
+                    raise auth.InvalidCredentials("service changed")
+                command.user, command.origin = current.user, current.origin
+            except NoResultFound:
+                raise auth.InvalidCredentials("credential owner no longer exists") from None
         await finish_orphans_or_raise_if_running(command.service_id, uow)
 
         # Plan inside this transaction: the public planning view opens its own

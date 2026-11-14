@@ -66,13 +66,14 @@ class MessageBus:
                 )
                 await handler(event)
                 self.queue.extend(self.uow.collect_new_events())
-            except Exception:
-                logger.exception(
-                    "Exception handling event=%s id=%s service_id=%s deployment_id=%s",
+            except Exception as exc:
+                logger.error(
+                    "Exception handling event=%s id=%s service_id=%s deployment_id=%s category=%s",
                     type(event).__name__,
                     getattr(event, "id", None),
                     getattr(event, "service_id", None),
                     getattr(event, "deployment_id", None),
+                    type(exc).__name__[:100],
                 )
                 continue
 
@@ -89,12 +90,13 @@ class MessageBus:
             result = await handler(command)
             self.queue.extend(self.uow.collect_new_events())
             return result
-        except Exception:
-            logger.exception(
-                "Exception handling command=%s id=%s service_id=%s deployment_id=%s",
+        except Exception as exc:
+            logger.error(
+                "Exception handling command=%s id=%s service_id=%s deployment_id=%s category=%s",
                 type(command).__name__,
                 getattr(command, "id", None),
                 getattr(command, "service_id", None),
                 getattr(command, "deployment_id", None),
+                type(exc).__name__[:100],
             )
             raise

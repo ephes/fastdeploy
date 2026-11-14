@@ -316,3 +316,49 @@ async def test_get_steps_by_deployment_unknown_deployment(app, valid_access_toke
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Deployment not found"}
+
+
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize("started", ["2026-01-01T12:00:00", "2999-01-01T12:00:00Z"])
+async def test_report_time_refused_before_steps_or_events(app, uow, publisher, valid_deploy_token_in_db, started):
+    payload = {
+        "name": "synthetic",
+        "state": "success",
+        "started": started,
+        "finished": "2026-01-01T12:00:00Z",
+        "message": "",
+    }
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/steps/", json=payload, headers={"Authorization": f"Bearer {valid_deploy_token_in_db}"}
+        )
+    assert response.status_code == 422
+    assert publisher.events == []
+    async with uow:
+        assert await uow.steps.list() == []
+
+
+@pytest.mark.db("in_memory")
+async def test_offset_start_retry_keeps_utc_identity_and_server_finish(app, uow, publisher, valid_deploy_token_in_db):
+    started = datetime.now(timezone(timedelta(hours=3))) - timedelta(minutes=1)
+    payload = {
+        "name": "synthetic",
+        "state": "success",
+        "started": started.isoformat(),
+        "finished": (started + timedelta(days=1)).isoformat(),
+        "message": "done",
+    }
+    headers = {"Authorization": f"Bearer {valid_deploy_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        first = await client.post("/steps/", json=payload, headers=headers)
+        events_after_first = len(publisher.events)
+        retry = await client.post(
+            "/steps/", json=payload | {"started": started.astimezone(timezone.utc).isoformat()}, headers=headers
+        )
+    assert first.status_code == retry.status_code == 200
+    assert len(publisher.events) == events_after_first
+    async with uow:
+        [saved] = await uow.steps.list()
+        assert saved.started == started
+        assert saved.started.tzinfo is timezone.utc
+        assert started < saved.finished <= datetime.now(timezone.utc)

@@ -2,6 +2,19 @@ Unreleased
 ==========
 
 ### Fixed
+- Revalidate service JWTs under launch admission locks, including revocation,
+  record/JWT expiry, issuer existence and legacy cutoff, before creating a run.
+- Refuse malformed JWT identity claims before repository access with 401.
+- Admit timezone-aware step start times with a five-minute future-skew bound;
+  normalize starts to UTC while preserving server finish times and retry identity.
+- Share the API database engine for one lifespan, with isolated request sessions
+  and explicit CLI schema setup instead of per-request table creation. The shared
+  engine uses no connection pool (NullPool): each request or websocket still opens
+  its own connection, so long-lived websockets cannot exhaust a shared pool.
+- Remove raw exception messages and tracebacks from message-bus failure logs,
+  preserving bounded categories, IDs and command/event outcomes.
+- Keep pending login reservations through window expiry and key pruning until
+  verification settles, including cancellation waiting for hash work.
 - Upgrade soupsieve 2.9 to 4.1 for CVE-2026-126190 and related selector denial-of-service
   advisories, with beautifulsoup4 4.14.2 to 4.15.0. Require Python 3.11.5+ to support
   soupsieve's regular-expression implementation; refresh the frozen uv lock.

@@ -45,6 +45,8 @@ class FinishOrphanedDeployment(Command):
 
 
 class StartDeployment(Command):
+    # None is reserved for trusted internal callers; HTTP always supplies its JWT.
+    service_token: str | None = None
     service_id: int
     user: str
     origin: str

@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -34,7 +35,10 @@ async def test_rollback_failure_preserves_primary_and_request_cleanup(monkeypatc
 
     bus.command_handlers[commands.SyncServices] = failing_handler
     monkeypatch.setattr(bootstrap_module, "bootstrap", AsyncMock(return_value=bus))
-    request = bootstrap_module.get_bus()
+    uow.owns_engine = False
+    monkeypatch.setattr(bootstrap_module.unit_of_work, "SqlAlchemyUnitOfWork", Mock(return_value=uow))
+    state = SimpleNamespace(database_engine=engine, database_session_factory=lambda bind: session)
+    request = bootstrap_module.get_bus(SimpleNamespace(app=SimpleNamespace(state=state)))
     assert await anext(request) is bus
     try:
         with (
@@ -60,4 +64,4 @@ async def test_rollback_failure_preserves_primary_and_request_cleanup(monkeypatc
     session.rollback.assert_awaited_once()
     session.close.assert_awaited_once()
     connection.close.assert_awaited_once()
-    engine.dispose.assert_awaited_once()
+    engine.dispose.assert_not_awaited()

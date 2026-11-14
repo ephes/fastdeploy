@@ -343,12 +343,13 @@ async def test_planned_steps_without_a_report_are_not_taken_for_processed_report
     assert (build.state, build.message) == ("success", "built")
 
 
-async def test_repeated_report_matches_timestamp_without_timezone():
-    """A timestamp without timezone is stored as local time and reloaded with a timezone."""
+async def test_repeated_report_refuses_timestamp_without_timezone():
+    """Legacy persisted timestamps do not allow new reports without a timezone."""
     deployment = make_running_deployment([])
     naive = datetime(2026, 1, 2, 3, 4, 5, 678, tzinfo=timezone.utc).replace(tzinfo=None)
-    stored = make_report("build", naive.astimezone(timezone.utc))
+    stored = make_report("build", naive.replace(tzinfo=timezone.utc))
     stored.finished = datetime.now(timezone.utc)
     deployment.steps = [stored]
 
-    assert deployment.process_step(make_report("build", naive)) == []
+    with pytest.raises(ValueError, match="timezone"):
+        deployment.process_step(make_report("build", naive))

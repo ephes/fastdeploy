@@ -1,14 +1,18 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from jwt import InvalidTokenError
 from sqlalchemy.exc import NoResultFound
 
 from ... import views
+from ...auth import InvalidCredentials
 from ...config import settings
 from ...domain import commands, events, model
 from ...restore import validate_restore_context
 from ...tasks import DeploymentContext
 from ..dependencies import (
+    CREDENTIALS_EXCEPTION,
+    OAUTH2_SCHEME,
     get_current_active_deployment,
     get_current_active_service,
     get_current_active_user,
@@ -122,6 +126,7 @@ async def finish_deployment(
 )
 async def start_deployment(
     request: Request,
+    token: str = Depends(OAUTH2_SCHEME),
     context: DeploymentContext = DeploymentContext(env={}),  # noqa: B008 -- FastAPI copies body defaults per request
     service: model.Service = Depends(get_current_active_service),
     bus: Bus = Depends(),
@@ -173,10 +178,16 @@ async def start_deployment(
     bus.event_handlers[events.DeploymentStarted].append(handle_deployment_started)
 
     cmd = commands.StartDeployment(
-        service_id=service.id, origin=service.origin, user=service.user, context=context.model_dump()
+        service_id=service.id,
+        origin=service.origin,
+        user=service.user,
+        context=context.model_dump(),
+        service_token=token,
     )
     try:
         await bus.handle(cmd)
+    except (InvalidCredentials, InvalidTokenError):
+        raise CREDENTIALS_EXCEPTION from None
     except model.DeploymentAlreadyRunning as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

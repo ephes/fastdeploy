@@ -486,8 +486,10 @@ Event publication diagnostics at INFO contain only the event class and its `id`,
 are omitted from these logs and the publisher emits no stdout output. Authorized websocket delivery
 keeps the full event payload. Enable INFO logging to see these diagnostics. Message-bus DEBUG and
 handler failure logs also include only the message class and these identifiers (absent ids are
-`None`), without message or handler reprs. Failure logs retain the traceback; exception messages
-may still contain details supplied by a handler. Deployed-service insertion emits no stdout output.
+`None`), without message or handler reprs. Message-bus failures add the exception
+class (at most 100 characters), without exception text, SQL parameters or tracebacks.
+Command exceptions still propagate; failed event handlers remain isolated so later
+handlers run. Deployed-service insertion emits no stdout output.
 
 ## Authentication Summary
 
@@ -564,3 +566,15 @@ deletion after that lookup can instead fail the transaction with 500. Unexpected
 or storage failures return a generic 500, never backend exception details. A 500
 is not confirmation that the mutation succeeded: inspect deployment history before
 retrying a start, since a response can be lost after a commit.
+
+
+### Report timestamp admission
+
+Step reports require `started` with an explicit timezone offset. The API accepts
+at most five minutes of future clock skew, normalizes accepted starts to UTC,
+and refuses naive or later timestamps with 422 before creating steps or events.
+The domain boundary applies the same rule to supplied start times. Correct the
+runner clock/offset before retrying; timestamps are never silently repaired.
+Persisted `finished` times remain server-owned. Offset-equivalent starts identify
+the same report, so valid retries remain idempotent. The skew allowance does not
+replace server finish times or the activity/reconciliation clock.

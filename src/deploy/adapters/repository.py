@@ -144,7 +144,7 @@ class AbstractUserRepository(abc.ABC):
         self.seen[id(user)] = user
 
     @abc.abstractmethod
-    async def get(self, name) -> model.User:
+    async def get(self, name, for_update: bool = False) -> model.User:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -160,8 +160,10 @@ class SqlAlchemyUserRepository(AbstractUserRepository):
     async def _add(self, user):
         self.session.add(user)
 
-    async def get(self, name):
+    async def get(self, name, for_update: bool = False):
         stmt = select(model.User).where(model.User.name == name)
+        if for_update:
+            stmt = stmt.with_for_update(read=True).execution_options(populate_existing=True)
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
@@ -179,7 +181,7 @@ class InMemoryUserRepository(AbstractUserRepository):
         self._users.append(user)
         user.id = len(self._users)
 
-    async def get(self, name):
+    async def get(self, name, for_update: bool = False):  # noqa: ARG002 -- no locks in memory
         for user in self._users:
             if user.name == name:
                 return user
@@ -636,7 +638,7 @@ class SqlAlchemyServiceTokenRepository(AbstractServiceTokenRepository):
     async def get_by_jti(self, jti, for_update=False):
         stmt = select(model.ServiceToken).where(model.ServiceToken.jti == jti)
         if for_update:
-            stmt = stmt.with_for_update()
+            stmt = stmt.with_for_update().execution_options(populate_existing=True)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

@@ -1,10 +1,13 @@
 import inspect
 import logging
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
+from starlette.requests import HTTPConnection
 
 from .adapters import filesystem, orm
 from .adapters.notifications import AbstractNotifications, EmailNotifications
@@ -85,14 +88,59 @@ def inject_dependencies(handler, dependencies):
     return lambda message: handler(message, **deps)
 
 
-async def get_bus():
-    # bootstrap owns resources until successful construction; the request then
-    # owns the returned bus until dependency teardown.
-    bus = await bootstrap()
+@asynccontextmanager
+async def database_lifespan(app):
+    """Own one engine for the app lifetime. Serving never creates schema.
+
+    NullPool keeps the per-request connection behaviour of the former
+    engine-per-request setup: websockets hold their bus connection for their
+    whole lifetime, so a shared bounded pool would let open dashboards or idle
+    unauthenticated sockets starve runner step reports and deployment starts.
+    """
+    engine = create_async_engine(settings.database_url, echo=False, poolclass=NullPool)
+    failed = False
     try:
-        yield bus
+        orm.start_mappers()
+        app.state.database_session_factory = sessionmaker(class_=AsyncSession, expire_on_commit=False)
+        app.state.database_engine = engine
+        yield
+    except BaseException:
+        failed = True
+        raise
     finally:
-        await bus.uow.close()
+        app.state.database_engine = None
+        app.state.database_session_factory = None
+        try:
+            await engine.dispose()
+        except BaseException as cleanup_error:
+            if not failed:
+                raise
+            logger.error("database_cleanup_failed category=%s", type(cleanup_error).__name__[:100])
+
+
+async def get_bus(connection: HTTPConnection):
+    # HTTP and websocket requests each own their UOW/connection/session, while
+    # only the app lifespan owns disposal of the shared engine.
+    uow = unit_of_work.SqlAlchemyUnitOfWork(
+        connection.app.state.database_engine,
+        connection.app.state.database_session_factory,
+        owns_engine=False,
+    )
+    failed = False
+    try:
+        await uow.connect()
+        bus = await bootstrap(uow=uow, start_orm=False, create_db_and_tables=False)
+        yield bus
+    except BaseException:
+        failed = True
+        raise
+    finally:
+        try:
+            await uow.close()
+        except BaseException as cleanup_error:
+            if not failed:
+                raise
+            logger.error("request_cleanup_failed category=%s", type(cleanup_error).__name__[:100])
 
 
 async def get_bus_for_cli():

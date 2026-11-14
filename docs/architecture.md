@@ -542,7 +542,7 @@ describe('DeploymentStore', () => {
 ## Performance Considerations
 
 ### Database Optimization
-- Connection pooling with asyncpg
+- One shared asyncpg engine per app lifetime; one unpooled connection per request or websocket (see Bootstrap resource ownership)
 - Prepared statements for frequent queries
 - Index optimization for common access patterns
 - Query result caching where appropriate
@@ -570,7 +570,7 @@ describe('DeploymentStore', () => {
 
 ### Current Implementation
 - Async I/O throughout the stack with FastAPI and asyncpg
-- Database connection pooling
+- One shared engine without a connection pool, bounded by PostgreSQL `max_connections`
 - WebSocket connection management
 - Stateless API design allowing multiple instances
 
@@ -582,16 +582,29 @@ describe('DeploymentStore', () => {
 
 ### Bootstrap resource ownership
 
-Bootstrap closes its internally allocated unit of work if connection, mapper,
-schema or bus construction fails, including partially initialized connections.
-Cleanup attempts session, connection and engine teardown even if an earlier close
-fails; a startup failure remains the primary exception if cleanup also fails.
-A supplied unit of work stays owned by the caller. After successful construction,
-HTTP dependency teardown closes the bus; CLI callers must close `bus.uow`.
+FastAPI lifespan owns one SQLAlchemy engine and session factory. Each HTTP
+request or websocket gets its own UOW, connection and session, closed at dependency
+teardown. The engine uses `NullPool`: a websocket keeps its connection for its whole
+lifetime, so a bounded shared pool would let open dashboards or idle unauthenticated
+sockets block runner step reports and deployment starts. Concurrency is bounded by
+PostgreSQL `max_connections`, as with the former engine-per-request setup. Only
+lifespan shutdown disposes the engine, after draining the connection manager. Engine construction is lazy: startup neither checks connectivity nor
+creates schema. Normal serving needs ordinary read/write permissions without
+schema creation privileges.
+
+Initialize the database explicitly before serving with the existing setup CLI:
+`uv run python commands.py createuser` creates tables before creating the first
+user. CLI/bootstrap callers retain a separate engine and their existing explicit
+`create_db_and_tables` policy; successful CLI callers must close `bus.uow`.
+Bootstrap closes internally allocated resources on connection, mapper, schema or
+bus construction failure. A supplied UOW stays owned by its caller. Request
+startup failure closes partial sessions/connections; lifespan startup failure
+disposes its engine. Cleanup does not replace the initiating failure.
 
 A UOW exit always attempts rollback. If a handler, commit or cancellation is
 already failing, an ordinary rollback failure is logged once as `uow_rollback_failed` with
 only its exception category (at most 100 characters); the initiating exception
 continues to the caller. With no initiating failure, the rollback error propagates.
 Cancellation or process-exit signals raised during rollback propagate directly.
-Request teardown still attempts session, connection and engine closure.
+Request teardown still attempts session and connection closure; CLI-owned UOWs
+also dispose their engine.

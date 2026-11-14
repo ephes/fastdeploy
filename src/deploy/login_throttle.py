@@ -81,7 +81,7 @@ class LoginThrottle:
 
     def _recent(self, key: Key, now: float) -> list[Attempt]:
         cutoff = now - self.window_seconds
-        recent = [attempt for attempt in self._attempts.get(key, []) if attempt.stamp > cutoff]
+        recent = [attempt for attempt in self._attempts.get(key, []) if attempt.pending or attempt.stamp > cutoff]
         self._store(key, recent)
         return recent
 
@@ -91,7 +91,10 @@ class LoginThrottle:
         overflow = len(self._attempts) - self.max_tracked_keys
         if overflow > 0:
             # drop the keys whose newest attempt is oldest, they are the closest to expiring anyway
-            by_age = sorted(self._attempts, key=lambda key: self._attempts[key][-1].stamp)
+            by_age = sorted(
+                (key for key, attempts in self._attempts.items() if not any(a.pending for a in attempts)),
+                key=lambda key: self._attempts[key][-1].stamp,
+            )
             for key in by_age[:overflow]:
                 self._attempts.pop(key, None)
 
@@ -107,7 +110,11 @@ class LoginThrottle:
             recent = self._recent(key, now)
             if limit > 0 and len(recent) >= limit:
                 # allowed again when enough of the oldest counted attempts left the window
-                waits.append(recent[len(recent) - limit].stamp + self.window_seconds - now)
+                # Pending work has no known completion deadline; ask the client
+                # to retry in one second when it alone occupies the allowance.
+                completed = sorted(a.stamp + self.window_seconds - now for a in recent if not a.pending)
+                releases_needed = len(recent) - limit + 1
+                waits.append(completed[releases_needed - 1] if len(completed) >= releases_needed else 1)
         if not waits:
             return None
         return max(1, math.ceil(max(waits)))
@@ -126,8 +133,10 @@ class LoginThrottle:
         for key, limit in ((pair_key, self.limit), (address_key, self.address_limit)):
             recent = self._recent(key, now)
             recent.append(attempt)
-            # no need to keep more attempts than the limit can ever look at
-            self._store(key, recent[-max(limit, 1) :])
+            # Bound completed history without dropping any pending owner.
+            pending = [a for a in recent if a.pending]
+            completed = sorted((a for a in recent if not a.pending), key=lambda a: a.stamp)
+            self._store(key, completed[-max(limit, 1) :] + pending)
         if len(self._attempts) > self.max_tracked_keys:
             self._prune(now)
         return attempt

@@ -176,3 +176,31 @@ def test_defaults_come_from_the_settings(monkeypatch):
     monkeypatch.setattr(settings, "login_failure_limit", 2)
     fail(throttle, times=2)
     assert throttle.retry_after("user", "10.0.0.1") is not None
+
+
+def test_pending_reservation_survives_window_until_owner_settles():
+    for outcome in ("success", "failure", "discard"):
+        throttle, clock = make(limit=1, address_limit=1)
+        attempt = throttle.begin_attempt("user", "10.0.0.1")
+        clock.now += 120
+        assert throttle.retry_after("user", "10.0.0.1") is not None
+        assert throttle.retry_after("other", "10.0.0.1") is not None
+        assert throttle.retry_after("user", "10.0.0.2") is None
+        if outcome == "success":
+            throttle.record_success(attempt)
+        elif outcome == "failure":
+            throttle.record_failure(attempt)
+        else:
+            throttle.discard_attempt(attempt)
+        assert throttle.retry_after("user", "10.0.0.1") is None
+
+
+def test_key_pressure_never_evicts_pending_owners():
+    throttle, clock = make(limit=1, address_limit=1, max_tracked_keys=2)
+    pending = throttle.begin_attempt("user", "10.0.0.1")
+    for index in range(5):
+        clock.now += 120
+        fail(throttle, username=f"other{index}", address=f"10.0.0.{index + 2}")
+    assert throttle.retry_after("user", "10.0.0.1") is not None
+    throttle.discard_attempt(pending)
+    assert throttle.retry_after("user", "10.0.0.1") is None
