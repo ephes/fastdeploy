@@ -95,7 +95,7 @@ async def test_runtime_expiry_cleans_group_and_config_before_failure_report(task
     assert b"runtime limit of 0.03 seconds" in requests[0].content
 
 
-async def test_timely_process_succeeds_without_termination(task, monkeypatch, tmp_path):
+async def test_timely_process_succeeds_with_confirmed_cleanup(task, monkeypatch, tmp_path):
     class Process:
         @property
         def stdout(self):
@@ -111,9 +111,9 @@ async def test_timely_process_succeeds_without_termination(task, monkeypatch, tm
         return Process()
 
     monkeypatch.setattr(tasks.asyncio, "create_subprocess_exec", spawn)
-    with patch.object(DeployTask, "stop_deploy_process") as stop:
+    with patch.object(DeployTask, "stop_deploy_process", return_value=True) as stop:
         await task.deploy_steps()
-    stop.assert_not_called()
+    stop.assert_awaited_once()
     assert not list(tmp_path.glob("*.json"))
 
 

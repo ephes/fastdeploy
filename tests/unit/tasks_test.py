@@ -77,6 +77,7 @@ class Subprocess:
 class DeployProc:
     PIPE = None
     STDOUT = None
+    pid = 2**30  # outside the OS pid range: this fake never owns a real group
 
     def __init__(
         self,
@@ -307,7 +308,10 @@ async def test_deploy_steps_keeps_draining_stdout_after_failed_post(task_kwargs,
     stdout_lines = [{"name": "step1"}, {"name": "step2"}, {"name": "step3"}, None]
     proc = DeployProc(stdout_lines)
 
-    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec):
+    with (
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
+        pytest.raises(RuntimeError, match="unacknowledged step reports"),
+    ):
         await task.deploy_steps()
 
     assert proc._lines_read == 3
@@ -339,7 +343,8 @@ async def test_deploy_steps_keeps_draining_stdout_after_invalid_step(task, capsy
 
     with (
         patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
-        patch.object(DeployTask, "finish_step", side_effect=[ValueError("boom"), None]) as finish_step,
+        patch.object(DeployTask, "finish_step", side_effect=[ValueError("boom"), True]) as finish_step,
+        pytest.raises(RuntimeError, match="unacknowledged step reports"),
     ):
         await task.deploy_steps()
 
@@ -469,3 +474,106 @@ async def test_finish_step_coerces_error_message_to_text(error_message, expected
     await task.finish_step({"name": "foo", "state": "failure", "error_message": error_message})
 
     assert task.client.post_calls[0]["message"] == expected
+
+
+class RawDeployProc(DeployProc):
+    async def readline(self):
+        return self._stdout_lines.pop(0)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        b'{"name":"hidden failure","state":"failure","state":"success"}',
+        b'{"name":"hidden failure","name":"other","state":"success"}',
+        b'{"name":"bad","misc":{"secret":1,"secret":2}}',
+        b'{"name":"bad","misc":' + b"[" * 20000 + b"0" + b"]" * 20000 + b"}",
+        b'{"name":"bad","misc":' + b"9" * 10000 + b"}",
+        b'{"name":"bad","misc":NaN}',
+        b'{"name":"bad","misc":1e9999}',
+        b'{"name":"bad",',
+        b'  { "name": "bad", "state": ',
+    ],
+    ids=["state", "name", "nested-duplicate", "depth", "integer", "nan", "float-overflow", "syntax", "spaced-syntax"],
+)
+@pytest.mark.parametrize("returncode", [0, 3])
+async def test_invalid_protocol_drains_later_steps_but_prevents_green_completion(task, invalid, capsys, returncode):
+    proc = RawDeployProc([invalid, b'{"name":"after","state":"success"}', b""], returncode=returncode)
+    with (
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
+        patch.object(DeployTask, "finish_deployment") as finish,
+        pytest.raises(RuntimeError, match="exited with code 3" if returncode else "invalid runner protocol"),
+    ):
+        await task.run_deploy()
+
+    assert [step["name"] for step in task.client.post_calls] == ["after", "failed step"]
+    assert task.client.post_calls[-1]["state"] == "failure"
+    if returncode:
+        assert "exited with code 3" in task.client.post_calls[-1]["message"]
+    finish.assert_awaited_once()
+    assert "invalid runner protocol" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("failure_accepted", [True, False])
+async def test_lost_report_with_exit_zero_requires_accepted_failure(task_kwargs, failure_accepted):
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        if request.method == "POST":
+            report = json.loads(request.content)
+            if report["name"] == "lost" or (report["name"] == "failed step" and not failure_accepted):
+                return httpx.Response(503)
+        return httpx.Response(200, stream=httpx.ByteStream(b""))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        task = make_task(
+            task_kwargs
+            | {
+                "sleep_on_fail": 0,
+                "steps_url": "http://test/steps",
+                "deployment_finish_url": "http://test/finish",
+            },
+            client,
+        )
+        proc = DeployProc([{"name": "lost", "state": "failure"}, {"name": "after", "state": "success"}, None])
+        with (
+            patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
+            pytest.raises(RuntimeError, match="unacknowledged step reports"),
+        ):
+            await task.run_deploy()
+
+    posts = [json.loads(r.content) for r in requests if r.method == "POST"]
+    assert [p["name"] for p in posts[: task.attempts]] == ["lost"] * task.attempts
+    assert posts[task.attempts]["name"] == "after"
+    assert posts[-1]["name"] == "failed step"
+    assert posts[-1]["state"] == "failure"
+    assert sum(r.method == "PUT" for r in requests) == int(failure_accepted)
+    # Every retry retains the same identity for the API's existing replay guard.
+    assert all(p == posts[0] for p in posts[: task.attempts])
+
+
+@pytest.mark.parametrize(
+    "console",
+    [
+        b"[WARNING]: Platform linux on host web is using the discovered Python interpreter",
+        b"[DEPRECATION WARNING]: something is deprecated",
+        b"[2026-11-14 10:00] [INFO] starting",
+        b"{",
+        b"[",
+        b"{not json",
+        b"[1, 2,",
+    ],
+    ids=["ansible-warning", "deprecation", "log-prefix", "bare-brace", "bare-bracket", "brace-text", "array"],
+)
+async def test_bracket_prefixed_console_output_keeps_exit_zero_run_green(task, console, capsys):
+    proc = RawDeployProc([console, b'{"name":"after","state":"success"}', b""], returncode=0)
+    with (
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
+        patch.object(DeployTask, "finish_deployment") as finish,
+    ):
+        await task.run_deploy()
+
+    assert [step["name"] for step in task.client.post_calls] == ["after"]
+    finish.assert_awaited_once()
+    assert "invalid runner protocol" not in capsys.readouterr().err

@@ -210,6 +210,7 @@ class TestDeployTaskSecure:
         )
 
         mock_proc = AsyncMock()
+        mock_proc.pid = 2**30
         mock_proc.stdout.readuntil = AsyncMock(return_value=b"")
         mock_proc.wait = AsyncMock(return_value=0)
 
@@ -247,6 +248,7 @@ class TestDeployTaskSecure:
         )
 
         mock_proc = AsyncMock()
+        mock_proc.pid = 2**30
         mock_proc.stdout.readuntil = AsyncMock(return_value=b"")
         mock_proc.wait = AsyncMock(return_value=0)
 
@@ -335,6 +337,7 @@ class TestSecurityVerification:
     async def test_sudo_without_preserve_env(self, mock_create_subprocess):
         """Verify sudo is called without --preserve-env."""
         mock_proc = AsyncMock()
+        mock_proc.pid = 2**30
         mock_proc.stdout.readuntil = AsyncMock(return_value=b"")
         mock_proc.wait = AsyncMock(return_value=0)
         mock_create_subprocess.return_value = mock_proc

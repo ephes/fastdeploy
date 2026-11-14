@@ -2,7 +2,9 @@
 
 import asyncio
 import json
+import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -158,13 +160,44 @@ def get_deploy_environment(deployment: Deployment, deploy_script: str) -> dict:
 
 
 MAX_ASYNCIO_STDOUT_SIZE = 1024 * 1024 * 10  # 10 MiB, longer output lines are skipped as a whole
-# How long the deploy script's process group gets to exit after SIGTERM, and
-# again after SIGKILL, when the deploy task stops reading its output early.
 REPORT_RESPONSE_MAX_BYTES = 4096
 MAX_STEP_MESSAGE_SIZE = 4096
 # A JSON object without a name is logged with at most this many keys, each shortened to this size
 MAX_LOGGED_RESULT_KEYS = 10
 MAX_LOGGED_RESULT_KEY_SIZE = 40
+MAX_RESULT_DEPTH = 64
+# A line that opens a JSON object with a member name looks like a runner
+# record. Other bracket-prefixed console output, for example Ansible's
+# "[WARNING]: ..." on the merged stderr or a bare "{" of pretty-printed JSON,
+# stays ordinary output.
+RUNNER_RECORD_PREFIX = re.compile(r'\s*\{\s*"')
+
+
+def unique_result_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate runner result member")
+        result[key] = value
+    return result
+
+
+def finite_result_number(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("nonfinite runner result number")
+    return number
+
+
+def validate_result_depth(value: Any, depth: int = 0) -> None:
+    # Bound downstream serialization as well as decoding. Some Python versions
+    # decode nested arrays iteratively, others raise RecursionError themselves.
+    if not isinstance(value, (dict, list)):
+        return
+    if depth >= MAX_RESULT_DEPTH:
+        raise ValueError("runner result nesting exceeds limit")
+    for child in value.values() if isinstance(value, dict) else value:
+        validate_result_depth(child, depth + 1)
 
 
 RetryAttempts = Annotated[int, Field(ge=1, le=RETRY_MAX_ATTEMPTS)]
@@ -362,7 +395,7 @@ class DeployTask(BaseSettings):
         }
 
         proc = None
-        reaped = False
+        primary_error = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *command,
@@ -376,7 +409,8 @@ class DeployTask(BaseSettings):
             )
 
             async def subprocess_phase():
-                nonlocal reaped
+                invalid_protocol = False
+                report_lost = False
                 # True while inside an output line longer than the stream limit
                 # whose end has not been read yet.
                 skipping = False
@@ -414,8 +448,24 @@ class DeployTask(BaseSettings):
                     # and a step result with a damaged character is still reported.
                     decoded = data.decode("UTF-8", errors="replace")
                     try:
-                        step_result = json.loads(decoded)
+                        step_result = json.loads(
+                            decoded,
+                            object_pairs_hook=unique_result_members,
+                            parse_float=finite_result_number,
+                            parse_constant=finite_result_number,
+                        )
+                        validate_result_depth(step_result)
                     except json.decoder.JSONDecodeError:
+                        # Ordinary console output remains allowed, but a broken
+                        # JSON record cannot silently erase terminal evidence.
+                        if RUNNER_RECORD_PREFIX.match(decoded):
+                            invalid_protocol = True
+                            self.log("invalid runner protocol: malformed JSON record")
+                        continue
+                    except (ValueError, RecursionError, OverflowError, MemoryError):
+                        invalid_protocol = True
+                        # Do not expose member names, values or decoder input.
+                        self.log("invalid runner protocol: ambiguous or resource-limited JSON record")
                         continue
                     if not isinstance(step_result, dict):
                         # valid JSON, but not a step result (for example a list) -> skip
@@ -428,15 +478,20 @@ class DeployTask(BaseSettings):
                         continue
                     step_result["started"] = started
                     try:
-                        await self.finish_step(step_result)
+                        if not await self.finish_step(step_result):
+                            report_lost = True
                     except Exception as e:
+                        report_lost = True
                         # Keep draining stdout, otherwise the deploy script blocks on a full pipe.
                         self.log(f"could not report step {result_name!r}: {type(e).__name__}: {e}")
 
                 return_code = await proc.wait()
-                reaped = True
                 if return_code != 0:
                     raise RuntimeError(f"deploy script exited with code {return_code}")
+                if invalid_protocol:
+                    raise RuntimeError("invalid runner protocol; deployment results are incomplete")
+                if report_lost:
+                    raise RuntimeError("unacknowledged step reports; deployment results are incomplete")
 
             try:
                 await asyncio.wait_for(subprocess_phase(), timeout=self.deployment_max_runtime_seconds)
@@ -444,29 +499,45 @@ class DeployTask(BaseSettings):
                 raise RuntimeError(
                     f"deploy script exceeded the runtime limit of {self.deployment_max_runtime_seconds} seconds"
                 ) from error
-
+        except BaseException as error:
+            primary_error = error
+            raise
         finally:
             try:
-                if proc is not None and not reaped:
-                    # Reading stopped early (error or cancellation): do not leave
-                    # the deploy script running without anybody tracking it.
-                    await self.stop_deploy_process(proc)
+                if proc is not None:
+                    # Own one bounded teardown even after normal leader exit.
+                    # Further cancellations must not cancel it or retire the
+                    # config before group settlement and leader reaping.
+                    cleanup = asyncio.create_task(self.stop_deploy_process(proc))
+                    cancellation = None
+                    while not cleanup.done():
+                        try:
+                            await asyncio.shield(cleanup)
+                        except asyncio.CancelledError as error:
+                            if cancellation is None:
+                                cancellation = error
+                    settled = cleanup.result()
+                    if primary_error is None:
+                        if cancellation is not None:
+                            raise cancellation
+                        if not settled:
+                            raise RuntimeError("deploy process cleanup could not be confirmed")
             finally:
                 # Cleanup config file after deployment
                 secure_config.cleanup_config(config_path)
 
-    async def stop_deploy_process(self, proc) -> None:
+    async def stop_deploy_process(self, proc) -> bool:
         """
         Terminate and reap the deploy script's process group: SIGTERM first,
         SIGKILL when members are still alive ``DEPLOY_STOP_TIMEOUT`` seconds
         later. The group counts, not only the script itself: a descendant may
         outlive it. Never raises, so the error that stopped the deployment is
-        preserved.
+        preserved. Returns whether group exit and leader reaping were confirmed.
         """
         # start_new_session made the script the leader of its own group
         pgid = proc.pid
-        stopped = False
-        for sig in (signal.SIGTERM, signal.SIGKILL):
+        stopped = await self.process_group_gone(pgid, 0)
+        for sig in () if stopped else (signal.SIGTERM, signal.SIGKILL):
             try:
                 os.killpg(pgid, sig)
             except ProcessLookupError:
@@ -476,18 +547,20 @@ class DeployTask(BaseSettings):
                 # For example EPERM: sudo runs the script as another user and no
                 # member of the group may be signalled. Waiting would not help.
                 self.log(f"could not send {sig.name} to deploy process group {pgid}: {e}")
-                return
+                break
             if await self.process_group_gone(pgid, DEPLOY_STOP_TIMEOUT):
                 stopped = True
                 break
         if not stopped:
-            self.log(f"deploy process group {pgid} is still running after SIGKILL")
+            self.log(f"deploy process group {pgid} exit could not be confirmed")
         try:
             await asyncio.wait_for(proc.wait(), timeout=DEPLOY_STOP_TIMEOUT)
+            return stopped
         except asyncio.TimeoutError:
             self.log(f"deploy process {proc.pid} was not reaped")
         except Exception as e:
             self.log(f"could not wait for deploy process {proc.pid}: {type(e).__name__}: {e}")
+        return False
 
     @staticmethod
     async def process_group_gone(pgid: int, timeout: float) -> bool:

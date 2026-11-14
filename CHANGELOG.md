@@ -2,6 +2,17 @@ Unreleased
 ==========
 
 ### Fixed
+- Refuse ambiguous, excessively nested or invalid numeric runner JSON records while
+  continuing stdout draining. Only malformed lines opening a JSON object with a member
+  name count as protocol records; other console output such as Ansible `[WARNING]:`
+  lines stays ignored. Named JSON lines that are not valid step reports fail the run. Prevent exit-zero scripts with invalid protocol or
+  unacknowledged step reports from finishing successfully; require an accepted
+  failure report or leave the deployment unfinished. Requires a runner package update.
+- Settle remaining owned descendants after successful script exit as well as failure.
+  Keep one bounded process cleanup task alive through repeated cancellation, retire
+  credentials afterwards and preserve the original cancellation. Unconfirmed cleanup
+  prevents success; service-manager sessions remain outside runner ownership.
+  Requires a runner package update.
 - Refresh authoritative frontend snapshots after authenticated websocket reconnect;
   remove absent steps/history rows while preserving intervening live events and
   deployments started during the request; a history refresh that loses ownership
