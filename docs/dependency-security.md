@@ -1,6 +1,30 @@
 # Dependency security
 
-## November 2026 Python refresh
+## November 2026 Soup Sieve refresh
+
+The frozen lock upgrades soupsieve 2.9 to 4.1 to address CVE-2026-126190
+and the related selector denial-of-service advisories. Beautiful Soup moves from
+4.14.2 to 4.15.0; its `soupsieve>=1.6.1` requirement permits 4.1. The dependency
+comes through nbconvert in the default development group, which production also
+installs with `uv sync --frozen`.
+
+Soup Sieve 4.1 requires Python >=3.11.5 because its regular expressions depend
+on fixed possessive quantifiers. The project now declares Python `>=3.11.5` in `requires-python`; Python
+3.11.0–3.11.4 are no longer supported. Use an up-to-date
+3.11 patch release for the lowest-version audit. Runtime CI on 3.13 and deployment
+on 3.14 already meet this floor. Only soupsieve and beautifulsoup4 were upgraded
+with `uv lock --upgrade-package soupsieve==4.1 --upgrade-package beautifulsoup4==4.15.0`.
+
+The pre-update audit under Python 3.11.13 failed with four advisories on
+soupsieve 2.9: CVE-2026-126190, CVE-2026-126191, CVE-2026-126192 and
+CVE-2026-126193. The same frozen all-group/all-extra audit passes after the
+update on Python 3.11.13 and 3.14.8. A Beautiful Soup CSS-selection smoke check
+also passes with soupsieve 4.1 on Python 3.11.13.
+
+References: [Soup Sieve 4.1 metadata](https://pypi.org/project/soupsieve/4.1/),
+[Beautiful Soup 4.15.0 metadata](https://pypi.org/project/beautifulsoup4/4.15.0/).
+
+## Earlier November 2026 Python refresh
 
 `scripts/audit_python.py` on the previous lock reported 29 advisories in five
 packages on Python 3.13. On Python 3.10 it also reported PYSEC-2026-3458 for
@@ -23,9 +47,9 @@ and pre-commit chains; production installs them too, because the deploy runs
 The fixed dnspython (2.9.0+), filelock (4.2.1+) and Tornado (6.6+) releases
 require Python 3.11+, and there is no patched 3.10 release of any of them.
 Python 3.10 reached end of life in October 2026, and no FastDeploy deployment or
-CI job uses it (production runs 3.14, CI 3.13). `requires-python` is therefore
-`>=3.11`. Only these packages and the versions their resolver requires (distlib
-0.4.4 and packaging 26.3 for virtualenv) were refreshed; the 3.10-only lock
+CI job uses it (production runs 3.14, CI 3.13). That refresh raised
+`requires-python` to `>=3.11` (now `>=3.11.5`, as above). Only these packages and
+the versions their resolver requires (distlib 0.4.4 and packaging 26.3 for virtualenv) were refreshed; the 3.10-only lock
 forks (async-timeout, backports-asyncio-runner, exceptiongroup, tomli, ipython
 8, resolvelib 1.0) are gone.
 
@@ -34,7 +58,7 @@ and 3.14.
 
 ## Gates
 
-Run `python scripts/audit_python.py` under Python 3.11 and 3.14. The frozen
+Run `python scripts/audit_python.py` under Python 3.11.5+ and 3.14. The frozen
 all-group/all-extra export is a separate checked process, so an export failure
 cannot feed an empty audit. pip-audit 2.10.1 uses the selected interpreter to
 evaluate markers. Synthetic subprocess tests cover export and audit failures,

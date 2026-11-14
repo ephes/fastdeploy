@@ -2,6 +2,9 @@ Unreleased
 ==========
 
 ### Fixed
+- Upgrade soupsieve 2.9 to 4.1 for CVE-2026-126190 and related selector denial-of-service
+  advisories, with beautifulsoup4 4.14.2 to 4.15.0. Require Python 3.11.5+ to support
+  soupsieve's regular-expression implementation; refresh the frozen uv lock.
 - Admit complete step REST snapshots before reconciling any indexes. Reject malformed,
   duplicate or wrong-deployment rows and project declared fields while preserving live
   event/session fences and last-good state. Requires a frontend rebuild.

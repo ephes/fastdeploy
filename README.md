@@ -8,7 +8,7 @@ A deployment automation platform that enables both technical and non-technical u
 
 ## Requirements
 
-- Python 3.11+ (fully compatible with Python 3.14)
+- Python 3.11.5+ (fully compatible with Python 3.14)
 - PostgreSQL
 - Node.js and npm (for frontend development)
 - uv (for Python package management)
@@ -245,7 +245,7 @@ Ansible playbooks.
 
 ### Dependency advisory checks
 
-Run `python scripts/audit_python.py` with Python 3.11 (the lowest supported version) and 3.14
+Run `python scripts/audit_python.py` with a current Python 3.11 patch release (at least 3.11.5) and 3.14
 (the deployed version), and in `frontend/` run `npm audit --package-lock-only`. The Python
 command first exports all groups and extras from the frozen lock, then runs pip-audit 2.10.1
 for that interpreter. An export or audit failure is fatal; temporary files are removed. CI runs

@@ -25,7 +25,7 @@ fastDeploy provides controlled, auditable execution of privileged operations inc
 
 ### Prerequisites
 
-- Python 3.11+ (fully compatible with Python 3.14)
+- Python 3.11.5+ (fully compatible with Python 3.14)
 - PostgreSQL
 - Node.js and npm (for frontend development)
 - uv (for Python package management)
