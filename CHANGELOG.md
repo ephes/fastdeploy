@@ -7,6 +7,8 @@ Unreleased
   event/session fences and last-good state. Requires a frontend rebuild.
 - Validate service rows and available-name lists before publication; retain last-good
   state with bounded request-local feedback for invalid responses. Requires a frontend rebuild.
+- Reject non-boolean `deleted` flags in step/service REST snapshots, matching websocket
+  admission; both paths share one set of wire predicates. Requires a frontend rebuild.
 - Keep websocket activity visible for a full second after the latest message with
   one owned timer; cancel activity expiry on store/session reset. Requires a frontend rebuild.
 - Bound frontend HTTP calls, including response decoding, to 30 seconds. Compose

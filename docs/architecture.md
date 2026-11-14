@@ -349,6 +349,11 @@ string names and object (non-null, non-array) data. Available names require an
 array of unique strings. Both responses are checked before publication, keep the
 last good state on rejection and use fixed, payload-free request-local error
 messages. Valid snapshots still preserve websocket-touched ids, including deletes.
+
+An optional `deleted` flag on step or service rows must be a boolean, as on the
+websocket. REST and websocket admission share the identifier, timestamp, step-state
+and deletion predicates in `frontend/src/wireValues.ts`, so both paths keep one
+wire contract.
 All admission runs after the existing session/refresh-generation ownership checks;
 obsolete responses cannot publish data or failure feedback over a newer request.
 
