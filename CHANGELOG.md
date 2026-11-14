@@ -3,7 +3,9 @@ Unreleased
 
 ### Fixed
 - Refuse ambiguous, excessively nested or invalid numeric runner JSON records while
-  continuing stdout draining. Prevent exit-zero scripts with invalid protocol or
+  continuing stdout draining. Only malformed lines opening a JSON object with a member
+  name count as protocol records; other console output such as Ansible `[WARNING]:`
+  lines stays ignored. Named JSON lines that are not valid step reports fail the run. Prevent exit-zero scripts with invalid protocol or
   unacknowledged step reports from finishing successfully; require an accepted
   failure report or leave the deployment unfinished. Requires a runner package update.
 - Settle remaining owned descendants after successful script exit as well as failure.

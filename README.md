@@ -109,8 +109,9 @@ Deploy tasks stop their owned process group when the runtime budget expires and 
 temporary config files before reporting failure. Each API report/finish response is
 limited to 4096 wire bytes and 10 seconds per attempt. Task retry counts must be
 1–8 and initial backoff 0–10 finite seconds (defaults 4/6 attempts, 3 seconds); see [runner limits](docs/deployment.md).
-Unacknowledged reports or invalid JSON protocol records prevent successful completion even when the
-script exits zero. Runner JSON requires unique members, finite numbers and at most 64 nested containers.
+Unacknowledged reports (including rejected or invalid named JSON lines) or malformed JSON protocol records
+prevent successful completion even when the script exits zero; other console output, such as Ansible's
+`[WARNING]:` lines, is ignored. Runner JSON requires unique members, finite numbers and at most 64 nested containers.
 The runner also drains its owned process group after a successful script exit; services must detach
 through their service manager. Repeated cancellation cannot interrupt bounded process cleanup or retire
 the private config early. Unconfirmed cleanup is a failure; see [runner lifetime and recovery](docs/deployment.md).

@@ -492,8 +492,9 @@ class RawDeployProc(DeployProc):
         b'{"name":"bad","misc":NaN}',
         b'{"name":"bad","misc":1e9999}',
         b'{"name":"bad",',
+        b'  { "name": "bad", "state": ',
     ],
-    ids=["state", "name", "nested-duplicate", "depth", "integer", "nan", "float-overflow", "syntax"],
+    ids=["state", "name", "nested-duplicate", "depth", "integer", "nan", "float-overflow", "syntax", "spaced-syntax"],
 )
 @pytest.mark.parametrize("returncode", [0, 3])
 async def test_invalid_protocol_drains_later_steps_but_prevents_green_completion(task, invalid, capsys, returncode):
@@ -550,3 +551,29 @@ async def test_lost_report_with_exit_zero_requires_accepted_failure(task_kwargs,
     assert sum(r.method == "PUT" for r in requests) == int(failure_accepted)
     # Every retry retains the same identity for the API's existing replay guard.
     assert all(p == posts[0] for p in posts[: task.attempts])
+
+
+@pytest.mark.parametrize(
+    "console",
+    [
+        b"[WARNING]: Platform linux on host web is using the discovered Python interpreter",
+        b"[DEPRECATION WARNING]: something is deprecated",
+        b"[2026-11-14 10:00] [INFO] starting",
+        b"{",
+        b"[",
+        b"{not json",
+        b"[1, 2,",
+    ],
+    ids=["ansible-warning", "deprecation", "log-prefix", "bare-brace", "bare-bracket", "brace-text", "array"],
+)
+async def test_bracket_prefixed_console_output_keeps_exit_zero_run_green(task, console, capsys):
+    proc = RawDeployProc([console, b'{"name":"after","state":"success"}', b""], returncode=0)
+    with (
+        patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
+        patch.object(DeployTask, "finish_deployment") as finish,
+    ):
+        await task.run_deploy()
+
+    assert [step["name"] for step in task.client.post_calls] == ["after"]
+    finish.assert_awaited_once()
+    assert "invalid runner protocol" not in capsys.readouterr().err

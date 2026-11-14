@@ -151,7 +151,9 @@ checks its owned group. Remaining descendants receive `SIGTERM`, with up to 10 s
 with another 10-second wait. Reaping the leader has a separate 10-second limit. A foreground script whose group
 has already exited receives no termination signal. Services must start through a service manager or deliberately
 detach into a separate session; background processes left in the script's group are owned by the runner even
-when they close stdout. Unrelated process groups are never signalled.
+when they close stdout. Signals go only to the script's own process group id. After the leader is reaped, that
+id stays reserved only while group members exist, so in the tiny window between the last member exiting and
+a signal, a reused id could in theory reach an unrelated new group.
 
 One shielded cleanup task owns this sequence through repeated cancellation. The config is retired only after
 cleanup settles, then the original error or cancellation is propagated. Only confirmed group exit and leader
@@ -166,13 +168,16 @@ The deploy task (the detached `python -m deploy.tasks` process that runs the dep
 `running` when it starts (optional) and with `success` or `failure` when it ends. The task forwards
 every named JSON line as a report and does not filter states: a line with any other state, or without
 `state` (which defaults to `pending`), receives a non-retried 422 and a dropped-step stderr
-diagnostic, and changes nothing.
+diagnostic. Such a rejected report, like any named JSON line that is not a valid step report, counts as an
+unacknowledged report: the run cannot finish successfully even if the script exits zero (see below).
+Scripts must therefore not print other JSON objects with a `name` member.
 JSON members must be unique at every depth. Records may contain at most 64 nested object/array levels;
 nonfinite numbers and integers beyond the interpreter's digit limit are refused. Duplicate members, excessive
-nesting, numeric/resource decoder errors and malformed lines beginning with `{` or `[` are invalid protocol
-evidence, logged without their values. The runner drains later lines and preserves a nonzero script exit as
+nesting, numeric/resource decoder errors and malformed lines that open a JSON object with a member name
+(`{"`, optionally with whitespace) are invalid protocol evidence, logged without their values. The runner drains later lines and preserves a nonzero script exit as
 the primary failure, but even an exit-zero script cannot succeed after invalid protocol evidence. Ordinary
-non-JSON console lines and valid non-object JSON remain skippable.
+non-JSON console lines remain skippable, including bracket-prefixed output such as Ansible's `[WARNING]: ...`
+on the merged stderr, a bare `{` or `[` of pretty-printed JSON, and valid non-object JSON.
 Each report/finish attempt streams at most 4096 response wire bytes and has a
 10-second elapsed budget covering headers, body and closure. Success bodies are discarded without
 decoding or logging them; error statuses are checked immediately without reading bodies,

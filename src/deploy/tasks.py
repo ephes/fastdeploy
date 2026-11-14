@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -165,6 +166,11 @@ MAX_STEP_MESSAGE_SIZE = 4096
 MAX_LOGGED_RESULT_KEYS = 10
 MAX_LOGGED_RESULT_KEY_SIZE = 40
 MAX_RESULT_DEPTH = 64
+# A line that opens a JSON object with a member name looks like a runner
+# record. Other bracket-prefixed console output, for example Ansible's
+# "[WARNING]: ..." on the merged stderr or a bare "{" of pretty-printed JSON,
+# stays ordinary output.
+RUNNER_RECORD_PREFIX = re.compile(r'\s*\{\s*"')
 
 
 def unique_result_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -452,7 +458,7 @@ class DeployTask(BaseSettings):
                     except json.decoder.JSONDecodeError:
                         # Ordinary console output remains allowed, but a broken
                         # JSON record cannot silently erase terminal evidence.
-                        if decoded.lstrip().startswith(("{", "[")):
+                        if RUNNER_RECORD_PREFIX.match(decoded):
                             invalid_protocol = True
                             self.log("invalid runner protocol: malformed JSON record")
                         continue
