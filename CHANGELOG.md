@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Fixed
+- Keep websocket activity visible for a full second after the latest message with
+  one owned timer; cancel activity expiry on store/session reset. Requires a frontend rebuild.
+- Bound frontend HTTP calls, including response decoding, to 30 seconds. Compose
+  caller cancellation, retire request timers/listeners and release loading/event
+  fences on timeout without retrying ambiguous mutations. Requires a frontend rebuild.
 - Refuse ambiguous, excessively nested or invalid numeric runner JSON records while
   continuing stdout draining. Only malformed lines opening a JSON object with a member
   name count as protocol records; other console output such as Ansible `[WARNING]:`

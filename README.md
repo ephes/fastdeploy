@@ -222,6 +222,12 @@ Deployment history uses bounded pages: the UI shows the newest 50 deployments an
 loads older pages with **Load more**. API consumers use `limit` (default 50, maximum
 200), `before_id` and optional `service_id`; see [the paging contract](docs/endpoints.md#get-deployments).
 
+The frontend HTTP client limits each request, including body decoding, to 30 seconds
+and forwards caller cancellation. It never retries automatically; refresh deployment
+or service state before retrying a timed-out mutation. Websocket activity stays lit
+for one second after the latest message, using one timer cancelled on store/session
+reset. See [frontend transport lifetime](docs/architecture.md#frontend-transport-lifetime).
+
 ### Continuous integration
 
 `.github/workflows/ci.yml` runs on every branch push, on pull requests and on demand. It runs

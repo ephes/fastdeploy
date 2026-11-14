@@ -315,6 +315,23 @@ class WebSocketClient {
 }
 ```
 
+### Frontend transport lifetime
+
+The websocket activity indicator stays lit for one second after the latest admitted
+message. Each status store owns one replaceable expiry timer, including during
+bursts. Resetting the store (also on logout) cancels that timer; an old session
+cannot expire activity in a later one.
+
+Every frontend HTTP call has a 30-second whole-request deadline, including response
+body reading and decoding. A private AbortController forwards caller cancellation
+to fetch. Both cancellation and deadline expiry settle the call even if the
+transport ignores abort; timers and caller listeners are retired on every outcome.
+Expiry is reported as `TimeoutError`, caller cancellation as `AbortError` (or the
+caller's supplied reason). Store loading flags and pending event fences are then
+released by their existing completion paths. No request is automatically retried.
+A timed-out deployment or service sync may already have reached the server: refresh
+its state before deciding whether to retry.
+
 ### Login Session
 
 Everything the web UI holds for a logged-in user belongs to one login session and ends with it
