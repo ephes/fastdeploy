@@ -4,7 +4,7 @@
 line-length = 119
 
 # Lint target stays py310 to avoid pyupgrade rewrites; the supported minimum is
-# Python 3.11 (requires-python in pyproject.toml).
+# Python 3.11.5 (requires-python in pyproject.toml).
 target-version = "py310"
 
 # Enable various rule sets

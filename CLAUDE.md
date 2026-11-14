@@ -16,7 +16,7 @@ fastDeploy is a deployment automation platform that enables both technical and n
 ## Development Workflow
 
 ### Setup
-1. **Python**: Project requires Python 3.11+ (fully compatible with Python 3.14)
+1. **Python**: Project requires Python 3.11.5+ (fully compatible with Python 3.14)
 2. **Database**: PostgreSQL with separate test database
 3. **Virtual Environment**: Using `uv` for package management
 4. **Frontend**: Node.js with npm for Vue.js development
