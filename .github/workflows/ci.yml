@@ -7,12 +7,7 @@ name: CI
 # Every branch push runs, so a branch gets a result before a pull request
 # exists (agents push branches without opening one).
 on:
-  push:
-    branches: ["**"]
-  pull_request:
   workflow_dispatch:
-  schedule:
-    - cron: "23 6 * * 1"
 
 permissions:
   contents: read

@@ -46,10 +46,10 @@ def test_failed_export_or_audit_fails_closed_and_cleans_up(monkeypatch, failed_c
     assert not Path(calls[0][-1]).exists()
 
 
-def test_ci_runs_independent_complete_audits_on_push_and_schedule():
+def test_ci_runs_independent_complete_audits_on_manual_dispatch():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     triggers = workflow.get("on", workflow.get(True))  # YAML 1.1 treats on as boolean.
-    assert "push" in triggers and triggers["schedule"]
+    assert set(triggers) == {"workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
     python = workflow["jobs"]["audit-python"]
     npm = workflow["jobs"]["audit-npm"]
