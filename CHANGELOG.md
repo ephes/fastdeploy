@@ -5,14 +5,17 @@ Unreleased
 - Validate complete deployment history pages before mutation, including service ownership,
   unique descending ids/cursors, row fields and dates; retain last-good state with retry.
 - Bind admitted deployment start results to the requested service before installation or
-  navigation; invalid successes require a history refresh before retrying.
+  navigation; invalid successes require a history refresh before retrying. A start for a
+  service whose identity is not loaded is refused before any token or launch request.
 - Cap frontend success/error response bodies at 1 MiB before JSON decoding and cancel
   overflow, preserving request deadlines, cancellation and authentication.
 - Preserve terminal deployment state when a delayed start websocket event arrives.
   These frontend fixes require rebuilding the frontend.
-- Reject nonfinite service JSON numbers and meter YAML merge expansion before materialization.
+- Reject nonfinite service JSON numbers and meter YAML merge expansion before materialization
+  (each mapping once, so shared merge anchors are not double-counted).
 - Detect same-inode rewrites during config/playbook reads; revalidate selected service-tree
-  generations before sync mutations, refusing changed sources for a stable retry.
+  generations before sync mutations, refusing changed sources for a stable retry. A missing
+  config.json or playbook keeps the "unavailable or invalid" error instead of asking to retry.
 - Revalidate service JWTs under launch admission locks, including revocation,
   record/JWT expiry, issuer existence and legacy cutoff, before creating a run.
 - Refuse malformed JWT identity claims before repository access with 401.

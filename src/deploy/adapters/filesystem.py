@@ -99,6 +99,15 @@ def _read_regular(root: Path, relative: Path, *, observed=None) -> str:
         raise ServiceConfigError("service config file is unavailable or invalid") from None
 
 
+def _lstat_service_file(path: Path):
+    # A config.json or referenced playbook that does not exist is not fixed by
+    # retrying sync; other races keep the caller's retry message.
+    try:
+        return path.lstat()
+    except FileNotFoundError:
+        raise ServiceConfigError("service config file is unavailable or invalid") from None
+
+
 def _check_structure(value):
     # Iterative traversal also bounds recursive/shared YAML aliases.
     pending = [(value, 1)]
@@ -152,14 +161,29 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
         sizes[identity] = size
         return size
 
-    def flatten_mapping(self, node):
-        # Meter projected output before PyYAML allocates flattened merge pairs.
+    def _meter_merge_work(self, node):
         size = self._merge_size(node, set())
         work = self.__dict__.get("_merge_work", 0) + size
         if work > MAX_CONFIG_NODES:
             raise ServiceConfigError("playbook merge expansion exceeds node limit")
         self.__dict__["_merge_work"] = work
-        return super().flatten_mapping(node)
+
+    def flatten_mapping(self, node):
+        # Meter projected output before PyYAML allocates flattened merge pairs.
+        # PyYAML flattens merge sources by calling this method recursively. A
+        # source without its own merge key allocates nothing there (the caller's
+        # projected size already includes it), so it is not counted twice; a
+        # source that still holds a merge key materializes pairs and is metered.
+        if self.__dict__.get("_flattening_merge"):
+            if any(key.tag == "tag:yaml.org,2002:merge" for key, _ in node.value):
+                self._meter_merge_work(node)
+            return super().flatten_mapping(node)
+        self._meter_merge_work(node)
+        self.__dict__["_flattening_merge"] = True
+        try:
+            return super().flatten_mapping(node)
+        finally:
+            self.__dict__["_flattening_merge"] = False
 
     def _check_mapping_keys(self, node):
         # Aliases share nodes; check each node once so merge chains of aliases stay linear.
@@ -272,7 +296,7 @@ class Filesystem(AbstractFilesystem):
             for name in names:
                 directory = self.root / name
                 _remember(observed, directory, directory.lstat())
-                _remember(observed, directory / "config.json", (directory / "config.json").lstat())
+                _remember(observed, directory / "config.json", _lstat_service_file(directory / "config.json"))
             # Discover referenced files before preparing any service. A playbook
             # selected by a later service must not change unnoticed during earlier reads.
             for name in names:
@@ -280,7 +304,7 @@ class Filesystem(AbstractFilesystem):
                 if isinstance(data, dict) and "ansible_playbook" in data:
                     root, relative = _playbook_location(data["ansible_playbook"], self.root)
                     path = root / relative
-                    _remember(observed, path, path.lstat())
+                    _remember(observed, path, _lstat_service_file(path))
             configs = [(name, self.get_config_by_name(name, observed=observed)) for name in names]
             # Include referenced playbooks and the descriptor-walk directories.
             for path, generation in observed.items():

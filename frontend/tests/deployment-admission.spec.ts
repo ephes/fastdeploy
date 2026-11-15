@@ -49,3 +49,13 @@ it('keeps completion when a delayed start event arrives, then agrees with REST',
   store.onMessage({ ...finished, deleted: true } as any);
   expect(store.deployments[9]).toBeUndefined();
 });
+it('refuses to launch before fetching a token when the service identity is unknown', async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services = {};
+  services.fetchServiceToken = vi.fn().mockResolvedValue('synthetic-token');
+  const client = { options: { headers: {} }, post: vi.fn() } as any;
+  await expect(store.startDeployment('synthetic', client)).rejects.toThrow(/Refresh services/);
+  expect(services.fetchServiceToken).not.toHaveBeenCalled();
+  expect(client.post).not.toHaveBeenCalled();
+});

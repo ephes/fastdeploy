@@ -132,6 +132,10 @@ export const useDeployments = defineStore("deployments", {
       const isCurrentSession = rememberSession();
       const servicesStore = useServices();
       const requestedServiceId = Object.values(servicesStore.services).find(service => service.name === serviceName)?.id;
+      if (requestedServiceId === undefined) {
+        // Without the service identity the started row cannot be admitted; never launch blind.
+        throw new Error("Service is not loaded. Refresh services before deploying.");
+      }
       const serviceToken = await servicesStore.fetchServiceToken(
         serviceName,
         "frontend",
@@ -149,7 +153,6 @@ export const useDeployments = defineStore("deployments", {
       }
       let started: Deployment;
       try {
-        if (requestedServiceId === undefined) throw new Error();
         started = deploymentSnapshot(response, requestedServiceId);
         if (started.deleted) throw new Error();
       } catch {

@@ -350,3 +350,54 @@ async def test_finite_settings_roundtrip_service_api(bus, services_filesystem, a
         response = await client.get("/services/", headers={"Authorization": f"Bearer {valid_access_token_in_db}"})
     assert response.status_code == 200
     assert response.json()[0]["data"] == data
+
+
+def test_shared_merge_anchor_is_metered_once_per_materialization(tmp_path):
+    # 4,000 tasks each merging a 10-key anchor materialize ~44k pairs: under the
+    # 50k ceiling, so nested flattening of the anchor must not be counted again.
+    anchor = ", ".join(f"k{i}: {i}" for i in range(10))
+    lines = ["- hosts: local", f"  vars: {{base: &b {{{anchor}}}}}", "  tasks:"]
+    lines += [f"    - {{name: t{i}, <<: *b}}" for i in range(4000)]
+    playbook = tmp_path / "play.yml"
+    playbook.write_text("\n".join(lines) + "\n")
+    config_file(tmp_path, json.dumps({"ansible_playbook": str(playbook)}))
+    configs = filesystem.Filesystem(tmp_path).get_configs()
+    assert [name for name, _ in configs] == ["sample"]
+
+
+@pytest.mark.parametrize("missing", ["config", "playbook"])
+def test_missing_service_files_are_not_reported_as_retryable(tmp_path, missing):
+    if missing == "config":
+        (tmp_path / "sample").mkdir()
+    else:
+        config_file(tmp_path, json.dumps({"ansible_playbook": str(tmp_path / "absent.yml")}))
+    with pytest.raises(filesystem.ServiceConfigError, match="unavailable or invalid") as raised:
+        filesystem.Filesystem(tmp_path).get_configs()
+    assert "retry" not in str(raised.value)
+
+
+def test_nested_merge_chain_is_metered_before_materialization(tmp_path, monkeypatch):
+    # The consumer sits shallower than the chain, so PyYAML flattens it first and
+    # materializes the whole chain through nested flatten_mapping calls.
+    import yaml
+
+    monkeypatch.setattr(filesystem, "MAX_CONFIG_NODES", 3000, raising=False)
+    keys = lambda level: ", ".join(f"k{level}_{i}: {i}" for i in range(10))  # noqa: E731
+    chain = [f"&l0 {{{keys(0)}}}"] + [f"&l{k} {{<<: *l{k - 1}, {keys(k)}}}" for k in range(1, 60)]
+    content = "- hosts: local\n  vars:\n    chain: [[" + ", ".join(chain) + "]]\n    consumer: {<<: *l59}\n"
+    original = yaml.SafeLoader.flatten_mapping
+    materialized = 0
+
+    def counted(self, node):
+        nonlocal materialized
+        result = original(self, node)
+        materialized += len(node.value)
+        return result
+
+    monkeypatch.setattr(yaml.SafeLoader, "flatten_mapping", counted)
+    playbook = tmp_path / "play.yml"
+    playbook.write_text(content)
+    config_file(tmp_path, json.dumps({"ansible_playbook": str(playbook)}))
+    with pytest.raises(filesystem.ServiceConfigError):
+        filesystem.Filesystem(tmp_path).get_configs()
+    assert materialized <= filesystem.MAX_CONFIG_NODES
