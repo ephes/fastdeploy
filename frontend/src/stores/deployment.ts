@@ -5,7 +5,7 @@ import { getClient, HttpClient } from "./httpClient";
 import { rememberSession } from "./session";
 import { useServices } from "./service";
 import { useSteps } from "./step";
-import { pythonToJavascript } from "../converters";
+import { deploymentSnapshot, deploymentPage } from "../restAdmission";
 import { Deployment, Message, DeploymentById } from "../typings";
 
 /**
@@ -34,7 +34,7 @@ export const useDeployments = defineStore("deployments", {
   getters: {
     historyDeployments: (state): Deployment[] => state.historyIds
       .map((id) => state.deployments[id])
-      .filter((deployment) => !!deployment)
+      .filter((deployment) => !!deployment && (state.historyServiceId === undefined || deployment.serviceId === state.historyServiceId))
       .sort((a, b) => b.id - a.id),
     /**
      * Get deployments optionally filtered by service id.
@@ -131,6 +131,11 @@ export const useDeployments = defineStore("deployments", {
     ): Promise<Deployment | null> {
       const isCurrentSession = rememberSession();
       const servicesStore = useServices();
+      const requestedServiceId = Object.values(servicesStore.services).find(service => service.name === serviceName)?.id;
+      if (requestedServiceId === undefined) {
+        // Without the service identity the started row cannot be admitted; never launch blind.
+        throw new Error("Service is not loaded. Refresh services before deploying.");
+      }
       const serviceToken = await servicesStore.fetchServiceToken(
         serviceName,
         "frontend",
@@ -141,12 +146,17 @@ export const useDeployments = defineStore("deployments", {
         return null;
       }
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
-      const started = pythonToJavascript(
-        await client.post<Promise<Deployment>>("deployments/")
-      ) as Deployment;
+      const response = await client.post<unknown>("deployments/");
       if (!isCurrentSession()) {
         // started, but the session it was started in is over
         return null;
+      }
+      let started: Deployment;
+      try {
+        started = deploymentSnapshot(response, requestedServiceId);
+        if (started.deleted) throw new Error();
+      } catch {
+        throw new Error("Deployment outcome is uncertain. Refresh history before retrying.");
       }
       // A history request already in flight must not delete the new row, but it
       // may still replace it with the (newer) server state of that row.
@@ -164,16 +174,12 @@ export const useDeployments = defineStore("deployments", {
       const isCurrentSession = rememberSession();
       if (!loadMore) {
         this.historyGeneration++;
-        this.historyIds = [];
-        this.historyBeforeId = null;
         this.historyServiceId = serviceId;
-        this.historyHasMore = true;
       }
       const generation = this.historyGeneration;
       const ownsHistory = () => isCurrentSession() && generation === this.historyGeneration;
       const isCurrent = () => ownsHistory() && ownsRefresh();
-      // A refresh that loses its owner after clearing the page must not leave an
-      // empty, idle history behind: show the retry message instead.
+      // A refresh that loses its owner must settle with retry feedback.
       const historyError = "Could not load deployment history. Try again.";
       const changed = markRaw(new Set<number>());
       const startedMeanwhile = markRaw(new Set<number>());
@@ -181,18 +187,25 @@ export const useDeployments = defineStore("deployments", {
       this.pendingStarts.push(startedMeanwhile);
       this.historyLoading = true;
       this.historyError = "";
+      const requestedServiceId = this.historyServiceId;
+      const beforeId = loadMore ? this.historyBeforeId : null;
       const params = new URLSearchParams({ limit: "50" });
-      if (this.historyServiceId !== undefined) params.set("service_id", String(this.historyServiceId));
-      if (this.historyBeforeId !== null) params.set("before_id", String(this.historyBeforeId));
+      if (requestedServiceId !== undefined) params.set("service_id", String(requestedServiceId));
+      if (beforeId !== null) params.set("before_id", String(beforeId));
       try {
-        const deployments = await this.client.get<Deployment[]>(`deployments/?${params}`);
+        const response = await this.client.get<unknown>(`deployments/?${params}`);
         if (!isCurrent()) {
           if (ownsHistory()) this.historyError = historyError;
           return;
         }
+        const deployments = deploymentPage(response, requestedServiceId, beforeId);
+        if (!loadMore) {
+          this.historyIds = this.historyIds.filter(id => changed.has(id) || startedMeanwhile.has(id));
+          this.historyBeforeId = null;
+        }
         const present = new Set(deployments.map(deployment => deployment.id));
         const oldest = deployments.length === 50 ? deployments[deployments.length - 1].id : 0;
-        const upper = loadMore ? this.historyBeforeId : null;
+        const upper = beforeId;
         for (const deployment of Object.values(this.deployments)) {
           if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
               && deployment.id >= oldest && (upper === null || deployment.id < upper)
@@ -204,7 +217,7 @@ export const useDeployments = defineStore("deployments", {
         }
         for (const deployment of deployments) {
           if (!changed.has(deployment.id)) {
-            this.deployments[deployment.id] = pythonToJavascript(deployment) as Deployment;
+            this.deployments[deployment.id] = deployment;
           }
           if (this.deployments[deployment.id] && !this.historyIds.includes(deployment.id)) {
             this.historyIds.push(deployment.id);
@@ -242,6 +255,8 @@ export const useDeployments = defineStore("deployments", {
           delete this.deployments[deployment.id];
           this.historyIds = this.historyIds.filter((id) => id !== deployment.id);
         } else {
+          // Starts can publish after another request has already committed/published a finish.
+          if (this.deployments[deployment.id]?.finished && !deployment.finished) return;
           this.deployments[deployment.id] = deployment;
           if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
               && (this.historyBeforeId === null || deployment.id > this.historyBeforeId)

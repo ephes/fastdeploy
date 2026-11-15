@@ -8,7 +8,7 @@ import DeploymentList from "../src/components/DeploymentList.vue";
 
 const { route } = vi.hoisted(() => ({ route: { query: {} as Record<string, string> } }));
 vi.mock("vue-router", () => ({ useRoute: () => route }));
-const row = (id: number, service_id = 1) => ({ id, service_id, origin: "fixture", user: "fixture-user", type: "deployment" });
+const row = (id: number, service_id = 1) => ({ id, service_id, started: '2026-11-01T00:00:00Z', finished: null, origin: "fixture", user: "fixture-user", type: "deployment" });
 const page = Array.from({ length: 50 }, (_, i) => row(100 - i));
 
 beforeEach(() => {

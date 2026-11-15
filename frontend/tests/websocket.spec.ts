@@ -150,7 +150,7 @@ it("resnapshots mounted stores on authenticated reconnect, coalescing repeated a
   const get = vi.fn(async (url: string) => {
     if (url === "services/") return [{ id: 1, name: "kept", data: {} }];
     if (url === "services/names/") return ["kept"];
-    if (url.startsWith("deployments/")) return [{ id: 7, service_id: 1, finished }];
+    if (url.startsWith("deployments/")) return [{ id: 7, service_id: 1, started: '2026-11-01T00:00:00Z', origin: 'fixture', user: 'synthetic', finished }];
     return [];
   });
   for (const store of [services, deployments, steps]) store.client = { get } as any;

@@ -273,7 +273,23 @@ JSON configs and YAML playbooks reject repeated mapping keys at any depth and mo
 than one `<<` merge key per mapping; diagnostics do not include configuration
 values. Merges follow the YAML merge rules: an explicit key overrides a merged one
 and earlier merge sources win over later ones. Ordinary aliases remain supported
-within the existing depth/node budget.
+within the existing depth/node budget. A separate 50,000-pair budget meters YAML
+merge materialization before allocation, so repeated merge aliases cannot expand
+unchecked. JSON rejects nonstandard constants (`NaN`, `Infinity`, `-Infinity`) and
+nonfinite overflowed floats at every nesting level; finite application settings
+are preserved.
+
+Each descriptor read compares device/inode, mode, size and nanosecond mtime/ctime
+before and after reading. Service sync records the selected root/directories/configs
+and referenced playbooks, then revalidates path generations after preparing the
+complete set, before any database updates or deletions. Same-inode rewrites,
+replacements and added/removed service directories refuse the whole sync with the
+existing value-free configuration error (HTTP 422 / CLI exit 1). Retry after the
+source tree is stable; `--force` does not bypass this check. Atomic replacements
+completed before selection are supported; a concurrent replacement may require
+retry. This is metadata change detection, not a filesystem transaction or lock on
+operator writes after final validation.
+
 An optional `deploy_script` must be a nonblank string without NULs, naming one
 executable. Optional `steps` must be a list of objects, each with a nonblank string
 `name` of at most 255 characters without NULs. Missing fields retain the default script/placeholder behavior;

@@ -22,6 +22,7 @@ const deployment = pythonToJavascript(apiDeployment);
 describe("Deployment Store Websocket", () => {
   beforeEach(() => {
     initPinia();
+    useServices().services[1] = { id: 1, name: "fastdeploy", data: {} };
   });
 
   it("has no deployments store registered", () => {
@@ -49,6 +50,7 @@ describe("Deployment Store Websocket", () => {
 describe("Deployment Store Actions", () => {
   beforeEach(() => {
     initPinia();
+    useServices().services[1] = { id: 1, name: "fastdeploy", data: {} };
   });
 
   it("starts a deployment", async () => {
@@ -58,7 +60,7 @@ describe("Deployment Store Actions", () => {
     const client = {
       async post<T = unknown>(): Promise<T> {
         return new Promise<any>((resolve, reject) => {
-          resolve(deployment);
+          resolve(apiDeployment);
         });
       },
       options: { headers: {} },
@@ -144,7 +146,7 @@ describe("Deployment Store Actions", () => {
     const client = {
       async post() {
         seen.push(client.options.headers.Authorization);
-        return { id: 3, service_id: 1 };
+        return { ...apiDeployment, id: 3 };
       },
       options: { headers: {} as any },
     } as any;

@@ -80,7 +80,7 @@ it('bounds a pending launch per service and navigates only after confirmed succe
   expect(button.attributes('disabled')).toBeDefined();
   expect(action(wrapper, 'Deploy', 'second').attributes('disabled')).toBeUndefined();
   expect(push).not.toHaveBeenCalled();
-  response.resolve(new Response(JSON.stringify({ id: 7, service_id: 1, origin: 'fixture', user: 'fixture' }), { headers: { 'Content-Type': 'application/json' } }));
+  response.resolve(new Response(JSON.stringify({ id: 7, service_id: 1, started: '2026-11-01T00:00:00Z', finished: null, origin: 'fixture', user: 'fixture' }), { headers: { 'Content-Type': 'application/json' } }));
   await flushPromises();
   expect(push).toHaveBeenCalledWith({ name: 'deployment-detail', params: { id: 7 } });
   wrapper.unmount();
@@ -136,5 +136,19 @@ it('clears a deletion error when a deletion event confirms removal', () => {
   store.onMessage({ type: 'service', id: 1, deleted: true } as any);
   expect(store.services[1]).toBeUndefined();
   expect(store.deleteErrors[1]).toBeUndefined();
+  wrapper.unmount();
+});
+
+it.each([{ service_id: 2 }, { id: 0 }, { started: 'invalid' }, { finished: false }])('never navigates after invalid successful launch response: %j', async invalid => {
+  const { store, wrapper } = setup();
+  vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-token');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    id: 7, service_id: 1, origin: 'frontend', user: 'synthetic',
+    started: '2026-11-01T00:00:00Z', finished: null, ...invalid,
+  }))));
+  await action(wrapper, 'Deploy', 'first').trigger('click'); await flushPromises();
+  expect(push).not.toHaveBeenCalled();
+  expect(useDeployments().deployments).toEqual({});
+  expect(wrapper.get('[role="alert"]').text()).toContain('history before retrying');
   wrapper.unmount();
 });

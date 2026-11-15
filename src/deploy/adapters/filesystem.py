@@ -1,8 +1,10 @@
 import abc
 import contextlib
 import json
+import math
 import os
 import stat
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
@@ -24,6 +26,10 @@ class AbstractFilesystem(abc.ABC):
         """Returns a dictionary containing the configuration for a given service name."""
         raise NotImplementedError  # pragma: no cover
 
+    def get_configs(self) -> Sequence[tuple[str, dict]]:
+        """Prepare a complete source set before synchronization can mutate storage."""
+        return [(name, self.get_config_by_name(name)) for name in self.list()]
+
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_CONFIG_DEPTH = 32
@@ -40,30 +46,65 @@ def _relative_parts(path: Path) -> tuple[str, ...]:
     return path.parts
 
 
-def _read_regular(root: Path, relative: Path) -> str:
+def _generation(metadata):
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def _remember(observed, path, metadata):
+    if observed is not None:
+        generation = _generation(metadata)
+        if path in observed and observed[path] != generation:
+            raise ServiceConfigError("service configuration tree changed; retry sync")
+        observed[path] = generation
+
+
+def _read_regular(root: Path, relative: Path, *, observed=None) -> str:
     """Walk below an operator-selected root using pinned no-follow descriptors."""
     parts = _relative_parts(relative)
     try:
         with contextlib.ExitStack() as stack:
             directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             stack.callback(os.close, directory)
+            current = root
+            _remember(observed, current, os.fstat(directory))
             for part in parts[:-1]:
                 directory = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
                 stack.callback(os.close, directory)
+                current = current / part
+                _remember(observed, current, os.fstat(directory))
             descriptor = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
             stack.callback(os.close, descriptor)
             metadata = os.fstat(descriptor)
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_CONFIG_BYTES:
                 raise ServiceConfigError("service config must be a regular file of at most 1 MiB")
+            _remember(observed, root / relative, metadata)
             # The duplicate keeps ExitStack responsible for the original handle.
             with os.fdopen(os.dup(descriptor), "rb") as source:
                 content = source.read(MAX_CONFIG_BYTES + 1)
+            if _generation(metadata) != _generation(os.fstat(descriptor)):
+                raise ServiceConfigError("service config changed during read; retry sync")
             if len(content) > MAX_CONFIG_BYTES:
                 raise ServiceConfigError("service config exceeds 1 MiB")
             return content.decode("utf-8")
     except (OSError, UnicodeError, ValueError) as exc:
         if isinstance(exc, ServiceConfigError):
             raise
+        raise ServiceConfigError("service config file is unavailable or invalid") from None
+
+
+def _lstat_service_file(path: Path):
+    # A config.json or referenced playbook that does not exist is not fixed by
+    # retrying sync; other races keep the caller's retry message.
+    try:
+        return path.lstat()
+    except FileNotFoundError:
         raise ServiceConfigError("service config file is unavailable or invalid") from None
 
 
@@ -95,6 +136,55 @@ def _unique_mapping(pairs):
 
 
 class _UniqueKeySafeLoader(yaml.SafeLoader):
+    def _merge_size(self, node, visiting):
+        sizes = self.__dict__.setdefault("_merge_sizes", {})
+        identity = id(node)
+        if identity in visiting:
+            raise ServiceConfigError("recursive playbook merges are not supported")
+        if identity in sizes:
+            return sizes[identity]
+        visiting.add(identity)
+        size = 0
+        for key, value in node.value:
+            if key.tag == "tag:yaml.org,2002:merge":
+                sources = value.value if isinstance(value, yaml.SequenceNode) else [value]
+                for source in sources:
+                    if isinstance(source, yaml.MappingNode):
+                        size += self._merge_size(source, visiting)
+                        if size > MAX_CONFIG_NODES:
+                            raise ServiceConfigError("playbook merge expansion exceeds node limit")
+            else:
+                size += 1
+            if size > MAX_CONFIG_NODES:
+                raise ServiceConfigError("playbook merge expansion exceeds node limit")
+        visiting.remove(identity)
+        sizes[identity] = size
+        return size
+
+    def _meter_merge_work(self, node):
+        size = self._merge_size(node, set())
+        work = self.__dict__.get("_merge_work", 0) + size
+        if work > MAX_CONFIG_NODES:
+            raise ServiceConfigError("playbook merge expansion exceeds node limit")
+        self.__dict__["_merge_work"] = work
+
+    def flatten_mapping(self, node):
+        # Meter projected output before PyYAML allocates flattened merge pairs.
+        # PyYAML flattens merge sources by calling this method recursively. A
+        # source without its own merge key allocates nothing there (the caller's
+        # projected size already includes it), so it is not counted twice; a
+        # source that still holds a merge key materializes pairs and is metered.
+        if self.__dict__.get("_flattening_merge"):
+            if any(key.tag == "tag:yaml.org,2002:merge" for key, _ in node.value):
+                self._meter_merge_work(node)
+            return super().flatten_mapping(node)
+        self._meter_merge_work(node)
+        self.__dict__["_flattening_merge"] = True
+        try:
+            return super().flatten_mapping(node)
+        finally:
+            self.__dict__["_flattening_merge"] = False
+
     def _check_mapping_keys(self, node):
         # Aliases share nodes; check each node once so merge chains of aliases stay linear.
         checked = self.__dict__.setdefault("_checked_mapping_nodes", set())
@@ -128,6 +218,17 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
         return super().construct_mapping(node, deep=deep)
 
 
+def _finite_json_float(value):
+    number = float(value)
+    if not math.isfinite(number):
+        raise ServiceConfigError("service config numbers must be finite")
+    return number
+
+
+def _reject_json_constant(_value):
+    raise ServiceConfigError("service config numbers must be finite")
+
+
 def _load_document(content: str, *, playbook=False):
     try:
         if playbook:
@@ -141,7 +242,12 @@ def _load_document(content: str, *, playbook=False):
                     raise ServiceConfigError("playbook exceeds depth or node limit")
             value = yaml.load(content, Loader=_UniqueKeySafeLoader)
         else:
-            value = json.loads(content, object_pairs_hook=_unique_mapping)
+            value = json.loads(
+                content,
+                object_pairs_hook=_unique_mapping,
+                parse_constant=_reject_json_constant,
+                parse_float=_finite_json_float,
+            )
         _check_structure(value)
         return value
     except (ValueError, RecursionError, yaml.YAMLError):
@@ -181,15 +287,44 @@ class Filesystem(AbstractFilesystem):
             raise ServiceConfigError("service configuration root is unavailable") from None
         return directories
 
-    def get_config_by_name(self, name):
+    def get_configs(self):
+        observed = {}
+        try:
+            _remember(observed, self.root, self.root.lstat())
+            names = self.list()
+            # Capture every selected service/config before reading the first one.
+            for name in names:
+                directory = self.root / name
+                _remember(observed, directory, directory.lstat())
+                _remember(observed, directory / "config.json", _lstat_service_file(directory / "config.json"))
+            # Discover referenced files before preparing any service. A playbook
+            # selected by a later service must not change unnoticed during earlier reads.
+            for name in names:
+                data = _load_document(_read_regular(self.root, Path(name) / "config.json", observed=observed))
+                if isinstance(data, dict) and "ansible_playbook" in data:
+                    root, relative = _playbook_location(data["ansible_playbook"], self.root)
+                    path = root / relative
+                    _remember(observed, path, _lstat_service_file(path))
+            configs = [(name, self.get_config_by_name(name, observed=observed)) for name in names]
+            # Include referenced playbooks and the descriptor-walk directories.
+            for path, generation in observed.items():
+                if _generation(path.lstat()) != generation:
+                    raise ServiceConfigError("service configuration tree changed; retry sync")
+            return configs
+        except OSError:
+            raise ServiceConfigError("service configuration tree changed or is unavailable; retry sync") from None
+
+    def get_config_by_name(self, name, *, observed=None):
         if not isinstance(name, str) or len(Path(name).parts) != 1 or name in (".", ".."):
             raise ServiceConfigError("invalid service directory name")
-        data_dict = _load_document(_read_regular(self.root, Path(name) / "config.json"))
+        data_dict = _load_document(_read_regular(self.root, Path(name) / "config.json", observed=observed))
         if not isinstance(data_dict, dict):
             raise ServiceConfigError("service config must be an object")
         _validate_service_definition(data_dict)
         if "ansible_playbook" in data_dict:
-            data_dict["steps"] = get_steps_from_playbook(data_dict["ansible_playbook"], config_root=self.root)
+            data_dict["steps"] = get_steps_from_playbook(
+                data_dict["ansible_playbook"], config_root=self.root, observed=observed
+            )
         _validate_service_definition(data_dict)
         return data_dict
 
@@ -205,8 +340,7 @@ def working_directory(path):
         os.chdir(prev_cwd)
 
 
-def get_steps_from_playbook(path_from_config: str, *, config_root: Path | None = None) -> list[dict]:
-    """Read an admitted playbook below the project/config or approved extra roots."""
+def _playbook_location(path_from_config: str, config_root: Path | None = None) -> tuple[Path, Path]:
     if not isinstance(path_from_config, str) or not path_from_config or "\x00" in path_from_config:
         raise ServiceConfigError("invalid playbook path")
     path = Path(path_from_config)
@@ -216,15 +350,20 @@ def get_steps_from_playbook(path_from_config: str, *, config_root: Path | None =
     if config_root is not None:
         roots.append(config_root)
     if not path.is_absolute():
-        content = _read_regular(settings.project_root, path)
+        return settings.project_root, path
     else:
         for root in roots:
             root = root.absolute()
             if path.is_relative_to(root):
-                content = _read_regular(root, path.relative_to(root))
-                break
+                return root, path.relative_to(root)
         else:
             raise ServiceConfigError("playbook path is outside approved roots")
+
+
+def get_steps_from_playbook(path_from_config: str, *, config_root: Path | None = None, observed=None) -> list[dict]:
+    """Read an admitted playbook below the project/config or approved extra roots."""
+    root, relative = _playbook_location(path_from_config, config_root)
+    content = _read_regular(root, relative, observed=observed)
     parsed = _load_document(content, playbook=True)
     if not isinstance(parsed, list) or not parsed or not all(isinstance(play, dict) for play in parsed):
         raise ServiceConfigError("playbook must be a nonempty list of objects")

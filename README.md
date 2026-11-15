@@ -222,13 +222,14 @@ Deployment history uses bounded pages: the UI shows the newest 50 deployments an
 loads older pages with **Load more**. API consumers use `limit` (default 50, maximum
 200), `before_id` and optional `service_id`; see [the paging contract](docs/endpoints.md#get-deployments).
 
-The frontend HTTP client limits each request, including body decoding, to 30 seconds
-and forwards caller cancellation. It never retries automatically; refresh deployment
+The frontend HTTP client caps success and error bodies at 1 MiB before JSON decoding,
+including chunked bodies and incorrect Content-Length headers. It limits each
+request to 30 seconds and forwards caller cancellation. It never retries automatically; refresh deployment
 or service state before retrying a timed-out mutation. Websocket activity stays lit
 for one second after the latest message, using one timer cancelled on store/session
 reset. See [frontend transport lifetime](docs/architecture.md#frontend-transport-lifetime).
 
-Step and service REST refreshes validate the complete response before changing
+Deployment, step and service REST refreshes validate the complete response before changing
 cached rows. Invalid rows, duplicate/unsupported ids or steps owned by another
 deployment retain the last good snapshot. Available service names must be a list
 of unique strings. Errors use the existing request-local retry feedback; concurrent
@@ -353,8 +354,10 @@ For help: `just help`
 Service sync reads UTF-8 JSON configs and YAML playbooks only from regular files,
 with a 1 MiB file limit, depth 32 and 50,000 structural nodes/events. Playbooks must
 be nonempty lists of play objects; tasks must be lists of objects with string names
-when named. JSON and YAML mapping keys must be unique, including nested mappings; a YAML
-mapping may hold at most one `<<` merge key. Merges follow YAML merge rules (explicit
+when named. JSON numbers must be finite, including nested application settings;
+NaN, Infinity and overflowed exponents are refused. YAML merge materialization has
+a separate 50,000-pair work ceiling checked before expansion. JSON and YAML mapping
+keys must be unique, including nested mappings; a YAML mapping may hold at most one `<<` merge key. Merges follow YAML merge rules (explicit
 keys override merged ones), and ordinary aliases remain supported within the same budgets.
 When supplied, `deploy_script` must be a nonempty executable path without NULs;
 `steps` must be a list of objects with nonblank string `name` values of at most 255 characters without NULs.
@@ -369,8 +372,12 @@ roots; parent traversal is refused. Relative playbooks are relative to `PROJECT_
 Absolute playbooks must be below `PROJECT_ROOT`, the configured services root, or
 an administrator-approved root in `SERVICE_PLAYBOOK_ROOTS='["/path/to/playbooks"]'`
 (default `[]`). Move external playbooks under these roots or explicitly approve
-their directory before syncing. File descriptors retain the admitted file during
-reads, including when paths are replaced concurrently.
+their directory before syncing. File descriptors pin admitted files during reads;
+device/inode, mode, size, mtime and ctime must remain stable through each read. Sync captures service directories,
+configs and referenced playbooks, then revalidates their generations before any
+database changes. Changed files, service additions/removals or path replacements
+refuse the whole sync; retry once the tree is stable. Atomic replacements completed
+before reading remain supported.
 
 Repositories track pending events by Python object identity, retaining each object
 once through flush, id assignment and timestamp changes. Equivalent ORM instances

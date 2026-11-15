@@ -170,3 +170,234 @@ def test_contained_relative_playbook_and_exact_byte_limit(tmp_path, monkeypatch)
     config.write_text("{}" + " " * 127)
     with pytest.raises(ValueError):
         reader.get_config_by_name("sample")
+
+
+@pytest.mark.asyncio
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize("number", ["NaN", "Infinity", "-Infinity", "1e999", "-1e999"])
+async def test_nonfinite_json_refuses_whole_sync(bus, services_filesystem, service_in_db, publisher, number):
+    config_file(services_filesystem.root, '{"nested": [{"value": ' + number + "}]}")
+    with pytest.raises(filesystem.ServiceConfigError):
+        await bus.handle(commands.SyncServices(force=True))
+    async with bus.uow as uow:
+        assert [s.name for s in await uow.services.list()] == [service_in_db.name]
+    assert publisher.events == []
+
+
+def test_finite_nested_json_preserved(tmp_path):
+    data = {"nested": [{"value": 1e200}, -1e-200, 0, 1234567890]}
+    config_file(tmp_path, json.dumps(data))
+    assert filesystem.Filesystem(tmp_path).get_config_by_name("sample") == data
+
+
+@pytest.mark.asyncio
+@pytest.mark.db("in_memory")
+async def test_merge_expansion_refused_before_flattening(
+    bus, services_filesystem, service_in_db, publisher, monkeypatch
+):
+    import yaml
+
+    content = "- hosts: local\n  vars:\n    base: &v0 {x: 1}\n"
+    for i in range(1, 18):
+        content += f"    level{i}: &v{i} {{<<: [*v{i - 1}, *v{i - 1}]}}\n"
+    # Observe actual work in PyYAML's materializer, independent of admission counters.
+    original = yaml.SafeLoader.flatten_mapping
+    visits = 0
+
+    def counted(self, node):
+        nonlocal visits
+        visits += len(node.value)
+        assert visits <= filesystem.MAX_CONFIG_NODES, "merge materialization exceeded budget"
+        return original(self, node)
+
+    monkeypatch.setattr(yaml.SafeLoader, "flatten_mapping", counted)
+    playbook = services_filesystem.root / "play.yml"
+    playbook.write_text(content)
+    config_file(services_filesystem.root, json.dumps({"ansible_playbook": str(playbook)}))
+    with pytest.raises(filesystem.ServiceConfigError):
+        await bus.handle(commands.SyncServices(force=True))
+    assert visits <= filesystem.MAX_CONFIG_NODES
+    async with bus.uow as uow:
+        assert [s.name for s in await uow.services.list()] == [service_in_db.name]
+    assert publisher.events == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize("kind", ["config", "playbook"])
+async def test_same_inode_overwrite_during_read_is_refused(
+    bus, services_filesystem, service_in_db, publisher, monkeypatch, kind
+):
+    import threading
+
+    tmp_path = services_filesystem.root
+    config = config_file(tmp_path, "{}")
+    target = config
+    before, after = b'{"value": "old"}', b'{"value": "new"}'
+    if kind == "playbook":
+        target = tmp_path / "play.yml"
+        before, after = b"- hosts: old\n", b"- hosts: new\n"
+        config.write_text(json.dumps({"ansible_playbook": str(target)}))
+    target.write_bytes(before)
+    reading, written = threading.Event(), threading.Event()
+    original = os.fdopen
+
+    class Reader:
+        def __init__(self, source):
+            self.source = source
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.source.close()
+
+        def read(self, size):
+            content = self.source.read(size)
+            if content == before:
+                reading.set()
+                assert written.wait(5)
+            return content
+
+    def overwrite():
+        assert reading.wait(5)
+        target.write_bytes(after)
+        written.set()
+
+    thread = threading.Thread(target=overwrite)
+    thread.start()
+    monkeypatch.setattr(os, "fdopen", lambda *args, **kwargs: Reader(original(*args, **kwargs)))
+    try:
+        with pytest.raises(filesystem.ServiceConfigError):
+            await bus.handle(commands.SyncServices(force=True))
+    finally:
+        reading.set()
+        thread.join(5)
+    assert not thread.is_alive()
+    async with bus.uow as uow:
+        assert [s.name for s in await uow.services.list()] == [service_in_db.name]
+    assert publisher.events == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize("mutation", ["config", "playbook", "add", "remove", "directory"])
+async def test_tree_change_refuses_sync_then_stable_retry_succeeds(
+    bus, services_filesystem, service_in_db, publisher, monkeypatch, mutation
+):
+    root = services_filesystem.root
+    config = config_file(root, '{"generation": "old"}')
+    playbook = root / "play.yml"
+    playbook.write_text("- hosts: local\n")
+    config.write_text(json.dumps({"generation": "old", "ansible_playbook": str(playbook)}))
+    other = root / "other"
+    other.mkdir()
+    (other / "config.json").write_text("{}")
+    original = services_filesystem.get_config_by_name
+    changed = False
+
+    def read_and_change(name, **kwargs):
+        nonlocal changed
+        data = original(name, **kwargs)
+        if not changed:
+            changed = True
+            if mutation == "config":
+                replacement = root / "replacement"
+                replacement.write_text('{"generation": "new"}')
+                replacement.replace(config)
+            elif mutation == "playbook":
+                playbook.write_text("- hosts: changed\n")
+            elif mutation == "add":
+                added = root / "added"
+                added.mkdir()
+                (added / "config.json").write_text("{}")
+            elif mutation == "remove":
+                config.unlink()
+                config.parent.rmdir()
+            else:
+                config.parent.rename(root / "renamed")
+        return data
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(services_filesystem, "get_config_by_name", read_and_change)
+        with pytest.raises(filesystem.ServiceConfigError):
+            await bus.handle(commands.SyncServices(force=True))
+    async with bus.uow as uow:
+        assert [s.name for s in await uow.services.list()] == [service_in_db.name]
+    assert publisher.events == []
+    await bus.handle(commands.SyncServices(force=True))
+    async with bus.uow as uow:
+        assert service_in_db.name not in [s.name for s in await uow.services.list()]
+
+
+def test_atomic_replacement_before_read_is_supported(tmp_path):
+    config = config_file(tmp_path, '{"generation": "old"}')
+    replacement = tmp_path / "replacement"
+    replacement.write_text('{"generation": "new"}')
+    replacement.replace(config)
+    assert filesystem.Filesystem(tmp_path).get_config_by_name("sample") == {"generation": "new"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.db("in_memory")
+async def test_finite_settings_roundtrip_service_api(bus, services_filesystem, app, valid_access_token_in_db):
+    from httpx import ASGITransport, AsyncClient
+
+    data = {"nested": [{"value": 1e200}, -1e-200, 1234567890]}
+    config_file(services_filesystem.root, json.dumps(data))
+    await bus.handle(commands.SyncServices(force=True))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/services/", headers={"Authorization": f"Bearer {valid_access_token_in_db}"})
+    assert response.status_code == 200
+    assert response.json()[0]["data"] == data
+
+
+def test_shared_merge_anchor_is_metered_once_per_materialization(tmp_path):
+    # 4,000 tasks each merging a 10-key anchor materialize ~44k pairs: under the
+    # 50k ceiling, so nested flattening of the anchor must not be counted again.
+    anchor = ", ".join(f"k{i}: {i}" for i in range(10))
+    lines = ["- hosts: local", f"  vars: {{base: &b {{{anchor}}}}}", "  tasks:"]
+    lines += [f"    - {{name: t{i}, <<: *b}}" for i in range(4000)]
+    playbook = tmp_path / "play.yml"
+    playbook.write_text("\n".join(lines) + "\n")
+    config_file(tmp_path, json.dumps({"ansible_playbook": str(playbook)}))
+    configs = filesystem.Filesystem(tmp_path).get_configs()
+    assert [name for name, _ in configs] == ["sample"]
+
+
+@pytest.mark.parametrize("missing", ["config", "playbook"])
+def test_missing_service_files_are_not_reported_as_retryable(tmp_path, missing):
+    if missing == "config":
+        (tmp_path / "sample").mkdir()
+    else:
+        config_file(tmp_path, json.dumps({"ansible_playbook": str(tmp_path / "absent.yml")}))
+    with pytest.raises(filesystem.ServiceConfigError, match="unavailable or invalid") as raised:
+        filesystem.Filesystem(tmp_path).get_configs()
+    assert "retry" not in str(raised.value)
+
+
+def test_nested_merge_chain_is_metered_before_materialization(tmp_path, monkeypatch):
+    # The consumer sits shallower than the chain, so PyYAML flattens it first and
+    # materializes the whole chain through nested flatten_mapping calls.
+    import yaml
+
+    monkeypatch.setattr(filesystem, "MAX_CONFIG_NODES", 3000, raising=False)
+    keys = lambda level: ", ".join(f"k{level}_{i}: {i}" for i in range(10))  # noqa: E731
+    chain = [f"&l0 {{{keys(0)}}}"] + [f"&l{k} {{<<: *l{k - 1}, {keys(k)}}}" for k in range(1, 60)]
+    content = "- hosts: local\n  vars:\n    chain: [[" + ", ".join(chain) + "]]\n    consumer: {<<: *l59}\n"
+    original = yaml.SafeLoader.flatten_mapping
+    materialized = 0
+
+    def counted(self, node):
+        nonlocal materialized
+        result = original(self, node)
+        materialized += len(node.value)
+        return result
+
+    monkeypatch.setattr(yaml.SafeLoader, "flatten_mapping", counted)
+    playbook = tmp_path / "play.yml"
+    playbook.write_text(content)
+    config_file(tmp_path, json.dumps({"ansible_playbook": str(playbook)}))
+    with pytest.raises(filesystem.ServiceConfigError):
+        filesystem.Filesystem(tmp_path).get_configs()
+    assert materialized <= filesystem.MAX_CONFIG_NODES
