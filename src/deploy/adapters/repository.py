@@ -488,6 +488,12 @@ class AbstractStepRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def page_by_deployment(
+        self, deployment_id: int, *, limit: int, before_id: int | None = None
+    ) -> list[model.Step]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def list(self) -> list[model.Step]:
         # list has to be after get_steps_by_deployment otherwise
         # type annotation wont work, duh :/ - maybe a bug in pylance..
@@ -526,6 +532,13 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def page_by_deployment(self, deployment_id, *, limit, before_id=None):
+        stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)
+        if before_id is not None:
+            stmt = stmt.where(model.Step.id < before_id)
+        result = await self.session.execute(stmt.order_by(model.Step.id.desc()).limit(limit))
+        return result.scalars().all()
+
 
 class InMemoryStepRepository(AbstractStepRepository):
     def __init__(self) -> None:
@@ -547,6 +560,12 @@ class InMemoryStepRepository(AbstractStepRepository):
 
     async def get_steps_by_deployment(self, deployment_id):
         return [s for s in self._steps if s.deployment_id == deployment_id]
+
+    async def page_by_deployment(self, deployment_id, *, limit, before_id=None):
+        steps = [
+            s for s in self._steps if s.deployment_id == deployment_id and (before_id is None or s.id < before_id)
+        ]
+        return sorted(steps, key=lambda step: step.id, reverse=True)[:limit]
 
 
 class AbstractDeployedServiceRepository(abc.ABC):

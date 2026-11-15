@@ -624,3 +624,38 @@ continues to the caller. With no initiating failure, the rollback error propagat
 Cancellation or process-exit signals raised during rollback propagate directly.
 Request teardown still attempts session and connection closure; CLI-owned UOWs
 also dispose their engine.
+
+### Step lifecycle and scroll ownership
+
+A persisted step id identifies one lifecycle: pending → running → success/failure.
+The client rejects regressions from terminal state and keeps deletion tombstones
+until session reset, across both WebSocket events and REST refreshes. A legitimate
+rerun creates a fresh step id (possibly with the same name); ids are never reused.
+Scroll metadata retains only the five most recent steps observed running, including
+their completions, so the fifth entry remains the scroll target. Deletion removes
+a candidate; terminal/deleted deployment events retire this metadata permanently
+for that deployment in the current session. Full history stays in the keyed store.
+
+
+### Step inventory paging
+
+Step hydration reads descending id pages of 25 rows with an exclusive `before_id`
+cursor. It stages and validates all pages before publishing or removing cached rows;
+a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or obsolete
+traversals leave the previous inventory intact and completion false. Session reset
+clears this state. One event fence spans the whole traversal, so intervening live
+updates/deletions win even when their row appears on a later page. Terminal/deletion
+lifecycle guards also apply to subsequent completed REST traversals. The API checks
+deployment existence without loading its entire step collection. Internal runner and
+reconciliation reads retain their existing full-inventory behavior.
+
+### Unit of work cleanup ownership
+
+The SQLAlchemy UoW always attempts rollback after detaching rows, including when
+`expunge_all` raises. A body error or cancellation remains primary; otherwise the
+expunge error is primary. Ordinary cleanup failures while unwinding are logged only
+as bounded exception categories without messages or tracebacks. Cancellation raised
+by rollback keeps the base UoW's existing propagation semantics. Leaving a transaction
+does not close caller-owned sessions, connections or engines: request/explicit close
+owns those resources and can settle them after a failed unwind. Shared engines are
+never disposed by a non-owning request UoW.

@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ... import views
 from ...domain import commands, model
@@ -51,13 +51,15 @@ async def process_step_result(
 async def get_steps_by_deployment(
     deployment_id: int,
     bus: Bus = Depends(),
+    limit: int = Query(25, ge=1, le=25),
+    before_id: int | None = Query(None, ge=1),
 ) -> list[Step]:
     """
-    Get all steps for a deployment.
+    Get a bounded step page, newest id first. A short page completes the inventory.
     """
     try:
-        deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
+        steps = await views.get_step_page(deployment_id, bus.uow, limit=limit, before_id=before_id)
     except views.DeploymentNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found") from e
 
-    return [Step(**step.model_dump()) for step in deployment.steps]
+    return [Step(**step.model_dump()) for step in steps]

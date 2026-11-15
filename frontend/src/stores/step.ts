@@ -2,7 +2,7 @@ import { markRaw } from "vue";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
 import { rememberSession } from "./session";
-import { stepSnapshot } from "../restAdmission";
+import { stepPage } from "../restAdmission";
 import { Step, StepById, Message, Deployment } from "../typings";
 
 /**
@@ -16,6 +16,9 @@ export const useSteps = defineStore("steps", {
        * Stores all steps by step id.
        */
       steps: {} as StepById,
+      inventoryComplete: {} as Record<number, boolean>,
+      deletedSteps: {} as Record<number, boolean>,
+      finishedDeployments: {} as Record<number, boolean>,
       pendingFetches: [] as Set<number>[],
       fetchGenerations: {} as Record<number, number>,
       /**
@@ -106,19 +109,25 @@ export const useSteps = defineStore("steps", {
      * @param step {Step} The step to add/update
      */
     addStep(step: Step) {
+      const current = this.steps[step.id];
+      if (this.deletedSteps[step.id] || (current && current.deploymentId !== step.deploymentId)) return;
+      // One persisted id is one lifecycle; a rerun receives a fresh id.
+      const rank = (state: string) => state === "pending" ? 0 : state === "running" ? 1 : 2;
+      if (current && (rank(step.state) < rank(current.state) ||
+          (rank(current.state) === 2 && step.state !== current.state))) return;
       this.steps[step.id] = step;
       if (step.deploymentId) {
         if (!this.stepsByDeployment[step.deploymentId]) {
           this.stepsByDeployment[step.deploymentId] = {};
         }
         this.stepsByDeployment[step.deploymentId][step.id] = step;
-        if (step.state == "running") {
+        if (step.state == "running" && current?.state !== "running" && !this.finishedDeployments[step.deploymentId]) {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
             this.stepsInProgressByDeployment[step.deploymentId] = [step];
           } else if (!this.stepsInProgressByDeployment[step.deploymentId].some(existing => existing.id === step.id)) {
             // Add step to the list of steps in progress
             // to be able to scroll to the step before last step in progress.
-            this.stepsInProgressByDeployment[step.deploymentId] = [step, ...this.stepsInProgressByDeployment[step.deploymentId]];
+            this.stepsInProgressByDeployment[step.deploymentId] = [step, ...this.stepsInProgressByDeployment[step.deploymentId]].slice(0, 5);
           }
         }
       } else {
@@ -132,6 +141,7 @@ export const useSteps = defineStore("steps", {
      * @param step {Step} The step to delete
      */
     deleteStep(step: Step) {
+      this.deletedSteps[step.id] = true;
       if (step.deploymentId && this.stepsInProgressByDeployment[step.deploymentId]) {
         this.stepsInProgressByDeployment[step.deploymentId] = this.stepsInProgressByDeployment[step.deploymentId]
           .filter(existing => existing.id !== step.id);
@@ -146,28 +156,33 @@ export const useSteps = defineStore("steps", {
       }
     },
     /**
-     * Fetch all steps for a deployment. This is used to fetch
-     * all steps for a deployment after a deployment has been finished
-     * and all steps are stored in the backend database.
+     * Traverse bounded step pages and publish only a completed inventory.
+     * WebSocket changes remain authoritative throughout the traversal.
      *
      * @param deploymentId {number} The deployment id
      */
     async fetchStepsFromDeployment(deploymentId: number, ownsRefresh: () => boolean = () => true) {
-      const url =
-        "steps/?" +
-        new URLSearchParams({ deployment_id: deploymentId.toString() });
       const isCurrentSession = rememberSession();
       const generation = (this.fetchGenerations[deploymentId] ?? 0) + 1;
       this.fetchGenerations[deploymentId] = generation;
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
       try {
-        const response = await this.client.get<unknown>(url);
-        if (!isCurrentSession() || !ownsRefresh() || this.fetchGenerations[deploymentId] !== generation) return;
-        const steps = stepSnapshot(response, deploymentId);
-        // A step id cannot move between deployments or corrupt another index.
-        if (steps.some(step => this.steps[step.id] && this.steps[step.id].deploymentId !== deploymentId)) {
-          throw new Error("Invalid REST snapshot");
+        this.inventoryComplete[deploymentId] = false;
+        const steps: Step[] = [];
+        let beforeId: number | null = null;
+        while (true) {
+          const params = new URLSearchParams({ deployment_id: deploymentId.toString(), limit: "25" });
+          if (beforeId !== null) params.set("before_id", beforeId.toString());
+          const response = await this.client.get<unknown>("steps/?" + params);
+          if (!isCurrentSession() || !ownsRefresh() || this.fetchGenerations[deploymentId] !== generation) return;
+          const page = stepPage(response, deploymentId, beforeId);
+          if (page.some(step => this.steps[step.id] && this.steps[step.id].deploymentId !== deploymentId)) {
+            throw new Error("Invalid REST snapshot");
+          }
+          steps.push(...page);
+          if (page.length < 25) break;
+          beforeId = page[page.length - 1].id;
         }
         const present = new Set(steps.map(step => step.id));
         for (const step of Object.values(this.stepsByDeployment[deploymentId] ?? {})) {
@@ -176,6 +191,7 @@ export const useSteps = defineStore("steps", {
         for (const step of steps) {
           if (!changed.has(step.id)) this.addStep(step);
         }
+        this.inventoryComplete[deploymentId] = true;
       } finally {
         this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
       }
@@ -198,7 +214,8 @@ export const useSteps = defineStore("steps", {
       }
       if (message.type === "deployment") {
         const deployment = message as Deployment;
-        if (deployment.finished) {
+        if (deployment.finished || deployment.deleted) {
+          this.finishedDeployments[deployment.id] = true;
           // Deployment has finished -> remove scroll to metadata
           delete(this.stepsInProgressByDeployment[deployment.id]);
         }

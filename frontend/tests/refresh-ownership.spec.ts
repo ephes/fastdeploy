@@ -58,9 +58,9 @@ it.each(['success', 'failure', 'deleted'])('step hydration preserves intervening
   store.client = { get: vi.fn().mockReturnValueOnce(response.promise).mockResolvedValueOnce([apiStep(1)]) } as any;
   const fetch = store.fetchStepsFromDeployment(1);
   store.onMessage({ id: 1, deploymentId: 1, name: 'newer', type: 'step', state: outcome, deleted: outcome === 'deleted' } as any);
-  response.resolve([apiStep(1), apiStep(2)]); await fetch;
+  response.resolve([apiStep(2), apiStep(1)]); await fetch;
   if (outcome === 'deleted') expect(store.steps[1]).toBeUndefined(); else expect(store.steps[1].state).toBe(outcome);
-  expect(store.steps[2]).toBeDefined(); await store.fetchStepsFromDeployment(1); expect(store.steps[1].state).toBe('running');
+  expect(store.steps[2]).toBeDefined(); await store.fetchStepsFromDeployment(1); if (outcome === 'deleted') expect(store.steps[1]).toBeUndefined(); else expect(store.steps[1].state).toBe(outcome);
 });
 it('deduplicates running-scroll history and removes deleted entries', async () => {
   const store = useSteps(); store.client = { get: vi.fn().mockResolvedValue([apiStep(1)]) } as any;
@@ -75,7 +75,7 @@ it('retires failed step hydration fences', async () => {
   store.client = { get: vi.fn().mockReturnValueOnce(response.promise).mockResolvedValueOnce([apiStep(1)]) } as any;
   const fetch = store.fetchStepsFromDeployment(1); store.onMessage({ id: 1, deploymentId: 1, type: 'step', deleted: true } as any);
   response.reject(new Error('fixture')); await expect(fetch).rejects.toThrow('fixture');
-  await store.fetchStepsFromDeployment(1); expect(store.steps[1]).toBeDefined();
+  await store.fetchStepsFromDeployment(1); expect(store.steps[1]).toBeUndefined();
 });
 it.each(['token', 'start', 'query', 'return'])('late launch preserves newer navigation during %s', async phase => {
   const store = useServices(); store.services[1] = service(1);
@@ -108,7 +108,7 @@ it('removes absent steps from all indexes while retaining live changes and other
   store.onMessage({ id: 2, deploymentId: 1, type: 'step', deleted: true } as any);
   store.onMessage({ id: 4, deploymentId: 1, type: 'step', state: 'running', name: 'live' } as any);
   store.onMessage({ id: 3, deploymentId: 1, type: 'step', state: 'success', name: 'updated' } as any);
-  response.resolve([apiStep(2), apiStep(5)]); await fetch;
+  response.resolve([apiStep(5), apiStep(2)]); await fetch;
   expect(Object.keys(store.steps)).toEqual(['3', '4', '5', '9']);
   expect(Object.keys(store.stepsByDeployment[1])).toEqual(['3', '4', '5']);
   expect(store.stepsInProgressByDeployment[1].map(step => step.id).sort()).toEqual([3, 4, 5]);
