@@ -1,6 +1,10 @@
 Unreleased
 ==========
 
+### Breaking
+- `GET /steps/` now returns at most 25 steps per request (newest first) instead of the whole
+  deployment. API consumers must page with descending `before_id` until a short or empty page.
+
 ### Fixed
 - Always attempt SQLAlchemy UoW rollback after expunge failure, preserving initiating errors and cleanup ownership.
 - Page step inventories with at most 25 SQL rows per request; stage complete client traversals while preserving live events.
