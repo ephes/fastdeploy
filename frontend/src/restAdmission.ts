@@ -1,5 +1,5 @@
-import { ServiceById, Step } from './typings';
-import { isId as id, isOptionalDeleted, isOptionalWireDate as date, isRecord as record, isStepState } from './wireValues';
+import { Deployment, ServiceById, Step } from './typings';
+import { isId as id, isOptionalDeleted, isOptionalWireDate as date, isRecord as record, isStepState, isWireDate } from './wireValues';
 
 function invalid(): never {
   // Do not include wire values in diagnostics (service data may be private).
@@ -46,4 +46,28 @@ export function serviceNamesSnapshot(value: unknown): string[] {
   if (!Array.isArray(value) || value.some(name => typeof name !== 'string') ||
       new Set(value).size !== value.length) return invalid();
   return [...value];
+}
+
+export function deploymentSnapshot(value: unknown, serviceId?: number): Deployment {
+  if (!record(value) || !id(value.id) || !id(value.service_id) ||
+      (serviceId !== undefined && value.service_id !== serviceId) ||
+      typeof value.origin !== 'string' || typeof value.user !== 'string' ||
+      !isWireDate(value.started) || !date(value.finished) || !isOptionalDeleted(value.deleted)) return invalid();
+  return {
+    id: value.id, serviceId: value.service_id, origin: value.origin, user: value.user,
+    started: new Date(value.started), finished: value.finished === null ? null : new Date(value.finished),
+    ...(value.type === 'deployment' ? { type: 'deployment' as const } : {}),
+    ...(typeof value.deleted === 'boolean' ? { deleted: value.deleted } : {}),
+  };
+}
+
+export function deploymentPage(value: unknown, serviceId?: number, beforeId: number | null = null): Deployment[] {
+  if (!Array.isArray(value) || value.length > 50) return invalid();
+  let upper = beforeId ?? Infinity;
+  return value.map(row => {
+    const deployment = deploymentSnapshot(row, serviceId);
+    if (deployment.id >= upper || deployment.deleted) return invalid();
+    upper = deployment.id;
+    return deployment;
+  });
 }

@@ -93,7 +93,7 @@ it.each(['token', 'start', 'query', 'return'])('late launch preserves newer navi
   await router.push(phase === 'query' ? '/?changed=1' : '/other'); if (phase === 'return') await router.push('/');
   const destination = router.currentRoute.value.fullPath;
   token.resolve('synthetic-credential'); await flushPromises();
-  start.resolve(new Response(JSON.stringify({ id: 7, service_id: 1, origin: 'fixture' }), { headers: { 'Content-Type': 'application/json' } }));
+  start.resolve(new Response(JSON.stringify({ id: 7, service_id: 1, started: '2026-11-01T00:00:00Z', finished: null, user: 'synthetic', origin: 'fixture' }), { headers: { 'Content-Type': 'application/json' } }));
   await flushPromises(); expect(router.currentRoute.value.fullPath).toBe(destination);
   expect(useDeployments().deployments[7].serviceId).toBe(1);
   expect(issue).toHaveBeenCalledTimes(1); expect(fetch).toHaveBeenCalledTimes(1); wrapper.unmount();
@@ -161,7 +161,7 @@ it.each(['success', 'error'])('a history refresh that loses ownership after %s l
   let owned = true;
   const fetch = store.fetchDeployments(undefined, false, () => owned);
   owned = false;
-  if (outcome === 'success') response.resolve([{ id: 3, service_id: 1 }]); else response.reject(new Error('fixture'));
+  if (outcome === 'success') response.resolve([{ id: 3, service_id: 1, started: '2026-11-01T00:00:00Z', finished: null, origin: 'fixture', user: 'synthetic' }]); else response.reject(new Error('fixture'));
   await fetch;
   expect(store.historyLoading).toBe(false);
   expect(store.historyError).toContain('Could not load deployment history');
@@ -170,11 +170,12 @@ it.each(['success', 'error'])('a history refresh that loses ownership after %s l
 it('a started deployment survives an older in-flight history page that predates it', async () => {
   const store = useDeployments(); const page = deferred<any[]>();
   store.client = { get: vi.fn().mockReturnValue(page.promise) } as any;
+  useServices().services[1] = service(1);
   vi.spyOn(useServices(), 'fetchServiceToken').mockResolvedValue('synthetic-credential');
   const history = store.fetchDeployments();
-  const client = { options: { headers: {} as Record<string, string> }, post: vi.fn().mockResolvedValue({ id: 9, service_id: 1 }) };
+  const client = { options: { headers: {} as Record<string, string> }, post: vi.fn().mockResolvedValue({ id: 9, service_id: 1, started: '2026-11-01T00:00:00Z', finished: null, origin: 'fixture', user: 'synthetic' }) };
   await store.startDeployment('service-1', client as any);
-  page.resolve([{ id: 8, service_id: 1 }]); await history;
+  page.resolve([{ id: 8, service_id: 1, started: '2026-11-01T00:00:00Z', finished: null, origin: 'fixture', user: 'synthetic' }]); await history;
   expect(store.deployments[9]).toBeDefined();
   expect(store.historyIds).toContain(8);
 });
@@ -182,11 +183,12 @@ it('a started deployment survives an older in-flight history page that predates 
 it('a history page served after a start still updates the started row', async () => {
   const store = useDeployments(); const page = deferred<any[]>();
   store.client = { get: vi.fn().mockReturnValue(page.promise) } as any;
+  useServices().services[1] = service(1);
   vi.spyOn(useServices(), 'fetchServiceToken').mockResolvedValue('synthetic-credential');
   const history = store.fetchDeployments();
-  const client = { options: { headers: {} as Record<string, string> }, post: vi.fn().mockResolvedValue({ id: 9, service_id: 1, finished: null }) };
+  const client = { options: { headers: {} as Record<string, string> }, post: vi.fn().mockResolvedValue({ id: 9, service_id: 1, started: '2026-11-01T00:00:00Z', origin: 'fixture', user: 'synthetic', finished: null }) };
   await store.startDeployment('service-1', client as any);
   const finished = '2026-11-01T00:00:00Z';
-  page.resolve([{ id: 9, service_id: 1, finished }]); await history;
+  page.resolve([{ id: 9, service_id: 1, started: '2026-11-01T00:00:00Z', origin: 'fixture', user: 'synthetic', finished }]); await history;
   expect(store.deployments[9].finished).toEqual(new Date(finished));
 });

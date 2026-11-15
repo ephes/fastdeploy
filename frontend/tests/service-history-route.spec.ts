@@ -23,17 +23,17 @@ it('roundtrips a real service-history link through a fresh router and resets pag
   const store = useDeployments();
   let resolveOld!: (rows: any[]) => void;
   const get = vi.fn().mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
-    .mockResolvedValue([{ id: 202, service_id: 8, origin: 'fixture-eight' }]);
+    .mockResolvedValue([{ id: 202, service_id: 8, started: '2026-11-01T00:00:00Z', finished: null, user: 'synthetic', origin: 'fixture-eight' }]);
   store.client = { get } as any;
   const list = mount(DeploymentList, { global: { plugins: [pinia, fresh] } });
   expect(get).toHaveBeenLastCalledWith('deployments/?limit=50&service_id=7');
   store.historyBeforeId = 50; // a prior paging cursor must not survive a filter change
   await fresh.push('/deployments?serviceId=8'); await flushPromises();
   expect(get).toHaveBeenLastCalledWith('deployments/?limit=50&service_id=8');
-  resolveOld([{ id: 101, service_id: 7, origin: 'obsolete-seven' }]); await flushPromises();
+  resolveOld([{ id: 101, service_id: 7, started: '2026-11-01T00:00:00Z', finished: null, user: 'synthetic', origin: 'obsolete-seven' }]); await flushPromises();
   expect(list.text()).toContain('fixture-eight');
   expect(list.text()).not.toContain('obsolete-seven');
-  get.mockResolvedValueOnce([{ id: 103, service_id: 7, origin: 'fixture-seven' }]);
+  get.mockResolvedValueOnce([{ id: 103, service_id: 7, started: '2026-11-01T00:00:00Z', finished: null, user: 'synthetic', origin: 'fixture-seven' }]);
   fresh.back();
   await vi.waitFor(() => expect(get).toHaveBeenLastCalledWith('deployments/?limit=50&service_id=7'));
   await flushPromises();

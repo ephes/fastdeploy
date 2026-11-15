@@ -48,8 +48,8 @@ and back or changing its query) retires that navigation intent. A late confirmed
 deployment remains in the store without redirecting or retrying the launch.
 
 Service history links use `/deployments?serviceId=7`. Reloading, sharing and browser
-back/forward retain the filter. Each filter change starts a new bounded page from
-the newest deployments and drops old cursor/response state.
+back/forward retain the filter. Each filter change requests a new bounded page from the newest deployments;
+older responses are retired and the previous cursor is never sent for that refresh.
 
 ## Dependency security
 
@@ -81,3 +81,24 @@ retry. Diagnostics exclude frame contents.
 
 CI runs the full-lock npm audit independently of the Python audits on pushes and a
 weekly Monday schedule; the root README documents the Python audit.
+
+## Deployment admission and transport bounds
+
+History pages contain at most 50 deployments with unique positive safe integer ids
+in strictly descending order, below the requested cursor and belonging to the
+requested service when filtered. Each row requires string origin/user, a valid
+start timestamp and a null or valid finish timestamp. The whole page is validated
+and projected before publication; invalid pages retain the last good rows/cursor
+and show **Retry history**. Refresh generations and websocket changes still win.
+
+Launch results use the same row validation and must match the service identity
+captured when the request began. An invalid success response does not install a
+row or navigate: the outcome is uncertain, so refresh history before retrying.
+A finished deployment remains finished if a delayed start event arrives. Explicit
+deletions still remove rows; reconnect REST snapshots reconcile committed state.
+
+All HTTP success/error bodies are capped at 1 MiB of streamed response bytes before
+JSON decoding. Content-Length can reject early but never bypasses counted reads.
+Overflow cancels the reader, returns a fixed body-free error, and never retries a
+mutation. The existing 30-second deadline includes body reads; auth and caller
+cancellation retain their request-local behavior.

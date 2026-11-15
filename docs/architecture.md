@@ -323,7 +323,10 @@ bursts. Resetting the store (also on logout) cancels that timer; an old session
 cannot expire activity in a later one.
 
 Every frontend HTTP call has a 30-second whole-request deadline, including response
-body reading and decoding. A private AbortController forwards caller cancellation
+body reading and decoding. Success and error bodies additionally have a 1 MiB
+streamed-byte ceiling before JSON decoding. Content-Length only enables early
+rejection; every chunk is counted even when the header is absent or incorrect.
+Overflow cancels the reader and raises a fixed, payload-free error. A private AbortController forwards caller cancellation
 to fetch. Both cancellation and deadline expiry settle the call even if the
 transport ignores abort; timers and caller listeners are retired on every outcome.
 Expiry is reported as `TimeoutError`, caller cancellation as `AbortError` (or the
@@ -333,6 +336,19 @@ A timed-out deployment or service sync may already have reached the server: refr
 its state before deciding whether to retry.
 
 ### REST snapshot admission
+
+Deployment history validates every row before modifying cached data or paging
+state. Pages have at most 50 unique positive safe integer ids in strictly descending
+order below `before_id`, and every row must belong to `service_id` when requested.
+Origin/user are strings, start is a valid ISO timestamp, finish is null or a valid
+ISO timestamp, and optional deletion flags must be boolean (history rows cannot be
+deleted). Only declared fields are projected. Invalid responses keep last-good
+rows/cursor and expose an explicit retry; valid pages preserve intervening events.
+Start responses use the same decoder and must match the service identity captured
+before the launch request. Invalid success responses are ambiguous outcomes:
+no row or navigation is published, and users must refresh history before retrying.
+A cached terminal deployment cannot regress to unfinished through a delayed start
+event. Deletion events remain effective; reconnect REST remains authoritative.
 
 Step hydration first builds a complete isolated snapshot. Every row needs a positive
 safe integer id, the requested deployment id, string name/message, one of

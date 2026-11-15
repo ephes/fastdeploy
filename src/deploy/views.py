@@ -97,11 +97,7 @@ async def get_service_names(fs: AbstractFilesystem) -> list[str]:
 
 
 async def get_services_from_filesystem(fs: AbstractFilesystem) -> list[model.Service]:
-    names = await get_service_names(fs)
-    services = []
-    for name in names:
-        services.append(model.Service(name=name, data=fs.get_config_by_name(name)))
-    return services
+    return [model.Service(name=name, data=config) for name, config in fs.get_configs()]
 
 
 async def get_steps_from_last_deployment(

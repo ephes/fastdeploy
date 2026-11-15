@@ -30,7 +30,7 @@ it('includes response body reading in the deadline and never retries a mutation'
   let signal!: AbortSignal;
   const fetch = vi.fn((_url, options) => {
     signal = options.signal;
-    return Promise.resolve({ status: 200, json: () => new Promise(() => {}) });
+    return Promise.resolve(new Response(new ReadableStream({ pull: () => new Promise(() => {}) })));
   });
   vi.stubGlobal('fetch', fetch);
   const result = getClientWithoutAuth().post('/deployments/', { service: 'synthetic' }).catch(error => error);

@@ -40,7 +40,9 @@ watch(serviceId, (id) => deploymentStore.fetchDeployments(id), { immediate: true
       </tr></tbody>
     </table>
     <p v-if="deploymentStore.historyError" role="alert">{{ deploymentStore.historyError }}</p>
-    <button v-if="deploymentStore.historyHasMore" :disabled="deploymentStore.historyLoading"
+    <button v-if="deploymentStore.historyError" :disabled="deploymentStore.historyLoading"
+      @click="deploymentStore.fetchDeployments(serviceId)">Retry history</button>
+    <button v-else-if="deploymentStore.historyHasMore" :disabled="deploymentStore.historyLoading"
       @click="deploymentStore.fetchDeployments(serviceId, true)">
       {{ deploymentStore.historyLoading ? 'Loading…' : 'Load more' }}
     </button>
