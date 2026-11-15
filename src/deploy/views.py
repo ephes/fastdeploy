@@ -172,6 +172,19 @@ async def get_deployment_with_steps(deployment_id: int, uow: unit_of_work.Abstra
     return deployment
 
 
+async def get_step_page(
+    deployment_id: int, uow: unit_of_work.AbstractUnitOfWork, *, limit: int, before_id: int | None = None
+) -> list[model.Step]:
+    """Read only the requested step rows, without hydrating a deployment's inventory."""
+    async with uow:
+        try:
+            await uow.deployments.get(deployment_id)
+        except NoResultFound as e:
+            raise DeploymentNotFound(deployment_id) from e
+        steps = await uow.steps.page_by_deployment(deployment_id, limit=limit, before_id=before_id)
+    return steps
+
+
 def deployment_has_open_steps(steps: list[model.Step]) -> bool:
     """Return True if any step indicates the deployment is still active."""
     return any(step.state in OPEN_STEP_STATES for step in steps)

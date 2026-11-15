@@ -2,6 +2,11 @@ Unreleased
 ==========
 
 ### Fixed
+- Always attempt SQLAlchemy UoW rollback after expunge failure, preserving initiating errors and cleanup ownership.
+- Page step inventories with at most 25 SQL rows per request; stage complete client traversals while preserving live events.
+  API consumers must iterate descending `before_id` pages; a short/empty page completes the inventory.
+- Bound running-step scroll metadata to five recent candidates and retire it on deployment completion/deletion.
+- Reject terminal step regressions and retain deleted-step tombstones until session reset; reruns use fresh ids.
 - Validate complete deployment history pages before mutation, including service ownership,
   unique descending ids/cursors, row fields and dates; retain last-good state with retry.
 - Bind admitted deployment start results to the requested service before installation or

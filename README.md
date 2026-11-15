@@ -222,6 +222,10 @@ Deployment history uses bounded pages: the UI shows the newest 50 deployments an
 loads older pages with **Load more**. API consumers use `limit` (default 50, maximum
 200), `before_id` and optional `service_id`; see [the paging contract](docs/endpoints.md#get-deployments).
 
+Step inventories also use bounded descending id pages (25 rows, `before_id`);
+the frontend traverses pages before marking an inventory complete and preserves
+intervening WebSocket updates/deletions. See [step pagination](docs/endpoints.md#get-steps).
+
 The frontend HTTP client caps success and error bodies at 1 MiB before JSON decoding,
 including chunked bodies and incorrect Content-Length headers. It limits each
 request to 30 seconds and forwards caller cancellation. It never retries automatically; refresh deployment

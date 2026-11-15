@@ -371,9 +371,19 @@ every script line with its own). Steps that share a name but have different `sta
 separate steps.
 
 ### GET /steps/
-**Purpose**: List steps for a deployment
+**Purpose**: List a bounded step page for a deployment
 **Authentication**: User token required
-**Query Parameters**: `?deployment_id=1`
+**Query Parameters**: `deployment_id` (required), `limit` (1–25, default 25),
+`before_id` (optional positive exclusive cursor).
+
+Rows are ordered by descending immutable step id. Pass the last id as `before_id`
+for the next page. A short page, including an empty page after an exactly full final
+page, explicitly completes the inventory at that traversal. Inserts with higher ids
+arrive through WebSocket or a fresh traversal; updates/deletions can happen during
+paging, so this is not a frozen database snapshot. The response remains an array,
+but consumers that previously expected all rows must now traverse pages.
+Each SQL read materializes at most 25 step rows; even maximally escaped persisted
+name/message fields keep each response below the frontend's 1 MiB body limit.
 **Errors**: `404 {"detail": "Deployment not found"}` for an unknown deployment id
 **Response**:
 ```json

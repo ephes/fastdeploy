@@ -113,3 +113,109 @@ describe("Steps Store Getters", () => {
     );
   });
 });
+
+
+describe("Step lifecycle and scroll bounds", () => {
+  beforeEach(() => initPinia());
+
+  it("keeps only the five recent scroll candidates for 10,000 sequential steps", () => {
+    const store = useSteps();
+    for (let id = 1; id <= 10000; id++) {
+      const running = { ...step, id, state: "running" };
+      store.onMessage(running);
+      store.onMessage({ ...running, state: "success", finished: new Date() } as Step);
+    }
+    expect(store.stepsInProgressByDeployment[1].map(row => row.id)).toEqual([10000, 9999, 9998, 9997, 9996]);
+    expect(store.shouldScrollToStep(store.steps[9996])).toBe(true);
+    expect(Object.keys(store.steps)).toHaveLength(10000);
+    store.onMessage({ ...store.steps[9996], deleted: true } as Step);
+    expect(store.stepsInProgressByDeployment[1]).toHaveLength(4);
+    store.onMessage({ id: 1, type: "deployment", finished: new Date() } as any);
+    store.onMessage({ ...step, id: 10001, state: "running" } as Step);
+    expect(store.stepsInProgressByDeployment[1]).toBeUndefined();
+  });
+
+  it("does not reinsert an evicted duplicate running event", () => {
+    const store = useSteps();
+    for (let id = 1; id <= 6; id++) store.onMessage({ ...step, id, state: "running" } as Step);
+    store.onMessage({ ...step, id: 1, state: "running" } as Step);
+    expect(store.stepsInProgressByDeployment[1].map(row => row.id)).toEqual([6, 5, 4, 3, 2]);
+  });
+
+  it.each([false, true])("rejects terminal regressions and resurrection (REST pending: %s)", async pending => {
+    const store = useSteps();
+    let respond!: (rows: unknown) => void;
+    store.client = { get: () => new Promise(resolve => { respond = resolve; }) } as any;
+    const fetch = pending ? store.fetchStepsFromDeployment(1) : Promise.resolve();
+    const terminal = { ...step, state: "success", finished: new Date() };
+    store.onMessage(terminal);
+    store.onMessage({ ...step, state: "running" } as Step);
+    expect(store.steps[1]).toEqual(terminal);
+    store.onMessage({ ...terminal, deleted: true } as Step);
+    store.onMessage({ ...step, state: "running" } as Step);
+    // A rerun has a fresh step id, even when the name is identical.
+    store.onMessage({ ...step, id: 2, state: "running" } as Step);
+    if (pending) respond([apiStep]);
+    await fetch;
+    expect(store.steps[1]).toBeUndefined();
+    expect(store.steps[2].state).toBe("running");
+  });
+});
+
+describe("Step inventory pages", () => {
+  beforeEach(() => initPinia());
+  const row = (id: number) => ({ ...apiStep, id });
+  it("stages pages until completion and preserves events across boundaries", async () => {
+    const store = useSteps();
+    store.addStep({ ...step, id: 99 });
+    let respond!: (rows: unknown) => void;
+    const get = vi.fn().mockResolvedValueOnce(Array.from({ length: 25 }, (_, i) => row(50 - i)))
+      .mockImplementationOnce(() => new Promise(resolve => { respond = resolve; }));
+    store.client = { get } as any;
+    const fetch = store.fetchStepsFromDeployment(1);
+    // Let the first page finish; it must not remove absent cached rows yet.
+    await Promise.resolve(); await Promise.resolve();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(store.steps[99]).toBeDefined();
+    store.onMessage({ ...step, id: 26, deleted: true } as Step);
+    store.onMessage({ ...step, id: 25, state: "success", finished: new Date() } as Step);
+    store.onMessage({ ...step, id: 51, state: "running" } as Step);
+    respond([row(25), row(24)]);
+    await fetch;
+    expect(get.mock.calls[1][0]).toContain("before_id=26");
+    expect(store.steps[99]).toBeUndefined();
+    expect(store.steps[26]).toBeUndefined();
+    expect(store.steps[25].state).toBe("success");
+    expect(store.steps[51]).toBeDefined();
+    expect(store.inventoryComplete[1]).toBe(true);
+  });
+
+  it("requests an empty final page when the last page was full", async () => {
+    const store = useSteps();
+    const get = vi.fn().mockResolvedValueOnce(Array.from({ length: 25 }, (_, i) => row(25 - i)))
+      .mockResolvedValueOnce([]);
+    store.client = { get } as any;
+    await store.fetchStepsFromDeployment(1);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(get.mock.calls[1][0]).toContain("before_id=1");
+    expect(store.inventoryComplete[1]).toBe(true);
+    expect(Object.keys(store.steps)).toHaveLength(25);
+  });
+
+  it.each(["error", "invalid", "logout"])("does not publish partial inventories after %s", async outcome => {
+    const store = useSteps();
+    store.addStep(step);
+    const get = vi.fn().mockResolvedValueOnce(Array.from({ length: 25 }, (_, i) => row(50 - i)));
+    if (outcome === "error") get.mockRejectedValueOnce(new Error("fixture"));
+    else get.mockImplementationOnce(async () => {
+      if (outcome === "logout") { const { useAuth } = await import("../src/stores/auth"); useAuth().endSession(); }
+      return [row(50)]; // Cursor did not advance.
+    });
+    store.client = { get } as any;
+    const fetch = store.fetchStepsFromDeployment(1);
+    if (outcome === "logout") { await fetch; expect(store.steps).toEqual({}); }
+    else { await expect(fetch).rejects.toThrow(); expect(Object.keys(store.steps)).toEqual(["1"]); }
+    expect(store.inventoryComplete[1]).not.toBe(true);
+    expect(store.pendingFetches).toEqual([]);
+  });
+});

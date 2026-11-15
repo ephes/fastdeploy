@@ -71,3 +71,15 @@ export function deploymentPage(value: unknown, serviceId?: number, beforeId: num
     return deployment;
   });
 }
+
+/** Stable descending pages; a short page (including empty) completes traversal. */
+export function stepPage(value: unknown, deploymentId: number, beforeId: number | null): Step[] {
+  const steps = stepSnapshot(value, deploymentId);
+  if (steps.length > 25) return invalid();
+  let upper = beforeId ?? Infinity;
+  for (const step of steps) {
+    if (step.id >= upper || step.deleted) return invalid();
+    upper = step.id;
+  }
+  return steps;
+}

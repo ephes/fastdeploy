@@ -122,9 +122,20 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         self.service_tokens = repository.SqlAlchemyServiceTokenRepository(self.session)
         return await super().__aenter__()
 
-    async def __aexit__(self, *args):
-        self.session.expunge_all()
-        await super().__aexit__(*args)
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        primary = (exc_type, exc_value, traceback)
+        try:
+            try:
+                self.session.expunge_all()
+            except Exception as cleanup_error:
+                if exc_type is None:
+                    primary = (type(cleanup_error), cleanup_error, cleanup_error.__traceback__)
+                    raise
+                logger.error("uow_expunge_failed category=%s", type(cleanup_error).__name__[:100])
+        finally:
+            # Rollback must run even when detaching rows fails. With no body
+            # failure, the expunge error becomes primary for the base guard.
+            await super().__aexit__(*primary)
 
     async def _commit(self):
         await self.session.commit()

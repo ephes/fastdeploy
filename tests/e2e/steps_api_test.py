@@ -362,3 +362,54 @@ async def test_offset_start_retry_keeps_utc_identity_and_server_finish(app, uow,
         assert saved.started == started
         assert saved.started.tzinfo is timezone.utc
         assert started < saved.finished <= datetime.now(timezone.utc)
+
+
+@pytest.mark.parametrize("database_type", ["in_memory", "database_url"])
+async def test_step_pages_bound_rows_and_traverse_exactly(
+    app, uow, deployment_in_db, valid_access_token_in_db, database_type
+):
+    from sqlalchemy import event
+
+    statements = []
+    if database_type == "database_url":
+        event.listen(
+            uow.session.sync_session.bind,
+            "before_cursor_execute",
+            lambda c, cur, sql, p, ctx, many: statements.append(sql),
+        )
+    async with uow:
+        for index in range(1001):
+            await uow.steps.add(
+                model.Step(name=f"synthetic-{index}", deployment_id=deployment_in_db.id, message="\x01" * 4096)
+            )
+        await uow.commit()
+    statements.clear()
+    headers = {"authorization": f"Bearer {valid_access_token_in_db}"}
+    seen, before_id = [], None
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        while True:
+            params = {"deployment_id": deployment_in_db.id, "limit": 25}
+            if before_id is not None:
+                params["before_id"] = before_id
+            response = await client.get("/steps/", params=params, headers=headers)
+            assert response.status_code == 200
+            rows = response.json()
+            assert len(rows) <= 25
+            assert len(response.content) < 1024 * 1024
+            ids = [row["id"] for row in rows]
+            assert ids == sorted(ids, reverse=True)
+            assert before_id is None or all(id < before_id for id in ids)
+            seen.extend(ids)
+            if len(rows) < 25:
+                break
+            before_id = ids[-1]
+        for invalid in ({"limit": 26}, {"limit": 0}, {"before_id": 0}):
+            response = await client.get(
+                "/steps/", params={"deployment_id": deployment_in_db.id} | invalid, headers=headers
+            )
+            assert response.status_code == 422
+    assert seen == list(range(1001, 0, -1))
+    step_selects = [sql for sql in statements if sql.lstrip().startswith("SELECT step.")]
+    if database_type == "database_url":
+        assert step_selects
+        assert all("LIMIT" in sql and "ORDER BY step.id DESC" in sql for sql in step_selects)

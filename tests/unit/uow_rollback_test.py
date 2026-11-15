@@ -65,3 +65,54 @@ async def test_rollback_failure_preserves_primary_and_request_cleanup(monkeypatc
     session.close.assert_awaited_once()
     connection.close.assert_awaited_once()
     engine.dispose.assert_not_awaited()
+
+
+@pytest.mark.parametrize("phase", ["body", "cancel", "none"])
+@pytest.mark.parametrize("rollback_fails", [False, True])
+async def test_expunge_failure_always_rolls_back_and_preserves_primary(caplog, phase, rollback_fails):
+    expunge_error = OSError("private expunge details")
+    session = Mock(
+        expunge_all=Mock(side_effect=expunge_error),
+        rollback=AsyncMock(side_effect=RuntimeError("private rollback") if rollback_fails else None),
+        close=AsyncMock(),
+    )
+    connection = Mock(close=AsyncMock())
+    engine = Mock(connect=AsyncMock(return_value=connection), dispose=AsyncMock())
+    uow = SqlAlchemyUnitOfWork(engine, lambda bind: session, owns_engine=False)
+    await uow.connect()
+    primary = asyncio.CancelledError("private cancel") if phase == "cancel" else ValueError("private body")
+    with (
+        caplog.at_level(logging.ERROR),
+        pytest.raises(type(expunge_error) if phase == "none" else type(primary)) as error,
+    ):
+        async with uow:
+            if phase != "none":
+                raise primary
+    assert error.value is (expunge_error if phase == "none" else primary)
+    session.rollback.assert_awaited_once()
+    assert all("private" not in record.getMessage() and record.exc_info is None for record in caplog.records)
+    assert any(record.getMessage() == "uow_expunge_failed category=OSError" for record in caplog.records) == (
+        phase != "none"
+    )
+    session.expunge_all.side_effect = None
+    session.rollback.side_effect = None
+    session.commit = AsyncMock()
+    async with uow:
+        await uow.commit()
+    assert session.rollback.await_count == 2
+    await uow.close()
+    session.close.assert_awaited_once()
+    connection.close.assert_awaited_once()
+    engine.dispose.assert_not_awaited()
+
+
+async def test_clean_body_inside_exception_handler_still_surfaces_rollback_error():
+    session = Mock(rollback=AsyncMock(side_effect=OSError("rollback")))
+    uow = SqlAlchemyUnitOfWork(Mock(), Mock())
+    uow.session = session
+    try:
+        raise ValueError("already handled")
+    except ValueError:
+        with pytest.raises(OSError, match="rollback"):
+            async with uow:
+                pass
