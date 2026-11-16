@@ -1,4 +1,4 @@
-import { mande, MandeInstance, Options } from "mande";
+import { mande, MandeInstance, Options, ResponseAsTypes } from "mande";
 import { useAuth } from "./auth";
 import { useSettings } from "./config";
 
@@ -15,7 +15,15 @@ export type HttpClient = MandeInstance;
 export const REQUEST_TIMEOUT_MS = 30_000;
 export const MAX_RESPONSE_BYTES = 1024 * 1024;
 
-async function decodeBounded(response: Response, signal: AbortSignal, responseAs: Options['responseAs']) {
+/**
+ * Request options plus an optional observer of the actual body bytes received.
+ * It is called per streamed chunk before decoding; throwing from it cancels the body.
+ */
+export type BoundedOptions<R extends ResponseAsTypes = ResponseAsTypes> = Options<R> & { onBodyBytes?: (bytes: number) => void };
+
+async function decodeBounded(
+  response: Response, signal: AbortSignal, responseAs: Options['responseAs'], onBodyBytes?: (bytes: number) => void,
+) {
   const reader = response.body?.getReader();
   const overflow = () => new Error('Server response is too large. Refresh before retrying.');
   if (!reader) return responseAs === 'response' ? response : null;
@@ -32,6 +40,7 @@ async function decodeBounded(response: Response, signal: AbortSignal, responseAs
       if (done) break;
       length += value.byteLength;
       if (length > MAX_RESPONSE_BYTES) throw overflow();
+      onBodyBytes?.(value.byteLength);
       chunks.push(value);
     }
     const bytes = new Uint8Array(length);
@@ -85,11 +94,12 @@ export const getClientWithoutAuth = (): HttpClient => {
       const reads = method === "get" || method === "delete";
       const url = hasUrl ? args[0] : "";
       const data = hasUrl ? args[1] : args[0];
-      const options: Options | undefined = reads
+      const options: BoundedOptions | undefined = reads
         ? (hasUrl ? args[1] : args[0])
         : (hasUrl ? args[2] : args[1]);
+      const { onBodyBytes, ...fetchOptions } = options ?? {};
       return withDeadline(async signal => {
-        const boundedOptions = { ...options, signal, responseAs: 'response' };
+        const boundedOptions = { ...fetchOptions, signal, responseAs: 'response' };
         let response: Response;
         try {
           response = await (reads ? send(url, boundedOptions) : send(url, data, boundedOptions)) as Response;
@@ -97,7 +107,9 @@ export const getClientWithoutAuth = (): HttpClient => {
           if (!(error instanceof Error) || !('response' in error)) throw error;
           response = (error as Error & { response: Response }).response;
         }
-        const body = await decodeBounded(response, signal, options?.responseAs ?? client.options.responseAs ?? 'json');
+        const body = await decodeBounded(
+          response, signal, options?.responseAs ?? client.options.responseAs ?? 'json', onBodyBytes,
+        );
         if (!response.ok) {
           throw Object.assign(new Error(response.statusText), { response, body });
         }

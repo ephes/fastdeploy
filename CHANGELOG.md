@@ -17,7 +17,8 @@ Unreleased
   admitting new steps. Prune with incremental counts, once per inventory publish.
   Requires frontend rebuild.
 - Count progress directly from the unsorted step index without copying/sorting detail rows.
-- Bound complete browser step traversals to 1,000 rows, 8 MiB and 30 seconds;
+- Bound complete browser step traversals to 1,000 rows, 8 MiB of received response
+  bytes and 30 seconds;
   retain last-good rows with retry feedback on refusal. Requires frontend rebuild.
 - Apply private no-store and Authorization variation to all deployment/step
   responses, including authentication and internal errors.

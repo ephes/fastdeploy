@@ -3,6 +3,7 @@ import { pythonToJavascript } from "../src/converters";
 import { createWebsocketClient } from "../src/websocket";
 import { useDeployments } from "../src/stores/deployment";
 import { useSteps } from "../src/stores/step";
+import { getClientWithoutAuth } from "../src/stores/httpClient";
 import { createEvent, initPinia } from "./conftest";
 
 const apiStep: object = {
@@ -243,13 +244,35 @@ describe("Whole inventory admission", () => {
     const store = useSteps();
     store.addStep(step);
     let next = 1000;
-    const get = vi.fn(async () => Array.from({ length: 25 }, () => ({
-      ...apiStep, id: next--, message: "x".repeat(32_000),
-    })));
+    const get = vi.fn(async (_url: string, options: any) => {
+      const page = Array.from({ length: 25 }, () => ({ ...apiStep, id: next--, message: "x".repeat(32_000) }));
+      options.onBodyBytes(new TextEncoder().encode(JSON.stringify(page)).byteLength);
+      return page;
+    });
     store.client = { get } as any;
     await expect(store.fetchStepsFromDeployment(1)).rejects.toThrow();
     expect(Object.keys(store.steps)).toEqual(["1"]);
     expect(get.mock.calls.length).toBeLessThanOrEqual(11);
+  });
+
+  it("counts actual response bytes, including whitespace padding, across pages", async () => {
+    const store = useSteps();
+    store.addStep(step);
+    let next = 1000;
+    const padded = () => {
+      const json = JSON.stringify(Array.from({ length: 25 }, () => ({ ...apiStep, id: next-- })));
+      return json + " ".repeat(1_000_000 - json.length);
+    };
+    const fetch = vi.fn(async () => new Response(padded()));
+    vi.stubGlobal("fetch", fetch);
+    try {
+      store.client = getClientWithoutAuth();
+      await expect(store.fetchStepsFromDeployment(1)).rejects.toThrow(/too large/);
+      // 8 MiB of real bytes is exhausted within the ninth 1 MB page, long before 1,000 rows.
+      expect(fetch.mock.calls.length).toBe(9);
+      expect(Object.keys(store.steps)).toEqual(["1"]);
+      expect(store.inventoryComplete[1]).toBe(false);
+    } finally { vi.unstubAllGlobals(); }
   });
 
   it("aborts the pending page at the whole traversal deadline", async () => {

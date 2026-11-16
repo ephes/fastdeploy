@@ -671,7 +671,8 @@ owns those resources and can settle them after a failed unwind. Shared engines a
 never disposed by a non-owning request UoW.
 
 A complete step inventory is staged under one 30-second deadline, at most 1,000
-rows and 8 MiB of cumulative JSON page bytes. Oversize or timed-out traversals
+rows and 8 MiB of cumulative response bytes as received (counted per streamed chunk
+before JSON decoding, so whitespace or escapes cannot hide size). Oversize or timed-out traversals
 abort the pending request, retain the last good rows and leave completeness false.
 Retry starts a fresh traversal; no partial inventory is published.
 

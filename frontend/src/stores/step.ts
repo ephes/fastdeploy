@@ -1,6 +1,6 @@
 import { markRaw } from "vue";
 import { defineStore, acceptHMRUpdate } from "pinia";
-import { getClient } from "./httpClient";
+import { getClient, type BoundedOptions } from "./httpClient";
 import { useDeployments } from "./deployment";
 import { rememberSession } from "./session";
 import { stepPage } from "../restAdmission";
@@ -250,13 +250,17 @@ export const useSteps = defineStore("steps", {
         const steps: Step[] = [];
         let beforeId: number | null = null;
         let bytes = 0;
+        // Count the bytes actually received on the wire, not a re-serialization of parsed JSON.
+        const countBytes = (received: number) => {
+          bytes += received;
+          if (bytes > INVENTORY_MAX_BYTES) throw new Error("Step inventory is too large.");
+        };
         while (true) {
           const params = new URLSearchParams({ deployment_id: deploymentId.toString(), limit: "25" });
           if (beforeId !== null) params.set("before_id", beforeId.toString());
-          const response = await Promise.race([expired, this.client.get<unknown>("steps/?" + params, { signal: controller.signal })]);
+          const options: BoundedOptions<"json"> = { signal: controller.signal, onBodyBytes: countBytes };
+          const response = await Promise.race([expired, this.client.get<unknown>("steps/?" + params, options)]);
           if (!isCurrentSession() || !ownsRefresh() || this.fetchGenerations[deploymentId] !== generation) return;
-          bytes += new TextEncoder().encode(JSON.stringify(response)).byteLength;
-          if (bytes > INVENTORY_MAX_BYTES) throw new Error("Step inventory is too large.");
           const page = stepPage(response, deploymentId, beforeId);
           if (steps.length + page.length > INVENTORY_MAX_ROWS) throw new Error("Step inventory is too large.");
           if (page.some(step => this.steps[step.id] && this.steps[step.id].deploymentId !== deploymentId)) {
