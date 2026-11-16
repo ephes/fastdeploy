@@ -373,6 +373,15 @@ wire contract.
 All admission runs after the existing session/refresh-generation ownership checks;
 obsolete responses cannot publish data or failure feedback over a newer request.
 
+Service-token issuance admits only an object with `token_type: "bearer"` and a
+nonempty `service_token` string of at most 16,384 printable ASCII characters, without
+spaces. Other response fields are ignored; the frontend does not
+decode or verify the JWT. Invalid JSON/shapes return no token and fixed retry
+feedback. Error feedback uses fixed status-based messages, never body or exception
+text, so credentials cannot enter diagnostics. Session retirement is checked before
+admission; detail-view request generations still discard results and feedback from
+former routes. Concurrent deployment requests retain their request-local callbacks.
+
 ### Login Session
 
 Everything the web UI holds for a logged-in user belongs to one login session and ends with it

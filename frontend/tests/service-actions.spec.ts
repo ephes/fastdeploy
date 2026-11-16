@@ -116,7 +116,7 @@ it('ignores a late launch success after logout even when supplied by a store moc
 });
 
 
-it('puts real token-issuance details in one contextual row alert', async () => {
+it('puts fixed token-issuance feedback in one contextual row alert', async () => {
   const { store, wrapper } = setup();
   store.client = { post: vi.fn().mockRejectedValue({ response: { status: 403 }, body: { detail: 'Service token issuance requires an administrator' } }) } as any;
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);

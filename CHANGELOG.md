@@ -6,6 +6,10 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Validate service-token success responses before display or launch: require a bearer
+  token string of at most 16 KiB using printable ASCII without spaces. Malformed
+  responses fail with fixed feedback; no response body or credential enters errors.
+  Rebuild the frontend to apply these service action fixes.
 - Let only the latest service sync in the current login session report success,
   refusal or failure, so a delayed ordinary sync cannot overwrite a forced retry.
 - Always attempt SQLAlchemy UoW rollback after expunge failure, preserving initiating errors and cleanup ownership.

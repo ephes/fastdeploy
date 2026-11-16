@@ -1,6 +1,6 @@
 import { markRaw } from "vue";
 import { getClient } from "./httpClient";
-import { serviceSnapshot, serviceNamesSnapshot } from "../restAdmission";
+import { serviceSnapshot, serviceNamesSnapshot, serviceToken } from "../restAdmission";
 import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
@@ -234,27 +234,26 @@ export const useServices = defineStore("services", {
       origin: string,
       expirationInDays: number = 1,
       onError?: (message: string) => void
-    ) {
+    ): Promise<string | null> {
       if (!onError) this.serviceTokenErrorMessage = "";
       const isCurrentSession = rememberSession();
       try {
-        const response = await (<Promise<{ service_token: string }>>(
-          this.client.post("service-token", {
-            service: serviceName,
-            origin: origin,
-            expiration_in_days: expirationInDays,
-          })
-        ));
+        const response = await this.client.post<unknown>("service-token", {
+          service: serviceName,
+          origin: origin,
+          expiration_in_days: expirationInDays,
+        });
         // a token that arrives after logout is not handed out anymore
-        return isCurrentSession() ? response.service_token : null;
+        return isCurrentSession() ? serviceToken(response) : null;
       } catch (err: any) {
         if (!isCurrentSession()) {
           return null;
         }
-        const detail = err?.body?.detail;
         const status = err?.response?.status;
-        const message = [403, 404, 422].includes(status) && typeof detail === "string"
-          ? detail.slice(0, 512)
+        const message = status === 403
+          ? "Service token issuance requires an administrator."
+          : status === 404
+          ? "The selected service no longer exists. Refresh services before retrying."
           : "Could not issue a service token. Check your permissions and inputs, then retry.";
         if (onError) onError(message);
         else this.serviceTokenErrorMessage = message;

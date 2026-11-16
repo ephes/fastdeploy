@@ -62,8 +62,11 @@ it('reacts to late services and route changes and fences an old token response',
   const page = await setup(ServiceDetail, '/services/1');
   const store = useServices();
   store.servicesLoading = true;
-  const old = deferred<string>();
-  const fetch = vi.spyOn(store, 'fetchServiceToken').mockReturnValueOnce(old.promise).mockResolvedValueOnce('current-token');
+  const old = deferred<unknown>();
+  store.client = { post: vi.fn().mockReturnValueOnce(old.promise).mockResolvedValueOnce({
+    service_token: 'current-token', token_type: 'bearer',
+  }) } as any;
+  const fetch = vi.spyOn(store, 'fetchServiceToken');
   const wrapper = page.mount();
   expect(wrapper.text()).toContain('Loading service');
   store.services = { 1: { id: 1, name: 'first', data: {} }, 2: { id: 2, name: 'second', data: {} } };
@@ -75,7 +78,7 @@ it('reacts to late services and route changes and fences an old token response',
   await page.router.push('/services/2'); await flushPromises();
   expect(wrapper.text()).toContain('second');
   expect(wrapper.text()).not.toContain('first');
-  old.resolve('old-token'); await flushPromises();
+  old.resolve({ service_token: 'old-token', token_type: 'bearer' }); await flushPromises();
   expect(wrapper.text()).not.toContain('old-token');
   await wrapper.get('#token-origin').setValue('new-origin');
   await wrapper.get('button').trigger('click'); await flushPromises();
@@ -151,7 +154,7 @@ it('ignores an older fetch of the same deployment while retaining other deployme
 });
 
 
-it('shows safe validation details locally and never leaks discarded errors to the list', async () => {
+it('shows fixed validation feedback locally and never leaks discarded errors to the list', async () => {
   const page = await setup(ServiceDetail, '/services/1');
   const store = useServices();
   store.serviceTokenErrorMessage = 'prior-list-error';
@@ -163,10 +166,11 @@ it('shows safe validation details locally and never leaks discarded errors to th
   await wrapper.get('button').trigger('click');
   await page.router.push('/services/2'); await flushPromises();
   await wrapper.get('button').trigger('click'); await flushPromises();
-  expect(wrapper.get('[role="alert"]').text()).toContain('origin must not be empty');
+  expect(wrapper.get('[role="alert"]').text()).toContain('Check your permissions and inputs');
+  expect(wrapper.text()).not.toContain('origin must not be empty');
   old.reject({ response: { status: 403 }, body: { detail: 'obsolete-first-error' } }); await flushPromises();
   expect(wrapper.text()).not.toContain('obsolete-first-error');
-  expect(wrapper.get('[role="alert"]').text()).toContain('origin must not be empty');
+  expect(wrapper.get('[role="alert"]').text()).toContain('Check your permissions and inputs');
   expect(store.serviceTokenErrorMessage).toBe('');
   await page.router.push('/'); await flushPromises();
   expect(store.serviceTokenErrorMessage).toBe('');

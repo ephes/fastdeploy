@@ -16,8 +16,12 @@ Login uses labeled username/password fields with credential autocomplete. Enter 
 either field submits the form; one request runs at a time and failures are announced
 without clearing the inputs. Service details follow the current route and show
 loading/missing/error states; token results and errors from a former service are
-discarded. Validation details stay on the current detail page, without leaking
+discarded. Fixed validation feedback stays on the current detail page, without leaking
 alerts back to the service list.
+Token success responses require `token_type: "bearer"` and a nonempty token string
+of at most 16 KiB using printable ASCII without spaces before display or deployment.
+Malformed responses return no token. Diagnostics never include response body or
+exception text; administrator/service-missing errors use fixed status-based messages.
 Deployment details refetch steps on navigation, show loading/error/retry states,
 and never display a former deployment's steps. Metadata absent from loaded history
 is identified explicitly. Older responses for the same deployment cannot overwrite
