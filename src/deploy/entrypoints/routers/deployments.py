@@ -98,6 +98,7 @@ async def get_deployment_details(
 
 @router.put("/finish/")
 async def finish_deployment(
+    token: str = Depends(OAUTH2_SCHEME),
     deployment: model.Deployment = Depends(get_current_active_deployment),
     bus: Bus = Depends(),
 ) -> dict:
@@ -107,9 +108,11 @@ async def finish_deployment(
     if deployment.id is None:
         # this cannot happen -> it's just a type guard for command
         raise HTTPException(status_code=404, detail="Deployment not found")
-    cmd = commands.FinishDeployment(deployment_id=deployment.id)
+    cmd = commands.FinishDeployment(deployment_id=deployment.id, deployment_token=token)
     try:
         await bus.handle(cmd)
+    except (InvalidCredentials, InvalidTokenError):
+        raise CREDENTIALS_EXCEPTION from None
     except views.DeploymentNotFound as e:
         raise HTTPException(status_code=404, detail="Deployment not found") from e
     return {"detail": f"Deployment {deployment.id} finished"}

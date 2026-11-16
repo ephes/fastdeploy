@@ -223,7 +223,7 @@ loads older pages with **Load more**. API consumers use `limit` (default 50, max
 200), `before_id` and optional `service_id`; see [the paging contract](docs/endpoints.md#get-deployments).
 
 Step inventories also use bounded descending id pages (25 rows, `before_id`);
-the frontend traverses pages before marking an inventory complete and preserves
+the frontend traverses at most 1,000 rows / 8 MiB within 30 seconds before marking an inventory complete and preserves
 intervening WebSocket updates/deletions. See [step pagination](docs/endpoints.md#get-steps).
 
 The frontend HTTP client caps success and error bodies at 1 MiB before JSON decoding,
@@ -400,3 +400,21 @@ the future; accepted starts normalize to UTC and finishes remain server-owned.
 Pending login checks retain their pair/address reservations until verification
 settles, even beyond the failure window. Message-bus failure logs contain only
 categories and IDs, without exception messages or tracebacks.
+
+Authenticated deployment and step routes (including detail, history, and errors)
+carry `Cache-Control: private, no-store` and `Vary: Authorization`. Public static
+assets keep their normal cache policy.
+
+The browser retains at most 200 displayed history rows plus 100 inactive histories;
+select a service or refresh after reaching the load-more limit. Active deployments
+and the open detail are pinned. Evicted step histories reload from REST when a detail
+is revisited; an evicted deployment record reappears after selecting its service or
+refreshing history.
+See [browser retention](docs/architecture.md) for step/tombstone budgets.
+
+HTTP mutation bodies are admitted before framework parsing: at most 1 MiB actual
+bytes within one 10-second receive deadline (413/408 on refusal). This includes
+JSON and login forms and is independent of Content-Length. Deployment-token
+step/finish authority is rechecked after acquiring the mutation row lock; expiry
+during the wait returns 401 without changes. See [API limits](docs/endpoints.md)
+and [authentication](docs/auth.md).

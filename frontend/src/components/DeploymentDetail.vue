@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDeployments } from '../stores/deployment';
 import { useSteps } from '../stores/step';
@@ -29,7 +29,15 @@ async function fetchSteps() {
     if (current === generation && isCurrentSession()) loading.value = false;
   }
 }
-watch(deploymentId, fetchSteps, { immediate: true, flush: 'sync' });
+watch(deploymentId, (id) => {
+  deploymentStore.displayedDeploymentId = id;
+  deploymentStore.pruneHistory();
+  void fetchSteps();
+}, { immediate: true, flush: 'sync' });
+onUnmounted(() => {
+  deploymentStore.displayedDeploymentId = null;
+  deploymentStore.pruneHistory();
+});
 </script>
 
 <template>

@@ -6,6 +6,21 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Admit mutation bodies before framework parsing/authentication: 1 MiB actual
+  bytes and a single 10-second receive deadline, including chunked JSON/forms.
+  Oversize/slow requests return 413/408 before route work.
+- Revalidate issuing deployment tokens after the mutation row-lock wait for
+  step/finish commands; expired or mismatched authority returns 401 without changes.
+- Bound browser history windows to 200 rows and retain at most 100 extra inactive
+  histories; evict related step indexes and lifecycle markers together. Pin active
+  and displayed deployments and fence late events after eviction; live deployments keep
+  admitting new steps. Prune with incremental counts, once per inventory publish.
+  Requires frontend rebuild.
+- Count progress directly from the unsorted step index without copying/sorting detail rows.
+- Bound complete browser step traversals to 1,000 rows, 8 MiB and 30 seconds;
+  retain last-good rows with retry feedback on refusal. Requires frontend rebuild.
+- Apply private no-store and Authorization variation to all deployment/step
+  responses, including authentication and internal errors.
 - Validate service-token success responses before display or launch: require a bearer
   token string of at most 16 KiB using printable ASCII without spaces. Malformed
   responses fail with fixed feedback; no response body or credential enters errors.
@@ -16,7 +31,7 @@ Unreleased
 - Page step inventories with at most 25 SQL rows per request; stage complete client traversals while preserving live events.
   API consumers must iterate descending `before_id` pages; a short/empty page completes the inventory.
 - Bound running-step scroll metadata to five recent candidates and retire it on deployment completion/deletion.
-- Reject terminal step regressions and retain deleted-step tombstones until session reset; reruns use fresh ids.
+- Reject terminal step regressions and retain deleted-step tombstones with their bounded histories; reruns use fresh ids.
 - Validate complete deployment history pages before mutation, including service ownership,
   unique descending ids/cursors, row fields and dates; retain last-good state with retry.
 - Bind admitted deployment start results to the requested service before installation or
