@@ -143,10 +143,11 @@ lacks permission to signal; leave some headroom above the minimum. The API passe
 so the runner admits the same combination when it imports its settings.
 
 The deploy task owns the deploy script it starts. The script runs in its own process group, and the task waits for
-it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
-U+FFFD (a step result containing them is still reported, with the replacement character; any other such line is
-skipped like every line that is not a step result), and a line longer than 10 MiB is skipped as a whole, up to its
-newline, with one message on the task's stderr. On every exit path, including a successful leader exit, the task
+it on every path. Protocol records require strict UTF-8: damaged bytes in a line opening a JSON object
+with a member name invalidate the run, without reporting a changed identity. Later output is still drained;
+the task logs only a fixed UTF-8 protocol category, without the record. Ordinary non-JSON console bytes
+remain skippable. A line longer than 10 MiB is skipped as a whole, up to its newline, with one message
+on the task's stderr. On every exit path, including a successful leader exit, the task
 checks its owned group. Remaining descendants receive `SIGTERM`, with up to 10 seconds to exit, then `SIGKILL`
 with another 10-second wait. Reaping the leader has a separate 10-second limit. A foreground script whose group
 has already exited receives no termination signal. Services must start through a service manager or deliberately
@@ -166,10 +167,12 @@ must investigate the runner's stderr diagnostics before recovery.
 The deploy task (the detached `python -m deploy.tasks` process that runs the deploy script) reports each step to
 `POST /steps/` and finally calls `PUT /deployments/finish/`. Scripts report a step with the state
 `running` when it starts (optional) and with `success` or `failure` when it ends. The task forwards
-every named JSON line as a report and does not filter states: a line with any other state, or without
-`state` (which defaults to `pending`), receives a non-retried 422 and a dropped-step stderr
-diagnostic. Such a rejected report, like any named JSON line that is not a valid step report, counts as an
-unacknowledged report: the run cannot finish successfully even if the script exits zero (see below).
+only admitted named JSON lines as reports: `name` must be a string of at most 255 characters
+(the API/storage limit) that is encodable as UTF-8 (no `\ud800`-style lone surrogate escapes), and `state` must be `running`, `success` or `failure`. Empty names remain
+compatible with the API. A present but null/non-string/oversized name, or a missing/invalid state,
+is rejected locally before HTTP or value-bearing diagnostics. Only the fixed `invalid step identity`
+protocol category is logged; the rejected name/state is never logged. Later output is still drained,
+but the run cannot finish successfully even if the script exits zero (see below).
 Scripts must therefore not print other JSON objects with a `name` member.
 JSON members must be unique at every depth. Records may contain at most 64 nested object/array levels;
 nonfinite numbers and integers beyond the interpreter's digit limit are refused. Duplicate members, excessive
@@ -201,7 +204,7 @@ retried. A step that still cannot be reported is logged to the task's stderr (th
 journal), and the task keeps reading the deploy script output. Any unacknowledged report, including a local
 report-construction failure, makes the run incomplete even if the script exits zero: it must report an accepted
 `failed step` before calling finish. A later accepted ordinary step does not erase earlier report loss.
-Lines that are not a JSON object with a `name` are
+Lines that are not a JSON object with a `name` member are
 skipped. A JSON object without a `name` is logged to the task's stderr with its size and up to 10 shortened keys,
 never its values. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
 deployment is finished afterwards; if finishing fails after a failed deploy, the original error is kept. If the failed

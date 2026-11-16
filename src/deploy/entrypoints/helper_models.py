@@ -5,7 +5,7 @@ from fastapi import Depends
 from pydantic import BaseModel, Field, field_validator
 
 from ..bootstrap import get_bus
-from ..domain.model import admitted_step_start
+from ..domain.model import MAX_STEP_NAME_LENGTH, admitted_step_start
 from ..service_layer.messagebus import MessageBus
 
 
@@ -24,7 +24,6 @@ class Step(StepBase):
 
 # Limits for reported steps. They are the sizes of the columns of the step
 # table, so a longer value could not be stored anyway.
-MAX_STEP_NAME_LENGTH = 255
 MAX_STEP_MESSAGE_LENGTH = 4096
 
 

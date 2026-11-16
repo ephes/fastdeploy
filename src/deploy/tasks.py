@@ -19,7 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .auth import create_access_token
 from .config import settings
-from .domain.model import Deployment, Step
+from .domain.model import MAX_STEP_NAME_LENGTH, REPORTED_STEP_STATES, Deployment, Step
 from .runner_limits import (
     DEPLOY_STOP_TIMEOUT,
     REPORT_RESPONSE_TIMEOUT_SECONDS,
@@ -170,7 +170,21 @@ MAX_RESULT_DEPTH = 64
 # record. Other bracket-prefixed console output, for example Ansible's
 # "[WARNING]: ..." on the merged stderr or a bare "{" of pretty-printed JSON,
 # stays ordinary output.
-RUNNER_RECORD_PREFIX = re.compile(r'\s*\{\s*"')
+RUNNER_RECORD_PREFIX = re.compile(rb'\s*\{\s*"')
+
+
+def is_utf8_encodable(value: str) -> bool:
+    """Whether a decoded JSON string can be sent as UTF-8.
+
+    Strict UTF-8 wire decoding does not reject JSON escapes for lone
+    surrogates (for example ``"\\ud800"``); such a string cannot be encoded
+    for the report request and must be refused like any invalid identity.
+    """
+    try:
+        value.encode("UTF-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def unique_result_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -443,11 +457,9 @@ class DeployTask(BaseSettings):
                     # but still have buffered stdout data that must be processed.
                     # readuntil() reports the end only after all buffered output is read.
 
-                    # Bytes that are not valid UTF-8 are replaced (U+FFFD) instead of
-                    # raising: a line that is no step result is skipped below anyway,
-                    # and a step result with a damaged character is still reported.
-                    decoded = data.decode("UTF-8", errors="replace")
                     try:
+                        # Protocol identities must retain their exact wire value.
+                        decoded = data.decode("UTF-8")
                         step_result = json.loads(
                             decoded,
                             object_pairs_hook=unique_result_members,
@@ -455,10 +467,15 @@ class DeployTask(BaseSettings):
                             parse_constant=finite_result_number,
                         )
                         validate_result_depth(step_result)
+                    except UnicodeDecodeError:
+                        if RUNNER_RECORD_PREFIX.match(data):
+                            invalid_protocol = True
+                            self.log("invalid runner protocol: invalid UTF-8 record")
+                        continue
                     except json.decoder.JSONDecodeError:
                         # Ordinary console output remains allowed, but a broken
                         # JSON record cannot silently erase terminal evidence.
-                        if RUNNER_RECORD_PREFIX.match(decoded):
+                        if RUNNER_RECORD_PREFIX.match(data):
                             invalid_protocol = True
                             self.log("invalid runner protocol: malformed JSON record")
                         continue
@@ -470,11 +487,19 @@ class DeployTask(BaseSettings):
                     if not isinstance(step_result, dict):
                         # valid JSON, but not a step result (for example a list) -> skip
                         continue
-                    # if name is None there's something wrong -> skip
-                    result_name = step_result.get("name")
-                    if result_name is None:
-                        # should not happen
+                    if "name" not in step_result:
                         self.log(f"step result not posted: {self.describe_nameless_result(step_result, len(data))}")
+                        continue
+                    result_name = step_result["name"]
+                    if (
+                        not isinstance(result_name, str)
+                        or len(result_name) > MAX_STEP_NAME_LENGTH
+                        or not is_utf8_encodable(result_name)
+                        or step_result.get("state") not in REPORTED_STEP_STATES
+                    ):
+                        invalid_protocol = True
+                        # Refuse before report construction or value-bearing logs.
+                        self.log("invalid runner protocol: invalid step identity")
                         continue
                     step_result["started"] = started
                     try:
