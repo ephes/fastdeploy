@@ -93,14 +93,20 @@ export const useDeployments = defineStore("deployments", {
     }
   },
   actions: {
-    isPinned(id: number): boolean {
-      return this.displayedDeploymentId === id || this.historyIds.includes(id) ||
-        !!(this.deployments[id] && !this.deployments[id].finished);
+    /** All pinned ids at once, so pruning checks membership without rescanning history. */
+    pinnedIds(): Set<number> {
+      const pinned = new Set(this.historyIds);
+      if (this.displayedDeploymentId !== null) pinned.add(this.displayedDeploymentId);
+      for (const id in this.deployments) {
+        if (!this.deployments[id].finished) pinned.add(Number(id));
+      }
+      return pinned;
     },
     pruneHistory() {
       // The displayed window is finite even when live events keep arriving.
       this.historyIds = this.historyIds.sort((a, b) => b - a).slice(0, 200);
-      const inactive = Object.keys(this.deployments).map(Number).filter(id => !this.isPinned(id));
+      const pinned = this.pinnedIds();
+      const inactive = Object.keys(this.deployments).map(Number).filter(id => !pinned.has(id));
       for (const id of inactive.slice(0, Math.max(0, inactive.length - 100))) {
         delete this.deployments[id];
         this.retiredThrough = Math.max(this.retiredThrough, id);

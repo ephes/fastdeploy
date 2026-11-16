@@ -13,7 +13,9 @@ Unreleased
   step/finish commands; expired or mismatched authority returns 401 without changes.
 - Bound browser history windows to 200 rows and retain at most 100 extra inactive
   histories; evict related step indexes and lifecycle markers together. Pin active
-  and displayed deployments and fence late events after eviction. Requires frontend rebuild.
+  and displayed deployments and fence late events after eviction; live deployments keep
+  admitting new steps. Prune with incremental counts, once per inventory publish.
+  Requires frontend rebuild.
 - Count progress directly from the unsorted step index without copying/sorting detail rows.
 - Bound complete browser step traversals to 1,000 rows, 8 MiB and 30 seconds;
   retain last-good rows with retry feedback on refusal. Requires frontend rebuild.

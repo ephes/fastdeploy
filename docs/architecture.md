@@ -685,8 +685,12 @@ with completeness, scroll, finished markers and fetch generations.
 
 Compact monotonic id fences ignore late events for evicted histories/absent old
 steps. They can conservatively ignore an unseen old event: revisit/refresh to
-fetch authoritative REST data. Reopening an evicted detail always traverses REST
+fetch authoritative REST data. Reopening a detail with an evicted step history always traverses REST
 again; an evicted history is never treated as complete. Session reset clears the
 cache and its fences. Active/displayed histories retain their lifecycle markers
 until unpinned; limits on inactive history do not interrupt a live deployment.
+Step events for a known unfinished deployment bypass the eviction fence, even when its
+first step arrives after an older history was evicted. Pruning and eviction use
+incremental per-deployment step counts and tombstone indexes, and an inventory publish prunes once
+after all rows instead of once per row.
 Progress counts iterate the unsorted step index directly; detail ordering is unchanged.

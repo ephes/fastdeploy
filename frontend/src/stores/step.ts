@@ -23,6 +23,10 @@ export const useSteps = defineStore("steps", {
       steps: {} as StepById,
       inventoryComplete: {} as Record<number, boolean>,
       deletedSteps: {} as Record<number, number>,
+      /** Per-deployment tombstone ids and step counts so pruning/eviction never scan every row. */
+      deletedByDeployment: {} as Record<number, number[]>,
+      stepCounts: {} as Record<number, number>,
+      pruneSuspended: 0,
       finishedDeployments: {} as Record<number, boolean>,
       pendingFetches: [] as Set<number>[],
       fetchGenerations: {} as Record<number, number>,
@@ -111,12 +115,12 @@ export const useSteps = defineStore("steps", {
         this.retiredStepThrough = Math.max(this.retiredStepThrough, Number(stepId));
         delete this.steps[stepId];
       }
-      for (const stepId in this.deletedSteps) {
-        if (this.deletedSteps[stepId] === id) {
-          this.retiredStepThrough = Math.max(this.retiredStepThrough, Number(stepId));
-          delete this.deletedSteps[stepId];
-        }
+      for (const stepId of this.deletedByDeployment[id] ?? []) {
+        this.retiredStepThrough = Math.max(this.retiredStepThrough, stepId);
+        delete this.deletedSteps[stepId];
       }
+      delete this.deletedByDeployment[id];
+      delete this.stepCounts[id];
       delete this.stepsByDeployment[id];
       delete this.stepsInProgressByDeployment[id];
       delete this.inventoryComplete[id];
@@ -126,16 +130,13 @@ export const useSteps = defineStore("steps", {
       this.retainedDeploymentIds = this.retainedDeploymentIds.filter(existing => existing !== id);
     },
     pruneHistory() {
-      const inactive = this.retainedDeploymentIds.filter(id => !useDeployments().isPinned(id) && !this.fetching[id]);
+      // Batched publishes prune once when they finish instead of once per row.
+      if (this.pruneSuspended) return;
+      const pinned = useDeployments().pinnedIds();
+      const inactive = this.retainedDeploymentIds.filter(id => !pinned.has(id) && !this.fetching[id]);
       const retired = new Set(inactive.slice(0, Math.max(0, inactive.length - 100)));
-      const deletedCounts: Record<number, number> = {};
-      for (const id in this.deletedSteps) {
-        const deploymentId = this.deletedSteps[id];
-        deletedCounts[deploymentId] = (deletedCounts[deploymentId] ?? 0) + 1;
-      }
       for (const id of inactive) {
-        if ((deletedCounts[id] ?? 0) > 1000 ||
-            Object.keys(this.stepsByDeployment[id] ?? {}).length > 1000) retired.add(id);
+        if ((this.deletedByDeployment[id]?.length ?? 0) > 1000 || (this.stepCounts[id] ?? 0) > 1000) retired.add(id);
       }
       for (const id of retired) this.evictDeployment(id);
     },
@@ -143,8 +144,11 @@ export const useSteps = defineStore("steps", {
       if (!this.retainedDeploymentIds.includes(id)) {
         // A compact high-water fence prevents late events reopening evicted histories.
         // Explicit REST refreshes can reopen them with current authoritative data.
-        if (!refresh && id <= this.retiredThrough) return false;
-        this.stepEventFloors[id] = id <= this.retiredThrough ? this.retiredStepThrough : 0;
+        // Live deployments are pinned and never evicted, so the fence cannot apply to them.
+        const deployment = useDeployments().deployments[id];
+        const live = !!deployment && !deployment.finished;
+        if (!refresh && !live && id <= this.retiredThrough) return false;
+        this.stepEventFloors[id] = !live && id <= this.retiredThrough ? this.retiredStepThrough : 0;
         this.retainedDeploymentIds.push(id);
       }
       return true;
@@ -176,6 +180,9 @@ export const useSteps = defineStore("steps", {
         if (!this.stepsByDeployment[step.deploymentId]) {
           this.stepsByDeployment[step.deploymentId] = {};
         }
+        if (!(step.id in this.stepsByDeployment[step.deploymentId])) {
+          this.stepCounts[step.deploymentId] = (this.stepCounts[step.deploymentId] ?? 0) + 1;
+        }
         this.stepsByDeployment[step.deploymentId][step.id] = step;
         if (step.state == "running" && current?.state !== "running" && !this.finishedDeployments[step.deploymentId]) {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
@@ -197,7 +204,10 @@ export const useSteps = defineStore("steps", {
      */
     deleteStep(step: Step) {
       if (!this.retainDeployment(step.deploymentId)) return;
-      this.deletedSteps[step.id] = step.deploymentId;
+      if (!(step.id in this.deletedSteps)) {
+        (this.deletedByDeployment[step.deploymentId] ??= []).push(step.id);
+        this.deletedSteps[step.id] = step.deploymentId;
+      }
       if (step.deploymentId && this.stepsInProgressByDeployment[step.deploymentId]) {
         this.stepsInProgressByDeployment[step.deploymentId] = this.stepsInProgressByDeployment[step.deploymentId]
           .filter(existing => existing.id !== step.id);
@@ -208,6 +218,7 @@ export const useSteps = defineStore("steps", {
       if (step.deploymentId && step.deploymentId in this.stepsByDeployment) {
         if (step.id in this.stepsByDeployment[step.deploymentId]) {
           delete this.stepsByDeployment[step.deploymentId][step.id];
+          this.stepCounts[step.deploymentId]--;
         }
       }
       this.pruneHistory();
@@ -256,11 +267,16 @@ export const useSteps = defineStore("steps", {
           beforeId = page[page.length - 1].id;
         }
         const present = new Set(steps.map(step => step.id));
-        for (const step of Object.values(this.stepsByDeployment[deploymentId] ?? {})) {
-          if (!present.has(step.id) && !changed.has(step.id)) this.deleteStep(step);
-        }
-        for (const step of steps) {
-          if (!changed.has(step.id)) this.addStep(step);
+        this.pruneSuspended++;
+        try {
+          for (const step of Object.values(this.stepsByDeployment[deploymentId] ?? {})) {
+            if (!present.has(step.id) && !changed.has(step.id)) this.deleteStep(step);
+          }
+          for (const step of steps) {
+            if (!changed.has(step.id)) this.addStep(step);
+          }
+        } finally {
+          this.pruneSuspended--;
         }
         this.inventoryComplete[deploymentId] = true;
       } finally {

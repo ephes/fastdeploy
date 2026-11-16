@@ -124,3 +124,54 @@ it('keeps admitting previously unseen steps for a pinned live deployment', () =>
   steps.onMessage(step(11, 1));
   expect(steps.steps[11]).toBeDefined();
 });
+
+it('admits the first steps of a live deployment that arrive after an eviction', () => {
+  const deployments = useDeployments();
+  const steps = useSteps();
+  deployments.onMessage(deployment(1, null));
+  steps.onMessage(step(2000, 2));
+  steps.evictDeployment(2);
+  expect(steps.retiredThrough).toBe(2);
+  steps.onMessage(step(10, 1));
+  steps.onMessage({ ...step(11, 1), state: 'running', finished: null });
+  expect(steps.steps[10]).toBeDefined();
+  expect(steps.steps[11]).toBeDefined();
+  expect(deployments.getFinishedVsAllSteps(1)).toEqual([1, 2]);
+});
+
+it('keeps incremental step and tombstone counts consistent with the indexes', async () => {
+  const steps = useSteps();
+  for (let id = 1; id <= 30; id++) steps.addStep(step(id, 1));
+  steps.addStep(step(5, 1));
+  steps.deleteStep(step(3, 1));
+  steps.deleteStep(step(3, 1));
+  expect(steps.stepCounts[1]).toBe(Object.keys(steps.stepsByDeployment[1]).length);
+  expect(steps.deletedByDeployment[1]).toEqual([3]);
+  steps.client = { get: async () => Array.from({ length: 10 }, (_, n) => ({
+    id: 40 - n, deployment_id: 1, name: 'fixture', message: '', state: 'success',
+    started: '2026-11-01T00:00:00Z', finished: '2026-11-01T00:01:00Z',
+  })) } as any;
+  await steps.fetchStepsFromDeployment(1);
+  expect(steps.stepCounts[1]).toBe(Object.keys(steps.stepsByDeployment[1]).length);
+  expect([...steps.deletedByDeployment[1]].sort((a, b) => a - b)).toEqual(
+    Object.keys(steps.deletedSteps).map(Number).filter(id => steps.deletedSteps[id] === 1).sort((a, b) => a - b));
+  steps.deleteStep(step(500, 2));
+  steps.evictDeployment(1);
+  expect(steps.stepCounts[1]).toBeUndefined();
+  expect(steps.deletedByDeployment[1]).toBeUndefined();
+  expect(Object.keys(steps.deletedSteps)).toEqual(['500']);
+  expect(steps.retiredStepThrough).toBe(40);
+});
+
+it('prunes once per inventory publish instead of once per row', async () => {
+  const steps = useSteps();
+  let next = 1000;
+  steps.client = { get: async () => Array.from({ length: next > 975 ? 25 : 0 }, () => ({
+    id: next--, deployment_id: 1, name: 'fixture', message: '', state: 'success',
+    started: '2026-11-01T00:00:00Z', finished: '2026-11-01T00:01:00Z',
+  })) } as any;
+  const pinned = vi.spyOn(useDeployments(), 'pinnedIds');
+  await steps.fetchStepsFromDeployment(1);
+  expect(steps.stepCounts[1]).toBe(25);
+  expect(pinned.mock.calls.length).toBeLessThanOrEqual(1);
+});

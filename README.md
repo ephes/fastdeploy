@@ -407,7 +407,9 @@ assets keep their normal cache policy.
 
 The browser retains at most 200 displayed history rows plus 100 inactive histories;
 select a service or refresh after reaching the load-more limit. Active deployments
-and the open detail are pinned. Evicted details reload from REST when revisited.
+and the open detail are pinned. Evicted step histories reload from REST when a detail
+is revisited; an evicted deployment record reappears after selecting its service or
+refreshing history.
 See [browser retention](docs/architecture.md) for step/tombstone budgets.
 
 HTTP mutation bodies are admitted before framework parsing: at most 1 MiB actual
