@@ -118,6 +118,9 @@ a later request can retry the entire sync.
 
 The web frontend's sync button shows a refusal, including the services that would be deleted,
 and offers a "force sync" button that retries with `force=true` after a confirmation dialog.
+Only the latest sync attempt in the current login session owns its success/refusal/error
+feedback. Starting another attempt retires earlier responses even if they finish later;
+it does not cancel or undo server-side work. Force confirmation remains required.
 
 **Response**:
 ```json

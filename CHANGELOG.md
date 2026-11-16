@@ -6,6 +6,8 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Let only the latest service sync in the current login session report success,
+  refusal or failure, so a delayed ordinary sync cannot overwrite a forced retry.
 - Always attempt SQLAlchemy UoW rollback after expunge failure, preserving initiating errors and cleanup ownership.
 - Page step inventories with at most 25 SQL rows per request; stage complete client traversals while preserving live events.
   API consumers must iterate descending `before_id` pages; a short/empty page completes the inventory.

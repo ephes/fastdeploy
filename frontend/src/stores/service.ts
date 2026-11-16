@@ -50,6 +50,7 @@ export const useServices = defineStore("services", {
        * Error message of a failed services sync (other than a refusal).
        */
       syncErrorMessage: "",
+      syncGeneration: 0,
       /**
        * List of available service names.
        */
@@ -116,15 +117,17 @@ export const useServices = defineStore("services", {
       this.syncRefusal = null;
       this.syncErrorMessage = "";
       const isCurrentSession = rememberSession();
+      const generation = ++this.syncGeneration;
+      const isCurrent = () => isCurrentSession() && generation === this.syncGeneration;
       try {
         await this.client.post(
           "/services/sync",
           undefined,
           force ? { query: { force: "true" } } : {}
         );
-        return isCurrentSession();
+        return isCurrent();
       } catch (err: any) {
-        if (!isCurrentSession()) {
+        if (!isCurrent()) {
           return false;
         }
         const detail = err?.body?.detail;
