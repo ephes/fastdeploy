@@ -11,8 +11,8 @@ from ...domain import commands, events, model
 from ...restore import validate_restore_context
 from ...tasks import DeploymentContext
 from ..dependencies import (
-    CREDENTIALS_EXCEPTION,
     OAUTH2_SCHEME,
+    credentials_exception,
     get_current_active_deployment,
     get_current_active_service,
     get_current_active_user,
@@ -112,7 +112,7 @@ async def finish_deployment(
     try:
         await bus.handle(cmd)
     except (InvalidCredentials, InvalidTokenError):
-        raise CREDENTIALS_EXCEPTION from None
+        raise credentials_exception() from None
     except views.DeploymentNotFound as e:
         raise HTTPException(status_code=404, detail="Deployment not found") from e
     return {"detail": f"Deployment {deployment.id} finished"}
@@ -190,7 +190,7 @@ async def start_deployment(
     try:
         await bus.handle(cmd)
     except (InvalidCredentials, InvalidTokenError):
-        raise CREDENTIALS_EXCEPTION from None
+        raise credentials_exception() from None
     except model.DeploymentAlreadyRunning as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

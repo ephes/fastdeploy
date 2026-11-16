@@ -6,6 +6,8 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Give each user, service, deployment and config credential refusal its own
+  exception and headers, avoiding retained tracebacks from earlier requests.
 - Bind browser user tokens and pending responses to the login API base and session.
   A destination change clears credentials/stores and disposes the socket; log in
   again at the new destination. Requires a frontend rebuild.

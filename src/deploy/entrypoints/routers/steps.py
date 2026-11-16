@@ -6,7 +6,7 @@ from jwt import InvalidTokenError
 from ... import views
 from ...auth import InvalidCredentials
 from ...domain import commands, model
-from ..dependencies import CREDENTIALS_EXCEPTION, OAUTH2_SCHEME, get_current_active_deployment, get_current_active_user
+from ..dependencies import OAUTH2_SCHEME, credentials_exception, get_current_active_deployment, get_current_active_user
 from ..helper_models import Bus, Deployment, Step, StepResult
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ async def process_step_result(
     try:
         await bus.handle(cmd)
     except (InvalidCredentials, InvalidTokenError):
-        raise CREDENTIALS_EXCEPTION from None
+        raise credentials_exception() from None
     except model.StepReportConflict as e:
         logger.warning("conflicting repeated step report for deployment %s", deployment.id)
         raise HTTPException(

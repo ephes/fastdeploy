@@ -2,6 +2,9 @@
 
 fastDeploy uses JWT-based authentication with four distinct token types, each providing specific authorization scopes. All tokens are signed using HMAC-SHA256 (HS256) and include automatic expiration checking.
 
+Credential refusals keep the fixed 401 message and Bearer challenge. Each refusal
+creates a new exception and header mapping so traceback state is request-local.
+
 ## Token Types
 
 ### User Token (Access Token)

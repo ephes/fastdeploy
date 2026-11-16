@@ -19,11 +19,15 @@ from ..domain.model import Deployment, Service, User
 from .helper_models import Bus
 
 OAUTH2_SCHEME = OAuth2PasswordBearer(tokenUrl="token")
-CREDENTIALS_EXCEPTION = HTTPException(
-    status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Could not validate credentials",
-    headers={"WWW-Authenticate": "Bearer"},
-)
+
+
+def credentials_exception() -> HTTPException:
+    """Each refusal owns its exception, headers and request traceback."""
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def get_current_active_user(
@@ -33,7 +37,7 @@ async def get_current_active_user(
     try:
         return await user_from_token(token, bus.uow)
     except (InvalidCredentials, InvalidTokenError, NoResultFound):
-        raise CREDENTIALS_EXCEPTION from None
+        raise credentials_exception() from None
 
 
 async def get_current_active_service(
@@ -43,7 +47,7 @@ async def get_current_active_service(
     try:
         return await service_from_token(token, bus.uow)
     except (InvalidCredentials, InvalidTokenError, NoResultFound):
-        raise CREDENTIALS_EXCEPTION from None
+        raise credentials_exception() from None
 
 
 async def get_current_active_deployment(
@@ -53,11 +57,11 @@ async def get_current_active_deployment(
     try:
         return await deployment_from_token(token, bus.uow)
     except (InvalidCredentials, InvalidTokenError, NoResultFound):
-        raise CREDENTIALS_EXCEPTION from None
+        raise credentials_exception() from None
 
 
 async def get_current_config(token: str = Depends(OAUTH2_SCHEME)):
     try:
         return await config_from_token(token)
     except (InvalidCredentials, InvalidTokenError, NoResultFound):
-        raise CREDENTIALS_EXCEPTION from None
+        raise credentials_exception() from None
