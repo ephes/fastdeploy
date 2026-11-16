@@ -2,9 +2,13 @@
 Readonly views.
 """
 
+import asyncio
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from typing import TypeVar
 
 from sqlalchemy.exc import NoResultFound
+from starlette.concurrency import run_in_threadpool
 
 from .adapters.filesystem import AbstractFilesystem
 from .config import settings
@@ -92,12 +96,37 @@ async def all_synced_services(uow: unit_of_work.AbstractUnitOfWork) -> list[mode
     return from_db
 
 
+SourceResult = TypeVar("SourceResult")
+
+
+async def _source_work(function: Callable[[], SourceResult]) -> SourceResult:
+    # Shield the framework's bounded thread worker from request cancellation.
+    # Keep UoW ownership and the worker token until the source has really retired.
+    work = asyncio.create_task(run_in_threadpool(function))
+    cancelled = False
+    while not work.done():
+        try:
+            await asyncio.shield(work)
+        except asyncio.CancelledError:
+            cancelled = True
+        except Exception:
+            if not cancelled:
+                raise
+            break
+    if cancelled:
+        if not work.cancelled():
+            work.exception()
+        raise asyncio.CancelledError
+    return work.result()
+
+
 async def get_service_names(fs: AbstractFilesystem) -> list[str]:
-    return fs.list()
+    return await _source_work(fs.list)
 
 
 async def get_services_from_filesystem(fs: AbstractFilesystem) -> list[model.Service]:
-    return [model.Service(name=name, data=config) for name, config in fs.get_configs()]
+    configs = await _source_work(fs.get_configs)
+    return [model.Service(name=name, data=config) for name, config in configs]
 
 
 async def get_steps_from_last_deployment(

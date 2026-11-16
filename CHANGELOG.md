@@ -6,6 +6,12 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Bound authoritative service sync to 1,000 services, 4,096 root entries, 16 MiB
+  of actual source reads and 500,000 structural work units across discovery and
+  preparation. Refuse the whole sync on exhaustion, including force mode.
+- Move source discovery/preparation off the event loop using the framework's
+  bounded thread pool; retain worker capacity and sync ownership until cancelled
+  work retires, discarding its result before any writes.
 - Reject runtime-owned fields in configured steps before sync admission; construct
   planned steps from names only, including legacy stored definitions.
 - Clear old result messages and deployment associations when replanning successful

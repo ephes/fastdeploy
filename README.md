@@ -373,10 +373,19 @@ Configured steps may only supply planning names and extensions: runtime fields
 `id`, `deployment_id`, `state`, `started`, `finished` and `message` are refused, even
 when a playbook replaces explicit steps. Plans use only step names and start with
 fresh IDs, empty result text and no execution association. Replanning successful
-history leaves old rows intact; the prepare boundary attaches the new deployment. Explicit steps are validated
-even when a playbook supplies the final steps.
+history leaves old rows intact; the prepare boundary attaches the new deployment.
 Invalid sources refuse the entire sync before database changes (HTTP
 422 or CLI exit 1). `--force` only overrides deletion-count safety.
+
+Each complete sync admits at most 1,000 services and scans at most 4,096 root
+entries (including non-service files), reading at most 16 MiB total UTF-8 source
+bytes and doing at most 500,000 structural work units. Actual reads count again
+for discovery/preparation and shared playbooks. Work includes visited values,
+YAML parse events and materialized mapping/merge pairs. Limits refuse the entire sync,
+including force mode; inventories are never clipped into deletion candidates.
+Discovery and parsing use the framework's bounded thread pool. Cancellation waits
+for source work to retire before releasing the sync transaction or worker capacity;
+its result is discarded, without writes. Database work stays on the async context.
 
 Config directories/leaves and playbooks may not use symlinks below their configured
 roots; parent traversal is refused. Relative playbooks are relative to `PROJECT_ROOT`.
