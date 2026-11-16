@@ -6,6 +6,8 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Prune login histories incrementally and evict completed-only keys through an
+  ordered queue, bounding saturated churn work without dropping pending owners.
 - Admit login throttle and capacity before database acquisition; hold the slot
   through password work and UoW cleanup, releasing it on dependency failure too.
 - Give each user, service, deployment and config credential refusal its own

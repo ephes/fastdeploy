@@ -10,12 +10,14 @@ running. State lives in this process, which matches the single API process.
 
 import math
 import time
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 
 from .config import settings
 
 MAX_TRACKED_KEYS = 20_000
+PRUNE_KEYS_PER_ATTEMPT = 4
 MAX_USERNAME_LENGTH = 256
 
 Key = tuple[str, ...]
@@ -50,7 +52,10 @@ class LoginThrottle:
         self._window_seconds = window_seconds
         self.max_tracked_keys = max_tracked_keys
         self.clock = clock
-        self._attempts: dict[Key, list[Attempt]] = {}
+        self._attempts: OrderedDict[Key, list[Attempt]] = OrderedDict()
+        # Only keys with no pending owners may be evicted. One entry per key,
+        # ordered by when it last became eligible (no stale heap records).
+        self._evictable: OrderedDict[Key, None] = OrderedDict()
 
     @property
     def limit(self) -> int:
@@ -78,6 +83,10 @@ class LoginThrottle:
             self._attempts[key] = attempts
         else:
             self._attempts.pop(key, None)
+        if attempts and not any(a.pending for a in attempts):
+            self._evictable.setdefault(key, None)
+        else:
+            self._evictable.pop(key, None)
 
     def _recent(self, key: Key, now: float) -> list[Attempt]:
         cutoff = now - self.window_seconds
@@ -85,18 +94,23 @@ class LoginThrottle:
         self._store(key, recent)
         return recent
 
+    def _evict_overflow(self) -> None:
+        # A begin/settlement can add at most two new/eligible keys. Pending
+        # owners may exceed the cap, but never force a scan for an evictable key.
+        for _ in range(min(2, max(0, len(self._attempts) - self.max_tracked_keys))):
+            if not self._evictable:
+                break
+            key, _ = self._evictable.popitem(last=False)
+            self._attempts.pop(key, None)
+
     def _prune(self, now: float) -> None:
-        for key in list(self._attempts):
+        # Rotate a fixed number of histories, including below the cap, so idle
+        # expired keys eventually retire without copying/scanning the table.
+        for _ in range(min(PRUNE_KEYS_PER_ATTEMPT, len(self._attempts))):
+            key = next(iter(self._attempts))
+            self._attempts.move_to_end(key)
             self._recent(key, now)
-        overflow = len(self._attempts) - self.max_tracked_keys
-        if overflow > 0:
-            # drop the keys whose newest attempt is oldest, they are the closest to expiring anyway
-            by_age = sorted(
-                (key for key, attempts in self._attempts.items() if not any(a.pending for a in attempts)),
-                key=lambda key: self._attempts[key][-1].stamp,
-            )
-            for key in by_age[:overflow]:
-                self._attempts.pop(key, None)
+        self._evict_overflow()
 
     def retry_after(self, username: str, address: str) -> int | None:
         """
@@ -137,15 +151,16 @@ class LoginThrottle:
             pending = [a for a in recent if a.pending]
             completed = sorted((a for a in recent if not a.pending), key=lambda a: a.stamp)
             self._store(key, completed[-max(limit, 1) :] + pending)
-        if len(self._attempts) > self.max_tracked_keys:
-            self._prune(now)
+        self._prune(now)
         return attempt
 
-    @staticmethod
-    def record_failure(attempt: Attempt | None) -> None:
+    def record_failure(self, attempt: Attempt | None) -> None:
         """The password check of this attempt finished without a login: it stays counted."""
         if attempt is not None:
             attempt.pending = False
+            for key in (attempt.pair_key, attempt.address_key):
+                self._store(key, self._attempts.get(key, []))
+            self._evict_overflow()
 
     def discard_attempt(self, attempt: Attempt | None) -> None:
         """Backend failure: remove only this attempt, preserving earlier failures."""
@@ -153,6 +168,7 @@ class LoginThrottle:
             attempt.pending = False
             for key in (attempt.pair_key, attempt.address_key):
                 self._store(key, [other for other in self._attempts.get(key, []) if other is not attempt])
+            self._evict_overflow()
 
     def record_success(self, attempt: Attempt | None) -> None:
         """
@@ -168,9 +184,11 @@ class LoginThrottle:
         self._store(attempt.pair_key, pair)
         address = [other for other in self._attempts.get(attempt.address_key, []) if other is not attempt]
         self._store(attempt.address_key, address)
+        self._evict_overflow()
 
     def clear(self) -> None:
         self._attempts.clear()
+        self._evictable.clear()
 
 
 login_throttle = LoginThrottle()

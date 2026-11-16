@@ -294,7 +294,12 @@ Completed failures expire according to the original attempt start time. Success
 and discard remove their own reservation; success also clears completed failures
 for its pair, preserving other pending owners. A pending-only limit returns
 `Retry-After: 1` because completion time is unknown. Global admission bounds live
-owners; completed key storage retains its cap, exempting pending keys until settlement.
+owners; key storage retains its 20,000-key cap, exempting pending keys until settlement.
+Each admission prunes at most four queued histories, plus its own pair/address.
+At key pressure it evicts at most two completed-only keys in eligibility order;
+settlement also restores the cap without evicting pending owners. Idle expired
+keys retire incrementally as logins arrive. Each key has at most one queue entry,
+so churn creates neither a global scan/sort nor stale eviction metadata.
 
 Authenticated deployment and step routes (including detail, history, and errors)
 carry `Cache-Control: private, no-store` and `Vary: Authorization`. Public static
