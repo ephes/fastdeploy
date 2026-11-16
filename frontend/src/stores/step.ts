@@ -1,6 +1,7 @@
 import { markRaw } from "vue";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { getClient } from "./httpClient";
+import { useDeployments } from "./deployment";
 import { rememberSession } from "./session";
 import { stepPage } from "../restAdmission";
 import { Step, StepById, Message, Deployment } from "../typings";
@@ -21,10 +22,16 @@ export const useSteps = defineStore("steps", {
        */
       steps: {} as StepById,
       inventoryComplete: {} as Record<number, boolean>,
-      deletedSteps: {} as Record<number, boolean>,
+      deletedSteps: {} as Record<number, number>,
       finishedDeployments: {} as Record<number, boolean>,
       pendingFetches: [] as Set<number>[],
       fetchGenerations: {} as Record<number, number>,
+      fetchSequence: 0,
+      retainedDeploymentIds: [] as number[],
+      retiredThrough: 0,
+      retiredStepThrough: 0,
+      stepEventFloors: {} as Record<number, number>,
+      fetching: {} as Record<number, number>,
       /**
        * Stores all steps by deployment id.
        */
@@ -98,6 +105,50 @@ export const useSteps = defineStore("steps", {
     }
   },
   actions: {
+    evictDeployment(id: number) {
+      this.retiredThrough = Math.max(this.retiredThrough, id);
+      for (const stepId in this.stepsByDeployment[id] ?? {}) {
+        this.retiredStepThrough = Math.max(this.retiredStepThrough, Number(stepId));
+        delete this.steps[stepId];
+      }
+      for (const stepId in this.deletedSteps) {
+        if (this.deletedSteps[stepId] === id) {
+          this.retiredStepThrough = Math.max(this.retiredStepThrough, Number(stepId));
+          delete this.deletedSteps[stepId];
+        }
+      }
+      delete this.stepsByDeployment[id];
+      delete this.stepsInProgressByDeployment[id];
+      delete this.inventoryComplete[id];
+      delete this.finishedDeployments[id];
+      delete this.fetchGenerations[id];
+      delete this.stepEventFloors[id];
+      this.retainedDeploymentIds = this.retainedDeploymentIds.filter(existing => existing !== id);
+    },
+    pruneHistory() {
+      const inactive = this.retainedDeploymentIds.filter(id => !useDeployments().isPinned(id) && !this.fetching[id]);
+      const retired = new Set(inactive.slice(0, Math.max(0, inactive.length - 100)));
+      const deletedCounts: Record<number, number> = {};
+      for (const id in this.deletedSteps) {
+        const deploymentId = this.deletedSteps[id];
+        deletedCounts[deploymentId] = (deletedCounts[deploymentId] ?? 0) + 1;
+      }
+      for (const id of inactive) {
+        if ((deletedCounts[id] ?? 0) > 1000 ||
+            Object.keys(this.stepsByDeployment[id] ?? {}).length > 1000) retired.add(id);
+      }
+      for (const id of retired) this.evictDeployment(id);
+    },
+    retainDeployment(id: number, refresh = false): boolean {
+      if (!this.retainedDeploymentIds.includes(id)) {
+        // A compact high-water fence prevents late events reopening evicted histories.
+        // Explicit REST refreshes can reopen them with current authoritative data.
+        if (!refresh && id <= this.retiredThrough) return false;
+        this.stepEventFloors[id] = id <= this.retiredThrough ? this.retiredStepThrough : 0;
+        this.retainedDeploymentIds.push(id);
+      }
+      return true;
+    },
     /**
      * Support for HMR
      * @param {any} meta
@@ -113,6 +164,7 @@ export const useSteps = defineStore("steps", {
      * @param step {Step} The step to add/update
      */
     addStep(step: Step) {
+      if (!this.retainDeployment(step.deploymentId)) return;
       const current = this.steps[step.id];
       if (this.deletedSteps[step.id] || (current && current.deploymentId !== step.deploymentId)) return;
       // One persisted id is one lifecycle; a rerun receives a fresh id.
@@ -134,9 +186,8 @@ export const useSteps = defineStore("steps", {
             this.stepsInProgressByDeployment[step.deploymentId] = [step, ...this.stepsInProgressByDeployment[step.deploymentId]].slice(0, 5);
           }
         }
-      } else {
-        console.log("step without deploymentId", step);
       }
+      this.pruneHistory();
     },
     /**
      * Delete step from store. Deleted steps are just normal steps
@@ -145,7 +196,8 @@ export const useSteps = defineStore("steps", {
      * @param step {Step} The step to delete
      */
     deleteStep(step: Step) {
-      this.deletedSteps[step.id] = true;
+      if (!this.retainDeployment(step.deploymentId)) return;
+      this.deletedSteps[step.id] = step.deploymentId;
       if (step.deploymentId && this.stepsInProgressByDeployment[step.deploymentId]) {
         this.stepsInProgressByDeployment[step.deploymentId] = this.stepsInProgressByDeployment[step.deploymentId]
           .filter(existing => existing.id !== step.id);
@@ -158,6 +210,7 @@ export const useSteps = defineStore("steps", {
           delete this.stepsByDeployment[step.deploymentId][step.id];
         }
       }
+      this.pruneHistory();
     },
     /**
      * Traverse bounded step pages and publish only a completed inventory.
@@ -167,7 +220,9 @@ export const useSteps = defineStore("steps", {
      */
     async fetchStepsFromDeployment(deploymentId: number, ownsRefresh: () => boolean = () => true) {
       const isCurrentSession = rememberSession();
-      const generation = (this.fetchGenerations[deploymentId] ?? 0) + 1;
+      this.retainDeployment(deploymentId, true);
+      this.fetching[deploymentId] = (this.fetching[deploymentId] ?? 0) + 1;
+      const generation = ++this.fetchSequence;
       this.fetchGenerations[deploymentId] = generation;
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
@@ -175,7 +230,7 @@ export const useSteps = defineStore("steps", {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const expired = new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
-          reject(new Error("Step inventory timed out. Try again."));
+          reject(new DOMException("Step inventory timed out. Try again.", "TimeoutError"));
           controller.abort();
         }, INVENTORY_TIMEOUT_MS);
       });
@@ -209,6 +264,10 @@ export const useSteps = defineStore("steps", {
         }
         this.inventoryComplete[deploymentId] = true;
       } finally {
+        if (isCurrentSession()) {
+          if (--this.fetching[deploymentId] === 0) delete this.fetching[deploymentId];
+          this.pruneHistory();
+        }
         clearTimeout(timer);
         controller.abort();
         this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
@@ -223,6 +282,7 @@ export const useSteps = defineStore("steps", {
     onMessage(message: Message) {
       if (message.type === "step") {
         const step = message as Step;
+        if (!step.deleted && !this.steps[step.id] && step.id <= (this.stepEventFloors[step.deploymentId] ?? 0)) return;
         for (const pending of this.pendingFetches) pending.add(step.id);
         if (step.deleted) {
           this.deleteStep(step);
@@ -232,11 +292,12 @@ export const useSteps = defineStore("steps", {
       }
       if (message.type === "deployment") {
         const deployment = message as Deployment;
-        if (deployment.finished || deployment.deleted) {
+        if ((deployment.finished || deployment.deleted) && this.retainDeployment(deployment.id)) {
           this.finishedDeployments[deployment.id] = true;
           // Deployment has finished -> remove scroll to metadata
           delete(this.stepsInProgressByDeployment[deployment.id]);
         }
+        this.pruneHistory();
       }
     },
   },

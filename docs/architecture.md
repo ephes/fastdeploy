@@ -638,18 +638,19 @@ also dispose their engine.
 
 A persisted step id identifies one lifecycle: pending → running → success/failure.
 The client rejects regressions from terminal state and keeps deletion tombstones
-until session reset, across both WebSocket events and REST refreshes. A legitimate
+until history eviction or session reset, across both WebSocket events and REST refreshes. A legitimate
 rerun creates a fresh step id (possibly with the same name); ids are never reused.
 Scroll metadata retains only the five most recent steps observed running, including
 their completions, so the fifth entry remains the scroll target. Deletion removes
-a candidate; terminal/deleted deployment events retire this metadata permanently
-for that deployment in the current session. Full history stays in the keyed store.
+a candidate; terminal/deleted deployment events retire this metadata for that
+retained history. Inactive histories and their markers follow the retention budgets below.
 
 
 ### Step inventory paging
 
 Step hydration reads descending id pages of 25 rows with an exclusive `before_id`
-cursor. It stages and validates all pages before publishing or removing cached rows;
+cursor. It stages and validates pages within the traversal budgets below before
+publishing or removing cached rows;
 a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or obsolete
 traversals leave the previous inventory intact and completion false. Session reset
 clears this state. One event fence spans the whole traversal, so intervening live
@@ -673,3 +674,19 @@ A complete step inventory is staged under one 30-second deadline, at most 1,000
 rows and 8 MiB of cumulative JSON page bytes. Oversize or timed-out traversals
 abort the pending request, retain the last good rows and leave completeness false.
 Retry starts a fresh traversal; no partial inventory is published.
+
+Browser history retains a window of at most 200 displayed deployments. Further
+load-more requests show a limit message; refresh or select a service to start a new
+window. Up to 100 additional inactive deployment histories and 100 unpinned step
+histories are retained. Active deployments, the history window and the open detail
+are pinned. Leaving detail releases its pin. Inactive step histories exceeding
+1,000 deleted-step markers or 1,000 steps are evicted as a unit, together
+with completeness, scroll, finished markers and fetch generations.
+
+Compact monotonic id fences ignore late events for evicted histories/absent old
+steps. They can conservatively ignore an unseen old event: revisit/refresh to
+fetch authoritative REST data. Reopening an evicted detail always traverses REST
+again; an evicted history is never treated as complete. Session reset clears the
+cache and its fences. Active/displayed histories retain their lifecycle markers
+until unpinned; limits on inactive history do not interrupt a live deployment.
+Progress counts iterate the unsorted step index directly; detail ordering is unchanged.

@@ -6,6 +6,10 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Bound browser history windows to 200 rows and retain at most 100 extra inactive
+  histories; evict related step indexes and lifecycle markers together. Pin active
+  and displayed deployments and fence late events after eviction. Requires frontend rebuild.
+- Count progress directly from the unsorted step index without copying/sorting detail rows.
 - Bound complete browser step traversals to 1,000 rows, 8 MiB and 30 seconds;
   retain last-good rows with retry feedback on refusal. Requires frontend rebuild.
 - Apply private no-store and Authorization variation to all deployment/step
@@ -20,7 +24,7 @@ Unreleased
 - Page step inventories with at most 25 SQL rows per request; stage complete client traversals while preserving live events.
   API consumers must iterate descending `before_id` pages; a short/empty page completes the inventory.
 - Bound running-step scroll metadata to five recent candidates and retire it on deployment completion/deletion.
-- Reject terminal step regressions and retain deleted-step tombstones until session reset; reruns use fresh ids.
+- Reject terminal step regressions and retain deleted-step tombstones with their bounded histories; reruns use fresh ids.
 - Validate complete deployment history pages before mutation, including service ownership,
   unique descending ids/cursors, row fields and dates; retain last-good state with retry.
 - Bind admitted deployment start results to the requested service before installation or

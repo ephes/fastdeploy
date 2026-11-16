@@ -1,6 +1,7 @@
 import { Step } from "../src/typings";
 import { pythonToJavascript } from "../src/converters";
 import { createWebsocketClient } from "../src/websocket";
+import { useDeployments } from "../src/stores/deployment";
 import { useSteps } from "../src/stores/step";
 import { createEvent, initPinia } from "./conftest";
 
@@ -119,6 +120,7 @@ describe("Step lifecycle and scroll bounds", () => {
   beforeEach(() => initPinia());
 
   it("keeps only the five recent scroll candidates for 10,000 sequential steps", () => {
+    useDeployments().onMessage({ id: 1, type: "deployment", serviceId: 1, finished: null } as any);
     const store = useSteps();
     for (let id = 1; id <= 10000; id++) {
       const running = { ...step, id, state: "running" };

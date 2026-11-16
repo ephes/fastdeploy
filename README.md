@@ -404,3 +404,8 @@ categories and IDs, without exception messages or tracebacks.
 Authenticated deployment and step routes (including detail, history, and errors)
 carry `Cache-Control: private, no-store` and `Vary: Authorization`. Public static
 assets keep their normal cache policy.
+
+The browser retains at most 200 displayed history rows plus 100 inactive histories;
+select a service or refresh after reaching the load-more limit. Active deployments
+and the open detail are pinned. Evicted details reload from REST when revisited.
+See [browser retention](docs/architecture.md) for step/tombstone budgets.

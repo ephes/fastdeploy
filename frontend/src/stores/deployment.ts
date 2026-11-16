@@ -19,6 +19,8 @@ export const useDeployments = defineStore("deployments", {
        * Look up deployments by id.
        */
       deployments: {} as DeploymentById,
+      displayedDeploymentId: null as number | null,
+      retiredThrough: 0,
       pendingFetches: [] as Set<number>[],
       pendingStarts: [] as Set<number>[],
       historyIds: [] as number[],
@@ -79,8 +81,9 @@ export const useDeployments = defineStore("deployments", {
     getFinishedVsAllSteps: (state) => (deploymentId: number): [number, number] => {
       const stepsStore = useSteps();
       let [finishedSteps, allSteps] = [0, 0];
-      const steps = stepsStore.getStepsByDeployment(deploymentId);
-      for (const [stepId, step] of Object.entries(steps)) {
+      const steps = stepsStore.stepsByDeployment[deploymentId] ?? {};
+      for (const stepId in steps) {
+        const step = steps[stepId];
         if (step.finished) {
           finishedSteps++;
         }
@@ -90,6 +93,21 @@ export const useDeployments = defineStore("deployments", {
     }
   },
   actions: {
+    isPinned(id: number): boolean {
+      return this.displayedDeploymentId === id || this.historyIds.includes(id) ||
+        !!(this.deployments[id] && !this.deployments[id].finished);
+    },
+    pruneHistory() {
+      // The displayed window is finite even when live events keep arriving.
+      this.historyIds = this.historyIds.sort((a, b) => b - a).slice(0, 200);
+      const inactive = Object.keys(this.deployments).map(Number).filter(id => !this.isPinned(id));
+      for (const id of inactive.slice(0, Math.max(0, inactive.length - 100))) {
+        delete this.deployments[id];
+        this.retiredThrough = Math.max(this.retiredThrough, id);
+        useSteps().evictDeployment(id);
+      }
+      useSteps().pruneHistory();
+    },
     /**
      * Support for HMR
      * @param {any} meta
@@ -166,11 +184,16 @@ export const useDeployments = defineStore("deployments", {
         return known;
       }
       this.deployments[started.id] = started;
+      this.pruneHistory();
       return started;
     },
     /** Fetch a bounded history page; only an explicit load-more extends it. */
     async fetchDeployments(serviceId?: number, loadMore = false, ownsRefresh: () => boolean = () => true) {
       if (loadMore && (this.historyLoading || !this.historyHasMore)) return;
+      if (loadMore && this.historyIds.length >= 200) {
+        this.historyError = "History limit reached. Select a service or refresh history.";
+        return;
+      }
       const isCurrentSession = rememberSession();
       if (!loadMore) {
         this.historyGeneration++;
@@ -223,6 +246,7 @@ export const useDeployments = defineStore("deployments", {
             this.historyIds.push(deployment.id);
           }
         }
+        this.pruneHistory();
         // Advance using the server page even when an event deleted its last row.
         if (deployments.length) this.historyBeforeId = deployments[deployments.length - 1].id;
         this.historyHasMore = deployments.length === 50;
@@ -252,9 +276,12 @@ export const useDeployments = defineStore("deployments", {
         const deployment = message as Deployment;
         for (const pending of this.pendingFetches) pending.add(deployment.id);
         if (deployment.deleted) {
+          this.retiredThrough = Math.max(this.retiredThrough, deployment.id);
+          useSteps().evictDeployment(deployment.id);
           delete this.deployments[deployment.id];
           this.historyIds = this.historyIds.filter((id) => id !== deployment.id);
         } else {
+          if (!this.deployments[deployment.id] && deployment.id <= this.retiredThrough) return;
           // Starts can publish after another request has already committed/published a finish.
           if (this.deployments[deployment.id]?.finished && !deployment.finished) return;
           this.deployments[deployment.id] = deployment;
@@ -264,6 +291,7 @@ export const useDeployments = defineStore("deployments", {
             this.historyIds.push(deployment.id);
           }
         }
+        this.pruneHistory();
       }
     },
   },
