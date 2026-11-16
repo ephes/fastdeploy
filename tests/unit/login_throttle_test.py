@@ -204,3 +204,57 @@ def test_key_pressure_never_evicts_pending_owners():
     assert throttle.retry_after("user", "10.0.0.1") is not None
     throttle.discard_attempt(pending)
     assert throttle.retry_after("user", "10.0.0.1") is None
+
+
+class CountingThrottle(LoginThrottle):
+    visits = 0
+
+    def _recent(self, key, now):
+        self.visits += 1
+        return super()._recent(key, now)
+
+
+def test_saturated_churn_has_bounded_history_visits_at_different_caps():
+    for cap in (100, 1000):
+        clock = Clock()
+        throttle = CountingThrottle(limit=1, address_limit=1, max_tracked_keys=cap, clock=clock)
+        for index in range(cap // 2):
+            fail(throttle, username=f"seed{index}", address=f"seed-address{index}")
+        for index in range(100):
+            clock.now += 0.01
+            throttle.visits = 0
+            assert throttle.retry_after(f"churn{index}", f"address{index}") is None
+            fail(throttle, username=f"churn{index}", address=f"address{index}")
+            assert throttle.visits <= 12
+            assert len(throttle._attempts) <= cap
+            assert throttle.retry_after(f"churn{index}", f"address{index}") is not None
+
+
+def test_expired_idle_keys_are_eventually_pruned_without_a_global_scan():
+    clock = Clock()
+    throttle = CountingThrottle(limit=1, address_limit=1, max_tracked_keys=1000, clock=clock)
+    for index in range(100):
+        fail(throttle, username=f"old{index}", address=f"old-address{index}")
+    clock.now += 1000
+    for index in range(100):
+        throttle.visits = 0
+        fail(throttle, username=f"fresh{index}", address=f"fresh-address{index}")
+        assert throttle.visits <= 12
+    assert not any("old" in key[1] for key in throttle._attempts)
+
+
+def test_out_of_order_pending_completion_survives_saturated_churn():
+    throttle, clock = make(limit=2, address_limit=2, max_tracked_keys=4)
+    first = throttle.begin_attempt("held", "held-address")
+    second = throttle.begin_attempt("held", "held-address")
+    for index in range(30):
+        fail(throttle, username=f"churn{index}", address=f"address{index}")
+    assert throttle.retry_after("held", "held-address") == 1
+    throttle.record_failure(second)
+    assert throttle.retry_after("held", "held-address") == 60
+    clock.now += 120
+    assert throttle.retry_after("held", "held-address") is None
+    assert first in throttle._attempts[("pair", "held", "held-address")]
+    throttle.record_success(first)
+    assert throttle.retry_after("held", "held-address") is None
+    assert len(throttle._attempts) <= 4

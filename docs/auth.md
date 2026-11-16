@@ -2,6 +2,9 @@
 
 fastDeploy uses JWT-based authentication with four distinct token types, each providing specific authorization scopes. All tokens are signed using HMAC-SHA256 (HS256) and include automatic expiration checking.
 
+Credential refusals keep the fixed 401 message and Bearer challenge. Each refusal
+creates a new exception and header mapping so traceback state is request-local.
+
 ## Token Types
 
 ### User Token (Access Token)
@@ -16,6 +19,18 @@ fastDeploy uses JWT-based authentication with four distinct token types, each pr
 ```
 
 **Default Expiration**: 30 minutes
+
+The browser binds a user token to the API base used for login. Changing that base
+ends the session immediately, clears credentials and cached stores, and disposes
+the websocket. Log in again at the new destination. Pending login and REST results
+from the previous destination are discarded, even if settings are changed back;
+cached authenticated clients cannot issue requests after their session ends.
+
+Login throttle and process-wide capacity admission run before acquiring a
+DB-backed bus/UoW. A refused request acquires no database connection. Admitted
+requests hold their capacity slot through password work and database cleanup;
+cancellation waits for owned hash work, and dependency acquisition failures return
+the slot without counting a password failure.
 
 **Failed login limit**: `POST /token` answers `429` with a `Retry-After` header once a user name had
 `LOGIN_FAILURE_LIMIT` (default 10) failed attempts from one client address, or one client address had
@@ -279,7 +294,12 @@ Completed failures expire according to the original attempt start time. Success
 and discard remove their own reservation; success also clears completed failures
 for its pair, preserving other pending owners. A pending-only limit returns
 `Retry-After: 1` because completion time is unknown. Global admission bounds live
-owners; completed key storage retains its cap, exempting pending keys until settlement.
+owners; key storage retains its 20,000-key cap, exempting pending keys until settlement.
+Each admission prunes at most four queued histories, plus its own pair/address.
+At key pressure it evicts at most two completed-only keys in eligibility order;
+settlement also restores the cap without evicting pending owners. Idle expired
+keys retire incrementally as logins arrive. Each key has at most one queue entry,
+so churn creates neither a global scan/sort nor stale eviction metadata.
 
 Authenticated deployment and step routes (including detail, history, and errors)
 carry `Cache-Control: private, no-store` and `Vary: Authorization`. Public static

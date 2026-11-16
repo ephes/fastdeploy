@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 from threading import BoundedSemaphore
 from typing import Annotated
@@ -12,7 +13,7 @@ from ... import auth
 from ...config import settings
 from ...domain import commands, model
 from ...domain.model import User
-from ...login_throttle import login_throttle
+from ...login_throttle import Attempt, login_throttle
 from ..dependencies import get_current_active_user
 from ..helper_models import Bus
 
@@ -35,18 +36,10 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 
-@router.post("/token", responses={429: {"description": "Too many failed login attempts"}})
-async def login_for_access_token(
-    request: Request, form_data: OAuth2PasswordRequestForm = Depends(), bus: Bus = Depends()
-) -> dict:
-    """
-    Obtain an access token for the current user.
-
-    Failed attempts are limited per user name and client address and per client
-    address (`LOGIN_FAILURE_LIMIT`, `LOGIN_ADDRESS_FAILURE_LIMIT`,
-    `LOGIN_FAILURE_WINDOW_SECONDS`). At the limit the request is answered with
-    429 and a `Retry-After` header, without checking the password.
-    """
+async def admit_login(
+    request: Request, form_data: OAuth2PasswordRequestForm = Depends()
+) -> AsyncIterator[Attempt | None]:
+    """Reserve cheap admission before storage; keep it through dependency cleanup."""
     address = request.client.host if request.client else "unknown"
     retry_after = login_throttle.retry_after(form_data.username, address)
     if retry_after is not None:
@@ -59,26 +52,54 @@ async def login_for_access_token(
         raise HTTPException(
             status_code=429, detail="Login capacity reached; try again shortly", headers={"Retry-After": "1"}
         )
-    attempt = login_throttle.begin_attempt(form_data.username, address)
+    attempt = None
     try:
-        try:
-            user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)
-        except (auth.InvalidCredentials, NoResultFound):
-            login_throttle.record_failure(attempt)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            ) from None
-        except asyncio.CancelledError:
-            login_throttle.record_failure(attempt)
-            raise
-        except Exception:
-            login_throttle.discard_attempt(attempt)
-            raise
-        login_throttle.record_success(attempt)
+        attempt = login_throttle.begin_attempt(form_data.username, address)
+        yield attempt
     finally:
+        # A later dependency may fail/cancel before password work even starts.
+        if attempt is not None and attempt.pending:
+            login_throttle.discard_attempt(attempt)
         login_capacity.release()
+
+
+async def admitted_login_bus(_attempt: Annotated[Attempt | None, Depends(admit_login)], bus: Bus = Depends()) -> Bus:
+    # Express the ordering in the graph, independent of route parameter order.
+    return bus
+
+
+@router.post("/token", responses={429: {"description": "Too many failed login attempts"}})
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    attempt: Annotated[Attempt | None, Depends(admit_login)],
+    bus: Annotated[Bus, Depends(admitted_login_bus)],
+) -> dict:
+    """
+    Obtain an access token for the current user.
+
+    Failed attempts are limited per user name and client address and per client
+    address (`LOGIN_FAILURE_LIMIT`, `LOGIN_ADDRESS_FAILURE_LIMIT`,
+    `LOGIN_FAILURE_WINDOW_SECONDS`). At the limit the request is answered with
+    429 and a `Retry-After` header, without checking the password. When the
+    process-wide login capacity is exhausted the request is answered with 429
+    and `Retry-After: 1`. Both checks run before a database session is acquired.
+    """
+    try:
+        user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)
+    except (auth.InvalidCredentials, NoResultFound):
+        login_throttle.record_failure(attempt)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from None
+    except asyncio.CancelledError:
+        login_throttle.record_failure(attempt)
+        raise
+    except Exception:
+        login_throttle.discard_attempt(attempt)
+        raise
+    login_throttle.record_success(attempt)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = auth.create_access_token(
         payload={"user": user.name, "type": "user"}, expires_delta=access_token_expires

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import threading
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -74,6 +75,12 @@ def credentials():
     return SimpleNamespace(username="user", password="password")
 
 
+async def login(request, form, bus):
+    # Direct lifetime tests below; login_admission_test exercises the ASGI graph.
+    async with asynccontextmanager(users.admit_login)(request, form) as attempt:
+        return await users.login_for_access_token(form, attempt, bus)
+
+
 @pytest.mark.parametrize("result", ["success", "failure", "backend", "cancel"])
 async def test_global_admission_is_fail_fast_and_releases_capacity(monkeypatch, result):
     entered = asyncio.Event()
@@ -94,10 +101,10 @@ async def test_global_admission_is_fail_fast_and_releases_capacity(monkeypatch, 
     monkeypatch.setattr(users, "login_capacity", threading.BoundedSemaphore(2))
     monkeypatch.setattr(auth, "authenticate_user", authenticate)
     bus = SimpleNamespace(uow=object())
-    tasks = [asyncio.create_task(users.login_for_access_token(request(str(i)), credentials(), bus)) for i in range(2)]
+    tasks = [asyncio.create_task(login(request(str(i)), credentials(), bus)) for i in range(2)]
     await asyncio.wait_for(entered.wait(), 2)
     with pytest.raises(HTTPException) as saturated:
-        await users.login_for_access_token(request("third"), credentials(), bus)
+        await login(request("third"), credentials(), bus)
     assert saturated.value.status_code == 429
     assert saturated.value.headers == {"Retry-After": "1"}
     assert len(calls) == 2
@@ -127,9 +134,7 @@ async def test_cancellation_holds_capacity_until_real_hash_work_finishes(monkeyp
         auth.views, "get_user_by_name", AsyncMock(return_value=SimpleNamespace(id=1, name="user", password="hash"))
     )
     monkeypatch.setattr(auth, "verify_password", verify)
-    task = asyncio.create_task(
-        users.login_for_access_token(request("first"), credentials(), SimpleNamespace(uow=object()))
-    )
+    task = asyncio.create_task(login(request("first"), credentials(), SimpleNamespace(uow=object())))
     try:
         assert await asyncio.to_thread(entered.wait, 2)
         task.cancel()
@@ -167,12 +172,12 @@ async def test_login_holds_pair_reservation_across_window(monkeypatch, outcome):
 
     monkeypatch.setattr(auth, "authenticate_user", authenticate)
     bus = SimpleNamespace(uow=object())
-    task = asyncio.create_task(users.login_for_access_token(request("same"), credentials(), bus))
+    task = asyncio.create_task(login(request("same"), credentials(), bus))
     try:
         await asyncio.wait_for(entered.wait(), 2)
         now[0] += 120
         with pytest.raises(HTTPException) as refused:
-            await users.login_for_access_token(request("same"), credentials(), bus)
+            await login(request("same"), credentials(), bus)
         assert refused.value.status_code == 429
     finally:
         if outcome == "cancel":

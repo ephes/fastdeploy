@@ -6,6 +6,15 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Prune login histories incrementally and evict completed-only keys through an
+  ordered queue, bounding saturated churn work without dropping pending owners.
+- Admit login throttle and capacity before database acquisition; hold the slot
+  through password work and UoW cleanup, releasing it on dependency failure too.
+- Give each user, service, deployment and config credential refusal its own
+  exception and headers, avoiding retained tracebacks from earlier requests.
+- Bind browser user tokens and pending responses to the login API base and session.
+  A destination change clears credentials/stores and disposes the socket; log in
+  again at the new destination. Requires a frontend rebuild.
 - Admit runner step names and states before HTTP/report diagnostics using the shared
   255-character API/storage name bound, UTF-8 encodability (lone surrogate escapes are
   refused) and existing reported states. Invalid identities

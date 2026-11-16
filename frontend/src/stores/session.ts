@@ -1,4 +1,5 @@
 import { useAuth } from "./auth";
+import { useSettings } from "./config";
 
 /**
  * Remember the login session a request was started in.
@@ -13,5 +14,6 @@ import { useAuth } from "./auth";
 export function rememberSession(): () => boolean {
   const auth = useAuth();
   const sessionId = auth.sessionId;
-  return () => auth.sessionId === sessionId;
+  const api = useSettings().api;
+  return () => auth.sessionId === sessionId && useSettings().api === api;
 }
