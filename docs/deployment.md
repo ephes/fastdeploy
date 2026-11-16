@@ -143,10 +143,11 @@ lacks permission to signal; leave some headroom above the minimum. The API passe
 so the runner admits the same combination when it imports its settings.
 
 The deploy task owns the deploy script it starts. The script runs in its own process group, and the task waits for
-it on every path. Unusual output no longer ends the deployment: bytes that are not valid UTF-8 are replaced with
-U+FFFD (a step result containing them is still reported, with the replacement character; any other such line is
-skipped like every line that is not a step result), and a line longer than 10 MiB is skipped as a whole, up to its
-newline, with one message on the task's stderr. On every exit path, including a successful leader exit, the task
+it on every path. Protocol records require strict UTF-8: damaged bytes in a line opening a JSON object
+with a member name invalidate the run, without reporting a changed identity. Later output is still drained;
+the task logs only a fixed UTF-8 protocol category, without the record. Ordinary non-JSON console bytes
+remain skippable. A line longer than 10 MiB is skipped as a whole, up to its newline, with one message
+on the task's stderr. On every exit path, including a successful leader exit, the task
 checks its owned group. Remaining descendants receive `SIGTERM`, with up to 10 seconds to exit, then `SIGKILL`
 with another 10-second wait. Reaping the leader has a separate 10-second limit. A foreground script whose group
 has already exited receives no termination signal. Services must start through a service manager or deliberately

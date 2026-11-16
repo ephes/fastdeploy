@@ -6,6 +6,9 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Require strict UTF-8 for runner JSON records before reporting identities. Damaged records
+  fail the run while later output drains; ordinary binary console noise remains tolerated.
+  Diagnostics contain only a fixed category. Requires a runner package update.
 - Admit mutation bodies before framework parsing/authentication: 1 MiB actual
   bytes and a single 10-second receive deadline, including chunked JSON/forms.
   Oversize/slow requests return 413/408 before route work.

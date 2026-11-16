@@ -149,7 +149,7 @@ async def wait_for_pids(tmp_path):
     return await asyncio.to_thread(read_pids, tmp_path)
 
 
-async def test_invalid_utf8_output_does_not_abandon_the_script(task, run_child):
+async def test_invalid_utf8_record_drains_but_fails_the_run(task, run_child, capsys):
     seen = run_child(
         """
         import json, sys
@@ -159,9 +159,13 @@ async def test_invalid_utf8_output_does_not_abandon_the_script(task, run_child):
         """
     )
 
-    await task.deploy_steps()
+    with pytest.raises(RuntimeError, match="invalid runner protocol"):
+        await task.run_deploy()
 
-    assert [step["name"] for step in task.client.posted] == ["broken �", "after"]
+    assert [step["name"] for step in task.client.posted if step is not None] == ["after", "failed step"]
+    diagnostic = capsys.readouterr().err
+    assert "invalid runner protocol: invalid UTF-8 record" in diagnostic
+    assert "broken" not in diagnostic
     assert seen["kwargs"]["start_new_session"] is True
     assert len(seen["cleanups"]) == 1
 
@@ -569,3 +573,15 @@ async def test_shell_syntax_in_the_sudo_user_is_not_interpreted(task, fake_sudo,
 
     assert not injected.exists()
     assert json.loads((tmp_path / "sudo_args.json").read_text())[:3] == ["-u", sudo_user, str(script)]
+
+
+async def test_binary_console_output_and_valid_unicode_identity_stay_compatible(task, run_child):
+    run_child(
+        r"""
+        import json, sys
+        sys.stdout.buffer.write(b"\xff\xfe not utf-8\n")
+        print(json.dumps({"name": "valid \ufffd \u00e4", "state": "success"}), flush=True)
+        """
+    )
+    await task.deploy_steps()
+    assert [step["name"] for step in task.client.posted] == ["valid � ä"]

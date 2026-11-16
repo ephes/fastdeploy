@@ -170,7 +170,7 @@ MAX_RESULT_DEPTH = 64
 # record. Other bracket-prefixed console output, for example Ansible's
 # "[WARNING]: ..." on the merged stderr or a bare "{" of pretty-printed JSON,
 # stays ordinary output.
-RUNNER_RECORD_PREFIX = re.compile(r'\s*\{\s*"')
+RUNNER_RECORD_PREFIX = re.compile(rb'\s*\{\s*"')
 
 
 def unique_result_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -443,11 +443,9 @@ class DeployTask(BaseSettings):
                     # but still have buffered stdout data that must be processed.
                     # readuntil() reports the end only after all buffered output is read.
 
-                    # Bytes that are not valid UTF-8 are replaced (U+FFFD) instead of
-                    # raising: a line that is no step result is skipped below anyway,
-                    # and a step result with a damaged character is still reported.
-                    decoded = data.decode("UTF-8", errors="replace")
                     try:
+                        # Protocol identities must retain their exact wire value.
+                        decoded = data.decode("UTF-8")
                         step_result = json.loads(
                             decoded,
                             object_pairs_hook=unique_result_members,
@@ -455,10 +453,15 @@ class DeployTask(BaseSettings):
                             parse_constant=finite_result_number,
                         )
                         validate_result_depth(step_result)
+                    except UnicodeDecodeError:
+                        if RUNNER_RECORD_PREFIX.match(data):
+                            invalid_protocol = True
+                            self.log("invalid runner protocol: invalid UTF-8 record")
+                        continue
                     except json.decoder.JSONDecodeError:
                         # Ordinary console output remains allowed, but a broken
                         # JSON record cannot silently erase terminal evidence.
-                        if RUNNER_RECORD_PREFIX.match(decoded):
+                        if RUNNER_RECORD_PREFIX.match(data):
                             invalid_protocol = True
                             self.log("invalid runner protocol: malformed JSON record")
                         continue
