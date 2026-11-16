@@ -1,6 +1,6 @@
-import { markRaw } from "vue";
+import { markRaw, watch } from "vue";
 import { createWebsocketClient } from "../websocket";
-import { defineStore, acceptHMRUpdate } from "pinia";
+import { defineStore, acceptHMRUpdate, getActivePinia } from "pinia";
 import { WebsocketClient } from "../typings";
 
 import { getClientWithoutAuth, getClient } from "./httpClient";
@@ -12,8 +12,14 @@ import { useWebsocketStore } from "./websocket";
 
 export const useAuth = defineStore("auth", {
   state: () => {
+    const settings = useSettings();
+    const pinia = getActivePinia();
+    // A destination change retires pending logins as well as active sessions.
+    // Capture this Pinia instance; later callbacks must not use another app's stores.
+    watch(() => settings.api, () => useAuth(pinia).endSession(), { flush: "sync" });
     return {
       accessToken: null as string | null,
+      authenticatedApi: null as string | null,
       username: "" as string,
       password: "" as string,
       errorMessage: null as string | null,
@@ -108,6 +114,7 @@ export const useAuth = defineStore("auth", {
      */
     async login() {
       const attemptId = ++this.loginAttemptId;
+      const api = useSettings().api;
       this.errorMessage = null;
       if (!this.username || !this.password) {
         this.errorMessage = "Please enter a username and password";
@@ -127,20 +134,21 @@ export const useAuth = defineStore("auth", {
       await client
         .post<{ access_token: string }>("/token", undefined, options)
         .then((response) => {
-          if (this.loginAttemptId !== attemptId) {
+          if (this.loginAttemptId !== attemptId || useSettings().api !== api) {
             // a logout or another login happened meanwhile: this
             // response belongs to an attempt that is over
             return;
           }
           // whatever a previous session left behind goes first
           this.endSession();
+          this.authenticatedApi = api;
           this.accessToken = response.access_token;
           if (this.isAuthenticated) {
             this.onLoginSuccess();
           }
         })
         .catch((err) => {
-          if (this.loginAttemptId !== attemptId) {
+          if (this.loginAttemptId !== attemptId || useSettings().api !== api) {
             return;
           }
           if (err.response === undefined) {
@@ -173,6 +181,7 @@ export const useAuth = defineStore("auth", {
       this.loginAttemptId++;
       this.sessionId++;
       this.accessToken = null;
+      this.authenticatedApi = null;
       this.password = "";
       if (this.websocketClient) {
         this.websocketClient.dispose();

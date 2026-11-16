@@ -17,6 +17,12 @@ fastDeploy uses JWT-based authentication with four distinct token types, each pr
 
 **Default Expiration**: 30 minutes
 
+The browser binds a user token to the API base used for login. Changing that base
+ends the session immediately, clears credentials and cached stores, and disposes
+the websocket. Log in again at the new destination. Pending login and REST results
+from the previous destination are discarded, even if settings are changed back;
+cached authenticated clients cannot issue requests after their session ends.
+
 **Failed login limit**: `POST /token` answers `429` with a `Retry-After` header once a user name had
 `LOGIN_FAILURE_LIMIT` (default 10) failed attempts from one client address, or one client address had
 `LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) failed attempts for any user names, inside

@@ -85,8 +85,14 @@ async function withDeadline<T>(request: (signal: AbortSignal) => Promise<T>, cal
 }
 
 /** Keep mande's public overloads, with a fresh signal and options for each call. */
-export const getClientWithoutAuth = (): HttpClient => {
-  const client = mande(useSettings().api);
+export const getClientWithoutAuth = (
+  api = useSettings().api,
+  isCurrent: () => boolean = () => useSettings().api === api,
+): HttpClient => {
+  const client = mande(api);
+  const checkDestination = () => {
+    if (!isCurrent()) throw new Error('API destination or login session changed. Log in again.');
+  };
   for (const method of ["get", "delete", "post", "put", "patch"] as const) {
     const send = client[method].bind(client) as (...args: any[]) => Promise<unknown>;
     client[method] = ((...args: any[]) => {
@@ -99,17 +105,20 @@ export const getClientWithoutAuth = (): HttpClient => {
         : (hasUrl ? args[2] : args[1]);
       const { onBodyBytes, ...fetchOptions } = options ?? {};
       return withDeadline(async signal => {
+        checkDestination();
         const boundedOptions = { ...fetchOptions, signal, responseAs: 'response' };
         let response: Response;
         try {
           response = await (reads ? send(url, boundedOptions) : send(url, data, boundedOptions)) as Response;
         } catch (error) {
+          checkDestination();
           if (!(error instanceof Error) || !('response' in error)) throw error;
           response = (error as Error & { response: Response }).response;
         }
         const body = await decodeBounded(
           response, signal, options?.responseAs ?? client.options.responseAs ?? 'json', onBodyBytes,
         );
+        checkDestination();
         if (!response.ok) {
           throw Object.assign(new Error(response.statusText), { response, body });
         }
@@ -129,8 +138,11 @@ export const getClientWithoutAuth = (): HttpClient => {
  * @returns client {HttpClient} authenticated client
  */
 export const getClient = ():HttpClient => {
-  const client = getClientWithoutAuth();
   const auth = useAuth();
+  const api = useSettings().api;
+  if (auth.accessToken && auth.authenticatedApi !== api) auth.endSession();
+  const sessionId = auth.sessionId;
+  const client = getClientWithoutAuth(api, () => useSettings().api === api && auth.sessionId === sessionId);
   if (auth.accessToken) {
     client.options.headers.Authorization = `Bearer ${auth.accessToken}`;
   }

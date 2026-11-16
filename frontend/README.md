@@ -12,6 +12,11 @@ Since TypeScript cannot handle type information for `.vue` imports, they are shi
 
 ## Login and detail pages
 
+User credentials belong to the API base used for login. Changing the configured
+API base clears the session, password, stores and socket; sign in again at the new
+base. In-flight login/REST results and cached authenticated clients from the old
+session are retired, including when switching away and back before completion.
+
 Login uses labeled username/password fields with credential autocomplete. Enter in
 either field submits the form; one request runs at a time and failures are announced
 without clearing the inputs. Service details follow the current route and show
