@@ -26,6 +26,12 @@ the websocket. Log in again at the new destination. Pending login and REST resul
 from the previous destination are discarded, even if settings are changed back;
 cached authenticated clients cannot issue requests after their session ends.
 
+Login throttle and process-wide capacity admission run before acquiring a
+DB-backed bus/UoW. A refused request acquires no database connection. Admitted
+requests hold their capacity slot through password work and database cleanup;
+cancellation waits for owned hash work, and dependency acquisition failures return
+the slot without counting a password failure.
+
 **Failed login limit**: `POST /token` answers `429` with a `Retry-After` header once a user name had
 `LOGIN_FAILURE_LIMIT` (default 10) failed attempts from one client address, or one client address had
 `LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) failed attempts for any user names, inside

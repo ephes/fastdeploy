@@ -6,6 +6,8 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Admit login throttle and capacity before database acquisition; hold the slot
+  through password work and UoW cleanup, releasing it on dependency failure too.
 - Give each user, service, deployment and config credential refusal its own
   exception and headers, avoiding retained tracebacks from earlier requests.
 - Bind browser user tokens and pending responses to the login API base and session.
