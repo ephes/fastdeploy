@@ -409,3 +409,10 @@ The browser retains at most 200 displayed history rows plus 100 inactive histori
 select a service or refresh after reaching the load-more limit. Active deployments
 and the open detail are pinned. Evicted details reload from REST when revisited.
 See [browser retention](docs/architecture.md) for step/tombstone budgets.
+
+HTTP mutation bodies are admitted before framework parsing: at most 1 MiB actual
+bytes within one 10-second receive deadline (413/408 on refusal). This includes
+JSON and login forms and is independent of Content-Length. Deployment-token
+step/finish authority is rechecked after acquiring the mutation row lock; expiry
+during the wait returns 401 without changes. See [API limits](docs/endpoints.md)
+and [authentication](docs/auth.md).

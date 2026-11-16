@@ -591,3 +591,15 @@ runner clock/offset before retrying; timestamps are never silently repaired.
 Persisted `finished` times remain server-owned. Offset-equivalent starts identify
 the same report, so valid retries remain idempotent. The skew allowance does not
 replace server finish times or the activity/reconciliation clock.
+
+## Mutation body admission
+
+Before JSON/form parsing, credential dependencies or database work, all HTTP
+`POST`, `PUT`, `PATCH` and `DELETE` requests have a 1 MiB actual-body limit and a
+single 10-second receive deadline. This includes login, deployment start and
+step reporting. An oversized body returns 413; a slow/incomplete body returns
+408. Content-Length can only cause early refusal: chunked input and incorrect
+lengths still undergo actual-byte admission. Empty and ordinary bodies continue
+to their normal route validation. Disconnected callers cause no route execution.
+The deployment context's configured JSON limit still applies within this outer
+HTTP envelope; increasing it cannot bypass the 1 MiB body limit.

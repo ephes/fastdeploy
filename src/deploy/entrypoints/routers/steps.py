@@ -1,10 +1,12 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from jwt import InvalidTokenError
 
 from ... import views
+from ...auth import InvalidCredentials
 from ...domain import commands, model
-from ..dependencies import get_current_active_deployment, get_current_active_user
+from ..dependencies import CREDENTIALS_EXCEPTION, OAUTH2_SCHEME, get_current_active_deployment, get_current_active_user
 from ..helper_models import Bus, Deployment, Step, StepResult
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,7 @@ router = APIRouter(
 @router.post("/", responses={409: {"description": "The step was already reported with a different result"}})
 async def process_step_result(
     step: StepResult,
+    token: str = Depends(OAUTH2_SCHEME),
     deployment: Deployment = Depends(get_current_active_deployment),
     bus: Bus = Depends(),
 ) -> dict:
@@ -33,9 +36,11 @@ async def process_step_result(
     is rejected with 409 Conflict.
     """
     assert isinstance(deployment.id, int)
-    cmd = commands.ProcessStep(**step.model_dump(), deployment_id=deployment.id)
+    cmd = commands.ProcessStep(**step.model_dump(), deployment_id=deployment.id, deployment_token=token)
     try:
         await bus.handle(cmd)
+    except (InvalidCredentials, InvalidTokenError):
+        raise CREDENTIALS_EXCEPTION from None
     except model.StepReportConflict as e:
         logger.warning("conflicting repeated step report for deployment %s", deployment.id)
         raise HTTPException(

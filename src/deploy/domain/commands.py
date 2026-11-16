@@ -35,6 +35,8 @@ class PurgeServiceTokens(Command):
 
 
 class FinishDeployment(Command):
+    # None is for trusted internal callers; HTTP must carry its issuing JWT.
+    deployment_token: str | None = None
     deployment_id: int
 
 
@@ -54,6 +56,7 @@ class StartDeployment(Command):
 
 
 class ProcessStep(Command):
+    deployment_token: str | None = None
     name: str
     deployment_id: int
     state: str

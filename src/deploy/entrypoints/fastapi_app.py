@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocketState
 
 from ..adapters.websocket import connection_manager
@@ -30,7 +31,62 @@ async def lifespan(_app: FastAPI):
             await connection_manager.shutdown()
 
 
+HTTP_BODY_MAX_BYTES = 1024 * 1024
+HTTP_BODY_TIMEOUT_SECONDS = 10.0
+
+
+class RequestBodyAdmission:
+    """Bound actual mutation body bytes and time before FastAPI parses anything."""
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH", "DELETE"}:
+            await self.app(scope, receive, send)
+            return
+        # Content-Length is only an early refusal; actual bytes always decide admission.
+        for key, value in scope["headers"]:
+            if key.lower() == b"content-length" and value.isdigit():
+                length = value.lstrip(b"0")
+                if len(length) > 7 or int(length or b"0") > HTTP_BODY_MAX_BYTES:
+                    await JSONResponse({"detail": "Request body is too large"}, status_code=413)(scope, receive, send)
+                    return
+        body = bytearray()
+        try:
+            async with asyncio.timeout(HTTP_BODY_TIMEOUT_SECONDS):
+                while True:
+                    message = await receive()
+                    if message["type"] == "http.disconnect":
+                        return
+                    chunk = message.get("body", b"")
+                    if len(body) + len(chunk) > HTTP_BODY_MAX_BYTES:
+                        await JSONResponse({"detail": "Request body is too large"}, status_code=413)(
+                            scope, receive, send
+                        )
+                        return
+                    body.extend(chunk)
+                    if not message.get("more_body", False):
+                        break
+        except TimeoutError:
+            await JSONResponse({"detail": "Request body timed out"}, status_code=408)(scope, receive, send)
+            return
+        admitted = bytes(body)
+        del body
+        consumed = False
+
+        async def replay():
+            nonlocal consumed
+            if not consumed:
+                consumed = True
+                return {"type": "http.request", "body": admitted, "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, send)
+
+
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(RequestBodyAdmission)
 
 
 app.include_router(users.router)

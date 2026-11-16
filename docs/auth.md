@@ -284,3 +284,10 @@ owners; completed key storage retains its cap, exempting pending keys until sett
 Authenticated deployment and step routes (including detail, history, and errors)
 carry `Cache-Control: private, no-store` and `Vary: Authorization`. Public static
 assets keep their normal cache policy.
+
+Deployment credentials for `POST /steps/` and `PUT /deployments/finish/` are checked
+again after acquiring the deployment row lock. Expiry or a changed/mismatched
+signed identity during the wait returns 401 with `WWW-Authenticate: Bearer`,
+without committing a step, finish or event. Unexpired retries keep the existing
+idempotent behavior. Trusted internal commands may omit the credential; HTTP
+always forwards the issuing token. This recheck opens no nested transaction.

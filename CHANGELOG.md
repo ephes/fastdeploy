@@ -6,6 +6,11 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Admit mutation bodies before framework parsing/authentication: 1 MiB actual
+  bytes and a single 10-second receive deadline, including chunked JSON/forms.
+  Oversize/slow requests return 413/408 before route work.
+- Revalidate issuing deployment tokens after the mutation row-lock wait for
+  step/finish commands; expired or mismatched authority returns 401 without changes.
 - Bound browser history windows to 200 rows and retain at most 100 extra inactive
   histories; evict related step indexes and lifecycle markers together. Pin active
   and displayed deployments and fence late events after eviction. Requires frontend rebuild.

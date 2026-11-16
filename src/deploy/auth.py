@@ -321,10 +321,8 @@ async def service_from_payload(payload: dict, uow: AbstractUnitOfWork, *, for_up
     return service
 
 
-async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployment:
-    """
-    Turn a JWT token into a Deployment model.
-    """
+def deployment_id_from_token(token: str) -> int:
+    """Validate the deployment credential without opening a unit of work."""
     payload = token_to_payload(token)
     if payload.get("type") != "deployment":
         raise InvalidCredentials("not a deployment token")
@@ -333,6 +331,12 @@ async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployme
     if type(deployment_id) is not int or not 1 <= deployment_id <= 2**31 - 1:
         raise InvalidCredentials("invalid deployment id")
 
+    return deployment_id
+
+
+async def deployment_from_token(token: str, uow: AbstractUnitOfWork) -> Deployment:
+    """Turn a JWT token into a Deployment model."""
+    deployment_id = deployment_id_from_token(token)
     async with uow as uow:
         deployment = await uow.deployments.get(deployment_id)
     return deployment

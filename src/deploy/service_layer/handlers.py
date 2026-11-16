@@ -156,6 +156,7 @@ async def finish_deployment(command: commands.FinishDeployment, uow: AbstractUni
     """
     async with uow:
         deployment = await get_deployment_for_update(command.deployment_id, uow)
+        validate_deployment_authority(command.deployment_token, command.deployment_id)
         removed_steps = deployment.finish()
         for step in removed_steps:
             await uow.steps.delete(step)
@@ -331,14 +332,20 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
             raise model.DeploymentLaunchFailed(deployment.id) from e
 
 
+def validate_deployment_authority(token: str | None, deployment_id: int) -> None:
+    if token is not None and auth.deployment_id_from_token(token) != deployment_id:
+        raise auth.InvalidCredentials("deployment credential changed")
+
+
 async def process_step(command: commands.ProcessStep, uow: AbstractUnitOfWork):
     """
     Process a reported deployment step (progress or result).
     """
     # get the deployment that we are deploying from database
-    step = model.Step(**command.model_dump())
+    step = model.Step(**command.model_dump(exclude={"deployment_token"}))
     async with uow:
         deployment = await get_deployment_for_update(command.deployment_id, uow)
+        validate_deployment_authority(command.deployment_token, command.deployment_id)
         steps_to_update = deployment.process_step(step)
         for step in steps_to_update:
             await uow.steps.add(step)
