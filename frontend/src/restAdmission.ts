@@ -6,6 +6,14 @@ function invalid(): never {
   throw new Error('Invalid REST snapshot');
 }
 
+/** Only admit the fields used by the credential consumer; never echo wire values. */
+export function serviceToken(value: unknown): string {
+  if (!record(value) || value.token_type !== 'bearer' ||
+      typeof value.service_token !== 'string' || value.service_token.length === 0 ||
+      value.service_token.length > 16 * 1024 || !/^[\x21-\x7e]+$/.test(value.service_token)) return invalid();
+  return value.service_token;
+}
+
 /** Admit the complete response and project fields before any live-store mutation. */
 export function stepSnapshot(value: unknown, deploymentId: number): Step[] {
   if (!Array.isArray(value)) return invalid();

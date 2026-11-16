@@ -3,6 +3,7 @@ import { afterEach, vi } from "vitest";
 import { ServiceWithId, Service } from "../src/typings";
 import { createWebsocketClient } from "../src/websocket";
 import { useServices } from "../src/stores/service";
+import { useAuth } from "../src/stores/auth";
 import { createEvent, initPinia } from "./conftest";
 import ServiceList from "../src/components/ServiceList.vue";
 
@@ -113,9 +114,77 @@ const refusalBody = {
   },
 };
 
+function deferred() {
+  let resolve!: (value: unknown) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<unknown>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
 describe("Services sync", () => {
   beforeEach(() => {
     initPinia();
+  });
+
+  for (const olderOutcome of ["success", "refusal", "error"]) {
+    for (const olderFirst of [true, false]) {
+      it(`retires older ${olderOutcome} when forced sync starts (older settles first: ${olderFirst})`, async () => {
+        const store = useServices();
+        const older = deferred();
+        const latest = deferred();
+        const post = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(latest.promise);
+        store.client = { post, options: { headers: {} } } as any;
+        const ordinary = store.syncServices();
+        const forced = store.syncServices(true);
+        const settleOlder = async () => {
+          if (olderOutcome === "success") older.resolve({ detail: "Services synced" });
+          else older.reject(syncError(olderOutcome === "refusal" ? 409 : 500, refusalBody));
+          expect(await ordinary).toBe(false);
+          expect(store.syncRefusal).toBeNull();
+          expect(store.syncErrorMessage).toBe("");
+        };
+        if (olderFirst) await settleOlder();
+        latest.resolve({ detail: "Services synced" });
+        expect(await forced).toBe(true);
+        if (!olderFirst) await settleOlder();
+        expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true" } });
+      });
+    }
+  }
+
+  it.each([409, 500])("keeps the latest failure (%s) after an older success", async status => {
+    const store = useServices();
+    const older = deferred();
+    store.client = {
+      post: vi.fn().mockReturnValueOnce(older.promise).mockRejectedValueOnce(syncError(status, refusalBody)),
+      options: { headers: {} },
+    } as any;
+    const ordinary = store.syncServices();
+    expect(await store.syncServices(true)).toBe(false);
+    const refusal = store.syncRefusal;
+    const error = store.syncErrorMessage;
+    expect(status === 409 ? refusal : error).toBeTruthy();
+    older.resolve({ detail: "Services synced" });
+    expect(await ordinary).toBe(false);
+    expect(store.syncRefusal).toEqual(refusal);
+    expect(store.syncErrorMessage).toBe(error);
+  });
+
+  it.each(["success", "refusal", "error"])("retires old-session %s even when reset reuses a generation", async outcome => {
+    const store = useServices();
+    const old = deferred();
+    store.client = { post: () => old.promise, options: { headers: {} } } as any;
+    const pending = store.syncServices();
+    useAuth().logout();
+    // A later login starts with a reset services store and fresh clients.
+    useAuth().sessionId++;
+    store.client = { post: vi.fn().mockResolvedValue({}), options: { headers: {} } } as any;
+    expect(await store.syncServices(true)).toBe(true);
+    if (outcome === "success") old.resolve({});
+    else old.reject(syncError(outcome === "refusal" ? 409 : 500, refusalBody));
+    expect(await pending).toBe(false);
+    expect(store.syncRefusal).toBeNull();
+    expect(store.syncErrorMessage).toBe("");
   });
 
   it("stores the refusal when the backend refuses the sync", async () => {
