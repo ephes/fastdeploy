@@ -6,6 +6,10 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Admit runner step names and states before HTTP/report diagnostics using the shared
+  255-character API/storage name bound and existing reported states. Invalid identities
+  log only a fixed category and prevent successful completion while output drains.
+  Requires a runner package update.
 - Require strict UTF-8 for runner JSON records before reporting identities. Damaged records
   fail the run while later output drains; ordinary binary console noise remains tolerated.
   Diagnostics contain only a fixed category. Requires a runner package update.

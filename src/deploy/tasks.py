@@ -19,7 +19,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .auth import create_access_token
 from .config import settings
-from .domain.model import Deployment, Step
+from .domain.model import MAX_STEP_NAME_LENGTH, REPORTED_STEP_STATES, Deployment, Step
 from .runner_limits import (
     DEPLOY_STOP_TIMEOUT,
     REPORT_RESPONSE_TIMEOUT_SECONDS,
@@ -473,11 +473,18 @@ class DeployTask(BaseSettings):
                     if not isinstance(step_result, dict):
                         # valid JSON, but not a step result (for example a list) -> skip
                         continue
-                    # if name is None there's something wrong -> skip
-                    result_name = step_result.get("name")
-                    if result_name is None:
-                        # should not happen
+                    if "name" not in step_result:
                         self.log(f"step result not posted: {self.describe_nameless_result(step_result, len(data))}")
+                        continue
+                    result_name = step_result["name"]
+                    if (
+                        not isinstance(result_name, str)
+                        or len(result_name) > MAX_STEP_NAME_LENGTH
+                        or step_result.get("state") not in REPORTED_STEP_STATES
+                    ):
+                        invalid_protocol = True
+                        # Refuse before report construction or value-bearing logs.
+                        self.log("invalid runner protocol: invalid step identity")
                         continue
                     step_result["started"] = started
                     try:

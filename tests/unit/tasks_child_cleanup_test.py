@@ -585,3 +585,70 @@ async def test_binary_console_output_and_valid_unicode_identity_stay_compatible(
     )
     await task.deploy_steps()
     assert [step["name"] for step in task.client.posted] == ["valid � ä"]
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"name": None, "state": "success"},
+        {"name": True, "state": "success"},
+        {"name": 42, "state": "success"},
+        {"name": ["private-marker"], "state": "success"},
+        {"name": {"private-marker": 1}, "state": "success"},
+        {"name": "ä" * 256, "state": "success"},
+        {"name": "private-marker" * 40000, "state": "success"},
+        {"name": "private-marker"},
+        {"name": "private-marker", "state": "pending"},
+        {"name": "private-marker", "state": None},
+        {"name": "private-marker", "state": ["success"]},
+        {"name": "private-marker", "state": "private-state-marker" * 40000},
+    ],
+    ids=[
+        "null",
+        "bool",
+        "number",
+        "list",
+        "object",
+        "256-chars",
+        "large-name",
+        "missing-state",
+        "pending",
+        "null-state",
+        "list-state",
+        "large-state",
+    ],
+)
+async def test_invalid_step_identity_never_reaches_reporter_or_logs(task, run_child, record, capsys):
+    seen = run_child(
+        f"""
+        import json
+        print(json.dumps({record!r}), flush=True)
+        print(json.dumps({{"name": "after", "state": "success"}}), flush=True)
+        """
+    )
+    with pytest.raises(RuntimeError, match="invalid runner protocol"):
+        await task.run_deploy()
+
+    assert [step["name"] for step in task.client.posted if step is not None] == ["after", "failed step"]
+    assert task.client.posted[-1] is None  # finish only after the accepted failure
+    assert task.client.posted[-2]["state"] == "failure"
+    diagnostic = capsys.readouterr().err
+    assert diagnostic == "fastdeploy deploy task: invalid runner protocol: invalid step identity\n"
+    assert len(seen["cleanups"]) == 1
+    assert not seen["cleanups"][0].exists()
+
+
+async def test_step_identity_exact_limit_matches_api_schema(task, run_child):
+    from deploy.entrypoints.helper_models import StepResult
+
+    run_child(
+        """
+        import json
+        for name, state in [("ä" * 255, "running"), ("", "success"), ("failed", "failure")]:
+            print(json.dumps({"name": name, "state": state}), flush=True)
+        """
+    )
+    await task.deploy_steps()
+    assert [step["name"] for step in task.client.posted] == ["ä" * 255, "", "failed"]
+    for step in task.client.posted:
+        StepResult.model_validate(step)

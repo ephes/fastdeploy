@@ -130,7 +130,7 @@ class DeployProc:
         # None is sentinel for last line
         ([None], []),  # no steps deployed -> no steps posted
         ([{"foo": "bar"}, None], []),  # step with no name -> not posted
-        ([{"name": "foo"}, None], [{"name": "foo"}]),  # step with name -> posted
+        ([{"name": "foo", "state": "success"}, None], [{"name": "foo"}]),  # step with name -> posted
         (["decodeerror", None], []),  # return no json line -> no step posted
     ],
 )
@@ -153,7 +153,7 @@ async def test_deploy_steps_post(stdout_lines, expected_steps, task):
                 {"name": "foo", "id": 2},
             ],  # two steps because of current step is not None coverage
             # set state to make finish_step start next step
-            [{"name": "bar", "state": "success"}, {"name": "foo"}, None],
+            [{"name": "bar", "state": "success"}, {"name": "foo", "state": "success"}, None],
             [{"id": None, "name": "bar"}, {"id": None, "name": "foo"}],
         ),  # happy path
     ],
@@ -305,7 +305,12 @@ async def test_send_step_logs_dropped_step_after_last_attempt(task_kwargs, no_sl
 async def test_deploy_steps_keeps_draining_stdout_after_failed_post(task_kwargs, no_sleep):
     client = FlakyClient(post_errors=[connect_error() for _ in range(4)])
     task = make_task(task_kwargs, client)
-    stdout_lines = [{"name": "step1"}, {"name": "step2"}, {"name": "step3"}, None]
+    stdout_lines = [
+        {"name": "step1", "state": "success"},
+        {"name": "step2", "state": "success"},
+        {"name": "step3", "state": "success"},
+        None,
+    ]
     proc = DeployProc(stdout_lines)
 
     with (
@@ -338,7 +343,7 @@ async def test_deploy_steps_logs_nameless_result_bounded_without_values(task, ca
 
 
 async def test_deploy_steps_keeps_draining_stdout_after_invalid_step(task, capsys):
-    stdout_lines = [{"name": "step1"}, {"name": "step2"}, None]
+    stdout_lines = [{"name": "step1", "state": "success"}, {"name": "step2", "state": "success"}, None]
     proc = DeployProc(stdout_lines)
 
     with (
@@ -356,7 +361,7 @@ async def test_run_deploy_finishes_after_step_post_failures(task_kwargs, no_slee
     # all attempts for step1 fail, the failed step is reported
     client = FlakyClient(post_errors=[connect_error() for _ in range(4)])
     task = make_task(task_kwargs, client)
-    proc = DeployProc([{"name": "step1"}, None], returncode=1)
+    proc = DeployProc([{"name": "step1", "state": "success"}, None], returncode=1)
 
     with (
         patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec),
@@ -439,7 +444,7 @@ async def test_cancelled_deployment_reports_failure_before_finishing(task):
 
 
 async def test_deploy_steps_skips_json_that_is_not_an_object(task):
-    proc = DeployProc([[], "a string", 42, {"name": "step1"}, None])
+    proc = DeployProc([[], "a string", 42, {"name": "step1", "state": "success"}, None])
 
     with patch("deploy.tasks.asyncio.create_subprocess_exec", new=proc.create_subprocess_exec):
         await task.deploy_steps()

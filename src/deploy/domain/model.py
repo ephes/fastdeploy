@@ -260,6 +260,9 @@ def as_utc(timestamp: datetime) -> datetime:
     return timestamp.astimezone(timezone.utc)
 
 
+# Step names share the API/storage column limit and the runner admission bound.
+MAX_STEP_NAME_LENGTH = 255
+
 # States a deploy script may report for a step: progress (``running``) or a
 # result. ``pending`` is the state of a planned step and never reported.
 REPORTED_STEP_STATES = ("running", "success", "failure")
