@@ -219,3 +219,51 @@ describe("Step inventory pages", () => {
     expect(store.pendingFetches).toEqual([]);
   });
 });
+
+describe("Whole inventory admission", () => {
+  beforeEach(() => initPinia());
+  it("refuses more than 1000 staged rows without replacing known state, then retries", async () => {
+    const store = useSteps();
+    store.addStep(step);
+    let next = 2000;
+    const get = vi.fn(async () => Array.from({ length: 25 }, () => ({ ...apiStep, id: next-- })));
+    store.client = { get } as any;
+    await expect(store.fetchStepsFromDeployment(1)).rejects.toThrow();
+    expect(get.mock.calls.length).toBeLessThanOrEqual(41);
+    expect(Object.keys(store.steps)).toEqual(["1"]);
+    expect(store.inventoryComplete[1]).toBe(false);
+    store.client = { get: async () => [apiStep] } as any;
+    await store.fetchStepsFromDeployment(1);
+    expect(store.inventoryComplete[1]).toBe(true);
+  });
+
+  it("bounds cumulative page bytes", async () => {
+    const store = useSteps();
+    store.addStep(step);
+    let next = 1000;
+    const get = vi.fn(async () => Array.from({ length: 25 }, () => ({
+      ...apiStep, id: next--, message: "x".repeat(32_000),
+    })));
+    store.client = { get } as any;
+    await expect(store.fetchStepsFromDeployment(1)).rejects.toThrow();
+    expect(Object.keys(store.steps)).toEqual(["1"]);
+    expect(get.mock.calls.length).toBeLessThanOrEqual(11);
+  });
+
+  it("aborts the pending page at the whole traversal deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const store = useSteps();
+      let signal!: AbortSignal;
+      store.client = { get: (_url: string, options: any) => {
+        signal = options?.signal;
+        return new Promise(() => {});
+      } } as any;
+      const result = expect(store.fetchStepsFromDeployment(1)).rejects.toThrow();
+      await vi.advanceTimersByTimeAsync(30_000);
+      await result;
+      expect(signal.aborted).toBe(true);
+      expect(store.pendingFetches).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
+});

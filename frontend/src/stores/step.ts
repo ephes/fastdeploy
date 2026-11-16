@@ -5,6 +5,10 @@ import { rememberSession } from "./session";
 import { stepPage } from "../restAdmission";
 import { Step, StepById, Message, Deployment } from "../typings";
 
+export const INVENTORY_MAX_ROWS = 1000;
+export const INVENTORY_MAX_BYTES = 8 * 1024 * 1024;
+export const INVENTORY_TIMEOUT_MS = 30_000;
+
 /**
  * This store is used to store deployment steps. They are stored
  * by deployment and by step id.
@@ -167,16 +171,28 @@ export const useSteps = defineStore("steps", {
       this.fetchGenerations[deploymentId] = generation;
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
+      const controller = new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const expired = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error("Step inventory timed out. Try again."));
+          controller.abort();
+        }, INVENTORY_TIMEOUT_MS);
+      });
       try {
         this.inventoryComplete[deploymentId] = false;
         const steps: Step[] = [];
         let beforeId: number | null = null;
+        let bytes = 0;
         while (true) {
           const params = new URLSearchParams({ deployment_id: deploymentId.toString(), limit: "25" });
           if (beforeId !== null) params.set("before_id", beforeId.toString());
-          const response = await this.client.get<unknown>("steps/?" + params);
+          const response = await Promise.race([expired, this.client.get<unknown>("steps/?" + params, { signal: controller.signal })]);
           if (!isCurrentSession() || !ownsRefresh() || this.fetchGenerations[deploymentId] !== generation) return;
+          bytes += new TextEncoder().encode(JSON.stringify(response)).byteLength;
+          if (bytes > INVENTORY_MAX_BYTES) throw new Error("Step inventory is too large.");
           const page = stepPage(response, deploymentId, beforeId);
+          if (steps.length + page.length > INVENTORY_MAX_ROWS) throw new Error("Step inventory is too large.");
           if (page.some(step => this.steps[step.id] && this.steps[step.id].deploymentId !== deploymentId)) {
             throw new Error("Invalid REST snapshot");
           }
@@ -193,6 +209,8 @@ export const useSteps = defineStore("steps", {
         }
         this.inventoryComplete[deploymentId] = true;
       } finally {
+        clearTimeout(timer);
+        controller.abort();
         this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
       }
     },

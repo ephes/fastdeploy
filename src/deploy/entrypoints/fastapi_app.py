@@ -59,7 +59,10 @@ async def private_responses(request: Request, call_next: Callable[[Request], Awa
         # and would let the ASGI server print backend exception text.
         logger.error("request_failed category=%s", type(exc).__name__)
         response = JSONResponse(status_code=500, content={"detail": "Internal server error"})
-    if request.url.path.rstrip("/") in {"/token", "/service-token", "/services", "/deployed-services"}:
+    path = request.url.path.rstrip("/")
+    if path in {"/token", "/service-token", "/services", "/deployed-services"} or any(
+        path == prefix or path.startswith(prefix + "/") for prefix in ("/deployments", "/steps")
+    ):
         response.headers["Cache-Control"] = "private, no-store"
         response.headers.add_vary_header("Authorization")
     return response

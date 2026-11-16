@@ -280,3 +280,7 @@ and discard remove their own reservation; success also clears completed failures
 for its pair, preserving other pending owners. A pending-only limit returns
 `Retry-After: 1` because completion time is unknown. Global admission bounds live
 owners; completed key storage retains its cap, exempting pending keys until settlement.
+
+Authenticated deployment and step routes (including detail, history, and errors)
+carry `Cache-Control: private, no-store` and `Vary: Authorization`. Public static
+assets keep their normal cache policy.

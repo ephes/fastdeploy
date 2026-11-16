@@ -6,6 +6,10 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Bound complete browser step traversals to 1,000 rows, 8 MiB and 30 seconds;
+  retain last-good rows with retry feedback on refusal. Requires frontend rebuild.
+- Apply private no-store and Authorization variation to all deployment/step
+  responses, including authentication and internal errors.
 - Validate service-token success responses before display or launch: require a bearer
   token string of at most 16 KiB using printable ASCII without spaces. Malformed
   responses fail with fixed feedback; no response body or credential enters errors.

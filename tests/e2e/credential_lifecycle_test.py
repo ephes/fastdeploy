@@ -138,3 +138,30 @@ async def test_private_response_policy_preserves_cors_vary(app, valid_access_tok
     assert response.status_code == 200
     assert_private_response(response)
     assert "origin" in {value.strip().lower() for value in response.headers["vary"].split(",")}
+
+
+@pytest.mark.parametrize("path", ["/deployments/", "/deployments/1", "/steps/?deployment_id=1", "/steps/1"])
+async def test_deployment_read_errors_are_private(app, path):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(path)
+    assert response.status_code in {401, 404, 405}
+    assert_private_response(response)
+
+
+async def test_deployment_reads_and_backend_failure_are_private(
+    app, bus, deployment_in_db, valid_access_token_in_db, valid_service_token_in_db
+):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for path in ["/deployments/", f"/deployments/{deployment_in_db.id}", "/steps/?deployment_id=1"]:
+            credential = valid_service_token_in_db if path.startswith("/deployments/1") else valid_access_token_in_db
+            response = await client.get(path, headers={"authorization": f"Bearer {credential}"})
+            assert response.status_code == 200
+            assert_private_response(response)
+        with patch.object(bus.uow.deployments, "get", side_effect=RuntimeError("synthetic failure")):
+            response = await client.get(
+                f"/deployments/{deployment_in_db.id}", headers={"authorization": f"Bearer {valid_service_token_in_db}"}
+            )
+        assert response.status_code == 500
+        assert_private_response(response)
+        response = await client.get("/static/missing.txt")
+        assert "no-store" not in response.headers.get("cache-control", "")

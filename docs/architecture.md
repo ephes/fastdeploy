@@ -668,3 +668,8 @@ by rollback keeps the base UoW's existing propagation semantics. Leaving a trans
 does not close caller-owned sessions, connections or engines: request/explicit close
 owns those resources and can settle them after a failed unwind. Shared engines are
 never disposed by a non-owning request UoW.
+
+A complete step inventory is staged under one 30-second deadline, at most 1,000
+rows and 8 MiB of cumulative JSON page bytes. Oversize or timed-out traversals
+abort the pending request, retain the last good rows and leave completeness false.
+Retry starts a fresh traversal; no partial inventory is published.
