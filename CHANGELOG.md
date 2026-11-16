@@ -6,6 +6,10 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Reject runtime-owned fields in configured steps before sync admission; construct
+  planned steps from names only, including legacy stored definitions.
+- Clear old result messages and deployment associations when replanning successful
+  steps, preserving historical rows and attaching only at preparation.
 - Prune login histories incrementally and evict completed-only keys through an
   ordered queue, bounding saturated churn work without dropping pending owners.
 - Admit login throttle and capacity before database acquisition; hold the slot

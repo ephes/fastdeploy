@@ -120,8 +120,7 @@ class Step(EventsMixin):
     @classmethod
     def new_pending_from_old(cls, other):
         """Last successful steps have to be re-created to be able to be used in a new deployment."""
-        reset_attributes = {"id": None, "state": "pending", "started": None, "finished": None}
-        return cls(**(other.model_dump() | reset_attributes))
+        return cls(name=other.name)
 
     def model_dump(self):
         return {

@@ -296,7 +296,12 @@ operator writes after final validation.
 An optional `deploy_script` must be a nonblank string without NULs, naming one
 executable. Optional `steps` must be a list of objects, each with a nonblank string
 `name` of at most 255 characters without NULs. Missing fields retain the default script/placeholder behavior;
-unknown service and step fields are preserved. Explicit steps must be valid even
+unknown service and step extension fields are preserved. Runtime-owned fields
+`id`, `deployment_id`, `state`, `started`, `finished` and `message` are refused in
+configured steps. Planning copies only names, including from stored legacy configs
+and successful history: every new step has a fresh ID, empty message, pending
+state and no execution timestamps or deployment association until preparation.
+Historical rows keep their original results. Explicit steps must be valid even
 when `ansible_playbook` replaces them with playbook-derived steps. Any invalid
 service refuses the entire sync, including when `--force` is used.
 

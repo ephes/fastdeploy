@@ -133,7 +133,8 @@ async def get_steps_to_do_from_service(
                 # from old deployment
                 return [model.Step.new_pending_from_old(step) for step in steps]
     # try to get steps from config
-    steps = [model.Step(**step) for step in service.data.get("steps", [])]
+    # Only names belong to a plan, including definitions stored before source admission.
+    steps = [model.Step(name=step["name"]) for step in service.data.get("steps", [])]
     if len(steps) == 0:
         # if no steps are found, create a default placeholder step
         steps.append(model.Step(name="Unknown step"))

@@ -17,10 +17,9 @@ async def test_get_steps_to_do_from_service_returns_placeholder_step(service):
 
 
 async def test_get_steps_to_do_from_service_has_steps_in_data(service):
-    step = model.Step(id=1, name="Step 1")
-    service.data = {"steps": [step.model_dump()]}
-    steps = await views.get_steps_to_do_from_service(service)
-    assert [step] == steps
+    service.data = {"steps": [{"name": "Step 1"}]}
+    [step] = await views.get_steps_to_do_from_service(service)
+    assert step.model_dump() == model.Step(name="Step 1").model_dump()
 
 
 async def test_get_steps_to_do_from_service_only_failure_steps(uow, service_in_db):

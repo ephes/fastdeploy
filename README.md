@@ -368,7 +368,12 @@ keys override merged ones), and ordinary aliases remain supported within the sam
 When supplied, `deploy_script` must be a nonempty executable path without NULs;
 `steps` must be a list of objects with nonblank string `name` values of at most 255 characters without NULs.
 Omitting these fields keeps the default script and placeholder step behavior.
-Unknown configuration and step fields are preserved. Explicit steps are validated
+Unknown configuration and step extension fields are preserved.
+Configured steps may only supply planning names and extensions: runtime fields
+`id`, `deployment_id`, `state`, `started`, `finished` and `message` are refused, even
+when a playbook replaces explicit steps. Plans use only step names and start with
+fresh IDs, empty result text and no execution association. Replanning successful
+history leaves old rows intact; the prepare boundary attaches the new deployment. Explicit steps are validated
 even when a playbook supplies the final steps.
 Invalid sources refuse the entire sync before database changes (HTTP
 422 or CLI exit 1). `--force` only overrides deletion-count safety.

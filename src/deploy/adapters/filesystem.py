@@ -270,6 +270,9 @@ def _validate_service_definition(data):
             for step in steps
         ):
             raise ServiceConfigError("steps must be a list of objects with nonblank names of at most 255 characters")
+        runtime_fields = {"id", "state", "started", "finished", "message", "deployment_id"}
+        if any(runtime_fields.intersection(step) for step in steps):
+            raise ServiceConfigError("configured steps must not contain runtime fields")
 
 
 class Filesystem(AbstractFilesystem):
