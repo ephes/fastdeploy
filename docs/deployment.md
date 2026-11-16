@@ -168,7 +168,7 @@ The deploy task (the detached `python -m deploy.tasks` process that runs the dep
 `POST /steps/` and finally calls `PUT /deployments/finish/`. Scripts report a step with the state
 `running` when it starts (optional) and with `success` or `failure` when it ends. The task forwards
 only admitted named JSON lines as reports: `name` must be a string of at most 255 characters
-(the API/storage limit), and `state` must be `running`, `success` or `failure`. Empty names remain
+(the API/storage limit) that is encodable as UTF-8 (no `\ud800`-style lone surrogate escapes), and `state` must be `running`, `success` or `failure`. Empty names remain
 compatible with the API. A present but null/non-string/oversized name, or a missing/invalid state,
 is rejected locally before HTTP or value-bearing diagnostics. Only the fixed `invalid step identity`
 protocol category is logged; the rejected name/state is never logged. Later output is still drained,

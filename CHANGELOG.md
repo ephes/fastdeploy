@@ -7,7 +7,8 @@ Unreleased
 
 ### Fixed
 - Admit runner step names and states before HTTP/report diagnostics using the shared
-  255-character API/storage name bound and existing reported states. Invalid identities
+  255-character API/storage name bound, UTF-8 encodability (lone surrogate escapes are
+  refused) and existing reported states. Invalid identities
   log only a fixed category and prevent successful completion while output drains.
   Requires a runner package update.
 - Require strict UTF-8 for runner JSON records before reporting identities. Damaged records

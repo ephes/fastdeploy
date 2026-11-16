@@ -173,6 +173,20 @@ MAX_RESULT_DEPTH = 64
 RUNNER_RECORD_PREFIX = re.compile(rb'\s*\{\s*"')
 
 
+def is_utf8_encodable(value: str) -> bool:
+    """Whether a decoded JSON string can be sent as UTF-8.
+
+    Strict UTF-8 wire decoding does not reject JSON escapes for lone
+    surrogates (for example ``"\\ud800"``); such a string cannot be encoded
+    for the report request and must be refused like any invalid identity.
+    """
+    try:
+        value.encode("UTF-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
 def unique_result_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -480,6 +494,7 @@ class DeployTask(BaseSettings):
                     if (
                         not isinstance(result_name, str)
                         or len(result_name) > MAX_STEP_NAME_LENGTH
+                        or not is_utf8_encodable(result_name)
                         or step_result.get("state") not in REPORTED_STEP_STATES
                     ):
                         invalid_protocol = True
