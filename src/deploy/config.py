@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     # A websocket connection that has not authenticated this many seconds after
     # it was accepted is closed.
     websocket_auth_timeout_seconds: float = Field(10.0, gt=0, le=86400, allow_inf_nan=False)
+    # Process-wide websocket admission: connections beyond these counts are
+    # rejected before the handshake is accepted (HTTP 403 from the server).
+    websocket_max_connections: int = Field(256, ge=1, le=65536)
+    websocket_max_unauthenticated_connections: int = Field(32, ge=1, le=65536)
+    # Unauthenticated connections per client address, so one peer cannot hold
+    # every unauthenticated slot.
+    websocket_max_unauthenticated_per_address: int = Field(4, ge=1, le=65536)
     # Upper limit for the JSON encoded context of POST /deployments/ in bytes.
     deployment_context_max_bytes: int = Field(64 * 1024, ge=2)
     database_url: str = "postgresql+asyncpg:///deploy"

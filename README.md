@@ -97,6 +97,9 @@ LOGIN_MAX_CONCURRENT=4  # process-wide authentication work limit, 1–64; satura
 
 # Request limits
 WEBSOCKET_AUTH_TIMEOUT_SECONDS=10  # close a websocket connection that has not authenticated by then
+WEBSOCKET_MAX_CONNECTIONS=256  # websocket connections per process; further handshakes are rejected (HTTP 403)
+WEBSOCKET_MAX_UNAUTHENTICATED_CONNECTIONS=32  # of those, connections not authenticated yet
+WEBSOCKET_MAX_UNAUTHENTICATED_PER_ADDRESS=4  # unauthenticated connections per client address
 DEPLOYMENT_CONTEXT_MAX_BYTES=65536  # largest JSON encoded context of POST /deployments/ (413 above)
 
 # API configuration
@@ -135,6 +138,7 @@ Lifecycle settings are validated at startup (defaults are unchanged):
 | `SERVICE_TOKEN_MAX_EXPIRE_DAYS`, `SERVICE_TOKEN_RETENTION_DAYS` | 1–3650 days (ten years) |
 | `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` | 0–31536000 seconds (one year); zero disables the safety window |
 | `WEBSOCKET_AUTH_TIMEOUT_SECONDS` | finite, greater than 0 and at most 86400 seconds (one day) |
+| `WEBSOCKET_MAX_CONNECTIONS`, `WEBSOCKET_MAX_UNAUTHENTICATED_CONNECTIONS`, `WEBSOCKET_MAX_UNAUTHENTICATED_PER_ADDRESS` | 1–65536 connections |
 
 `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES * 60` must be at least
 `DEPLOYMENT_MAX_RUNTIME_SECONDS + 2731`: 30 seconds for process teardown,

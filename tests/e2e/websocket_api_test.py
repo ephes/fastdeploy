@@ -203,7 +203,7 @@ def test_websocket_endpoint_lets_a_close_within_the_budget_finish(cm, monkeypatc
         async def accept(self):
             pass
 
-        async def receive_json(self):
+        async def receive(self):
             await asyncio.sleep(3600)
 
         async def close(self, code=1000, reason=None):
@@ -242,7 +242,7 @@ async def test_endpoint_cleanup_cannot_wait_forever_for_close(cm, monkeypatch):
         async def accept(self):
             pass
 
-        async def receive_json(self):
+        async def receive(self):
             await asyncio.Event().wait()
 
         async def close(self, code=1000, reason=None):
@@ -269,3 +269,137 @@ async def test_endpoint_cleanup_cannot_wait_forever_for_close(cm, monkeypatch):
     await asyncio.wait_for(asyncio.gather(*pending), 0.5)
     assert socket.close_finished
     assert not cm.close_tasks
+
+
+# --- control frame and connection admission ---
+
+
+@pytest.fixture
+def token_lookups(monkeypatch):
+    """Record every token that reaches credential verification."""
+    from deploy.adapters import websocket as websocket_module
+
+    seen = []
+    real = websocket_module.user_from_token
+
+    async def recording_user_from_token(token, uow):
+        seen.append(token)
+        return await real(token, uow)
+
+    monkeypatch.setattr(websocket_module, "user_from_token", recording_user_from_token)
+    return seen
+
+
+def assert_refused(ws, code):
+    with pytest.raises(WebSocketDisconnect) as excinfo:
+        ws.receive_json()
+    assert excinfo.value.code == code
+
+
+@pytest.mark.parametrize(
+    ("frame", "code"),
+    [
+        pytest.param('{"access_token": "' + "a" * 9000 + '"}', 1009, id="oversized"),
+        pytest.param("[" * 4000 + "]" * 4000, 1008, id="deeply-nested"),
+        pytest.param('{"access_token": "x", "access_token": "y"}', 1008, id="duplicate-token-members"),
+        pytest.param('{"access_token": 1}', 1008, id="non-string-token"),
+        pytest.param('{"access_token": ""}', 1008, id="empty-token"),
+        pytest.param('{"access_token": "' + "a" * 4097 + '"}', 1008, id="overlong-token"),
+        pytest.param("not json", 1008, id="invalid-json"),
+        pytest.param("[1, 2]", 1008, id="not-an-object"),
+    ],
+)
+def test_websocket_refuses_inadmissible_frames_before_authentication(ws_client, cm, token_lookups, frame, code):
+    with ws_client.websocket_connect(ws_path(uuid4())) as ws:
+        ws.send_text(frame)
+        assert_refused(ws, code)
+    assert token_lookups == []
+    assert cm.all_connections == {}
+
+
+def test_websocket_refuses_binary_frames_before_authentication(ws_client, cm, token_lookups):
+    with ws_client.websocket_connect(ws_path(uuid4())) as ws:
+        ws.send_bytes(b'{"access_token": "x"}')
+        assert_refused(ws, 1008)
+    assert token_lookups == []
+    assert cm.all_connections == {}
+
+
+def test_websocket_refuses_inadmissible_frames_after_authentication(ws_client, cm, token_lookups):
+    client_id = uuid4()
+    with ws_client.websocket_connect(ws_path(client_id)) as ws:
+        ws.send_json({"access_token": user_token()})
+        assert ws.receive_json()["status"] == "success"
+        ws.send_text('{"access_token": "x", "access_token": "y"}')
+        assert_refused(ws, 1008)
+    assert len(token_lookups) == 1
+    assert cm.all_connections == cm.active_connections == {}
+
+
+def test_websocket_admits_a_token_at_the_length_limit(ws_client, cm, token_lookups):
+    with ws_client.websocket_connect(ws_path(uuid4())) as ws:
+        ws.send_json({"access_token": "a" * 4096})
+        assert ws.receive_json()["status"] == "failure"  # admitted, then refused by verification
+    assert token_lookups == ["a" * 4096]
+
+
+@pytest.fixture
+def connection_limits(monkeypatch):
+    def apply(total, unauthenticated, per_address=65536):
+        monkeypatch.setattr("deploy.adapters.websocket.settings.websocket_max_connections", total)
+        monkeypatch.setattr(
+            "deploy.adapters.websocket.settings.websocket_max_unauthenticated_per_address", per_address
+        )
+        monkeypatch.setattr(
+            "deploy.adapters.websocket.settings.websocket_max_unauthenticated_connections", unauthenticated
+        )
+
+    return apply
+
+
+def assert_connection_refused(client, code=1013):
+    with pytest.raises(WebSocketDisconnect) as excinfo:  # noqa: SIM117
+        with client.websocket_connect(ws_path(uuid4())) as ws:
+            ws.receive_json()
+    assert excinfo.value.code == code
+
+
+def test_websocket_unauthenticated_connections_are_capped(ws_client, cm, connection_limits):
+    connection_limits(total=10, unauthenticated=2)
+    with ws_client.websocket_connect(ws_path(uuid4())) as first, ws_client.websocket_connect(ws_path(uuid4())):
+        assert_connection_refused(ws_client)
+        assert len(cm.all_connections) == 2
+        # authenticating releases the unauthenticated slot
+        first.send_json({"access_token": user_token()})
+        assert first.receive_json()["status"] == "success"
+        with ws_client.websocket_connect(ws_path(uuid4())):
+            assert len(cm.all_connections) == 3
+            assert_connection_refused(ws_client)
+    assert cm.all_connections == {}
+    # capacity returns once the connections are gone
+    with ws_client.websocket_connect(ws_path(uuid4())), ws_client.websocket_connect(ws_path(uuid4())):
+        pass
+
+
+def test_websocket_total_connections_are_capped(ws_client, cm, connection_limits):
+    connection_limits(total=2, unauthenticated=2)
+    with (
+        ws_client.websocket_connect(ws_path(uuid4())) as first,
+        ws_client.websocket_connect(ws_path(uuid4())) as second,
+    ):
+        for ws in (first, second):
+            ws.send_json({"access_token": user_token()})
+            assert ws.receive_json()["status"] == "success"
+        assert_connection_refused(ws_client)
+        assert len(cm.active_connections) == 2
+    assert cm.all_connections == {}
+
+
+def test_websocket_unauthenticated_connections_per_address_are_capped(ws_client, cm, connection_limits):
+    connection_limits(total=10, unauthenticated=10, per_address=1)
+    with ws_client.websocket_connect(ws_path(uuid4())) as first:
+        assert_connection_refused(ws_client)
+        first.send_json({"access_token": user_token()})
+        assert first.receive_json()["status"] == "success"
+        with ws_client.websocket_connect(ws_path(uuid4())):
+            assert len(cm.all_connections) == 2

@@ -1,7 +1,9 @@
 import asyncio
+import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
+from typing import Any
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Request, Response, WebSocket, WebSocketDisconnect, status
@@ -136,6 +138,64 @@ class Message(BaseModel):
     message: str
 
 
+# Clients only send small control messages ({"access_token": "<jwt>"}). Admit
+# them before any JSON decoding or credential work: the transport accepts much
+# larger frames, and decoding one builds its whole object tree at once.
+WEBSOCKET_CONTROL_MAX_BYTES = 8 * 1024
+WEBSOCKET_ACCESS_TOKEN_MAX_LENGTH = 4096
+
+
+class InadmissibleFrame(Exception):
+    """A client frame that is refused before decoding or credential work."""
+
+    def __init__(self, code: int, reason: str):
+        super().__init__(reason)
+        self.code = code
+        self.reason = reason
+
+
+def _unique_members(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate member")
+        result[key] = value
+    return result
+
+
+def admit_control_frame(message: Mapping[str, Any]) -> dict:
+    """Return the decoded control object of a received frame or raise InadmissibleFrame."""
+    text = message.get("text")
+    if not isinstance(text, str):
+        raise InadmissibleFrame(status.WS_1008_POLICY_VIOLATION, "text frames only")
+    # A str cannot hold more UTF-8 bytes than four per character: check the
+    # cheap bound before encoding.
+    if len(text) > WEBSOCKET_CONTROL_MAX_BYTES or len(text.encode("utf-8", "surrogatepass")) > (
+        WEBSOCKET_CONTROL_MAX_BYTES
+    ):
+        raise InadmissibleFrame(status.WS_1009_MESSAGE_TOO_BIG, "control message too large")
+    try:
+        data = json.loads(text, object_pairs_hook=_unique_members)
+    except (ValueError, RecursionError):
+        raise InadmissibleFrame(status.WS_1008_POLICY_VIOLATION, "invalid control message") from None
+    if not isinstance(data, dict):
+        raise InadmissibleFrame(status.WS_1008_POLICY_VIOLATION, "invalid control message")
+    token = data.get("access_token")
+    if token is not None and (
+        not isinstance(token, str) or not token or len(token) > WEBSOCKET_ACCESS_TOKEN_MAX_LENGTH
+    ):
+        raise InadmissibleFrame(status.WS_1008_POLICY_VIOLATION, "invalid control message")
+    return data
+
+
+async def receive_control(websocket: WebSocket) -> dict:
+    """Receive one client frame and admit it as a control message."""
+    message = await websocket.receive()
+    if message["type"] == "websocket.disconnect":
+        raise WebSocketDisconnect(message.get("code", status.WS_1000_NORMAL_CLOSURE), message.get("reason"))
+    return admit_control_frame(message)
+
+
 async def _first_authentication(websocket: WebSocket, client_id: UUID, bus: Bus) -> bool:
     """
     Wait for the first access token of a connection and verify it. Messages
@@ -143,9 +203,7 @@ async def _first_authentication(websocket: WebSocket, client_id: UUID, bus: Bus)
     authenticated; a failed attempt has already closed it.
     """
     while True:
-        data = await websocket.receive_json()
-        if not isinstance(data, dict):
-            return False
+        data = await receive_control(websocket)
         if data.get("access_token") is not None:
             return await bus.cm.authenticate(client_id, data["access_token"], bus.uow)
 
@@ -171,9 +229,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
             authenticated = False
             close_code, close_reason = status.WS_1008_POLICY_VIOLATION, "authentication timeout"
         while authenticated:
-            data = await websocket.receive_json()
-            if not isinstance(data, dict):
-                break
+            data = await receive_control(websocket)
             if data.get("access_token") is not None:
                 # re-authentication, a failed attempt closes the connection
                 if not await connection_manager.authenticate(client_id, data["access_token"], bus.uow):
@@ -183,6 +239,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
                 await connection_manager.broadcast(message)
     except WebSocketDisconnect:
         pass
+    except InadmissibleFrame as refusal:
+        logger.info("websocket client %s sent an inadmissible frame: %s", client_id, refusal.reason)
+        close_code, close_reason = refusal.code, refusal.reason
     finally:
         # always forget the connection, whatever ended the loop
         was_authenticated = connection_manager.disconnect(client_id, websocket)

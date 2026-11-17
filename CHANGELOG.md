@@ -236,6 +236,21 @@ Unreleased
   environment and interactive credentials without exposing passwords or hashes.
 
 ### Security
+- Admit websocket client frames before JSON decoding: only text frames of at most 8 KiB
+  holding one JSON object without duplicate member names are decoded, and an `access_token`
+  must be a nonempty string of at most 4,096 characters. Other frames close the connection
+  with `1008` (`1009` when too large) before any credential work, before and after
+  authentication. Previously an unauthenticated client could make the server build the full
+  JSON object tree of any frame the transport accepts (Uvicorn's default `--ws-max-size` is
+  16 MiB). The transport still receives a whole frame before this check; lower
+  `--ws-max-size` to bound that, too.
+- Cap websocket connections per process: at most `WEBSOCKET_MAX_CONNECTIONS` (default 256)
+  connections, of which at most `WEBSOCKET_MAX_UNAUTHENTICATED_CONNECTIONS` (default 32)
+  have not authenticated yet, and at most `WEBSOCKET_MAX_UNAUTHENTICATED_PER_ADDRESS`
+  (default 4) of those from one client address. Further handshakes are rejected before they
+  are accepted (HTTP 403 from the server); capacity returns when a connection authenticates
+  or ends. Every client passes through an unauthenticated slot, so peers on many addresses
+  can still fill the process-wide slots for as long as they keep reconnecting.
 - Require Python 3.11 or later and refresh dnspython 2.9.2, filelock 4.2.10, Tornado 6.6.1,
   virtualenv 21.15.6 and setuptools 84.2.1 (with distlib 0.4.4 and packaging 26.3, which
   virtualenv needs). This clears CVE-2026-114605 (dnspython, runtime through FastAPI's email
