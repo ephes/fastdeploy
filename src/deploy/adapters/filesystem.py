@@ -112,13 +112,24 @@ def _read_regular(root: Path, relative: Path, *, observed=None, budget=None) -> 
                 read_limit = MAX_CONFIG_BYTES
                 if budget is not None:
                     read_limit = min(read_limit, MAX_SOURCE_BYTES - budget.bytes_read)
-                content = source.read(read_limit + 1)
+                # Unbuffered reads may return short; collect until EOF or the bound.
+                chunks: list[bytes] = []
+                remaining = read_limit + 1
+                while remaining > 0:
+                    chunk = source.read(remaining)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    remaining -= len(chunk)
+                content = b"".join(chunks)
             if budget is not None:
                 budget.add_bytes(len(content))
             if _generation(metadata) != _generation(os.fstat(descriptor)):
                 raise ServiceConfigError("service config changed during read; retry sync")
             if len(content) > MAX_CONFIG_BYTES:
                 raise ServiceConfigError("service config exceeds 1 MiB")
+            if len(content) != metadata.st_size:
+                raise ServiceConfigError("service config changed during read; retry sync")
             return content.decode("utf-8")
     except (OSError, UnicodeError, ValueError) as exc:
         if isinstance(exc, ServiceConfigError):

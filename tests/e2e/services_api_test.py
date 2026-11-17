@@ -64,6 +64,25 @@ async def test_get_service_names_happy(app, valid_access_token_in_db, services_f
     assert "fastdeploy" in result
 
 
+@pytest.mark.parametrize("limit", ["MAX_SOURCE_ENTRIES", "MAX_SOURCE_SERVICES"])
+async def test_get_service_names_refuses_oversized_root_with_422(
+    app, valid_access_token_in_db, services_filesystem, monkeypatch, limit
+):
+    from deploy.adapters import filesystem
+
+    for number in range(3):
+        (services_filesystem.root / f"service-{number}").mkdir()
+    monkeypatch.setattr(filesystem, limit, 2)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            app.url_path_for("get_service_names"),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert response.status_code == 422
+    assert "limit" in response.json()["detail"]
+
+
 async def test_delete_service_without_authentication(app):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.delete(app.url_path_for("delete_service", service_id=1))

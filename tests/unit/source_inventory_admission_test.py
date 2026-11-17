@@ -139,3 +139,56 @@ def test_reads_stop_at_remaining_total_bytes_plus_one(tmp_path, monkeypatch):
     with pytest.raises(filesystem.ServiceConfigError, match="total byte limit"):
         filesystem.Filesystem(tmp_path).get_configs()
     assert sizes == received == [11]
+
+
+def test_short_reads_are_collected_until_eof(tmp_path, monkeypatch):
+    content = '{"extension": "' + "x" * 100 + '"}'
+    write_configs(tmp_path, count=1, content=content)
+    original = filesystem.os.fdopen
+    sizes = []
+
+    class ShortReader:
+        def __init__(self, source):
+            self.source = source
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.source.close()
+
+        def read(self, size):
+            sizes.append(size)
+            return self.source.read(min(size, 7))
+
+    monkeypatch.setattr(filesystem.os, "fdopen", lambda *args, **kwargs: ShortReader(original(*args, **kwargs)))
+    [(name, config)] = filesystem.Filesystem(tmp_path).get_configs()
+    assert name == "service-0"
+    assert config["extension"] == "x" * 100
+    assert len(sizes) > 2
+
+
+def test_read_shorter_than_file_size_is_refused(tmp_path, monkeypatch):
+    write_configs(tmp_path, count=1, content='{"extension": "' + "x" * 100 + '"}')
+    original = filesystem.os.fdopen
+
+    class TruncatingReader:
+        def __init__(self, source):
+            self.source = source
+            self.done = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.source.close()
+
+        def read(self, size):
+            if self.done:
+                return b""
+            self.done = True
+            return self.source.read(10)
+
+    monkeypatch.setattr(filesystem.os, "fdopen", lambda *args, **kwargs: TruncatingReader(original(*args, **kwargs)))
+    with pytest.raises(filesystem.ServiceConfigError, match="changed during read"):
+        filesystem.Filesystem(tmp_path).get_configs()

@@ -9,6 +9,11 @@ Unreleased
 - Bound authoritative service sync to 1,000 services, 4,096 root entries, 16 MiB
   of actual source reads and 500,000 structural work units across discovery and
   preparation. Refuse the whole sync on exhaustion, including force mode.
+- Collect unbuffered source reads until EOF or the read bound and refuse a sync
+  whose read length differs from the file size, so short reads cannot truncate
+  a config or playbook.
+- Refuse `GET /services/names/` with 422 instead of a 500 when the services
+  directory is unavailable or exceeds the source admission limits.
 - Move source discovery/preparation off the event loop using the framework's
   bounded thread pool; retain worker capacity and sync ownership until cancelled
   work retires, discarding its result before any writes.
