@@ -335,6 +335,17 @@ released by their existing completion paths. No request is automatically retried
 A timed-out deployment or service sync may already have reached the server: refresh
 its state before deciding whether to retry.
 
+REST JSON responses and websocket frames share `frontend/src/strictJson.ts`.
+It uses the public `jsonc-parser` visitor to reject duplicate decoded object
+member names at every nesting level before standard JSON decoding and typed
+admission. Escaped names count as the same member; repeated names in separate
+objects remain valid. Comments, trailing commas and malformed JSON are refused.
+REST refusal follows existing invalid-response feedback and retains the last good
+business snapshot; ambiguous token responses cannot authenticate. Websocket refusal
+sets the fixed protocol error and retires the connection without logout or retry.
+Response contents never enter parser diagnostics. HTTP byte/deadline limits and
+session/generation ownership checks still apply.
+
 ### REST snapshot admission
 
 Deployment history validates every row before modifying cached data or paging
@@ -370,6 +381,16 @@ An optional `deleted` flag on step or service rows must be a boolean, as on the
 websocket. REST and websocket admission share the identifier, timestamp, step-state
 and deletion predicates in `frontend/src/wireValues.ts`, so both paths keep one
 wire contract.
+
+Timestamps require real Gregorian calendar dates, including leap-year rules,
+hours 00–23, minutes/seconds 00–59 and valid offset components. Impossible dates
+and `24:00` are refused before conversion, rather than normalized into another
+day. Supported ISO forms retain optional seconds/fractions, `Z` or numeric offsets
+(`+05:30` / `-0530`), and legacy timestamps without a timezone. Naive values keep
+the browser's existing local-time interpretation; fractions keep JavaScript's
+millisecond conversion. Invalid dates refuse the whole REST snapshot or websocket
+message without changing business data.
+
 All admission runs after the existing session/refresh-generation ownership checks;
 obsolete responses cannot publish data or failure feedback over a newer request.
 

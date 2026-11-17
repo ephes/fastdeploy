@@ -6,6 +6,12 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Refuse duplicate decoded JSON member names, including nested and escaped names,
+  in browser REST responses and websocket frames before authentication or business
+  state publication. Keep existing invalid-response feedback and socket retirement.
+- Refuse impossible browser wire calendar dates and time components before date
+  conversion, including February 30, April 31 and 24:00. Retain leap days, fractions,
+  supported offsets and legacy naive timestamps. Both fixes require a frontend rebuild.
 - Bound authoritative service sync to 1,000 services, 4,096 root entries, 16 MiB
   of actual source reads and 500,000 structural work units across discovery and
   preparation. Refuse the whole sync on exhaustion, including force mode.
