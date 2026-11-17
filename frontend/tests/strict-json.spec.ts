@@ -1,4 +1,4 @@
-import { readStrictJson } from '../src/strictJson';
+import { MAX_JSON_DEPTH, readStrictJson } from '../src/strictJson';
 
 it.each([
   '', '{"key":1,}', '[1,]', '{/* comment */"key":1}', 'true false', '{"key":}',
@@ -15,4 +15,11 @@ it.each([
   '{"text":"escaped \\"key\\": and braces {} []","unicode":"ä"}',
 ])('keeps ordinary JSON semantics and independent object scopes: %s', raw => {
   expect(readStrictJson(raw)).toEqual(JSON.parse(raw));
+});
+
+it('admits nesting up to the stated depth and refuses deeper JSON with the same error', () => {
+  const nest = (depth: number) => '['.repeat(depth - 1) + '{"k":1}' + ']'.repeat(depth - 1);
+  expect(readStrictJson(nest(MAX_JSON_DEPTH))).toEqual(JSON.parse(nest(MAX_JSON_DEPTH)));
+  expect(() => readStrictJson(nest(MAX_JSON_DEPTH + 1))).toThrow('Invalid server JSON.');
+  expect(() => readStrictJson('['.repeat(50_000) + ']'.repeat(50_000))).toThrow('Invalid server JSON.');
 });

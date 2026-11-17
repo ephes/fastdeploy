@@ -340,6 +340,8 @@ It uses the public `jsonc-parser` visitor to reject duplicate decoded object
 member names at every nesting level before standard JSON decoding and typed
 admission. Escaped names count as the same member; repeated names in separate
 objects remain valid. Comments, trailing commas and malformed JSON are refused.
+Object/array nesting deeper than 512 levels is refused the same way, so the
+recursive visitor never reaches the engine stack limit.
 REST refusal follows existing invalid-response feedback and retains the last good
 business snapshot; ambiguous token responses cannot authenticate. Websocket refusal
 sets the fixed protocol error and retires the connection without logout or retry.

@@ -8,7 +8,8 @@ Unreleased
 ### Fixed
 - Refuse duplicate decoded JSON member names, including nested and escaped names,
   in browser REST responses and websocket frames before authentication or business
-  state publication. Keep existing invalid-response feedback and socket retirement.
+  state publication. Refuse nesting deeper than 512 levels with the same content-free
+  error. Keep existing invalid-response feedback and socket retirement.
 - Refuse impossible browser wire calendar dates and time components before date
   conversion, including February 30, April 31 and 24:00. Retain leap days, fractions,
   supported offsets and legacy naive timestamps. Both fixes require a frontend rebuild.
