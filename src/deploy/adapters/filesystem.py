@@ -5,6 +5,7 @@ import math
 import os
 import stat
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -34,10 +35,31 @@ class AbstractFilesystem(abc.ABC):
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_CONFIG_DEPTH = 32
 MAX_CONFIG_NODES = 50000
+# One inventory, including repeated discovery/preparation reads and shared playbooks.
+MAX_SOURCE_ENTRIES = 4096
+MAX_SOURCE_SERVICES = 1000
+MAX_SOURCE_BYTES = 16 * 1024 * 1024
+MAX_SOURCE_WORK = 500000
 
 
 class ServiceConfigError(ValueError):
     """A bounded, value-free service configuration admission failure."""
+
+
+@dataclass
+class _SourceBudget:
+    bytes_read: int = 0
+    work: int = 0
+
+    def add_bytes(self, count: int):
+        self.bytes_read += count
+        if self.bytes_read > MAX_SOURCE_BYTES:
+            raise ServiceConfigError("service source exceeds total byte limit")
+
+    def add_work(self, count: int = 1):
+        self.work += count
+        if self.work > MAX_SOURCE_WORK:
+            raise ServiceConfigError("service source exceeds total work limit")
 
 
 def _relative_parts(path: Path) -> tuple[str, ...]:
@@ -65,7 +87,7 @@ def _remember(observed, path, metadata):
         observed[path] = generation
 
 
-def _read_regular(root: Path, relative: Path, *, observed=None) -> str:
+def _read_regular(root: Path, relative: Path, *, observed=None, budget=None) -> str:
     """Walk below an operator-selected root using pinned no-follow descriptors."""
     parts = _relative_parts(relative)
     try:
@@ -86,12 +108,28 @@ def _read_regular(root: Path, relative: Path, *, observed=None) -> str:
                 raise ServiceConfigError("service config must be a regular file of at most 1 MiB")
             _remember(observed, root / relative, metadata)
             # The duplicate keeps ExitStack responsible for the original handle.
-            with os.fdopen(os.dup(descriptor), "rb") as source:
-                content = source.read(MAX_CONFIG_BYTES + 1)
+            with os.fdopen(os.dup(descriptor), "rb", buffering=0) as source:
+                read_limit = MAX_CONFIG_BYTES
+                if budget is not None:
+                    read_limit = min(read_limit, MAX_SOURCE_BYTES - budget.bytes_read)
+                # Unbuffered reads may return short; collect until EOF or the bound.
+                chunks: list[bytes] = []
+                remaining = read_limit + 1
+                while remaining > 0:
+                    chunk = source.read(remaining)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    remaining -= len(chunk)
+                content = b"".join(chunks)
+            if budget is not None:
+                budget.add_bytes(len(content))
             if _generation(metadata) != _generation(os.fstat(descriptor)):
                 raise ServiceConfigError("service config changed during read; retry sync")
             if len(content) > MAX_CONFIG_BYTES:
                 raise ServiceConfigError("service config exceeds 1 MiB")
+            if len(content) != metadata.st_size:
+                raise ServiceConfigError("service config changed during read; retry sync")
             return content.decode("utf-8")
     except (OSError, UnicodeError, ValueError) as exc:
         if isinstance(exc, ServiceConfigError):
@@ -108,13 +146,15 @@ def _lstat_service_file(path: Path):
         raise ServiceConfigError("service config file is unavailable or invalid") from None
 
 
-def _check_structure(value):
+def _check_structure(value, *, budget=None):
     # Iterative traversal also bounds recursive/shared YAML aliases.
     pending = [(value, 1)]
     visited = 0
     while pending:
         item, depth = pending.pop()
         visited += 1
+        if budget is not None:
+            budget.add_work()
         if depth > MAX_CONFIG_DEPTH or visited > MAX_CONFIG_NODES:
             raise ServiceConfigError("service config exceeds depth or node limit")
         children = list(item.values()) if isinstance(item, dict) else item if isinstance(item, list) else ()
@@ -136,6 +176,10 @@ def _unique_mapping(pairs):
 
 
 class _UniqueKeySafeLoader(yaml.SafeLoader):
+    def __init__(self, stream, *, budget=None):
+        super().__init__(stream)
+        self.source_budget = budget
+
     def _merge_size(self, node, visiting):
         sizes = self.__dict__.setdefault("_merge_sizes", {})
         identity = id(node)
@@ -166,6 +210,8 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
         work = self.__dict__.get("_merge_work", 0) + size
         if work > MAX_CONFIG_NODES:
             raise ServiceConfigError("playbook merge expansion exceeds node limit")
+        if self.source_budget is not None:
+            self.source_budget.add_work(size)
         self.__dict__["_merge_work"] = work
 
     def flatten_mapping(self, node):
@@ -229,18 +275,24 @@ def _reject_json_constant(_value):
     raise ServiceConfigError("service config numbers must be finite")
 
 
-def _load_document(content: str, *, playbook=False):
+def _load_document(content: str, *, playbook=False, budget=None):
     try:
         if playbook:
             depth = 0
             for count, event in enumerate(yaml.parse(content), 1):
+                if budget is not None:
+                    budget.add_work()
                 if isinstance(event, (yaml.MappingStartEvent, yaml.SequenceStartEvent)):
                     depth += 1
                 elif isinstance(event, (yaml.MappingEndEvent, yaml.SequenceEndEvent)):
                     depth -= 1
                 if depth > MAX_CONFIG_DEPTH or count > MAX_CONFIG_NODES:
                     raise ServiceConfigError("playbook exceeds depth or node limit")
-            value = yaml.load(content, Loader=_UniqueKeySafeLoader)
+            loader = _UniqueKeySafeLoader(content, budget=budget)
+            try:
+                value = loader.get_single_data()
+            finally:
+                loader.dispose()
         else:
             value = json.loads(
                 content,
@@ -248,8 +300,10 @@ def _load_document(content: str, *, playbook=False):
                 parse_constant=_reject_json_constant,
                 parse_float=_finite_json_float,
             )
-        _check_structure(value)
+        _check_structure(value, budget=budget)
         return value
+    except ServiceConfigError:
+        raise
     except (ValueError, RecursionError, yaml.YAMLError):
         raise ServiceConfigError("service config has invalid syntax, depth or structure") from None
 
@@ -270,6 +324,9 @@ def _validate_service_definition(data):
             for step in steps
         ):
             raise ServiceConfigError("steps must be a list of objects with nonblank names of at most 255 characters")
+        runtime_fields = {"id", "state", "started", "finished", "message", "deployment_id"}
+        if any(runtime_fields.intersection(step) for step in steps):
+            raise ServiceConfigError("configured steps must not contain runtime fields")
 
 
 class Filesystem(AbstractFilesystem):
@@ -277,17 +334,25 @@ class Filesystem(AbstractFilesystem):
         """Refuse aliases rather than silently dropping a service during sync."""
         directories = []
         try:
-            for entry_path in self.root.iterdir():
-                mode = entry_path.lstat().st_mode
-                if stat.S_ISLNK(mode):
-                    raise ServiceConfigError("service directory aliases are not supported")
-                if stat.S_ISDIR(mode):
-                    directories.append(entry_path.name)
+            # Path.iterdir may eagerly materialize the directory on supported Python
+            # versions. Stream entries so refusal also bounds discovery allocation.
+            with os.scandir(self.root) as entries:
+                for count, entry in enumerate(entries, 1):
+                    if count > MAX_SOURCE_ENTRIES:
+                        raise ServiceConfigError("service source exceeds directory entry limit")
+                    mode = entry.stat(follow_symlinks=False).st_mode
+                    if stat.S_ISLNK(mode):
+                        raise ServiceConfigError("service directory aliases are not supported")
+                    if stat.S_ISDIR(mode):
+                        if len(directories) >= MAX_SOURCE_SERVICES:
+                            raise ServiceConfigError("service source exceeds service count limit")
+                        directories.append(entry.name)
         except OSError:
             raise ServiceConfigError("service configuration root is unavailable") from None
         return directories
 
     def get_configs(self):
+        budget = _SourceBudget()
         observed = {}
         try:
             _remember(observed, self.root, self.root.lstat())
@@ -300,12 +365,15 @@ class Filesystem(AbstractFilesystem):
             # Discover referenced files before preparing any service. A playbook
             # selected by a later service must not change unnoticed during earlier reads.
             for name in names:
-                data = _load_document(_read_regular(self.root, Path(name) / "config.json", observed=observed))
+                data = _load_document(
+                    _read_regular(self.root, Path(name) / "config.json", observed=observed, budget=budget),
+                    budget=budget,
+                )
                 if isinstance(data, dict) and "ansible_playbook" in data:
                     root, relative = _playbook_location(data["ansible_playbook"], self.root)
                     path = root / relative
                     _remember(observed, path, _lstat_service_file(path))
-            configs = [(name, self.get_config_by_name(name, observed=observed)) for name in names]
+            configs = [(name, self.get_config_by_name(name, observed=observed, budget=budget)) for name in names]
             # Include referenced playbooks and the descriptor-walk directories.
             for path, generation in observed.items():
                 if _generation(path.lstat()) != generation:
@@ -314,16 +382,20 @@ class Filesystem(AbstractFilesystem):
         except OSError:
             raise ServiceConfigError("service configuration tree changed or is unavailable; retry sync") from None
 
-    def get_config_by_name(self, name, *, observed=None):
+    def get_config_by_name(self, name, *, observed=None, budget=None):
+        if budget is None:
+            budget = _SourceBudget()
         if not isinstance(name, str) or len(Path(name).parts) != 1 or name in (".", ".."):
             raise ServiceConfigError("invalid service directory name")
-        data_dict = _load_document(_read_regular(self.root, Path(name) / "config.json", observed=observed))
+        data_dict = _load_document(
+            _read_regular(self.root, Path(name) / "config.json", observed=observed, budget=budget), budget=budget
+        )
         if not isinstance(data_dict, dict):
             raise ServiceConfigError("service config must be an object")
         _validate_service_definition(data_dict)
         if "ansible_playbook" in data_dict:
             data_dict["steps"] = get_steps_from_playbook(
-                data_dict["ansible_playbook"], config_root=self.root, observed=observed
+                data_dict["ansible_playbook"], config_root=self.root, observed=observed, budget=budget
             )
         _validate_service_definition(data_dict)
         return data_dict
@@ -360,11 +432,15 @@ def _playbook_location(path_from_config: str, config_root: Path | None = None) -
             raise ServiceConfigError("playbook path is outside approved roots")
 
 
-def get_steps_from_playbook(path_from_config: str, *, config_root: Path | None = None, observed=None) -> list[dict]:
+def get_steps_from_playbook(
+    path_from_config: str, *, config_root: Path | None = None, observed=None, budget=None
+) -> list[dict]:
     """Read an admitted playbook below the project/config or approved extra roots."""
+    if budget is None:
+        budget = _SourceBudget()
     root, relative = _playbook_location(path_from_config, config_root)
-    content = _read_regular(root, relative, observed=observed)
-    parsed = _load_document(content, playbook=True)
+    content = _read_regular(root, relative, observed=observed, budget=budget)
+    parsed = _load_document(content, playbook=True, budget=budget)
     if not isinstance(parsed, list) or not parsed or not all(isinstance(play, dict) for play in parsed):
         raise ServiceConfigError("playbook must be a nonempty list of objects")
     for play in parsed:

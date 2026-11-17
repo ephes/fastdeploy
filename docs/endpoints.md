@@ -94,6 +94,9 @@ The token is recorded with its id (`jti`) so it can be revoked.
 ```json
 ["service1", "service2", "service3"]
 ```
+A services directory that cannot be listed, or that exceeds the source admission limits
+(4,096 root entries or 1,000 service directories), is refused with **422** and a short
+`detail` message, the same way `POST /services/sync` refuses it.
 
 ### POST /services/sync
 **Purpose**: Synchronize filesystem services to database

@@ -56,12 +56,18 @@ async def delete_service(service_id: int, bus: Bus = Depends()) -> dict:
     return {"detail": f"Service {service_id} deleted"}
 
 
-@router.get("/names/")
+@router.get("/names/", responses={422: {"description": "The services directory was refused by source admission"}})
 async def get_service_names(bus: Bus = Depends()) -> list[str]:
     """
     Get a list of all available service names Only available services can be created.
+
+    A services directory that cannot be listed or exceeds the source admission
+    limits is refused with 422, like a sync of the same directory.
     """
-    return await views.get_service_names(bus.fs)
+    try:
+        return await views.get_service_names(bus.fs)
+    except ServiceConfigError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 class SkippedService(BaseModel):
