@@ -9,6 +9,7 @@ from fastapi import WebSocket, status
 from pydantic import BaseModel
 
 from ..auth import token_to_payload, user_from_token
+from ..config import settings
 from ..domain import events
 from ..service_layer.unit_of_work import AbstractUnitOfWork
 
@@ -38,6 +39,12 @@ async def close_websocket(websocket: WebSocket, code: int, reason: str, owned_ta
     task.add_done_callback(owned_tasks.discard)
     with contextlib.suppress(asyncio.TimeoutError):
         await asyncio.wait_for(asyncio.shield(task), timeout=SLOW_CLIENT_CLOSE_TIMEOUT_SECONDS)
+
+
+def _client_address(websocket: WebSocket) -> str | None:
+    """The peer address (after trusted proxy headers); None when unknown."""
+    client = getattr(websocket, "client", None)
+    return client.host if client is not None else None
 
 
 @dataclass
@@ -135,14 +142,32 @@ class ConnectionManager:
 
     async def connect(self, client_id: UUID, websocket: WebSocket) -> bool:
         """
-        Accept the connection unless the client id is already in use.
+        Accept the connection unless the client id is already in use or the
+        process-wide connection capacity is reached.
 
-        Returns False (and rejects the handshake) for a duplicate client id.
+        Returns False (and rejects the handshake) for a duplicate client id
+        (``1008``) and when ``WEBSOCKET_MAX_CONNECTIONS`` connections, or
+        ``WEBSOCKET_MAX_UNAUTHENTICATED_CONNECTIONS`` connections that have not
+        authenticated yet, or ``WEBSOCKET_MAX_UNAUTHENTICATED_PER_ADDRESS``
+        such connections from the same client address, are already held
+        (``1013``). A server reports a handshake rejected before accept as
+        HTTP 403; the close code is only visible to ASGI test clients. The
+        check and the reservation happen before the first await, so
+        concurrent connects cannot exceed the limits.
         """
-        if self.shutting_down or client_id in self.all_connections:
-            reason = "server shutting down" if self.shutting_down else "client id already in use"
+        code = status.WS_1008_POLICY_VIOLATION
+        if self.shutting_down:
+            reason = "server shutting down"
+        elif client_id in self.all_connections:
+            reason = "client id already in use"
+        elif self._at_capacity(websocket):
+            reason = "connection capacity reached"
+            code = status.WS_1013_TRY_AGAIN_LATER
+        else:
+            reason = ""
+        if reason:
             logger.warning("refusing websocket connection: %s", reason)
-            await self.close_socket(websocket, status.WS_1008_POLICY_VIOLATION)
+            await self.close_socket(websocket, code)
             return False
         # reserve the id before awaiting, so concurrent connects cannot both succeed
         self.all_connections[client_id] = websocket
@@ -153,6 +178,22 @@ class ConnectionManager:
             self.disconnect(client_id, websocket)
             raise
         return True
+
+    def _at_capacity(self, websocket: WebSocket) -> bool:
+        if len(self.all_connections) >= settings.websocket_max_connections:
+            return True
+        address = _client_address(websocket)
+        unauthenticated = same_address = 0
+        for client_id, connection in self.all_connections.items():
+            if self.active_connections.get(client_id) is connection:
+                continue
+            unauthenticated += 1
+            if _client_address(connection) == address:
+                same_address += 1
+        return (
+            unauthenticated >= settings.websocket_max_unauthenticated_connections
+            or same_address >= settings.websocket_max_unauthenticated_per_address
+        )
 
     def is_authenticated(self, client_id: UUID, websocket: WebSocket | None = None) -> bool:
         connection = self.active_connections.get(client_id)

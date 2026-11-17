@@ -436,7 +436,13 @@ name/message fields keep each response below the frontend's 1 MiB body limit.
 1. Connect to `ws://host/deployments/ws/<uuid>` with a fresh random UUID as client id. A client id
    can only be used by one live connection: connecting with an id that is still connected is refused
    (handshake rejected / close code `1008`) and does not affect the existing connection. The id can
-   be reused once its connection is closed.
+   be reused once its connection is closed. Each process holds at most `WEBSOCKET_MAX_CONNECTIONS`
+   (default 256) connections, of which at most `WEBSOCKET_MAX_UNAUTHENTICATED_CONNECTIONS`
+   (default 32) have not authenticated yet, and at most
+   `WEBSOCKET_MAX_UNAUTHENTICATED_PER_ADDRESS` (default 4) of those from one client address
+   (after trusted proxy headers). Further handshakes are rejected (HTTP 403 from the server;
+   ASGI test clients see close code `1013`); retry later. A connection that authenticates or
+   ends frees its slot.
 2. Send authentication message (a **user** access token from `POST /token`):
    ```json
    {"access_token": "<jwt_token>"}
@@ -453,6 +459,13 @@ name/message fields keep each response below the frontend's 1 MiB body limit.
    that is still not authenticated then is closed with code `1008` and the close reason
    `authentication timeout`; no message is sent before the close. Connect again and send the token
    right away.
+   Every client frame, before and after authentication, must be a text frame of at most
+   8 KiB (UTF-8) holding one JSON object without duplicate member names; an `access_token`
+   member must be a nonempty string of at most 4,096 characters. Any other frame closes the
+   connection before credential work: `1009` (`control message too large`) for an oversized
+   frame, otherwise `1008` (`text frames only` or `invalid control message`). The server
+   receives a whole frame before this check, up to Uvicorn's `--ws-max-size` (16 MiB by
+   default); deployments can lower that option to bound per-frame memory as well.
 4. Optionally re-authenticate on the same connection by sending a new access token for the
    **same** user; this replaces the session expiry. A token for a different user is rejected and
    closes the connection.

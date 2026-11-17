@@ -721,3 +721,75 @@ async def test_broadcast_error_close_wait_is_bounded(test_message, short_broadca
         await asyncio.wait_for(asyncio.gather(*pending), 1)
     assert broken.closed
     assert not cm.close_tasks
+
+
+async def test_concurrent_connects_cannot_exceed_the_unauthenticated_capacity(monkeypatch):
+    monkeypatch.setattr(websocket_module.settings, "websocket_max_connections", 10)
+    monkeypatch.setattr(websocket_module.settings, "websocket_max_unauthenticated_connections", 2)
+    release = asyncio.Event()
+
+    class SlowAcceptSocket:
+        closed_with = None
+
+        async def accept(self):
+            await release.wait()
+
+        async def close(self, code=1000, reason=None):
+            self.closed_with = code
+
+    cm = ConnectionManager()
+    sockets = [SlowAcceptSocket() for _ in range(5)]
+    connects = [asyncio.create_task(cm.connect(uuid4(), socket)) for socket in sockets]
+    await asyncio.sleep(0)  # every connect reached its first await before any accept finished
+    release.set()
+    admitted = await asyncio.gather(*connects)
+    assert admitted.count(True) == 2
+    assert len(cm.all_connections) == 2
+    assert sorted(socket.closed_with or 0 for socket in sockets) == [0, 0, 1013, 1013, 1013]
+
+
+async def test_failed_accept_returns_its_capacity(monkeypatch):
+    monkeypatch.setattr(websocket_module.settings, "websocket_max_unauthenticated_connections", 1)
+
+    class FailingAcceptSocket:
+        async def accept(self):
+            raise OSError("handshake failed")
+
+    class Socket:
+        async def accept(self):
+            pass
+
+    cm = ConnectionManager()
+    with pytest.raises(OSError):
+        await cm.connect(uuid4(), FailingAcceptSocket())
+    assert cm.all_connections == {}
+    assert await cm.connect(uuid4(), Socket())
+
+
+async def test_one_address_cannot_hold_every_unauthenticated_slot(monkeypatch):
+    monkeypatch.setattr(websocket_module.settings, "websocket_max_connections", 10)
+    monkeypatch.setattr(websocket_module.settings, "websocket_max_unauthenticated_connections", 4)
+    monkeypatch.setattr(websocket_module.settings, "websocket_max_unauthenticated_per_address", 2)
+
+    class Client:
+        def __init__(self, host):
+            self.host = host
+
+    class Socket:
+        closed_with = None
+
+        def __init__(self, host):
+            self.client = Client(host)
+
+        async def accept(self):
+            pass
+
+        async def close(self, code=1000, reason=None):
+            self.closed_with = code
+
+    cm = ConnectionManager()
+    attacker = [Socket("192.0.2.1") for _ in range(3)]
+    assert [await cm.connect(uuid4(), socket) for socket in attacker] == [True, True, False]
+    assert attacker[2].closed_with == 1013
+    # another address still finds free unauthenticated slots
+    assert await cm.connect(uuid4(), Socket("192.0.2.2"))
