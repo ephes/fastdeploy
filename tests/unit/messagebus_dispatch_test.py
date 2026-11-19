@@ -24,6 +24,10 @@ class Followup(events.Event):
     payload: str = "private-payload"
 
 
+class Unsubscribed(events.Event):
+    type: str = "synthetic"
+
+
 class EventSource:
     def __init__(self):
         self.pending = []
@@ -85,6 +89,24 @@ async def test_followups_are_fifo_once_and_preserve_initial_result():
     assert calls == [*expected, ("command", "independent")]
     assert await bus.handle(Followup(label="standalone")) is None
     assert calls[-2:] == [("first handler", "standalone"), ("second handler", "standalone")]
+
+
+@pytest.mark.asyncio
+async def test_unsubscribed_event_preserves_later_delivery_and_command_result():
+    source = EventSource()
+    delivered = []
+    command_result = object()
+
+    async def command_handler(command):
+        source.publish(Unsubscribed(), Followup(label="subscribed"))
+        return command_result
+
+    async def event_handler(event):
+        delivered.append(event.label)
+
+    bus = make_bus(source, command_handler, [event_handler])
+    assert await bus.handle(StartChain()) is command_result
+    assert delivered == ["subscribed"]
 
 
 @pytest.mark.asyncio
