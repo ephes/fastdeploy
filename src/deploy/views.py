@@ -259,17 +259,6 @@ async def get_orphaned_unfinished_deployment_ids(
         return await uow.deployments.get_orphaned_ids(activity_before=cutoff, limit=ORPHAN_RECONCILE_BATCH_SIZE)
 
 
-async def is_orphaned_unfinished_deployment(
-    deployment_id: int,
-    uow: unit_of_work.AbstractUnitOfWork,
-) -> bool:
-    """
-    Return True if the deployment is orphaned (see ``deployment_is_orphaned``).
-    """
-    deployment = await get_deployment_with_steps(deployment_id, uow)
-    return deployment_is_orphaned(deployment, deployment.steps, datetime.now(timezone.utc))
-
-
 async def all_deployed_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.DeployedService]:
     """Get a list of all deployed services."""
     async with uow:

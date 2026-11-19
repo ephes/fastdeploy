@@ -188,15 +188,25 @@ async def test_get_deployment_details_foreign_token_does_not_reconcile_orphan(ap
     assert unchanged.finished is None
 
 
-async def test_get_deployment_details_happy(app, uow, service, valid_service_token_in_db):
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_get_deployment_details_happy(app, uow, service_in_db, valid_service_token_in_db, monkeypatch):
     async with uow:
-        deployment = model.Deployment(service_id=service.id, origin="frontend", user="asdf")
+        deployment = model.Deployment(service_id=service_in_db.id, origin="frontend", user="asdf")
         await uow.deployments.add(deployment)
         await uow.commit()
         step = model.Step(name="step of deployment", deployment_id=deployment.id, state="running", message="")
         await uow.steps.add(step)
         await uow.commit()
 
+    step_repository = type(uow.steps)
+    get_steps = step_repository.get_steps_by_deployment
+    step_reads = []
+
+    async def count_step_reads(self, deployment_id):
+        step_reads.append(deployment_id)
+        return await get_steps(self, deployment_id)
+
+    monkeypatch.setattr(step_repository, "get_steps_by_deployment", count_step_reads)
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
@@ -205,12 +215,14 @@ async def test_get_deployment_details_happy(app, uow, service, valid_service_tok
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data["steps"]) > 0
+    assert [row["id"] for row in data["steps"]] == [step.id]
+    assert data["finished"] is None
+    assert step_reads == [deployment.id]
 
 
 @pytest.mark.db("in_memory")
 async def test_get_deployment_details_reconciles_orphaned_unfinished(
-    app, uow, service_in_db, valid_service_token_in_db
+    app, uow, service_in_db, valid_service_token_in_db, monkeypatch
 ):
     started = datetime.now(timezone.utc) - timedelta(minutes=10)
     async with uow:
@@ -234,6 +246,23 @@ async def test_get_deployment_details_reconciles_orphaned_unfinished(
         await uow.steps.add(step)
         await uow.commit()
 
+    get_for_update = uow.deployments.get_for_update
+    get_steps = uow.steps.get_steps_by_deployment
+    locked_reads = []
+    failure_step_seen_after_lock = []
+
+    async def record_locked_read(deployment_id):
+        locked_reads.append(deployment_id)
+        return await get_for_update(deployment_id)
+
+    async def record_step_read(deployment_id):
+        steps = await get_steps(deployment_id)
+        if locked_reads:
+            failure_step_seen_after_lock.append(any(step.name == model.ORPHANED_STEP_NAME for step in steps))
+        return steps
+
+    monkeypatch.setattr(uow.deployments, "get_for_update", record_locked_read)
+    monkeypatch.setattr(uow.steps, "get_steps_by_deployment", record_step_read)
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
@@ -241,7 +270,11 @@ async def test_get_deployment_details_reconciles_orphaned_unfinished(
         )
 
     assert response.status_code == 200
-    assert response.json()["finished"] is not None
+    data = response.json()
+    assert data["finished"] is not None
+    assert_finished_as_orphaned([model.Step(**step) for step in data["steps"]])
+    assert locked_reads == [deployment.id]
+    assert failure_step_seen_after_lock == [False, True]
 
     async with uow:
         updated = await uow.deployments.get(deployment.id)

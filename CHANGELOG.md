@@ -8,6 +8,8 @@ Unreleased
 ### Fixed
 - Drain large message-bus queues in linear time while preserving FIFO delivery
   and the initial command's result.
+- Reuse the authorized deployment detail and steps for orphan detection. Recheck
+  under locks before reconciliation and refresh the response after a successful update.
 - Refuse duplicate decoded JSON member names, including nested and escaped names,
   in browser REST responses and websocket frames before authentication or business
   state publication. Refuse nesting deeper than 512 levels with the same content-free
