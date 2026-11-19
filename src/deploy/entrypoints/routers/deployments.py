@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from jwt import InvalidTokenError
@@ -33,25 +34,11 @@ router = APIRouter(
 )
 
 
-async def reconcile_orphaned_deployments(bus: Bus, deployment_id: int | None = None) -> list[int]:
-    """
-    Reconcile orphaned deployments (unfinished, without active steps and without
-    recent activity) by finishing them as failed. Returns the ids of the deployments
-    that were finished. Callers must check that the caller may access
-    `deployment_id` before, because this writes.
-    """
-    if deployment_id is None:
-        orphaned_ids = await views.get_orphaned_unfinished_deployment_ids(bus.uow)
-    else:
-        is_orphaned = await views.is_orphaned_unfinished_deployment(deployment_id, bus.uow)
-        orphaned_ids = [deployment_id] if is_orphaned else []
-
-    finished_ids: list[int] = []
+async def reconcile_orphaned_deployments(bus: Bus) -> None:
+    """Finish a bounded batch of orphaned deployments as failed for history reads."""
+    orphaned_ids = await views.get_orphaned_unfinished_deployment_ids(bus.uow)
     for orphaned_id in orphaned_ids:
-        cmd = commands.FinishOrphanedDeployment(deployment_id=orphaned_id)
-        if await bus.handle(cmd):
-            finished_ids.append(orphaned_id)
-    return finished_ids
+        await bus.handle(commands.FinishOrphanedDeployment(deployment_id=orphaned_id))
 
 
 @router.get("/", dependencies=[Depends(get_current_active_user)])
@@ -90,8 +77,9 @@ async def get_deployment_details(
         logger.info("service %s requested deployment %s of another service", service.id, deployment_id)
         raise not_found
 
-    # Only reconcile (which writes) after the ownership check.
-    if await reconcile_orphaned_deployments(bus, deployment_id):
+    # Classify the authorized snapshot. The command rechecks under locks before writing.
+    is_orphaned = views.deployment_is_orphaned(deployment, deployment.steps, datetime.now(timezone.utc))
+    if is_orphaned and await bus.handle(commands.FinishOrphanedDeployment(deployment_id=deployment_id)):
         deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
     return DeploymentWithSteps(**deployment.model_dump())
 

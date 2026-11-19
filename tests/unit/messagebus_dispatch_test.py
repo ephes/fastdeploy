@@ -2,12 +2,14 @@
 
 import asyncio
 import logging
+from collections import deque
 from unittest.mock import Mock
 
 import pytest
 
 from deploy.domain import commands, events
 from deploy.entrypoints.helper_models import Bus
+from deploy.service_layer import messagebus
 from deploy.service_layer.messagebus import MessageBus
 
 
@@ -83,6 +85,35 @@ async def test_followups_are_fifo_once_and_preserve_initial_result():
     assert calls == [*expected, ("command", "independent")]
     assert await bus.handle(Followup(label="standalone")) is None
     assert calls[-2:] == [("first handler", "standalone"), ("second handler", "standalone")]
+
+
+@pytest.mark.asyncio
+async def test_large_sync_batch_uses_one_constant_time_removal_per_message(monkeypatch):
+    source = EventSource()
+    labels = [str(index) for index in range(4096)]
+    delivered = []
+    removals = 0
+    sync_result = object()
+
+    class CountingDeque(deque):
+        def popleft(self):
+            nonlocal removals
+            removals += 1
+            return super().popleft()
+
+    monkeypatch.setattr(messagebus, "deque", CountingDeque, raising=False)
+
+    async def sync_handler(command):
+        source.publish(*(Followup(label=label) for label in labels))
+        return sync_result
+
+    async def event_handler(event):
+        delivered.append(event.label)
+
+    bus = make_bus(source, sync_handler, [event_handler])
+    assert await bus.handle(StartChain()) is sync_result
+    assert delivered == labels
+    assert removals == len(labels) + 1
 
 
 @pytest.mark.asyncio

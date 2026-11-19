@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 from collections.abc import Callable
 from typing import Any
 
@@ -39,9 +40,9 @@ class MessageBus:
         try:
             result = None
             initial = message
-            self.queue = [message]
+            self.queue: deque[Message] = deque([message])
             while self.queue:
-                message = self.queue.pop(0)
+                message = self.queue.popleft()
                 if isinstance(message, events.Event):
                     await self.handle_event(message)
                 elif isinstance(message, commands.Command):
