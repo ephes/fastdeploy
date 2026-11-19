@@ -144,7 +144,9 @@ The system separates read and write operations:
 
 `MessageBus.handle()` dispatches a command or event and drains the events
 collected from the unit of work in FIFO order. Each successful handler appends
-new events behind pending work; event handlers run in registration order. For
+new events behind pending work; event handlers run in registration order. The
+queue uses a deque with constant-time front removal, so removing all messages
+from a large synchronization batch takes linear work. For
 example, a command producing `first` and `second`, where handling `first`
 produces `nested`, dispatches `first`, `second`, then `nested`, exactly once.
 

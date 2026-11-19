@@ -6,6 +6,8 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Drain large message-bus queues in linear time while preserving FIFO delivery
+  and the initial command's result.
 - Refuse duplicate decoded JSON member names, including nested and escaped names,
   in browser REST responses and websocket frames before authentication or business
   state publication. Refuse nesting deeper than 512 levels with the same content-free
