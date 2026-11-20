@@ -16,7 +16,7 @@ const tokenError = ref('');
 const pending = ref(false);
 let generation = 0;
 
-watch(serviceId, () => {
+watch([serviceId, () => service.value?.id, () => service.value?.name], () => {
   generation++;
   serviceStore.serviceTokenErrorMessage = "";
   serviceToken.value = null;

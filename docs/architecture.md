@@ -380,6 +380,10 @@ Remounting the list keeps the delete button disabled for that service. A WebSock
 deletion removes the row immediately and retires the request's row and error
 updates.
 
+The service detail clears token feedback and discards outstanding token results
+when the route changes or the selected service disappears or changes identity.
+Updates to the same service ID and name keep the token form and result.
+
 ### REST snapshot admission
 
 Deployment history validates every row before modifying cached data or paging

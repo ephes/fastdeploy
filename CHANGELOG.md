@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Clear pending and displayed service tokens when the selected service is removed or replaced.
 - Keep service deletion pending across list remounts to prevent duplicate requests.
 - Bound frontend REST buffering by response bytes even when the stream arrives in tiny fragments.
 - Retire the session and close its websocket on auth-store reset, and ignore pending login results.
