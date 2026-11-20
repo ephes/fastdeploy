@@ -229,7 +229,10 @@ export const useDeployments = defineStore("deployments", {
         }
         const deployments = deploymentPage(response, requestedServiceId, beforeId);
         if (!loadMore) {
-          this.historyIds = this.historyIds.filter(id => changed.has(id) || startedMeanwhile.has(id));
+          this.historyIds = this.historyIds.filter(id =>
+            (changed.has(id) || startedMeanwhile.has(id)) &&
+            (requestedServiceId === undefined || this.deployments[id]?.serviceId === requestedServiceId)
+          );
           this.historyBeforeId = null;
         }
         const present = new Set(deployments.map(deployment => deployment.id));

@@ -459,6 +459,8 @@ Events older than the loaded cursor update the cache without appearing across an
 those rows become visible when their history page is requested.
 A refresh or service change increments a generation to invalidate the previous page request;
 logout additionally resets paging state and invalidates every response through the session guard.
+When replacing a filtered history page, the window retains intervening changes only for
+deployments belonging to the requested service, so other services cannot reduce its paging capacity.
 
 ## Deployment Architecture
 

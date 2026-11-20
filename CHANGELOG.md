@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Keep the deployment history window and load-more capacity scoped to the selected service.
 - Order the deployed-service inventory by descending deployed-service ID.
 - Clear the message bus queue when dispatch ends, releasing queued follow-ups
   after failure or cancellation.

@@ -58,6 +58,31 @@ it("ignores old filter pages and logout responses including paging metadata", as
   expect(store.historyLoading).toBe(false);
 });
 
+it("keeps the history window and load-more capacity scoped to the new service", async () => {
+  const store = useDeployments();
+  const previous = Array.from({ length: 50 }, (_, i) => row(350 - i));
+  const next = Array.from({ length: 50 }, (_, i) => row(100 - i, 2));
+  let respond!: (rows: unknown) => void;
+  const get = vi.fn().mockResolvedValueOnce(previous)
+    .mockImplementationOnce(() => new Promise(resolve => { respond = resolve; }))
+    .mockResolvedValueOnce([row(50, 2)]);
+  store.client = { get } as any;
+  await store.fetchDeployments(1);
+  const live = (id: number, serviceId: number) => ({ id, serviceId, type: "deployment", finished: new Date() } as const);
+  for (let id = 351; id <= 501; id++) store.onMessage(live(id, 1) as any);
+
+  const switching = store.fetchDeployments(2);
+  for (let id = 351; id <= 501; id++) store.onMessage(live(id, 1) as any);
+  store.onMessage(live(502, 2) as any);
+  respond(next);
+  await switching;
+
+  await store.fetchDeployments(2, true);
+  expect(get).toHaveBeenLastCalledWith("deployments/?limit=50&service_id=2&before_id=51");
+  expect(store.historyIds).toEqual([502, ...next.map(({ id }) => id), 50]);
+  expect(store.historyDeployments.map(({ id }) => id)).toEqual(store.historyIds);
+});
+
 it("navigates service history and exposes load more and errors", async () => {
   const store = useDeployments();
   const get = vi.fn().mockResolvedValueOnce(page).mockResolvedValueOnce([row(50)]).mockRejectedValueOnce(new Error("fixture failure"));
