@@ -251,7 +251,7 @@ export const useSteps = defineStore("steps", {
         }, INVENTORY_TIMEOUT_MS);
       });
       try {
-        this.inventoryComplete[deploymentId] = false;
+        this.inventoryComplete[deploymentId] ??= false;
         const steps: Step[] = [];
         let beforeId: number | null = null;
         let bytes = 0;

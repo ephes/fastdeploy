@@ -253,6 +253,34 @@ describe("Step inventory pages", () => {
     expect(Object.keys(store.steps)).toHaveLength(25);
   });
 
+  it.each(["failure", "ownership loss"])("keeps a published inventory complete through refresh %s", async outcome => {
+    const store = useSteps();
+    store.client = { get: async () => [apiStep] } as any;
+    await store.fetchStepsFromDeployment(1);
+    expect(store.inventoryComplete[1]).toBe(true);
+    const original = store.steps[step.id];
+
+    let settled!: () => void;
+    const transportError = new Error("fixture transport failure");
+    store.client = { get: () => new Promise((resolve, reject) => {
+      settled = () => outcome === "failure" ? reject(transportError) : resolve([row(2)]);
+    }) } as any;
+    let ownsRefresh = true;
+    const refreshing = store.fetchStepsFromDeployment(1, () => ownsRefresh);
+    const completeWhileFetching = store.inventoryComplete[1];
+    expect(store.fetching[1]).toBe(1);
+    ownsRefresh = outcome === "failure";
+    settled();
+    if (outcome === "failure") await expect(refreshing).rejects.toBe(transportError);
+    else await refreshing;
+
+    expect(store.inventoryComplete[1]).toBe(true);
+    expect(completeWhileFetching).toBe(true);
+    expect(store.steps).toEqual({ [step.id]: original });
+    expect(store.stepsByDeployment[1][step.id]).toBe(original);
+    expect(store.fetching[1]).toBeUndefined();
+  });
+
   it.each(["error", "invalid", "logout"])("does not publish partial inventories after %s", async outcome => {
     const store = useSteps();
     store.addStep(step);

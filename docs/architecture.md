@@ -706,8 +706,9 @@ Step hydration reads descending id pages of 25 rows with an exclusive `before_id
 cursor. It stages and validates pages within the traversal budgets below before
 publishing or removing cached rows;
 a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or obsolete
-traversals leave the previous inventory intact and completion false. Session reset
-clears this state. One event fence spans the whole traversal, so intervening live
+traversals preserve the previous inventory and its completeness. The `fetching` counter
+tracks refreshes in progress. Eviction or session reset clears the retained inventory
+and its completeness. One event fence spans the whole traversal, so intervening live
 updates/deletions win even when their row appears on a later page. Terminal/deletion
 lifecycle guards also apply to subsequent completed REST traversals. The API checks
 deployment existence without loading its entire step collection. Internal runner and
@@ -727,7 +728,7 @@ never disposed by a non-owning request UoW.
 A complete step inventory is staged under one 30-second deadline, at most 1,000
 rows and 8 MiB of cumulative response bytes as received (counted per streamed chunk
 before JSON decoding, so whitespace or escapes cannot hide size). Oversize or timed-out traversals
-abort the pending request, retain the last good rows and leave completeness false.
+abort the pending request and preserve the last good rows and their completeness.
 Retry starts a fresh traversal; no partial inventory is published.
 
 Browser history retains a window of at most 200 displayed deployments. Further
