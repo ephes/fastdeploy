@@ -159,7 +159,14 @@ is released on success, failure and cancellation, so sequential reuse remains va
 A subsequent sequential call starts with its own message and no completed work
 left over from the preceding successful call.
 
+The deployment start endpoint subscribes a temporary `DeploymentStarted` handler
+to capture the HTTP response data. It removes that handler when dispatch exits,
+including on success, rejection or cancellation. The normal event publisher stays
+registered.
+
+Events with no registered subscribers are skipped and the queue continues draining.
 An ordinary event-handler exception is logged and later handlers/events continue.
+Commands require a registered handler; missing command handlers raise `KeyError`.
 Command-handler exceptions propagate to the caller and abort that dispatch before
 collecting its generated events; this does not promise rollback of the unit of
 work's pending events.

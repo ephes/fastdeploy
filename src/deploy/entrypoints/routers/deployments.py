@@ -166,7 +166,6 @@ async def start_deployment(
             self.event = event
 
     handle_deployment_started = DeploymentStartedHandler()
-    bus.event_handlers[events.DeploymentStarted].append(handle_deployment_started)
 
     cmd = commands.StartDeployment(
         service_id=service.id,
@@ -175,6 +174,8 @@ async def start_deployment(
         context=context.model_dump(),
         service_token=token,
     )
+    started_handlers = bus.event_handlers[events.DeploymentStarted]
+    started_handlers.append(handle_deployment_started)
     try:
         await bus.handle(cmd)
     except (InvalidCredentials, InvalidTokenError):
@@ -197,6 +198,8 @@ async def start_deployment(
         ) from e
     except NoResultFound as e:
         raise HTTPException(status_code=404, detail="Service not found") from e
+    finally:
+        started_handlers.remove(handle_deployment_started)
 
     started_event = handle_deployment_started.event
     # convert to string because url_for returns a URL and pydantic does not like that

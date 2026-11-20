@@ -56,7 +56,7 @@ class MessageBus:
             self._handling = False
 
     async def handle_event(self, event: events.Event):
-        for handler in self.event_handlers[type(event)]:
+        for handler in self.event_handlers.get(type(event), ()):
             try:
                 logger.debug(
                     "handling event=%s id=%s service_id=%s deployment_id=%s",

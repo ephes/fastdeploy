@@ -6,6 +6,10 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Skip events without registered subscribers so later events still dispatch and
+  the caller receives the original command result.
+- Remove each deployment start request's temporary receipt listener after command
+  dispatch, including on rejection and cancellation.
 - Drain large message-bus queues in linear time while preserving FIFO delivery
   and the initial command's result.
 - Reuse the authorized deployment detail and steps for orphan detection. Recheck
