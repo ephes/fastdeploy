@@ -259,7 +259,9 @@ row, so a deploy task that finishes or reports a step at the same time is never 
 orphaned deployments first. One candidate query filters unfinished deployments
 using all step activity and open states before applying the batch limit, without
 loading the full unfinished history or querying activity once per deployment.
-Each candidate is still checked under its existing service/deployment locks.
+For each candidate, cleanup reads only the owning service ID before locking the
+service and then the deployment. It loads the current steps under those locks
+to recheck eligibility and skips deployments deleted in the meantime.
 Repeated history requests drain a stable eligible backlog; recent/running rows do
 not block older candidates. The returned history page keeps its requested size,
 order and cursor regardless of the maintenance batch. Detail reads still reconcile

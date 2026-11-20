@@ -197,10 +197,11 @@ async def finish_orphaned_deployment(command: commands.FinishOrphanedDeployment,
     while the service is locked, so a deployment that reported a step (or was
     finished) in the meantime is left alone. Returns whether it was finished.
     """
-    try:
-        service_id = (await views.get_deployment_with_steps(command.deployment_id, uow)).service_id
-    except views.DeploymentNotFound:
-        return False
+    async with uow:
+        try:
+            service_id = await uow.deployments.get_service_id(command.deployment_id)
+        except NoResultFound:
+            return False
     now = datetime.now(timezone.utc)
     async with uow:
         # Same service lock as deployment starts and services syncs, then the

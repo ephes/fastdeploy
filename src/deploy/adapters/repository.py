@@ -208,6 +208,11 @@ class AbstractDeploymentRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_service_id(self, deployment_id: int) -> int:
+        """Read only the owner of a deployment. Raise NoResultFound if it is missing."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def get_for_update(self, deployment_id: int) -> model.Deployment:
         """
         Load the current state of a deployment and lock its row until the
@@ -256,6 +261,11 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
 
     async def get(self, deployment_id):
         stmt = select(model.Deployment).where(model.Deployment.id == deployment_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
+    async def get_service_id(self, deployment_id: int) -> int:
+        stmt = select(orm.deployments.c.service_id).where(orm.deployments.c.id == deployment_id)
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
@@ -384,6 +394,9 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
                 return deployment
         # same as the SQLAlchemy repository
         raise NoResultFound(f"Deployment {deployment_id} not found")
+
+    async def get_service_id(self, deployment_id: int) -> int:
+        return (await self.get(deployment_id)).service_id
 
     async def get_for_update(self, deployment_id):
         # In-memory repositories never suspend, so writers cannot interleave.
