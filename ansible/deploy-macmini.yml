@@ -1,6 +1,7 @@
 ---
 # Deploy fastDeploy to macmini via SSH
 - hosts: macmini
+  force_handlers: false
   vars:
     username: fastdeploy
     home_path: "/home/{{ username }}"
@@ -119,6 +120,7 @@
           - "--exclude=__pycache__"
           - "--exclude=*.pyc"
           - "--exclude=.env"
+          - "--exclude=.vault_password"
           - "--exclude=.venv"
           - "--exclude=venv"
           - "--exclude=ansible_venv"
@@ -133,6 +135,7 @@
           - "--exclude=.DS_Store"
       become: true
       become_user: "{{ username }}"
+      notify: restart fastdeploy
 
     - name: Create .env file
       template:
@@ -141,6 +144,7 @@
         mode: '0600'
         owner: "{{ username }}"
         group: "{{ username }}"
+      notify: restart fastdeploy
 
     - name: Create .vault_password file
       template:

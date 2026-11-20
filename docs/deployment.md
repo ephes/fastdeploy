@@ -40,6 +40,18 @@ This method:
 - Supports tagged releases
 - Used for production environments
 
+#### Mac mini Playbook
+
+On the Mac mini, changes from source synchronization or rendering `.env` queue
+a FastDeploy service restart even when the systemd unit is unchanged. Ansible
+runs the restart handler once after the play succeeds, including the frontend
+build and service synchronization. With all three inputs unchanged, the play
+does not restart the service.
+
+Source synchronization excludes checkout-local `.vault_password` files. When
+`vault_password` is defined, a dedicated template writes
+`ansible/.vault_password` on the target with mode `0600`.
+
 ### Deployment Process
 
 The `fastdeploy_deploy` role handles:
