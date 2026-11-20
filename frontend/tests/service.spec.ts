@@ -257,18 +257,45 @@ describe("ServiceList sync refusal", () => {
     return { servicesStore, wrapper };
   }
 
-  it("shows the refusal and retries with force after confirmation", async () => {
+  it.each([
+    { message: "Unrelated conflict" },
+    "Unrelated conflict",
+    { ...refusalBody.detail, message: 42 },
+    { ...refusalBody.detail, message: " " },
+    { ...refusalBody.detail, would_delete: ["a", 2] },
+    { ...refusalBody.detail, would_delete: ["a", ""] },
+    { ...refusalBody.detail, would_delete: ["a", "a"] },
+    { ...refusalBody.detail, would_delete: [] },
+    { ...refusalBody.detail, total: "3" },
+    { ...refusalBody.detail, total: 2.5 },
+    { ...refusalBody.detail, total: 1 },
+    { ...refusalBody.detail, total: 4 },
+  ])("does not offer force after an invalid conflict: %j", async detail => {
+    const post = vi.fn().mockRejectedValue(syncError(409, { detail }));
+    const { servicesStore, wrapper } = await mountWithRefusal(post);
+
+    expect(servicesStore.syncRefusal).toBeNull();
+    expect(wrapper.findAll("button").some(button => button.text() === "force sync")).toBe(false);
+    expect(wrapper.get(".sync-error").text()).toBe("Services sync failed");
+    expect(post).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  it.each([
+    refusalBody.detail,
+    { message: "No services found in the services directory, refusing to delete all 1 services", would_delete: ["a"], total: 1 },
+  ])("shows a valid refusal and retries with force after confirmation: %j", async detail => {
     const post = vi
       .fn()
-      .mockRejectedValueOnce(syncError(409, refusalBody))
+      .mockRejectedValueOnce(syncError(409, { detail }))
       .mockResolvedValueOnce({ detail: "Services synced" });
     const confirm = vi.fn().mockReturnValue(true);
     window.confirm = confirm;
     const { servicesStore, wrapper } = await mountWithRefusal(post);
 
     const refusal = wrapper.find(".sync-refusal");
-    expect(refusal.text()).toContain("Refusing to delete 2 of 3 services");
-    expect(refusal.text()).toContain("a, b");
+    expect(refusal.text()).toContain(detail.message);
+    expect(refusal.text()).toContain(detail.would_delete.join(", "));
 
     const forceButton = refusal.findAll("button").find((b) => b.text() === "force sync")!;
     await forceButton.trigger("click");

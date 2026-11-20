@@ -1,19 +1,11 @@
 import { markRaw } from "vue";
 import { getClient } from "./httpClient";
-import { serviceSnapshot, serviceNamesSnapshot, serviceToken } from "../restAdmission";
+import { serviceSnapshot, serviceNamesSnapshot, serviceToken, syncRefusal, type SyncRefusal } from "../restAdmission";
 import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
-/**
- * Details of a services sync the backend refused (409 Conflict) because
- * it would delete all or most services. A forced sync overrides it.
- */
-export interface SyncRefusal {
-  message: string;
-  wouldDelete: string[];
-  total: number;
-}
+export type { SyncRefusal } from "../restAdmission";
 
 /**
  * This store is used to store information about services. And
@@ -132,12 +124,9 @@ export const useServices = defineStore("services", {
           return false;
         }
         const detail = err?.body?.detail;
-        if (err?.response?.status === 409 && detail && typeof detail === "object") {
-          this.syncRefusal = {
-            message: String(detail.message ?? "Services sync refused"),
-            wouldDelete: Array.isArray(detail.would_delete) ? detail.would_delete.map(String) : [],
-            total: Number(detail.total ?? 0),
-          };
+        if (err?.response?.status === 409) {
+          this.syncRefusal = syncRefusal(detail);
+          if (!this.syncRefusal) this.syncErrorMessage = "Services sync failed";
         } else {
           const reason = typeof detail === "string" ? detail : err?.message;
           this.syncErrorMessage = `Services sync failed${reason ? ": " + reason : ""}`;

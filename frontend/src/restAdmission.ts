@@ -6,6 +6,26 @@ function invalid(): never {
   throw new Error('Invalid REST snapshot');
 }
 
+/** Details of a sync refused by the deletion-count guard (HTTP 409). */
+export interface SyncRefusal {
+  message: string;
+  wouldDelete: string[];
+  total: number;
+}
+
+export function syncRefusal(value: unknown): SyncRefusal | null {
+  if (!record(value)) return null;
+  const { message, would_delete: wouldDelete, total } = value;
+  if (typeof message !== 'string' || !message.trim() || !id(total) ||
+      !Array.isArray(wouldDelete) || wouldDelete.length <= total / 2 || wouldDelete.length > total) return null;
+  const names = new Set<string>();
+  for (const name of wouldDelete) {
+    if (typeof name !== 'string' || !name.length || names.has(name)) return null;
+    names.add(name);
+  }
+  return { message, wouldDelete: [...names], total };
+}
+
 /** Only admit the fields used by the credential consumer; never echo wire values. */
 export function serviceToken(value: unknown): string {
   if (!record(value) || value.token_type !== 'bearer' ||
