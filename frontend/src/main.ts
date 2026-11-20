@@ -4,7 +4,6 @@ import App from "./App.vue";
 import { Environment } from "./typings";
 import {
   useSettings,
-  ENV_DEFAULT,
   WEBSOCKET_URL_DEFAULT,
   API_BASE_DEFAULT,
 } from "./stores/config";
@@ -14,6 +13,21 @@ import { useDeployments } from "./stores/deployment";
 import { useSteps } from "./stores/step";
 import { createPinia } from "pinia";
 import { routes } from './routes';
+
+const env: Environment = {
+  MODE: import.meta.env.PROD ? "production" : import.meta.env.MODE || "development",
+  VITE_API_BASE_PROD: import.meta.env.VITE_API_BASE_PROD?.trim() ?? "",
+  VITE_WEBSOCKET_URL_PROD: import.meta.env.VITE_WEBSOCKET_URL_PROD?.trim() ?? "",
+  VITE_API_BASE_DEV: import.meta.env.VITE_API_BASE_DEV || API_BASE_DEFAULT,
+  VITE_WEBSOCKET_URL_DEV: import.meta.env.VITE_WEBSOCKET_URL_DEV || WEBSOCKET_URL_DEFAULT,
+};
+if (env.MODE === "production") {
+  const missing = (["VITE_API_BASE_PROD", "VITE_WEBSOCKET_URL_PROD"] as const)
+    .filter(key => !env[key]);
+  if (missing.length) {
+    throw new Error(`Missing frontend production configuration: ${missing.join(", ")}`);
+  }
+}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -42,29 +56,8 @@ declare module "pinia" {
   }
 }
 
-function getEnv(): Environment {
-  const env = ENV_DEFAULT;
-  env.MODE = import.meta.env.MODE || "development";
-  env.VITE_API_BASE_DEV = String(
-    import.meta.env.VITE_API_BASE_DEV || API_BASE_DEFAULT
-  );
-  env.VITE_API_BASE_PROD = String(
-    import.meta.env.VITE_API_BASE_PROD ||
-      "https://deploy.staging.wersdoerfer.de"
-  );
-  env.VITE_WEBSOCKET_URL_DEV = String(
-    import.meta.env.VITE_WEBSOCKET_URL_DEV || WEBSOCKET_URL_DEFAULT
-  );
-  env.VITE_WEBSOCKET_URL_PROD = String(
-    import.meta.env.VITE_WEBSOCKET_URL_PROD ||
-      "ws://deploy.staging.wersdoerfer.de/deployments/ws"
-  );
-  return env;
-}
-
 pinia.use(({ store }) => {
-  store.env = getEnv();
-  console.log("store env: ", store.env);
+  store.env = env;
 });
 
 app.use(router);

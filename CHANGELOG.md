@@ -6,6 +6,11 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Limit reconnect step inventory refreshes to four at a time and retire queued
+  work on logout or socket replacement.
+- Track step events only in pending snapshots of their own deployment.
+- Require explicit API and WebSocket endpoints before starting the production frontend.
+- Reject step pages above 25 rows before validating or projecting individual rows.
 - Skip events without registered subscribers so later events still dispatch and
   the caller receives the original command result.
 - Remove each deployment start request's temporary receipt listener after command

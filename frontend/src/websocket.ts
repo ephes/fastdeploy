@@ -13,6 +13,8 @@ import { isId as id, isOptionalDeleted, isOptionalWireDate as optionalDate, isRe
 // The message switch reads several optional fields; REST admission keeps the stricter `unknown` view.
 const isRecord = isWireRecord as (value: unknown) => value is Record<string, any>;
 
+const MAX_PARALLEL_STEP_REFRESHES = 4;
+
 const readyState: { [key: number]: string } = {
   0: "CONNECTING",
   1: "OPEN",
@@ -63,6 +65,8 @@ export function createWebsocketClient(): WebsocketClient {
   let generation = 0;
   let authenticatedGeneration = -1;
   let hasAuthenticated = false;
+  // In-flight inventories retain their slots across socket replacements until they settle.
+  const stepRefreshes = new Set<Promise<void>>();
   const client: WebsocketClient = {
     /**
      * The websocket client id which is used to identify the websocket client
@@ -237,10 +241,20 @@ export function createWebsocketClient(): WebsocketClient {
               }
             };
             const relevant = new Set([...Object.keys(steps.stepsByDeployment), ...Object.keys(steps.fetchGenerations)]);
+            const refreshSteps = async () => {
+              for (const id of relevant) {
+                if (stepRefreshes.size >= MAX_PARALLEL_STEP_REFRESHES) await Promise.race(stepRefreshes);
+                if (!ownsRefresh()) return;
+                const refresh = steps.fetchStepsFromDeployment(Number(id), ownsRefresh)
+                  .catch(() => { /* Individual inventory failures must not stop the queue. */ })
+                  .finally(() => { stepRefreshes.delete(refresh); });
+                stepRefreshes.add(refresh);
+              }
+            };
             // Store actions retain event-touched ids; all failures are observed.
             void Promise.allSettled([
               services.fetchServices(ownsRefresh), services.fetchServiceNames(ownsRefresh), refreshHistory(),
-              ...[...relevant].map(id => steps.fetchStepsFromDeployment(Number(id), ownsRefresh)),
+              refreshSteps(),
             ]);
           }
         }

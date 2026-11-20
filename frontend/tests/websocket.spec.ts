@@ -191,3 +191,57 @@ it.each(["logout", "replacement"])("fences a reconnect refresh after %s", async 
   expect(services.services).toEqual({}); expect(services.serviceNames).toEqual([]);
   expect(services.servicesLoading).toBe(false); expect(services.serviceNamesLoading).toBe(false);
 });
+
+it.each(["complete", "logout", "replacement"])("bounds queued step inventories on reconnect (%s)", async outcome => {
+  const client = createWebsocketClient();
+  const services = useServices(), deployments = useDeployments(), steps = useSteps();
+  const ids = Array.from({ length: 20 }, (_, i) => i + 1);
+  for (const id of ids) steps.addStep({ id, deploymentId: id, state: "running" } as any);
+  const getServices = vi.fn().mockResolvedValue([]);
+  const getHistory = vi.fn().mockResolvedValue([]);
+  services.client = { get: getServices } as any;
+  deployments.client = { get: getHistory } as any;
+  const started: number[] = [];
+  let peak = 0;
+  const pending: ((fail?: boolean) => void)[] = [];
+  steps.client = {
+    get: (url: string) => new Promise((resolve, reject) => {
+      started.push(Number(new URLSearchParams(url.split("?")[1]).get("deployment_id")));
+      pending.push(fail => fail ? reject(new Error("synthetic request failure")) : resolve([]));
+      peak = Math.max(peak, pending.length);
+    }),
+  } as any;
+
+  client.initWebsocketConnection("ws://synthetic", "token");
+  Socket.instances[0].receive({ type: "authentication", status: "success" });
+  client.initWebsocketConnection("ws://synthetic", "token");
+  Socket.instances[1].receive({ type: "authentication", status: "success" });
+  expect(started).toEqual(ids.slice(0, 4));
+  expect(getServices).toHaveBeenCalledTimes(2);
+  expect(getHistory).toHaveBeenCalledOnce();
+
+  if (outcome === "logout") {
+    useAuth().logout();
+  } else if (outcome === "replacement") {
+    client.initWebsocketConnection("ws://synthetic", "token");
+    Socket.instances[2].receive({ type: "authentication", status: "success" });
+    expect(started).toHaveLength(4);
+  }
+
+  let first = true;
+  while (pending.length) {
+    pending.shift()!(outcome === "complete" && first);
+    first = false;
+    await flushPromises();
+  }
+
+  expect(peak).toBe(4);
+  if (outcome === "logout") {
+    expect(started).toEqual(ids.slice(0, 4));
+    expect(steps.inventoryComplete).toEqual({});
+  } else {
+    expect(started).toEqual(outcome === "replacement" ? [...ids.slice(0, 4), ...ids] : ids);
+    const refreshed = ids.filter(id => steps.inventoryComplete[id]);
+    expect(refreshed).toEqual(outcome === "complete" ? ids.slice(1) : ids);
+  }
+});

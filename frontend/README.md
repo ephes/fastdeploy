@@ -10,6 +10,18 @@ This template should help get you started developing with Vue 3 and Typescript i
 
 Since TypeScript cannot handle type information for `.vue` imports, they are shimmed to be a generic Vue component type by default. In most cases this is fine if you don't really care about component prop types outside of templates. However, if you wish to get actual prop types in `.vue` imports (for example to get props validation when using manual `h(...)` calls), you can enable Volar's `.vue` type support plugin by running `Volar: Switch TS Plugin on/off` from VSCode command palette.
 
+## Endpoint configuration
+
+Production builds, including builds with a custom Vite mode such as staging,
+must supply both `VITE_API_BASE_PROD` and `VITE_WEBSOCKET_URL_PROD` at build time.
+Set them for the target environment using Vite's environment files or build
+variables. The checked-in `.env.production` supplies the staging pair for the
+default production mode. If either value is missing or blank, startup stops
+before creating the app and names the missing variables in the error.
+Development defaults to `http://localhost:8000` and
+`ws://localhost:8000/deployments/ws`, with `VITE_API_BASE_DEV` and
+`VITE_WEBSOCKET_URL_DEV` available as overrides.
+
 ## Login and detail pages
 
 User credentials belong to the API base used for login. Changing the configured
@@ -80,7 +92,13 @@ GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249 (eight affected package nodes).
 ## WebSocket recovery
 
 Replacing a socket retires its callbacks and pending reconnect waits. Only the
-current socket can authenticate or update stores. Incoming frames must match the
+current socket can authenticate or update stores. After reconnect authentication,
+service and history refreshes start immediately. Retained deployment step inventories
+run at most four at a time per WebSocket client. Logout or a socket replacement
+retires queued work from the old refresh. In-flight requests keep their slots
+until they settle, and retired requests cannot publish results.
+
+Incoming frames must match the
 existing service, deployment, step, user, authentication or control shapes before
 conversion/dispatch. Only declared domain fields enter converters; unrelated
 extra fields are ignored. Malformed JSON or fields close the connection and show
