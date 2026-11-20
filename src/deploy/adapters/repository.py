@@ -556,14 +556,19 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
 class InMemoryStepRepository(AbstractStepRepository):
     def __init__(self) -> None:
         self._steps: list[model.Step] = []
+        self._next_id = 1
         super().__init__()
 
-    async def _add(self, step):
+    async def _add(self, step: model.Step) -> None:
+        step.id = self._next_id
+        self._next_id += 1
         self._steps.append(step)
-        step.id = len(self._steps)
 
-    async def get(self, step_id):
-        return next(s for s in self._steps if s.id == step_id)
+    async def get(self, step_id: int) -> model.Step:
+        for step in self._steps:
+            if step.id == step_id:
+                return step
+        raise NoResultFound("Step not found")
 
     async def list(self):
         return list(self._steps)

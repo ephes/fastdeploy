@@ -213,6 +213,10 @@ The in-memory service repository assigns increasing IDs across deletions.
 Adding a service with an existing ID replaces that row in place and preserves
 list order. Adding a service with an unknown explicit ID raises `NoResultFound`.
 
+Both step repositories raise `NoResultFound` for a missing step ID. The
+in-memory step repository assigns increasing IDs across deletions so descending
+`before_id` pages continue to visit each retained step once.
+
 ### Unit of Work Pattern
 
 The Unit of Work pattern manages transactions and coordinates repositories:
