@@ -667,8 +667,9 @@ bus construction failure. A supplied UOW stays owned by its caller. Request
 startup failure closes partial sessions/connections; lifespan startup failure
 disposes its engine. Cleanup does not replace the initiating failure.
 
-Fresh databases include an index on `step (deployment_id, id)` for descending
-step cursor pages. On an existing database, run
+Fresh databases index `step (deployment_id, id)` and `deployment (service_id, id)`
+for descending step pages and service-filtered deployment history. Global
+deployment history continues to page by primary key. On an existing database, run
 `uv run python commands.py upgrade-history-indexes` with the target `DATABASE_URL`
 and schema privileges. The command can be run again safely. Schedule it during
 a maintenance window because building an index can block writes to its table.

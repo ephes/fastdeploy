@@ -62,6 +62,7 @@ steps = Table(
 )
 
 
+deployment_cursor_index = Index("ix_deployment_service_id_id", deployments.c.service_id, deployments.c.id)
 step_cursor_index = Index("ix_step_deployment_id_id", steps.c.deployment_id, steps.c.id)
 
 
@@ -94,7 +95,8 @@ async def create_db_and_tables(engine):
 
 
 def upgrade_history_indexes(conn: Connection) -> None:
-    conn.execute(CreateIndex(step_cursor_index, if_not_exists=True))
+    for index in (step_cursor_index, deployment_cursor_index):
+        conn.execute(CreateIndex(index, if_not_exists=True))
 
 
 MAPPERS_STARTED = False
