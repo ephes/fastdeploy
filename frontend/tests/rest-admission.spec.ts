@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { stepPage } from '../src/restAdmission';
 import { initPinia } from './conftest';
 import { useSteps } from '../src/stores/step';
 import { useServices } from '../src/stores/service';
@@ -6,6 +7,15 @@ import { useServices } from '../src/stores/service';
 const step = (id: number) => ({ id, deployment_id: 1, name: `step-${id}`, state: 'running', message: '', started: null, finished: null });
 const service = (id: number) => ({ id, name: `service-${id}`, data: {} });
 beforeEach(() => initPinia());
+
+it('rejects an oversized step page before reading rows and accepts exactly 25', () => {
+  const page = Array.from({ length: 25 }, (_, i) => step(26 - i));
+  expect(stepPage(page, 1, 27).map(row => row.id)).toEqual(page.map(row => row.id));
+  const readId = vi.fn(() => 27);
+  expect(() => stepPage([{ get id() { return readId(); } }, ...page], 1, null))
+    .toThrow('Invalid REST snapshot');
+  expect(readId).not.toHaveBeenCalled();
+});
 
 it.each([
   null, {}, [step(4), null], [step(4), { ...step(5), state: 'unknown' }],
