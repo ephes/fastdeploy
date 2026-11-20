@@ -154,10 +154,9 @@ After follow-ups finish, `handle()` returns the initial command handler's result
 Event handler return values do not replace it; an initial event returns `None`.
 A bus and its UOW belong to one operation at a time. A reentrant or concurrent
 `handle()` call raises `RuntimeError` before touching the active queue or invoking
-a handler. Use a separate bus/UOW for an independent concurrent operation. Ownership
-is released on success, failure and cancellation, so sequential reuse remains valid.
-A subsequent sequential call starts with its own message and no completed work
-left over from the preceding successful call.
+a handler. Use a separate bus/UOW for an independent concurrent operation.
+On success, failure or cancellation, `handle()` clears its queue before releasing
+ownership. A subsequent call starts with its own message.
 
 The deployment start endpoint subscribes a temporary `DeploymentStarted` handler
 to capture the HTTP response data. It removes that handler when dispatch exits,
