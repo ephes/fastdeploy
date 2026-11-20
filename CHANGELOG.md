@@ -6,6 +6,7 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Order the deployed-service inventory by descending deployed-service ID.
 - Clear the message bus queue when dispatch ends, releasing queued follow-ups
   after failure or cancellation.
 - Release process-wide login capacity even when cleanup of a pending reservation

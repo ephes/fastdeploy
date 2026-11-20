@@ -606,7 +606,7 @@ class SqlAlchemyDeployedServiceRepository(AbstractDeployedServiceRepository):
         self.session.add(deployed_service)
 
     async def list(self):
-        stmt = select(model.DeployedService)
+        stmt = select(model.DeployedService).order_by(model.DeployedService.id.desc())
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
@@ -621,7 +621,7 @@ class InMemoryDeployedServiceRepository(AbstractDeployedServiceRepository):
         deployed_service.id = len(self._deployed_services)
 
     async def list(self):
-        return list(self._deployed_services)
+        return sorted(self._deployed_services, key=lambda deployed_service: deployed_service.id, reverse=True)
 
 
 class AbstractServiceTokenRepository(abc.ABC):

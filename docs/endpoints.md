@@ -424,6 +424,9 @@ name/message fields keep each response below the frontend's 1 MiB body limit.
 ### GET /deployed-services/
 **Purpose**: List deployed services for service discovery
 **Authentication**: Config token required
+
+Rows are ordered by descending deployed-service ID.
+
 **Response**:
 ```json
 [
