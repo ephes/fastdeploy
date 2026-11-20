@@ -382,6 +382,8 @@ unknown keys (including object-method names and camel-case aliases) never enter
 the case/date converter. Dates are normalized before any deletion or insertion.
 A rejected response leaves the step map, deployment map and scroll history intact;
 the caller shows the existing retry feedback, and pending event fences are released.
+Each step event is recorded in all pending snapshots for its own deployment only,
+so overlapping requests preserve newer rows and deletions.
 
 Services likewise require a complete list with unique positive safe integer ids,
 string names and object (non-null, non-array) data. Available names require an

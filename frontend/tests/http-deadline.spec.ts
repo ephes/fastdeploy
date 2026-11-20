@@ -21,7 +21,7 @@ it('settles service loading and step fences even if fetch ignores abort', async 
   expect(services.servicesLoading).toBe(false);
   expect(services.servicesError).toContain('Could not load');
   expect(services.pendingFetches).toEqual([]);
-  expect(steps.pendingFetches).toEqual([]);
+  expect(steps.pendingFetches).toEqual({});
   expect(signals.every(signal => signal.aborted)).toBe(true);
   expect(vi.getTimerCount()).toBe(0);
 });

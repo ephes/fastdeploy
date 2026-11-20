@@ -193,6 +193,30 @@ describe("Step inventory pages", () => {
     expect(store.inventoryComplete[1]).toBe(true);
   });
 
+  it("records step events only in active snapshot fences for their deployment", async () => {
+    const store = useSteps();
+    const respond: ((rows: unknown) => void)[] = [];
+    store.client = { get: () => new Promise(resolve => respond.push(resolve)) } as any;
+    const older = store.fetchStepsFromDeployment(1);
+    const unrelated = store.fetchStepsFromDeployment(2);
+    const current = store.fetchStepsFromDeployment(1);
+
+    const add = vi.spyOn(Set.prototype, "add");
+    const update = { ...step, message: "newer websocket update" };
+    store.onMessage(update);
+    const writes = add.mock.calls.filter(([id]) => id === step.id).length;
+    add.mockRestore();
+
+    respond[0]([apiStep]);
+    await older;
+    respond[1]([]);
+    respond[2]([apiStep]);
+    await Promise.all([unrelated, current]);
+
+    expect(writes).toBe(2);
+    expect(store.steps[step.id].message).toBe("newer websocket update");
+  });
+
   it("requests an empty final page when the last page was full", async () => {
     const store = useSteps();
     const get = vi.fn().mockResolvedValueOnce(Array.from({ length: 25 }, (_, i) => row(25 - i)))
@@ -219,7 +243,7 @@ describe("Step inventory pages", () => {
     if (outcome === "logout") { await fetch; expect(store.steps).toEqual({}); }
     else { await expect(fetch).rejects.toThrow(); expect(Object.keys(store.steps)).toEqual(["1"]); }
     expect(store.inventoryComplete[1]).not.toBe(true);
-    expect(store.pendingFetches).toEqual([]);
+    expect(store.pendingFetches).toEqual({});
   });
 });
 
@@ -288,7 +312,7 @@ describe("Whole inventory admission", () => {
       await vi.advanceTimersByTimeAsync(30_000);
       await result;
       expect(signal.aborted).toBe(true);
-      expect(store.pendingFetches).toEqual([]);
+      expect(store.pendingFetches).toEqual({});
     } finally { vi.useRealTimers(); }
   });
 });

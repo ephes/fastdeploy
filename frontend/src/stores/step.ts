@@ -28,7 +28,7 @@ export const useSteps = defineStore("steps", {
       stepCounts: {} as Record<number, number>,
       pruneSuspended: 0,
       finishedDeployments: {} as Record<number, boolean>,
-      pendingFetches: [] as Set<number>[],
+      pendingFetches: {} as Partial<Record<number, Set<Set<number>>>>,
       fetchGenerations: {} as Record<number, number>,
       fetchSequence: 0,
       retainedDeploymentIds: [] as number[],
@@ -235,8 +235,10 @@ export const useSteps = defineStore("steps", {
       this.fetching[deploymentId] = (this.fetching[deploymentId] ?? 0) + 1;
       const generation = ++this.fetchSequence;
       this.fetchGenerations[deploymentId] = generation;
-      const changed = markRaw(new Set<number>());
-      this.pendingFetches.push(changed);
+      const changed = new Set<number>();
+      const pendingFetches = this.pendingFetches;
+      const pending = pendingFetches[deploymentId] ??= markRaw(new Set<Set<number>>());
+      pending.add(changed);
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const expired = new Promise<never>((_resolve, reject) => {
@@ -290,7 +292,8 @@ export const useSteps = defineStore("steps", {
         }
         clearTimeout(timer);
         controller.abort();
-        this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
+        pending.delete(changed);
+        if (!pending.size) delete pendingFetches[deploymentId];
       }
     },
     /**
@@ -303,7 +306,7 @@ export const useSteps = defineStore("steps", {
       if (message.type === "step") {
         const step = message as Step;
         if (!step.deleted && !this.steps[step.id] && step.id <= (this.stepEventFloors[step.deploymentId] ?? 0)) return;
-        for (const pending of this.pendingFetches) pending.add(step.id);
+        for (const changed of this.pendingFetches[step.deploymentId] ?? []) changed.add(step.id);
         if (step.deleted) {
           this.deleteStep(step);
         } else {

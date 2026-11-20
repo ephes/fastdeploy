@@ -92,7 +92,13 @@ GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249 (eight affected package nodes).
 ## WebSocket recovery
 
 Replacing a socket retires its callbacks and pending reconnect waits. Only the
-current socket can authenticate or update stores. Incoming frames must match the
+current socket can authenticate or update stores. After reconnect authentication,
+service and history refreshes start immediately. Retained deployment step inventories
+run at most four at a time per WebSocket client. Logout or a socket replacement
+retires queued work from the old refresh. In-flight requests keep their slots
+until they settle, and retired requests cannot publish results.
+
+Incoming frames must match the
 existing service, deployment, step, user, authentication or control shapes before
 conversion/dispatch. Only declared domain fields enter converters; unrelated
 extra fields are ignored. Malformed JSON or fields close the connection and show

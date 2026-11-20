@@ -35,7 +35,7 @@ it.each([
   await expect(store.fetchStepsFromDeployment(1)).rejects.toThrow();
   expect(JSON.stringify([store.steps, store.stepsByDeployment, store.stepsInProgressByDeployment])).toBe(before);
   expect(store.steps).toBe(maps[0]);
-  expect(store.pendingFetches).toEqual([]);
+  expect(store.pendingFetches).toEqual({});
 });
 
 it('normalizes only declared step fields, including hostile object-method keys', async () => {
