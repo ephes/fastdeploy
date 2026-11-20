@@ -248,6 +248,7 @@ class AbstractDeploymentRepository(abc.ABC):
 
     @abc.abstractmethod
     async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
+        """Latest successful deployment by start time (nulls last), then greatest ID."""
         raise NotImplementedError
 
 
@@ -361,7 +362,7 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
                 where step.deployment_id = deployment.id
                 and step.state != 'success'
             )
-            order by deployment.started desc nulls last
+            order by deployment.started desc nulls last, deployment.id desc
             limit 1
         """
         )
@@ -434,10 +435,11 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
                 break
         return candidates
 
-    async def get_last_successful_deployment_id(self, service_id):
-        last_successful = None
+    async def get_last_successful_deployment_id(self, service_id: int) -> int | None:
         if self.step_repository is None:
-            return last_successful
+            return None
+
+        latest: tuple[bool, datetime | None, int] | None = None
 
         for deployment in self._deployments:
             if deployment.service_id != service_id or deployment.finished is None or deployment.id is None:
@@ -447,18 +449,11 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
             if not steps or any(step.state != "success" for step in steps):
                 continue
 
-            if last_successful is None:
-                last_successful = deployment
-                continue
+            order = (deployment.started is not None, deployment.started, deployment.id)
+            if latest is None or order > latest:
+                latest = order
 
-            if deployment.started is not None and (
-                last_successful.started is None or deployment.started > last_successful.started
-            ):
-                last_successful = deployment
-
-        if last_successful is None:
-            return None
-        return last_successful.id
+        return latest[2] if latest is not None else None
 
     async def list(self, *, limit=None, before_id=None, service_id=None, unfinished_only=False):
         deployments = [

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from deploy import views
 from deploy.domain import model
 
 pytestmark = pytest.mark.asyncio
@@ -138,9 +139,35 @@ async def test_last_successful_deployment_requires_all_steps_successful(uow, ser
 
 
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
-async def test_reconciliation_candidates_match_activity_and_limit(uow, service_in_db):
-    from deploy import views
+@pytest.mark.parametrize("null_starts", [False, True], ids=["tied-start", "legacy-null-start"])
+async def test_previous_plan_prefers_highest_deployment_id_on_start_ties(uow, service_in_db, null_starts):
+    started = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    finished = started + timedelta(days=2)
 
+    async def add(name, start, state="success"):
+        deployment = model.Deployment(
+            service_id=service_in_db.id, started=start, finished=finished, origin="test", user="test"
+        )
+        async with uow:
+            await uow.deployments.add(deployment)
+            await uow.flush()
+            await uow.steps.add(model.Step(name=name, state=state, deployment_id=deployment.id))
+            await uow.commit()
+
+    tied_start = None if null_starts else started
+    await add("lower ID", tied_start)
+    await add("chosen plan", tied_start)
+    if not null_starts:
+        await add("higher ID without a start", None)
+        await add("higher ID with an earlier start", started - timedelta(days=1))
+    await add("newer failure", started + timedelta(days=1), state="failure")
+
+    plan = await views.get_steps_to_do_from_service(service_in_db, uow)
+    assert [step.name for step in plan] == ["chosen plan"]
+
+
+@pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+async def test_reconciliation_candidates_match_activity_and_limit(uow, service_in_db):
     now = datetime.now(timezone.utc)
     old = now - views.ORPHAN_RECONCILE_DELAY - timedelta(minutes=1)
     expected = []
