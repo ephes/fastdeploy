@@ -209,6 +209,10 @@ Multiple implementations support different scenarios:
 - `InMemoryServiceRepository`: Testing and development
 - `TestableServiceRepository`: Controlled testing scenarios
 
+The in-memory service repository assigns increasing IDs across deletions.
+Adding a service with an existing ID replaces that row in place and preserves
+list order. Adding a service with an unknown explicit ID raises `NoResultFound`.
+
 ### Unit of Work Pattern
 
 The Unit of Work pattern manages transactions and coordinates repositories:
