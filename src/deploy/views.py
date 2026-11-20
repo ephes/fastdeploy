@@ -259,8 +259,10 @@ async def get_orphaned_unfinished_deployment_ids(
         return await uow.deployments.get_orphaned_ids(activity_before=cutoff, limit=ORPHAN_RECONCILE_BATCH_SIZE)
 
 
-async def all_deployed_services(uow: unit_of_work.AbstractUnitOfWork) -> list[model.DeployedService]:
-    """Get a list of all deployed services."""
+async def all_deployed_services(
+    uow: unit_of_work.AbstractUnitOfWork, *, limit: int | None = None, before_id: int | None = None
+) -> list[model.DeployedService]:
+    """Read the deployed-service inventory, optionally bounded by a cursor and limit."""
     async with uow:
-        deployed = await uow.deployed_services.list()
+        deployed = await uow.deployed_services.list(limit=limit, before_id=before_id)
     return deployed
