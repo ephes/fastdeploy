@@ -23,6 +23,7 @@ export const useDeployments = defineStore("deployments", {
       retiredThrough: 0,
       pendingFetches: [] as Set<number>[],
       pendingStarts: [] as Set<number>[],
+      pendingStartDeletions: markRaw(new Set<Set<number>>()),
       historyIds: [] as number[],
       historyBeforeId: null as number | null,
       historyServiceId: undefined as number | undefined,
@@ -134,6 +135,7 @@ export const useDeployments = defineStore("deployments", {
      * It is the oldest state the deployment ever had: if the websocket
      * (or a list fetch) already delivered the row, that one is kept and
      * returned instead of being replaced by the start response.
+     * A deletion observed while the POST is pending rejects the acknowledgement.
      *
      * The service token is only set on the client of this one call.
      *
@@ -170,7 +172,15 @@ export const useDeployments = defineStore("deployments", {
         return null;
       }
       client.options.headers.Authorization = `Bearer ${serviceToken}`;
-      const response = await client.post<unknown>("deployments/");
+      const pending = this.pendingStartDeletions;
+      const deletedMeanwhile = new Set<number>();
+      pending.add(deletedMeanwhile);
+      let response: unknown;
+      try {
+        response = await client.post<unknown>("deployments/");
+      } finally {
+        pending.delete(deletedMeanwhile);
+      }
       if (!isCurrentSession()) {
         // started, but the session it was started in is over
         return null;
@@ -181,6 +191,9 @@ export const useDeployments = defineStore("deployments", {
         if (started.deleted) throw new Error();
       } catch {
         throw new Error("Deployment outcome is uncertain. Refresh history before retrying.");
+      }
+      if (deletedMeanwhile.has(started.id)) {
+        throw new Error("Deployment was deleted. Refresh history before retrying.");
       }
       // A history request already in flight must not delete the new row, but it
       // may still replace it with the (newer) server state of that row.
@@ -285,6 +298,7 @@ export const useDeployments = defineStore("deployments", {
         const deployment = message as Deployment;
         for (const pending of this.pendingFetches) pending.add(deployment.id);
         if (deployment.deleted) {
+          for (const pending of this.pendingStartDeletions) pending.add(deployment.id);
           this.retiredThrough = Math.max(this.retiredThrough, deployment.id);
           useSteps().evictDeployment(deployment.id);
           delete this.deployments[deployment.id];

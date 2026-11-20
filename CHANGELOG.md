@@ -11,6 +11,7 @@ Unreleased
 
 ### Fixed
 - Keep the deployment history window and load-more capacity scoped to the selected service.
+- Honor a WebSocket deletion received before the deployment start response arrives.
 - Order the deployed-service inventory by descending deployed-service ID.
 - Clear the message bus queue when dispatch ends, releasing queued follow-ups
   after failure or cancellation.

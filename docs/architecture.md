@@ -450,6 +450,8 @@ Starting a deployment (`startDeployment`) converts the response of `POST /deploy
 deployment (camel case keys, dates) and treats it as the oldest state of that deployment: a row that the
 websocket or a list fetch already delivered is kept. It returns `null` when the session ended while it was
 waiting; the caller then does nothing (the deploy button does not navigate to the deployment).
+A WebSocket deletion received during the POST also takes precedence over its acknowledgement.
+The UI keeps the deployment removed and asks the user to check history before retrying.
 
 History hydration uses a per-request set of ids changed by websocket events, including deletions.
 Those ids are skipped when the older HTTP page arrives; the sets are discarded on completion.
