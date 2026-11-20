@@ -454,8 +454,10 @@ Everything the web UI holds for a logged-in user belongs to one login session an
   the same.
 
 A session ends on logout, which the UI performs when the server rejects the websocket authentication,
-and before a new session starts on a successful login. A successful login therefore always begins with
-empty stores, new clients and a new websocket client.
+on auth-store reset, and before a new session starts on a successful login. Reset also clears the
+username, login error and router reference without navigating. Session and login-attempt IDs keep
+increasing, so a pending login cannot become current again after reset. A successful login always
+begins with empty stores, new clients and a new websocket client.
 
 Starting a deployment (`startDeployment`) converts the response of `POST /deployments/` like every other
 deployment (camel case keys, dates) and treats it as the oldest state of that deployment: a row that the
