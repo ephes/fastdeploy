@@ -35,3 +35,20 @@ async def test_deployed_service_inventory_uses_primary_key_order(sql_repository)
     expected = [(3, 9), (2, 4), (1, 9)]
     assert [(row.id, row.deployment_id) for row in persistent_rows] == expected
     assert [(row.id, row.deployment_id) for row in await in_memory.list()] == expected
+
+
+@pytest.mark.asyncio
+async def test_deployed_service_page_filters_and_limits_in_sql(sql_repository):
+    for deployment_id in (9, 4, 9, 4, 9):
+        await sql_repository.add(model.DeployedService(deployment_id=deployment_id))
+
+    rows = await sql_repository.list(limit=2, before_id=5)
+
+    sql_repository.session.execute.assert_awaited_once()
+    statement = sql_repository.session.execute.call_args.args[0].compile(dialect=postgresql.dialect())
+    sql = str(statement)
+    assert "WHERE deployed_service.id <" in sql
+    assert "ORDER BY deployed_service.id DESC" in sql
+    assert "LIMIT" in sql
+    assert sorted(statement.params.values()) == [2, 5]
+    assert [(row.id, row.deployment_id) for row in rows] == [(4, 4), (3, 9)]

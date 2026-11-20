@@ -593,7 +593,7 @@ class AbstractDeployedServiceRepository(abc.ABC):
     #     raise NotImplementedError
 
     @abc.abstractmethod
-    async def list(self) -> list[model.DeployedService]:
+    async def list(self, *, limit: int | None = None, before_id: int | None = None) -> list[model.DeployedService]:
         raise NotImplementedError
 
 
@@ -605,8 +605,12 @@ class SqlAlchemyDeployedServiceRepository(AbstractDeployedServiceRepository):
     async def _add(self, deployed_service):
         self.session.add(deployed_service)
 
-    async def list(self):
+    async def list(self, *, limit=None, before_id=None):
         stmt = select(model.DeployedService).order_by(model.DeployedService.id.desc())
+        if before_id is not None:
+            stmt = stmt.where(model.DeployedService.id < before_id)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
@@ -620,8 +624,9 @@ class InMemoryDeployedServiceRepository(AbstractDeployedServiceRepository):
         self._deployed_services.append(deployed_service)
         deployed_service.id = len(self._deployed_services)
 
-    async def list(self):
-        return sorted(self._deployed_services, key=lambda deployed_service: deployed_service.id, reverse=True)
+    async def list(self, *, limit=None, before_id=None):
+        deployed_services = [d for d in self._deployed_services if before_id is None or d.id < before_id]
+        return sorted(deployed_services, key=lambda deployed_service: deployed_service.id, reverse=True)[:limit]
 
 
 class AbstractServiceTokenRepository(abc.ABC):

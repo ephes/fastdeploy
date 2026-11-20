@@ -425,7 +425,17 @@ name/message fields keep each response below the frontend's 1 MiB body limit.
 **Purpose**: List deployed services for service discovery
 **Authentication**: Config token required
 
-Rows are ordered by descending deployed-service ID.
+Rows are ordered by descending deployed-service ID. Omitting both query
+parameters returns the full inventory as a JSON array.
+
+- `limit`: 1–200 rows. Start a paged read with, for example, `?limit=50`.
+- `before_id`: exclusive cursor (1–2147483647). Pass the last row's `id`
+  and repeat the same `limit`. A request with only `before_id` returns at
+  most 50 rows.
+
+Use the deployed-service `id` for the cursor. Multiple rows can share a
+`deployment_id`. A short or empty page means the inventory is exhausted at
+the time of the read. Newer rows appear when traversal starts again.
 
 **Response**:
 ```json

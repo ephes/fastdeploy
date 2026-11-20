@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from ... import views
@@ -22,9 +22,13 @@ class DeployedService(BaseModel):
 
 
 @router.get("/")
-async def list_deployed_services(bus: Bus = Depends()) -> list[DeployedService]:
-    """
-    Get a list of all deployed services.
-    """
-    deployed_services_from_db = await views.all_deployed_services(bus.uow)
+async def list_deployed_services(
+    bus: Bus = Depends(),
+    limit: int | None = Query(None, ge=1, le=200),
+    before_id: int | None = Query(None, ge=1, le=2**31 - 1),
+) -> list[DeployedService]:
+    """List deployed services by descending ID, with optional cursor pagination."""
+    if before_id is not None and limit is None:
+        limit = 50
+    deployed_services_from_db = await views.all_deployed_services(bus.uow, limit=limit, before_id=before_id)
     return [DeployedService(**d.model_dump()) for d in deployed_services_from_db]

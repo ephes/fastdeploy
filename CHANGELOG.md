@@ -5,6 +5,10 @@ Unreleased
 - `GET /steps/` now returns at most 25 steps per request (newest first) instead of the whole
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
+### Added
+- Opt-in cursor pagination for `GET /deployed-services/` with `limit` and `before_id`.
+  Requests without either parameter continue to return the full JSON array.
+
 ### Fixed
 - Order the deployed-service inventory by descending deployed-service ID.
 - Clear the message bus queue when dispatch ends, releasing queued follow-ups
