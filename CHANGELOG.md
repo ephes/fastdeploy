@@ -10,6 +10,10 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Match SQLAlchemy missing-step lookups in memory and keep step cursor IDs stable across deletions and re-adds.
+- Keep in-memory service IDs unique across deletions and replace services by stored ID.
+- Exclude checkout-local vault password files from the Mac mini source sync.
+- Restart the Mac mini FastDeploy service after successful source or environment changes.
 - Keep the deployment history window and load-more capacity scoped to the selected service.
 - Honor a WebSocket deletion received before the deployment start response arrives.
 - Ignore step deletions that conflict with the cached deployment owner of the step.

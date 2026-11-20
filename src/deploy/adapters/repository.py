@@ -94,16 +94,21 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
 class InMemoryServiceRepository(AbstractServiceRepository):
     def __init__(self) -> None:
         self._services: list[model.Service] = []
+        self._next_id = 1
         super().__init__()
 
-    async def _add(self, service):
+    async def _add(self, service: model.Service) -> None:
         if service.id is None:
-            # insert
+            service.id = self._next_id
+            self._next_id += 1
             self._services.append(service)
-            service.id = len(self._services)
-        else:
-            # update
-            self._services[service.id - 1] = service
+            return
+
+        for index, existing in enumerate(self._services):
+            if existing.id == service.id:
+                self._services[index] = service
+                return
+        raise NoResultFound("Service not found")
 
     async def get(self, service_id):
         for service in self._services:
@@ -551,14 +556,31 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
 class InMemoryStepRepository(AbstractStepRepository):
     def __init__(self) -> None:
         self._steps: list[model.Step] = []
+        self._next_id = 1
         super().__init__()
 
-    async def _add(self, step):
-        self._steps.append(step)
-        step.id = len(self._steps)
+    async def _add(self, step: model.Step) -> None:
+        if step.id is None:
+            step.id = self._next_id
+            self._next_id += 1
+            self._steps.append(step)
+            return
 
-    async def get(self, step_id):
-        return next(s for s in self._steps if s.id == step_id)
+        # Re-adding a stored step (as process_step does) keeps its row and ID,
+        # like SQLAlchemy's session.add of a persistent object.
+        for index, existing in enumerate(self._steps):
+            if existing.id == step.id:
+                self._steps[index] = step
+                return
+        # An explicit new ID is inserted as given, like an explicit SQL insert.
+        self._steps.append(step)
+        self._next_id = max(self._next_id, step.id + 1)
+
+    async def get(self, step_id: int) -> model.Step:
+        for step in self._steps:
+            if step.id == step_id:
+                return step
+        raise NoResultFound("Step not found")
 
     async def list(self):
         return list(self._steps)
