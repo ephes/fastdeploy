@@ -155,6 +155,20 @@ python commands.py purgeservicetokens
 python commands.py purgeservicetokens --older-than-days 7
 ```
 
+## upgrade-history-indexes
+
+Installs the cursor indexes `step (deployment_id, id)` and
+`deployment (service_id, id)` on an existing database. Fresh databases get them
+from the schema; `create_all` does not add indexes to tables that already exist,
+and the serving process never runs this upgrade. Run it once after upgrading an
+existing installation, with the target `DATABASE_URL` and a role that may create
+indexes on these tables. It is safe to run again. Building an index can block
+writes to its table, so schedule it in a maintenance window.
+
+```shell
+uv run python commands.py upgrade-history-indexes
+```
+
 ## createuser
 
 Creates a new user in the system. Username and password can be set via environment variables (useful for automation with Ansible) or interactively via the command line.
