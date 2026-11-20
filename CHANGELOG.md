@@ -6,6 +6,7 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Keep one API destination watcher per auth store across reset and recreation.
 - Limit reconnect step inventory refreshes to four at a time and retire queued
   work on logout or socket replacement.
 - Track step events only in pending snapshots of their own deployment.

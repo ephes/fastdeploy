@@ -1,3 +1,4 @@
+import { getActivePinia } from 'pinia';
 import { vi } from 'vitest';
 import { initPinia } from './conftest';
 import { useAuth } from '../src/stores/auth';
@@ -74,4 +75,26 @@ it('uses the new API for the next login form after settings change', async () =>
   await auth.login();
   expect(fetch.mock.calls[0][0]).toBe(`${B}/token`);
   expect(auth.accessToken).toBe('token-for-b');
+});
+
+it.each([0, 2])('retires only the recreated auth store after %i resets', (resets) => {
+  const pinia = getActivePinia()!;
+  const settings = useSettings(pinia);
+  const original = useAuth(pinia);
+  const beforeDisposal = original.sessionId;
+  original.$dispose();
+  settings.developmentApi = B;
+  expect(original.sessionId).toBe(beforeDisposal);
+
+  // Pinia keeps the state entry on disposal.
+  const current = useAuth(pinia);
+  for (let count = 0; count < resets; count++) current.$reset();
+  current.accessToken = 'current-token';
+  const beforeChange = current.sessionId;
+  initPinia();
+  const unrelated = useAuth();
+  settings.developmentApi = A;
+  expect(current.sessionId).toBe(beforeChange + 1);
+  expect(current.accessToken).toBeNull();
+  expect(unrelated.sessionId).toBe(0);
 });
