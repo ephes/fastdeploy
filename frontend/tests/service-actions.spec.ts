@@ -12,8 +12,9 @@ vi.mock('vue-router', () => ({ useRouter: () => ({ push, currentRoute: { value: 
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>(yes => { resolve = yes; });
-  return { promise, resolve };
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
 }
 function action(wrapper: any, kind: 'Deploy' | 'Delete', name: string) {
   const row = wrapper.findAll('tr.list-service').find((candidate: any) => candidate.find('td').text() === name)!;
@@ -151,4 +152,46 @@ it.each([{ service_id: 2 }, { id: 0 }, { started: 'invalid' }, { finished: false
   expect(useDeployments().deployments).toEqual({});
   expect(wrapper.get('[role="alert"]').text()).toContain('history before retrying');
   wrapper.unmount();
+});
+
+it.each(['newer refusal', 'newer success', 'socket deletion'])('drops an old delete refusal after %s', async outcome => {
+  const store = useServices();
+  store.services[1] = { id: 1, name: 'first', data: {} };
+  const old = deferred<unknown>();
+  const newer = deferred<unknown>();
+  store.client.delete = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(newer.promise);
+  const first = store.deleteService(1);
+  if (outcome === 'socket deletion') {
+    store.onMessage({ type: 'service', id: 1, deleted: true } as any);
+  } else {
+    const second = store.deleteService(1);
+    if (outcome === 'newer success') newer.resolve(null);
+    else newer.reject({ response: { status: 404 } });
+    await second;
+  }
+  old.reject({ response: { status: 409 } });
+  await expect(first).resolves.toBe(false);
+  expect(store.deleteErrors[1]).toBe(
+    outcome === 'newer refusal' ? 'This service no longer exists. Refresh services.' : undefined,
+  );
+});
+
+it('reconciles an older confirmed deletion with a pending snapshot and a newer refusal', async () => {
+  const store = useServices();
+  const row = { id: 1, name: 'first', data: {} };
+  store.services[1] = row;
+  const snapshot = deferred<unknown>();
+  const old = deferred<unknown>();
+  store.client.get = vi.fn().mockReturnValue(snapshot.promise);
+  store.client.delete = vi.fn().mockReturnValueOnce(old.promise).mockRejectedValueOnce({ response: { status: 404 } });
+  const refresh = store.fetchServices();
+  const first = store.deleteService(1);
+  await expect(store.deleteService(1)).resolves.toBe(false);
+  expect(store.deleteErrors[1]).toContain('no longer exists');
+  old.resolve(null);
+  await expect(first).resolves.toBe(true);
+  expect(store.deleteErrors[1]).toBeUndefined();
+  snapshot.resolve([row]);
+  await refresh;
+  expect(store.services[1]).toBeUndefined();
 });

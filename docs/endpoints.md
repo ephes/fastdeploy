@@ -159,6 +159,10 @@ sync: orphaned deployments and deployments older than the deployment token lifet
 The check takes the same service lock as a deployment start, so a delete that races with a start
 waits for it and is then refused. Retry after the deployment has finished.
 
+The web frontend shows a deletion error only for the latest attempt on that
+service in the current login session. An HTTP confirmation or WebSocket deletion
+clears the row and its error and prevents an in-flight refresh from restoring it.
+
 ## Deployment Endpoints
 
 ### POST /deployments/
