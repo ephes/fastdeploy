@@ -759,6 +759,11 @@ before JSON decoding, so whitespace or escapes cannot hide size). Oversize or ti
 abort the pending request and preserve the last good rows and their completeness.
 Retry starts a fresh traversal; no partial inventory is published.
 
+A history page reconciles membership in one set before publishing the updated
+IDs. WebSocket changes and acknowledged starts during the request protect cached
+rows, and the cursor follows the server page even when a deletion hides its last
+row.
+
 Browser history retains a window of at most 200 displayed deployments. Further
 load-more requests show a limit message; refresh or select a service to start a new
 window. Up to 100 additional inactive deployment histories and 100 unpinned step
