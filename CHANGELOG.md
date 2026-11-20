@@ -6,6 +6,13 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Select the highest deployment ID when successful deployment start times tie,
+  including legacy records without a start time.
+- Read only the service ID before orphan cleanup takes its locks. Load steps once
+  the deployment is locked and ready for an eligibility recheck.
+- Index step cursor pages by deployment and ID, and deployment cursor pages by
+  service and ID. Existing databases can install both indexes with
+  `uv run python commands.py upgrade-history-indexes`.
 - Offer force sync only for a valid deletion-count refusal.
 - Discard superseded service deletion errors and clear them on confirmed removal.
 - Cancel HTTP response bodies that arrive after their session or API destination retires.

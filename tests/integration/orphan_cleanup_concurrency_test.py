@@ -10,6 +10,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -129,3 +130,52 @@ async def test_finish_waits_for_cleanup_and_keeps_failure(database, publisher, s
         ("deployment orphaned", "failure"),
         ("done", "success"),
     ]
+
+
+async def test_cleanup_projects_owner_and_rechecks_steps_after_service_lock(independent_bus, monkeypatch):
+    writer = await independent_bus()
+    lock_holder = await independent_bus()
+    cleanup = await independent_bus()
+    deployment_id = await add_orphan(writer)
+    deployment, _ = await load(writer, deployment_id)
+    old = deployment.started
+    async with writer.uow as uow:
+        for number in range(1000):
+            await uow.steps.add(
+                model.Step(
+                    name=f"step-{number}", deployment_id=deployment_id, state="success", started=old, finished=old
+                )
+            )
+        await uow.commit()
+
+    statements = []
+
+    @event.listens_for(cleanup.uow.engine.sync_engine, "before_cursor_execute")
+    def record_queries(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(" ".join(statement.split()))
+
+    pre_lock_statements = asyncio.get_running_loop().create_future()
+    original_lock = repository.SqlAlchemyServiceRepository.lock_for_deployment
+
+    async def observe_lock(repo, service_id):
+        pre_lock_statements.set_result(tuple(statements))
+        await original_lock(repo, service_id)
+
+    monkeypatch.setattr(repository.SqlAlchemyServiceRepository, "lock_for_deployment", observe_lock)
+    command = commands.FinishOrphanedDeployment(deployment_id=deployment_id)
+    async with asyncio.TaskGroup() as tasks, lock_holder.uow as holder:
+        await original_lock(holder.services, deployment.service_id)
+        result = tasks.create_task(asyncio.wait_for(cleanup.handle(command), timeout=10))
+        (owner_query,) = await asyncio.wait_for(pre_lock_statements, timeout=5)
+        assert owner_query.startswith("SELECT deployment.service_id FROM deployment ")
+        async with writer.uow as uow:
+            await uow.deployments.get_for_update(deployment_id)
+            await uow.steps.add(model.Step(name="new report", deployment_id=deployment_id, state="running"))
+            await uow.commit()
+
+    assert result.result() is False
+    assert sum(" FROM step " in statement for statement in statements) == 1
+    deployment, steps = await load(writer, deployment_id)
+    assert deployment.finished is None
+    assert len(steps) == 1002
+    assert any(step.name == "new report" and step.state == "running" for step in steps)

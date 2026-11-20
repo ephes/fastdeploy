@@ -224,7 +224,10 @@ admission and do not launch a task or publish a deployment start.
 **Start order**: the service definition is loaded after taking the service row lock.
 Planning and launch use that snapshot, so a service sync committed before the lock
 is acquired supplies the current script and configuration. The lock stays held
-through admission. The deployment and its planned steps are committed in one transaction before the
+through admission. When reusing a previous successful deployment's step names,
+the latest recorded start wins. Deployments without a recorded start sort last.
+For equal timestamps or multiple missing start times, the highest deployment ID
+wins. The deployment and its planned steps are committed in one transaction before the
 detached deploy task is started, so a task that reports its first step immediately finds the planned
 steps. If the deploy task cannot be started, the deployment is finished as failed at once: its planned
 steps are removed and a step named `deployment launch failed` with state `failure` records the error
@@ -259,7 +262,9 @@ row, so a deploy task that finishes or reports a step at the same time is never 
 orphaned deployments first. One candidate query filters unfinished deployments
 using all step activity and open states before applying the batch limit, without
 loading the full unfinished history or querying activity once per deployment.
-Each candidate is still checked under its existing service/deployment locks.
+For each candidate, cleanup reads only the owning service ID before locking the
+service and then the deployment. It loads the current steps under those locks
+to recheck eligibility and skips deployments deleted in the meantime.
 Repeated history requests drain a stable eligible backlog; recent/running rows do
 not block older candidates. The returned history page keeps its requested size,
 order and cursor regardless of the maintenance batch. Detail reads still reconcile
