@@ -59,3 +59,28 @@ async def test_memory_step_cursor_keeps_each_retained_id_after_delete() -> None:
     assert [step.name for step in second_page] == ["retained"]
     assert second_page[0].id == retained_id
     assert await repo.page_by_deployment(1, limit=1, before_id=retained_id) == []
+
+
+async def test_memory_step_readd_keeps_id_and_single_row() -> None:
+    repo = repository.InMemoryStepRepository()
+    first = Step(name="first", deployment_id=1)
+    second = Step(name="second", deployment_id=1)
+    await repo.add(first)
+    await repo.add(second)
+    first_id, second_id = first.id, second.id
+
+    # process_step re-adds steps that are already stored.
+    first.state = "running"
+    await repo.add(first)
+    await repo.add(second)
+
+    assert (first.id, second.id) == (first_id, second_id)
+    assert await repo.list() == [first, second]
+    first_page = await repo.page_by_deployment(1, limit=1)
+    assert first_page == [second]
+    assert await repo.page_by_deployment(1, limit=1, before_id=second_id) == [first]
+    assert await repo.page_by_deployment(1, limit=1, before_id=first_id) == []
+
+    added = Step(name="added", deployment_id=1)
+    await repo.add(added)
+    assert added.id > second_id

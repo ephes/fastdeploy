@@ -560,9 +560,21 @@ class InMemoryStepRepository(AbstractStepRepository):
         super().__init__()
 
     async def _add(self, step: model.Step) -> None:
-        step.id = self._next_id
-        self._next_id += 1
+        if step.id is None:
+            step.id = self._next_id
+            self._next_id += 1
+            self._steps.append(step)
+            return
+
+        # Re-adding a stored step (as process_step does) keeps its row and ID,
+        # like SQLAlchemy's session.add of a persistent object.
+        for index, existing in enumerate(self._steps):
+            if existing.id == step.id:
+                self._steps[index] = step
+                return
+        # An explicit new ID is inserted as given, like an explicit SQL insert.
         self._steps.append(step)
+        self._next_id = max(self._next_id, step.id + 1)
 
     async def get(self, step_id: int) -> model.Step:
         for step in self._steps:

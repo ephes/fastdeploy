@@ -214,8 +214,9 @@ Adding a service with an existing ID replaces that row in place and preserves
 list order. Adding a service with an unknown explicit ID raises `NoResultFound`.
 
 Both step repositories raise `NoResultFound` for a missing step ID. The
-in-memory step repository assigns increasing IDs across deletions so descending
-`before_id` pages continue to visit each retained step once.
+in-memory step repository assigns increasing IDs across deletions and keeps the
+row and ID of a stored step that is added again, as step progress reports do, so
+descending `before_id` pages continue to visit each retained step once.
 
 ### Unit of Work Pattern
 
