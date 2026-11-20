@@ -384,6 +384,10 @@ The service detail clears token feedback and discards outstanding token results
 when the route changes or the selected service disappears or changes identity.
 Updates to the same service ID and name keep the token form and result.
 
+A deployment start sends its service token in the Authorization header of
+`POST /deployments/`. Later requests on the same HTTP client use its original
+authentication defaults.
+
 ### REST snapshot admission
 
 Deployment history validates every row before modifying cached data or paging
