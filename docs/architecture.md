@@ -692,6 +692,8 @@ A persisted step id identifies one lifecycle: pending → running → success/fa
 The client rejects regressions from terminal state and keeps deletion tombstones
 until history eviction or session reset, across both WebSocket events and REST refreshes. A legitimate
 rerun creates a fresh step id (possibly with the same name); ids are never reused.
+Deletion events must agree with the deployment recorded by any cached step or tombstone.
+A conflicting event leaves both inventories and any pending refresh unchanged.
 Scroll metadata retains only the five most recent steps observed running, including
 their completions, so the fifth entry remains the scroll target. Deletion removes
 a candidate; terminal/deleted deployment events retire this metadata for that

@@ -168,6 +168,30 @@ describe("Step lifecycle and scroll bounds", () => {
 describe("Step inventory pages", () => {
   beforeEach(() => initPinia());
   const row = (id: number) => ({ ...apiStep, id });
+
+  it("rejects a deletion for a step owned by another deployment before changing either inventory", async () => {
+    const store = useSteps();
+    store.addStep({ ...step, state: "running" });
+    const original = store.steps[step.id];
+    let respond!: (rows: unknown) => void;
+    store.client = { get: () => new Promise(resolve => { respond = resolve; }) } as any;
+    const unrelated = store.fetchStepsFromDeployment(2);
+    const [changes] = store.pendingFetches[2]!;
+
+    const conflictingDelete: Step = { ...step, deploymentId: 2, deleted: true };
+    store.onMessage(conflictingDelete);
+    respond([]);
+    await unrelated;
+
+    expect(store.steps[step.id]).toBe(original);
+    expect(store.stepsByDeployment[1][step.id]).toBe(original);
+    expect(store.stepCounts).toEqual({ 1: 1 });
+    expect(store.stepsInProgressByDeployment[1]).toEqual([original]);
+    expect(store.deletedSteps).toEqual({});
+    expect(store.deletedByDeployment).toEqual({});
+    expect(changes.has(step.id)).toBe(false);
+  });
+
   it("stages pages until completion and preserves events across boundaries", async () => {
     const store = useSteps();
     store.addStep({ ...step, id: 99 });
