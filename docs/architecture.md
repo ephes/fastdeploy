@@ -373,6 +373,13 @@ sets the fixed protocol error and retires the connection without logout or retry
 Response contents never enter parser diagnostics. HTTP byte/deadline limits and
 session/generation ownership checks still apply.
 
+### Service view mutations
+
+A service deletion stays pending in the service store until its request settles.
+Remounting the list keeps the delete button disabled for that service. A WebSocket
+deletion removes the row immediately and retires the request's row and error
+updates.
+
 ### REST snapshot admission
 
 Deployment history validates every row before modifying cached data or paging

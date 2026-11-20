@@ -12,19 +12,13 @@ const deploymentStore = useDeployments();
 const router = useRouter();
 let viewActive = true;
 onBeforeUnmount(() => { viewActive = false; });
-const pendingDeletes = reactive<Record<number, boolean>>({});
 const pendingStarts = reactive<Record<number, boolean>>({});
 const startErrors = reactive<Record<number, string>>({});
 
 async function deleteService(id: number, name: string) {
-  if (pendingDeletes[id]) return;
+  if (serviceStore.pendingDeletes.has(id)) return;
   if (!window.confirm(`Delete service "${name}" and its deployment history?`)) return;
-  pendingDeletes[id] = true;
-  try {
-    await serviceStore.deleteService(id);
-  } finally {
-    delete pendingDeletes[id];
-  }
+  await serviceStore.deleteService(id);
 }
 
 async function forceSync() {
@@ -122,8 +116,8 @@ async function startDeployment(id: number, serviceName: string) {
           <p v-if="startErrors[service.id]" role="alert">{{ startErrors[service.id] }}</p>
         </td>
         <td>
-          <button :aria-label="`Delete ${service.name}`" :disabled="pendingDeletes[service.id]"
-            @click="deleteService(service.id, service.name)">{{ pendingDeletes[service.id] ? 'Deleting…' : 'delete' }}</button>
+          <button :aria-label="`Delete ${service.name}`" :disabled="serviceStore.pendingDeletes.has(service.id)"
+            @click="deleteService(service.id, service.name)">{{ serviceStore.pendingDeletes.has(service.id) ? 'Deleting…' : 'delete' }}</button>
           <p v-if="serviceStore.deleteErrors[service.id]" role="alert">{{ serviceStore.deleteErrors[service.id] }}</p>
         </td>
       </tr>
