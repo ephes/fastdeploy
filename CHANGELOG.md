@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Bound frontend REST buffering by response bytes even when the stream arrives in tiny fragments.
+- Retire the session and close its websocket on auth-store reset, and ignore pending login results.
 - Match SQLAlchemy missing-step lookups in memory and keep step cursor IDs stable across deletions and re-adds.
 - Keep in-memory service IDs unique across deletions and replace services by stored ID.
 - Exclude checkout-local vault password files from the Mac mini source sync.

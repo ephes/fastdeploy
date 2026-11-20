@@ -287,6 +287,33 @@ describe("Logout", () => {
     expect(socket.sent.length).toBe(1);
   });
 
+  it("retires the active session and closes its websocket once on auth reset", async () => {
+    const { authStore, socket } = await aliceSession();
+    const sessionId = authStore.sessionId;
+    const oldClient = getClient();
+    authStore.router = { push: routerPush };
+    authStore.errorMessage = "previous error";
+
+    authStore.$reset();
+
+    expect(socket.closeCalls).toBe(1);
+    expect(authStore.websocketClient).toBe(null);
+    expect(authStore.sessionId).toBeGreaterThan(sessionId);
+    expect(authStore.accessToken).toBe(null);
+    expect(authStore.username).toBe("");
+    expect(authStore.errorMessage).toBe(null);
+    expect(authStore.router).toBe(null);
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(useDeployments().deployments).toStrictEqual({});
+    expect(useServices().client.options.headers.Authorization).toBeUndefined();
+    await expect(oldClient.get('services/')).rejects.toThrow(/session changed/i);
+
+    authStore.$reset();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(socket.closeCalls).toBe(1);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
   it("does not reconnect with the old token when the socket dropped just before logout", async () => {
     const { authStore, socket } = await aliceSession();
     // the reconnect loop of the old client is now waiting on its timer

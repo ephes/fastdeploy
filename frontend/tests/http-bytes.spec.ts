@@ -26,3 +26,49 @@ it('admits exactly the byte limit, preserves bounded error JSON, and auth header
   expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer synthetic');
   await expect(client.get('services/')).rejects.toMatchObject({ response: { status: 409 }, body: { detail: 'refused' } });
 });
+
+it('copies tiny fragments into a bounded number of buffers as they arrive', async () => {
+  const payload = 'déploy 🚀 '.repeat(512);
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const fragments = new WeakSet<Uint8Array>();
+  const buffers = new Set<Uint8Array>();
+  const set = Uint8Array.prototype.set;
+  let copied = 0;
+  let copiedBeforeClose = 0;
+  const copy = vi.spyOn(Uint8Array.prototype, 'set').mockImplementation(function (
+    this: Uint8Array, source: ArrayLike<number>, offset?: number,
+  ) {
+    if (source instanceof Uint8Array && fragments.has(source)) {
+      buffers.add(this);
+      copied += source.byteLength;
+    }
+    set.call(this, source, offset);
+  });
+  let offset = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      if (offset === bytes.length) {
+        copiedBeforeClose = copied;
+        controller.close();
+        return;
+      }
+      const fragment = bytes.subarray(offset, offset + 1);
+      offset++;
+      fragments.add(fragment);
+      controller.enqueue(fragment);
+    },
+  }, { highWaterMark: 0 });
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(new Response(body))
+    .mockResolvedValueOnce(new Response(bytes)));
+
+  try {
+    const client = getClientWithoutAuth();
+    expect(await client.get<string>('deployments/')).toBe(payload);
+    expect(await client.get<string>('deployments/')).toBe(payload);
+    expect(copiedBeforeClose).toBe(bytes.length);
+    expect(buffers.size).toBeLessThanOrEqual(Math.ceil(Math.log2(bytes.length)) + 1);
+  } finally {
+    copy.mockRestore();
+  }
+});

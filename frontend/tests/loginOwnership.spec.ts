@@ -72,3 +72,25 @@ it.each(["logout", "empty submission"])("invalidates pending attempts on %s", as
   expect(auth.accessToken).toBe(null);
   expect(auth.errorMessage).toBe(error);
 });
+
+it.each([true, false])("reset keeps a pending login retired (success: %s)", async success => {
+  const { auth, a, b, client } = attemptSetup();
+  const first = auth.login();
+
+  auth.$reset();
+  auth.client = client as any;
+  auth.username = "next-user";
+  auth.password = "second-password";
+  const second = auth.login();
+
+  settle(a, success, "stale");
+  await first;
+  expect(auth.accessToken).toBe(null);
+  expect(auth.errorMessage).toBe(null);
+  expect(auth.password).toBe("second-password");
+  expect(auth.onLoginSuccess).not.toHaveBeenCalled();
+
+  b.resolve({ access_token: "newer" });
+  await second;
+  expect(auth.accessToken).toBe("newer");
+});

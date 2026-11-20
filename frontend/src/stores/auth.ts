@@ -49,7 +49,13 @@ export const useAuth = defineStore("auth", () => {
 
   const actions = {
     $reset(): void {
-      useAuth(pinia).$patch(state => { Object.assign(state, initialState()); });
+      const auth = useAuth(pinia);
+      auth.$patch(state => {
+        auth.endSession();
+        state.username = "";
+        state.errorMessage = null;
+        state.router = null;
+      });
     },
     /**
      * Support for hot module reloading.
