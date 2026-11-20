@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections import deque
 from unittest.mock import Mock
+from weakref import ReferenceType, ref
 
 import pytest
 
@@ -291,11 +292,15 @@ async def test_overlapping_handle_refused_and_ownership_released(ending, wrapped
     source = EventSource()
     entered, resume = asyncio.Event(), asyncio.Event()
     calls = []
+    queued_followup: ReferenceType[Followup] | None = None
 
     async def command_handler(command):
+        nonlocal queued_followup
         calls.append(command.label)
         if command.label == "initial":
-            source.publish(Followup(label="first"), Followup(label="second"))
+            followup = Followup(label="second")
+            queued_followup = ref(followup)
+            source.publish(Followup(label="first"), followup)
         return command.label
 
     async def handler(event):
@@ -323,6 +328,7 @@ async def test_overlapping_handle_refused_and_ownership_released(ending, wrapped
     if ending == "cancel":
         assert isinstance(results[0], asyncio.CancelledError)
         assert calls == ["initial", "first"]
+        assert queued_followup is not None and queued_followup() is None
     else:
         assert results == ["initial"]
         assert calls == ["initial", "first", "second"]

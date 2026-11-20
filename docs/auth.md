@@ -243,6 +243,9 @@ operations per API process, independently of address/username throttling. Satura
 returns 429 with `Retry-After: 1` immediately, without queuing a hash or recording a
 password failure. Cancellation holds capacity until any running hash thread exits.
 Cancelled attempts remain counted under the existing failed-login policy.
+After dependency cleanup the process-wide slot is released even if discarding a
+pending login reservation raises. Any original dependency error remains in the
+cleanup error's exception chain.
 With multiple API processes each process has its own capacity and attempt counters.
 
 Login rechecks the persisted user id and password hash after password verification.

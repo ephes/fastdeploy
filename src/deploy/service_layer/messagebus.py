@@ -36,11 +36,11 @@ class MessageBus:
         """
         if self._handling:
             raise RuntimeError("Message bus is already handling a message")
+        self.queue: deque[Message] = deque([message])
         self._handling = True
         try:
             result = None
             initial = message
-            self.queue: deque[Message] = deque([message])
             while self.queue:
                 message = self.queue.popleft()
                 if isinstance(message, events.Event):
@@ -53,6 +53,7 @@ class MessageBus:
                     raise Exception(f"{message} was not an Event or Command")
             return result
         finally:
+            self.queue.clear()
             self._handling = False
 
     async def handle_event(self, event: events.Event):

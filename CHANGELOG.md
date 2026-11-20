@@ -6,6 +6,10 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Clear the message bus queue when dispatch ends, releasing queued follow-ups
+  after failure or cancellation.
+- Release process-wide login capacity even when cleanup of a pending reservation
+  fails, preserving the original dependency error in the exception chain.
 - Select the highest deployment ID when successful deployment start times tie,
   including legacy records without a start time.
 - Read only the service ID before orphan cleanup takes its locks. Load steps once
