@@ -91,8 +91,10 @@ export const getClientWithoutAuth = (
   isCurrent: () => boolean = () => useSettings().api === api,
 ): HttpClient => {
   const client = mande(api);
-  const checkDestination = () => {
-    if (!isCurrent()) throw new Error('API destination or login session changed. Log in again.');
+  const checkDestination = (response?: Response) => {
+    if (isCurrent()) return;
+    void response?.body?.cancel().catch(() => {});
+    throw new Error('API destination or login session changed. Log in again.');
   };
   for (const method of ["get", "delete", "post", "put", "patch"] as const) {
     const send = client[method].bind(client) as (...args: any[]) => Promise<unknown>;
@@ -112,10 +114,13 @@ export const getClientWithoutAuth = (
         try {
           response = await (reads ? send(url, boundedOptions) : send(url, data, boundedOptions)) as Response;
         } catch (error) {
-          checkDestination();
-          if (!(error instanceof Error) || !('response' in error)) throw error;
+          if (!(error instanceof Error) || !('response' in error)) {
+            checkDestination();
+            throw error;
+          }
           response = (error as Error & { response: Response }).response;
         }
+        checkDestination(response);
         const body = await decodeBounded(
           response, signal, options?.responseAs ?? client.options.responseAs ?? 'json', onBodyBytes,
         );

@@ -337,7 +337,9 @@ cannot expire activity in a later one.
 
 Every frontend HTTP call has a 30-second whole-request deadline, including response
 body reading and decoding. Success and error bodies additionally have a 1 MiB
-streamed-byte ceiling before JSON decoding. Content-Length only enables early
+streamed-byte ceiling before JSON decoding. When headers arrive for a retired
+session or destination, the client cancels the response body before reading it.
+It checks ownership again after decoding. Content-Length only enables early
 rejection; every chunk is counted even when the header is absent or incorrect.
 Overflow cancels the reader and raises a fixed, payload-free error. A private AbortController forwards caller cancellation
 to fetch. Both cancellation and deadline expiry settle the call even if the
