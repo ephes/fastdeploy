@@ -10,7 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from deploy import auth
 from deploy.bootstrap import get_bus
 from deploy.entrypoints.routers import users
-from deploy.login_throttle import LoginThrottle
+from deploy.login_throttle import Attempt, LoginThrottle
 
 pytestmark = pytest.mark.asyncio
 
@@ -38,9 +38,9 @@ def graph(monkeypatch):
     return app, acquisitions, capacity, throttle
 
 
-async def post(app):
+async def post(app, *, username: str = "synthetic"):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        return await client.post("/token", data={"username": "synthetic", "password": "invented"})
+        return await client.post("/token", data={"username": username, "password": "invented"})
 
 
 @pytest.mark.parametrize("reason", ["capacity", "throttle"])
@@ -94,6 +94,33 @@ async def test_acquisition_failure_releases_admission_without_counting_a_passwor
     assert capacity.acquire(blocking=False)
     capacity.release()
     assert throttle.retry_after("synthetic", "127.0.0.1") is None
+
+
+async def test_discard_failure_releases_login_capacity(graph, monkeypatch: pytest.MonkeyPatch) -> None:
+    app, acquisitions, _, throttle = graph
+    primary = RuntimeError("synthetic acquisition failure")
+    cleanup = RuntimeError("synthetic discard failure")
+
+    async def broken_bus() -> None:
+        raise primary
+
+    def broken_discard(attempt: Attempt) -> None:
+        assert attempt.pending
+        raise cleanup
+
+    with monkeypatch.context() as overrides:
+        overrides.setitem(app.dependency_overrides, get_bus, broken_bus)
+        overrides.setattr(throttle, "discard_attempt", broken_discard)
+        with pytest.raises(RuntimeError, match="synthetic discard failure") as raised:
+            await post(app)
+        assert raised.value is cleanup
+        assert raised.value.__context__ is primary
+
+    authenticate = AsyncMock(return_value=SimpleNamespace(name="next-user"))
+    monkeypatch.setattr(auth, "authenticate_user", authenticate)
+    response = await post(app, username="next-user")
+    assert response.status_code == 200
+    assert acquisitions == ["connect", "close"]
 
 
 @pytest.mark.parametrize("outcome", ["success", "failure", "backend"])

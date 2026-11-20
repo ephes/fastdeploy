@@ -58,9 +58,11 @@ async def admit_login(
         yield attempt
     finally:
         # A later dependency may fail/cancel before password work even starts.
-        if attempt is not None and attempt.pending:
-            login_throttle.discard_attempt(attempt)
-        login_capacity.release()
+        try:
+            if attempt is not None and attempt.pending:
+                login_throttle.discard_attempt(attempt)
+        finally:
+            login_capacity.release()
 
 
 async def admitted_login_bus(_attempt: Annotated[Attempt | None, Depends(admit_login)], bus: Bus = Depends()) -> Bus:
