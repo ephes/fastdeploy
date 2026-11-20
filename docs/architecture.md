@@ -667,6 +667,13 @@ bus construction failure. A supplied UOW stays owned by its caller. Request
 startup failure closes partial sessions/connections; lifespan startup failure
 disposes its engine. Cleanup does not replace the initiating failure.
 
+Fresh databases include an index on `step (deployment_id, id)` for descending
+step cursor pages. On an existing database, run
+`uv run python commands.py upgrade-history-indexes` with the target `DATABASE_URL`
+and schema privileges. The command can be run again safely. Schedule it during
+a maintenance window because building an index can block writes to its table.
+The serving process does not perform this upgrade.
+
 A UOW exit always attempts rollback. If a handler, commit or cancellation is
 already failing, an ordinary rollback failure is logged once as `uow_rollback_failed` with
 only its exception category (at most 100 characters); the initiating exception

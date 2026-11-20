@@ -3,12 +3,15 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     MetaData,
     String,
     Table,
 )
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import registry  # type: ignore
+from sqlalchemy.schema import CreateIndex
 
 from ..domain import model
 
@@ -59,6 +62,9 @@ steps = Table(
 )
 
 
+step_cursor_index = Index("ix_step_deployment_id_id", steps.c.deployment_id, steps.c.id)
+
+
 service_tokens = Table(
     "service_token",
     metadata_obj,
@@ -85,6 +91,10 @@ deployed_services = Table(
 async def create_db_and_tables(engine):
     async with engine.begin() as conn:
         await conn.run_sync(metadata_obj.create_all)
+
+
+def upgrade_history_indexes(conn: Connection) -> None:
+    conn.execute(CreateIndex(step_cursor_index, if_not_exists=True))
 
 
 MAPPERS_STARTED = False

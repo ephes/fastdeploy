@@ -34,8 +34,10 @@ import uvicorn  # noqa
 from rich import print as rprint  # noqa
 from rich.prompt import Prompt  # noqa
 from sqlalchemy.exc import NoResultFound  # noqa
+from sqlalchemy.ext.asyncio import create_async_engine  # noqa
 
 from deploy.adapters.filesystem import ServiceConfigError, working_directory  # noqa
+from deploy.adapters.orm import upgrade_history_indexes as create_history_indexes  # noqa
 from deploy.auth import ServiceTokenIssueRefused, get_password_hash, issue_service_token_for_existing  # noqa
 from deploy.bootstrap import get_bus_for_cli  # noqa
 from deploy.config import settings  # noqa
@@ -98,6 +100,21 @@ def createuser():
         rprint(f"failed to create user {username}")
         rprint(f"{e}")
         sys.exit(1)
+
+
+async def _upgrade_history_indexes() -> None:
+    engine = create_async_engine(settings.database_url)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(create_history_indexes)
+    finally:
+        await engine.dispose()
+
+
+@cli.command()
+def upgrade_history_indexes():
+    """Install cursor indexes on an existing fastDeploy database."""
+    asyncio.run(_upgrade_history_indexes())
 
 
 async def _syncservices(force: bool):

@@ -6,6 +6,8 @@ Unreleased
   deployment. API consumers must page with descending `before_id` until a short or empty page.
 
 ### Fixed
+- Index step cursor pages by deployment and ID. Existing databases can install
+  the index with `uv run python commands.py upgrade-history-indexes`.
 - Offer force sync only for a valid deletion-count refusal.
 - Discard superseded service deletion errors and clear them on confirmed removal.
 - Cancel HTTP response bodies that arrive after their session or API destination retires.
