@@ -1,4 +1,4 @@
-import { markRaw, watch } from "vue";
+import { computed, markRaw, reactive, toRefs, watch } from "vue";
 import { createWebsocketClient } from "../websocket";
 import { defineStore, acceptHMRUpdate, getActivePinia } from "pinia";
 import { WebsocketClient } from "../typings";
@@ -10,20 +10,21 @@ import { useServices } from "./service";
 import { useDeployments } from "./deployment";
 import { useWebsocketStore } from "./websocket";
 
-export const useAuth = defineStore("auth", {
-  state: () => {
-    const settings = useSettings();
-    const pinia = getActivePinia();
-    // A destination change retires pending logins as well as active sessions.
-    // Capture this Pinia instance; later callbacks must not use another app's stores.
-    watch(() => settings.api, () => useAuth(pinia).endSession(), { flush: "sync" });
+export const useAuth = defineStore("auth", () => {
+  const pinia = getActivePinia();
+  const settings = useSettings(pinia);
+  const createLoginClient = () => {
+    const api = settings.api;
+    return getClientWithoutAuth(api, () => settings.api === api);
+  };
+  const initialState = () => {
     return {
       accessToken: null as string | null,
       authenticatedApi: null as string | null,
       username: "" as string,
       password: "" as string,
       errorMessage: null as string | null,
-      client: getClientWithoutAuth(),
+      client: createLoginClient(),
       router: null as any,
       /**
        * Counts login sessions: incremented whenever one ends or a new
@@ -38,18 +39,18 @@ export const useAuth = defineStore("auth", {
        */
       websocketClient: null as WebsocketClient | null,
     };
-  },
-  getters: {
-    /**
-     * This is used by vue router to determine whether the user is logged in or not.
-     * @returns true if the user is logged in, false otherwise.
-     * @param state just the auth store state
-     */
-    isAuthenticated: (state) => {
-      return !!state.accessToken;
+  };
+  const state = reactive(initialState());
+  const isAuthenticated = computed(() => !!state.accessToken);
+
+  // The store's effect scope owns this watcher, including after recreation
+  // from retained state. A destination change retires pending logins too.
+  watch(() => settings.api, () => useAuth(pinia).endSession(), { flush: "sync" });
+
+  const actions = {
+    $reset(): void {
+      useAuth(pinia).$patch(state => { Object.assign(state, initialState()); });
     },
-  },
-  actions: {
     /**
      * Support for hot module reloading.
      * @param meta
@@ -64,21 +65,20 @@ export const useAuth = defineStore("auth", {
      * websocket connection.
      */
     async initWebsocketClient() {
-      const settings = useSettings();
-      if (this.websocketClient) {
-        this.websocketClient.dispose();
+      if (state.websocketClient) {
+        state.websocketClient.dispose();
       }
       const websocketClient = markRaw(createWebsocketClient());
-      this.websocketClient = websocketClient;
-      if (this.accessToken) {
+      state.websocketClient = websocketClient;
+      if (state.accessToken) {
         websocketClient.initWebsocketConnection(
           settings.websocket,
-          this.accessToken
+          state.accessToken
         );
       }
 
       // register store hooks for websocket events
-      const stores = [useSteps(), useServices(), useDeployments()];
+      const stores = [useSteps(pinia), useServices(pinia), useDeployments(pinia)];
       for (const store of stores) {
         websocketClient.registerStore(store);
       }
@@ -88,7 +88,7 @@ export const useAuth = defineStore("auth", {
      * of the stores to the authenticated client.
      */
     async setAuthenticatedClients() {
-      const stores = [useSteps(), useServices(), useDeployments()];
+      const stores = [useSteps(pinia), useServices(pinia), useDeployments(pinia)];
       const authenticatedClient = getClient();
       for (const store of stores) {
         store.client = authenticatedClient;
@@ -97,10 +97,10 @@ export const useAuth = defineStore("auth", {
     /**
      * Functions that have to be called after successful authentication
      */
-    async onLoginSuccess() {
-      await this.initWebsocketClient();
-      await this.setAuthenticatedClients();
-      const serviceStore = useServices();
+    async onLoginSuccess(): Promise<void> {
+      await useAuth(pinia).initWebsocketClient();
+      await useAuth(pinia).setAuthenticatedClients();
+      const serviceStore = useServices(pinia);
       serviceStore.fetchServices();
       serviceStore.fetchServiceNames();
     },
@@ -113,20 +113,20 @@ export const useAuth = defineStore("auth", {
      * 401, so we just show a generic message.
      */
     async login() {
-      const attemptId = ++this.loginAttemptId;
-      const api = useSettings().api;
-      this.errorMessage = null;
-      if (!this.username || !this.password) {
-        this.errorMessage = "Please enter a username and password";
+      const attemptId = ++state.loginAttemptId;
+      const api = settings.api;
+      state.errorMessage = null;
+      if (!state.username || !state.password) {
+        state.errorMessage = "Please enter a username and password";
         return;
       }
       let formData = new FormData();
-      formData.append("username", this.username);
-      formData.append("password", this.password);
+      formData.append("username", state.username);
+      formData.append("password", state.password);
       const body =
         "grant_type=password&" +
         new URLSearchParams(formData as any).toString();
-      const client = this.client;
+      const client = state.client;
       const options: any = {
         body,
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -134,31 +134,31 @@ export const useAuth = defineStore("auth", {
       await client
         .post<{ access_token: string }>("/token", undefined, options)
         .then((response) => {
-          if (this.loginAttemptId !== attemptId || useSettings().api !== api) {
+          if (state.loginAttemptId !== attemptId || settings.api !== api) {
             // a logout or another login happened meanwhile: this
             // response belongs to an attempt that is over
             return;
           }
           // whatever a previous session left behind goes first
-          this.endSession();
-          this.authenticatedApi = api;
-          this.accessToken = response.access_token;
-          if (this.isAuthenticated) {
-            this.onLoginSuccess();
+          useAuth(pinia).endSession();
+          state.authenticatedApi = api;
+          state.accessToken = response.access_token;
+          if (isAuthenticated.value) {
+            useAuth(pinia).onLoginSuccess();
           }
         })
         .catch((err) => {
-          if (this.loginAttemptId !== attemptId || useSettings().api !== api) {
+          if (state.loginAttemptId !== attemptId || settings.api !== api) {
             return;
           }
           if (err.response === undefined) {
-            this.errorMessage = err.message;
+            state.errorMessage = err.message;
           } else if (err.response.status === 401) {
-            this.errorMessage = "Invalid username or password";
+            state.errorMessage = "Invalid username or password";
           } else if (err.response.status === 429) {
-            this.errorMessage = "Too many failed login attempts, try again later";
+            state.errorMessage = "Too many failed login attempts, try again later";
           } else {
-            this.errorMessage = "Unknown error";
+            state.errorMessage = "Unknown error";
           }
         })
         .finally(() => {
@@ -177,18 +177,18 @@ export const useAuth = defineStore("auth", {
      * - requests still in flight will find a different sessionId and
      *   drop their response.
      */
-    endSession() {
-      this.loginAttemptId++;
-      this.sessionId++;
-      this.accessToken = null;
-      this.authenticatedApi = null;
-      this.password = "";
-      if (this.websocketClient) {
-        this.websocketClient.dispose();
-        this.websocketClient = null;
+    endSession(): void {
+      state.loginAttemptId++;
+      state.sessionId++;
+      state.accessToken = null;
+      state.authenticatedApi = null;
+      state.password = "";
+      if (state.websocketClient) {
+        state.websocketClient.dispose();
+        state.websocketClient = null;
       }
-      this.client = getClientWithoutAuth();
-      const stores = [useSteps(), useServices(), useDeployments(), useWebsocketStore()];
+      state.client = createLoginClient();
+      const stores = [useSteps(pinia), useServices(pinia), useDeployments(pinia), useWebsocketStore(pinia)];
       for (const store of stores) {
         store.$reset();
       }
@@ -197,11 +197,12 @@ export const useAuth = defineStore("auth", {
      * Log out: end the session and go to the login page.
      */
     logout() {
-      this.endSession();
-      this.errorMessage = null;
-      if (this.router) {
-        this.router.push("/login")
+      useAuth(pinia).endSession();
+      state.errorMessage = null;
+      if (state.router) {
+        state.router.push("/login")
       }
     },
-  },
+  };
+  return { ...toRefs(state), isAuthenticated, ...actions };
 });

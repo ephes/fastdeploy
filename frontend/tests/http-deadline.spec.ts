@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import { initPinia } from './conftest';
-import { getClientWithoutAuth } from '../src/stores/httpClient';
+import { getClient, getClientWithoutAuth, type BoundedOptions } from '../src/stores/httpClient';
+import { useAuth } from '../src/stores/auth';
 import { useServices } from '../src/stores/service';
 import { useSteps } from '../src/stores/step';
 
@@ -85,4 +86,23 @@ it('cleans resources on transport rejection', async () => {
   await expect(getClientWithoutAuth().get('services/', { signal: caller.signal })).rejects.toThrow('transport');
   expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it.each([200, 409])('cancels a response arriving after logout before reading its body (%i)', async status => {
+  let respond!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => { respond = resolve; })));
+  const cancel = vi.fn();
+  const onBodyBytes = vi.fn();
+  const options: BoundedOptions<"json"> = { onBodyBytes };
+  const pending = getClient().get('services/', options).catch(error => error);
+  useAuth().logout();
+  respond(new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array([123])); },
+    cancel,
+  }), { status }));
+
+  await vi.advanceTimersByTimeAsync(deadline);
+  expect(await pending).toMatchObject({ message: 'API destination or login session changed. Log in again.' });
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(onBodyBytes).not.toHaveBeenCalled();
 });

@@ -119,8 +119,11 @@ All additions, edits and deletions in a sync commit together. A database failure
 rolls back service changes and history cascades, and publishes no success events;
 a later request can retry the entire sync.
 
-The web frontend's sync button shows a refusal, including the services that would be deleted,
-and offers a "force sync" button that retries with `force=true` after a confirmation dialog.
+The web frontend shows the deletion-count refusal and offers **force sync** after
+a 409 response with a nonblank message, a positive safe integer total, and unique
+nonempty service names accounting for more than half and at most all of that total.
+Other conflicts show generic sync failure feedback. The force button retries with
+`force=true` after a confirmation dialog.
 Only the latest sync attempt in the current login session owns its success/refusal/error
 feedback. Starting another attempt retires earlier responses even if they finish later;
 it does not cancel or undo server-side work. Force confirmation remains required.
@@ -158,6 +161,10 @@ record:
 sync: orphaned deployments and deployments older than the deployment token lifetime do not block.
 The check takes the same service lock as a deployment start, so a delete that races with a start
 waits for it and is then refused. Retry after the deployment has finished.
+
+The web frontend shows a deletion error only for the latest attempt on that
+service in the current login session. An HTTP confirmation or WebSocket deletion
+clears the row and its error and prevents an in-flight refresh from restoring it.
 
 ## Deployment Endpoints
 

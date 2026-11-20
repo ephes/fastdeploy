@@ -1,19 +1,11 @@
 import { markRaw } from "vue";
 import { getClient } from "./httpClient";
-import { serviceSnapshot, serviceNamesSnapshot, serviceToken } from "../restAdmission";
+import { serviceSnapshot, serviceNamesSnapshot, serviceToken, syncRefusal, type SyncRefusal } from "../restAdmission";
 import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
 
-/**
- * Details of a services sync the backend refused (409 Conflict) because
- * it would delete all or most services. A forced sync overrides it.
- */
-export interface SyncRefusal {
-  message: string;
-  wouldDelete: string[];
-  total: number;
-}
+export type { SyncRefusal } from "../restAdmission";
 
 /**
  * This store is used to store information about services. And
@@ -36,6 +28,7 @@ export const useServices = defineStore("services", {
       servicesLoading: false,
       servicesError: "",
       deleteErrors: {} as Record<number, string>,
+      pendingDeletes: new Map<number, symbol>(),
       /**
        * Error message received from backend when trying to fetch
        * a service token.
@@ -131,12 +124,9 @@ export const useServices = defineStore("services", {
           return false;
         }
         const detail = err?.body?.detail;
-        if (err?.response?.status === 409 && detail && typeof detail === "object") {
-          this.syncRefusal = {
-            message: String(detail.message ?? "Services sync refused"),
-            wouldDelete: Array.isArray(detail.would_delete) ? detail.would_delete.map(String) : [],
-            total: Number(detail.total ?? 0),
-          };
+        if (err?.response?.status === 409) {
+          this.syncRefusal = syncRefusal(detail);
+          if (!this.syncRefusal) this.syncErrorMessage = "Services sync failed";
         } else {
           const reason = typeof detail === "string" ? detail : err?.message;
           this.syncErrorMessage = `Services sync failed${reason ? ": " + reason : ""}`;
@@ -147,15 +137,19 @@ export const useServices = defineStore("services", {
     /** Delete only the requested row after a confirmed current-session response. */
     async deleteService(serviceId: number): Promise<boolean> {
       const isCurrentSession = rememberSession();
+      const attempt = Symbol();
+      this.pendingDeletes.set(serviceId, attempt);
       delete this.deleteErrors[serviceId];
       try {
         await this.client.delete(`/services/${serviceId}`);
         if (!isCurrentSession()) return false;
         for (const pending of this.pendingFetches) pending.add(serviceId);
         delete this.services[serviceId];
+        this.pendingDeletes.delete(serviceId);
+        delete this.deleteErrors[serviceId];
         return true;
       } catch (error: any) {
-        if (isCurrentSession()) {
+        if (isCurrentSession() && this.pendingDeletes.get(serviceId) === attempt) {
           this.deleteErrors[serviceId] = error?.response?.status === 409
             ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
             : error?.response?.status === 404
@@ -163,6 +157,8 @@ export const useServices = defineStore("services", {
               : "Could not confirm deletion. Refresh services before retrying.";
         }
         return false;
+      } finally {
+        if (this.pendingDeletes.get(serviceId) === attempt) this.pendingDeletes.delete(serviceId);
       }
     },
     /**
@@ -273,6 +269,7 @@ export const useServices = defineStore("services", {
         for (const pending of this.pendingFetches) pending.add(service.id);
         if (service.deleted) {
           delete this.services[service.id];
+          this.pendingDeletes.delete(service.id);
           delete this.deleteErrors[service.id];
         } else {
           this.services[service.id] = service;
