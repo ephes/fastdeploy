@@ -349,6 +349,8 @@ streamed-byte ceiling before JSON decoding. When headers arrive for a retired
 session or destination, the client cancels the response body before reading it.
 It checks ownership again after decoding. Content-Length only enables early
 rejection; every chunk is counted even when the header is absent or incorrect.
+Chunks are copied as they arrive into one geometrically growing buffer capped at
+1 MiB. The client retains no list of fragments and decodes only the bytes received.
 Overflow cancels the reader and raises a fixed, payload-free error. A private AbortController forwards caller cancellation
 to fetch. Both cancellation and deadline expiry settle the call even if the
 transport ignores abort; timers and caller listeners are retired on every outcome.

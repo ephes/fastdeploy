@@ -32,21 +32,26 @@ async function decodeBounded(
   signal.addEventListener('abort', cancel, { once: true });
   try {
     if (Number(response.headers.get('Content-Length')) > MAX_RESPONSE_BYTES) throw overflow();
-    const chunks: Uint8Array[] = [];
+    let buffer = new Uint8Array(0);
     let length = 0;
     while (true) {
       signal.throwIfAborted();
       const { done, value } = await reader.read();
       signal.throwIfAborted();
       if (done) break;
-      length += value.byteLength;
-      if (length > MAX_RESPONSE_BYTES) throw overflow();
+      const nextLength = length + value.byteLength;
+      if (nextLength > MAX_RESPONSE_BYTES) throw overflow();
       onBodyBytes?.(value.byteLength);
-      chunks.push(value);
+      if (nextLength > buffer.length) {
+        const capacity = Math.min(MAX_RESPONSE_BYTES, Math.max(nextLength, buffer.length * 2));
+        const grown = new Uint8Array(capacity);
+        grown.set(buffer.subarray(0, length));
+        buffer = grown;
+      }
+      buffer.set(value, length);
+      length = nextLength;
     }
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const bytes = buffer.subarray(0, length);
     if (responseAs === 'response') return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
     const text = new TextDecoder().decode(bytes);
     if (responseAs === 'text') return text;
