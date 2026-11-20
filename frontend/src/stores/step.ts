@@ -202,8 +202,10 @@ export const useSteps = defineStore("steps", {
      *
      * @param step {Step} The step to delete
      */
-    deleteStep(step: Step) {
-      if (!this.retainDeployment(step.deploymentId)) return;
+    deleteStep(step: Step): boolean {
+      const owner = this.steps[step.id]?.deploymentId ?? this.deletedSteps[step.id];
+      if (owner !== undefined && owner !== step.deploymentId) return false;
+      if (!this.retainDeployment(step.deploymentId)) return false;
       if (!(step.id in this.deletedSteps)) {
         (this.deletedByDeployment[step.deploymentId] ??= []).push(step.id);
         this.deletedSteps[step.id] = step.deploymentId;
@@ -222,6 +224,7 @@ export const useSteps = defineStore("steps", {
         }
       }
       this.pruneHistory();
+      return true;
     },
     /**
      * Traverse bounded step pages and publish only a completed inventory.
@@ -248,7 +251,7 @@ export const useSteps = defineStore("steps", {
         }, INVENTORY_TIMEOUT_MS);
       });
       try {
-        this.inventoryComplete[deploymentId] = false;
+        this.inventoryComplete[deploymentId] ??= false;
         const steps: Step[] = [];
         let beforeId: number | null = null;
         let bytes = 0;
@@ -306,12 +309,9 @@ export const useSteps = defineStore("steps", {
       if (message.type === "step") {
         const step = message as Step;
         if (!step.deleted && !this.steps[step.id] && step.id <= (this.stepEventFloors[step.deploymentId] ?? 0)) return;
+        if (step.deleted && !this.deleteStep(step)) return;
         for (const changed of this.pendingFetches[step.deploymentId] ?? []) changed.add(step.id);
-        if (step.deleted) {
-          this.deleteStep(step);
-        } else {
-          this.addStep(step);
-        }
+        if (!step.deleted) this.addStep(step);
       }
       if (message.type === "deployment") {
         const deployment = message as Deployment;

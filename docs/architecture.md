@@ -450,6 +450,8 @@ Starting a deployment (`startDeployment`) converts the response of `POST /deploy
 deployment (camel case keys, dates) and treats it as the oldest state of that deployment: a row that the
 websocket or a list fetch already delivered is kept. It returns `null` when the session ended while it was
 waiting; the caller then does nothing (the deploy button does not navigate to the deployment).
+A WebSocket deletion received during the POST also takes precedence over its acknowledgement.
+The UI keeps the deployment removed and asks the user to check history before retrying.
 
 History hydration uses a per-request set of ids changed by websocket events, including deletions.
 Those ids are skipped when the older HTTP page arrives; the sets are discarded on completion.
@@ -459,6 +461,8 @@ Events older than the loaded cursor update the cache without appearing across an
 those rows become visible when their history page is requested.
 A refresh or service change increments a generation to invalidate the previous page request;
 logout additionally resets paging state and invalidates every response through the session guard.
+When replacing a filtered history page, the window retains intervening changes only for
+deployments belonging to the requested service, so other services cannot reduce its paging capacity.
 
 ## Deployment Architecture
 
@@ -688,6 +692,8 @@ A persisted step id identifies one lifecycle: pending → running → success/fa
 The client rejects regressions from terminal state and keeps deletion tombstones
 until history eviction or session reset, across both WebSocket events and REST refreshes. A legitimate
 rerun creates a fresh step id (possibly with the same name); ids are never reused.
+Deletion events must agree with the deployment recorded by any cached step or tombstone.
+A conflicting event leaves both inventories and any pending refresh unchanged.
 Scroll metadata retains only the five most recent steps observed running, including
 their completions, so the fifth entry remains the scroll target. Deletion removes
 a candidate; terminal/deleted deployment events retire this metadata for that
@@ -700,8 +706,9 @@ Step hydration reads descending id pages of 25 rows with an exclusive `before_id
 cursor. It stages and validates pages within the traversal budgets below before
 publishing or removing cached rows;
 a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or obsolete
-traversals leave the previous inventory intact and completion false. Session reset
-clears this state. One event fence spans the whole traversal, so intervening live
+traversals preserve the previous inventory and its completeness. The `fetching` counter
+tracks refreshes in progress. Eviction or session reset clears the retained inventory
+and its completeness. One event fence spans the whole traversal, so intervening live
 updates/deletions win even when their row appears on a later page. Terminal/deletion
 lifecycle guards also apply to subsequent completed REST traversals. The API checks
 deployment existence without loading its entire step collection. Internal runner and
@@ -721,7 +728,7 @@ never disposed by a non-owning request UoW.
 A complete step inventory is staged under one 30-second deadline, at most 1,000
 rows and 8 MiB of cumulative response bytes as received (counted per streamed chunk
 before JSON decoding, so whitespace or escapes cannot hide size). Oversize or timed-out traversals
-abort the pending request, retain the last good rows and leave completeness false.
+abort the pending request and preserve the last good rows and their completeness.
 Retry starts a fresh traversal; no partial inventory is published.
 
 Browser history retains a window of at most 200 displayed deployments. Further

@@ -168,6 +168,30 @@ describe("Step lifecycle and scroll bounds", () => {
 describe("Step inventory pages", () => {
   beforeEach(() => initPinia());
   const row = (id: number) => ({ ...apiStep, id });
+
+  it("rejects a deletion for a step owned by another deployment before changing either inventory", async () => {
+    const store = useSteps();
+    store.addStep({ ...step, state: "running" });
+    const original = store.steps[step.id];
+    let respond!: (rows: unknown) => void;
+    store.client = { get: () => new Promise(resolve => { respond = resolve; }) } as any;
+    const unrelated = store.fetchStepsFromDeployment(2);
+    const [changes] = store.pendingFetches[2]!;
+
+    const conflictingDelete: Step = { ...step, deploymentId: 2, deleted: true };
+    store.onMessage(conflictingDelete);
+    respond([]);
+    await unrelated;
+
+    expect(store.steps[step.id]).toBe(original);
+    expect(store.stepsByDeployment[1][step.id]).toBe(original);
+    expect(store.stepCounts).toEqual({ 1: 1 });
+    expect(store.stepsInProgressByDeployment[1]).toEqual([original]);
+    expect(store.deletedSteps).toEqual({});
+    expect(store.deletedByDeployment).toEqual({});
+    expect(changes.has(step.id)).toBe(false);
+  });
+
   it("stages pages until completion and preserves events across boundaries", async () => {
     const store = useSteps();
     store.addStep({ ...step, id: 99 });
@@ -227,6 +251,34 @@ describe("Step inventory pages", () => {
     expect(get.mock.calls[1][0]).toContain("before_id=1");
     expect(store.inventoryComplete[1]).toBe(true);
     expect(Object.keys(store.steps)).toHaveLength(25);
+  });
+
+  it.each(["failure", "ownership loss"])("keeps a published inventory complete through refresh %s", async outcome => {
+    const store = useSteps();
+    store.client = { get: async () => [apiStep] } as any;
+    await store.fetchStepsFromDeployment(1);
+    expect(store.inventoryComplete[1]).toBe(true);
+    const original = store.steps[step.id];
+
+    let settled!: () => void;
+    const transportError = new Error("fixture transport failure");
+    store.client = { get: () => new Promise((resolve, reject) => {
+      settled = () => outcome === "failure" ? reject(transportError) : resolve([row(2)]);
+    }) } as any;
+    let ownsRefresh = true;
+    const refreshing = store.fetchStepsFromDeployment(1, () => ownsRefresh);
+    const completeWhileFetching = store.inventoryComplete[1];
+    expect(store.fetching[1]).toBe(1);
+    ownsRefresh = outcome === "failure";
+    settled();
+    if (outcome === "failure") await expect(refreshing).rejects.toBe(transportError);
+    else await refreshing;
+
+    expect(store.inventoryComplete[1]).toBe(true);
+    expect(completeWhileFetching).toBe(true);
+    expect(store.steps).toEqual({ [step.id]: original });
+    expect(store.stepsByDeployment[1][step.id]).toBe(original);
+    expect(store.fetching[1]).toBeUndefined();
   });
 
   it.each(["error", "invalid", "logout"])("does not publish partial inventories after %s", async outcome => {

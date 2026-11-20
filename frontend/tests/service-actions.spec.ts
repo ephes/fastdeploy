@@ -1,10 +1,11 @@
 import { vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { initPinia } from './conftest';
+import { createEvent, initPinia } from './conftest';
 import ServiceList from '../src/components/ServiceList.vue';
 import { useServices } from '../src/stores/service';
 import { useDeployments } from '../src/stores/deployment';
 import { useAuth } from '../src/stores/auth';
+import { createWebsocketClient } from '../src/websocket';
 
 const originalConfirm = window.confirm;
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -84,6 +85,37 @@ it('bounds a pending launch per service and navigates only after confirmed succe
   response.resolve(new Response(JSON.stringify({ id: 7, service_id: 1, started: '2026-11-01T00:00:00Z', finished: null, origin: 'fixture', user: 'fixture' }), { headers: { 'Content-Type': 'application/json' } }));
   await flushPromises();
   expect(push).toHaveBeenCalledWith({ name: 'deployment-detail', params: { id: 7 } });
+  wrapper.unmount();
+});
+
+it('ignores a start acknowledgement for a deployment deleted while the POST was pending', async () => {
+  const { store, wrapper } = setup();
+  const deployments = useDeployments();
+  const websocket = createWebsocketClient();
+  websocket.registerStore(deployments);
+  vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  const deleted = deferred<Response>();
+  const unaffected = deferred<Response>();
+  const fetch = vi.fn().mockReturnValueOnce(deleted.promise).mockReturnValueOnce(unaffected.promise);
+  vi.stubGlobal('fetch', fetch);
+  const row = { id: 7, service_id: 1, started: '2026-11-01T00:00:00Z', finished: null, origin: 'fixture', user: 'fixture' };
+  const reply = (body: typeof row) => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  await action(wrapper, 'Deploy', 'second').trigger('click');
+  await flushPromises();
+  expect(fetch).toHaveBeenCalledTimes(2);
+
+  websocket.onMessage(createEvent({ ...row, type: 'deployment', deleted: true }));
+  deleted.resolve(reply(row));
+  await flushPromises();
+  expect(push).not.toHaveBeenCalled();
+  expect(deployments.deployments[7]).toBeUndefined();
+  expect(wrapper.get('[role="alert"]').text()).toContain('Check its history');
+
+  unaffected.resolve(reply({ ...row, id: 6, service_id: 2 }));
+  await flushPromises();
+  expect(deployments.deployments[6].serviceId).toBe(2);
+  expect(push).toHaveBeenCalledExactlyOnceWith({ name: 'deployment-detail', params: { id: 6 } });
   wrapper.unmount();
 });
 
