@@ -5,6 +5,7 @@ import { initPinia } from "./conftest";
 import { useDeployments } from "../src/stores/deployment";
 import { useAuth } from "../src/stores/auth";
 import { useServices } from "../src/stores/service";
+import { useSteps } from "../src/stores/step";
 import DeploymentList from "../src/components/DeploymentList.vue";
 
 const { route } = vi.hoisted(() => ({ route: { query: {} as Record<string, string> } }));
@@ -121,6 +122,51 @@ it("reconciles a full stale history with bounded collection updates", async () =
   } finally {
     stop();
   }
+});
+
+it("evicts step inventories for omitted rows while keeping the open detail and live updates", async () => {
+  const store = useDeployments();
+  const steps = useSteps();
+  const finished = "2026-11-01T00:00:01Z";
+  const step = (id: number, deploymentId = id) => ({
+    id, deployment_id: deploymentId, type: "step", name: "fixture",
+    state: "success", message: "", started: row(id).started, finished,
+  });
+  store.client.get = vi.fn().mockResolvedValue([3, 2, 1].map(id => ({ ...row(id), finished })));
+  steps.client.get = vi.fn()
+    .mockResolvedValueOnce([step(1)])
+    .mockResolvedValueOnce([step(2)])
+    .mockResolvedValueOnce([step(3)]);
+  await store.fetchDeployments(1);
+  for (const id of [1, 2, 3]) await steps.fetchStepsFromDeployment(id);
+  expect(steps.inventoryComplete).toEqual({ 1: true, 2: true, 3: true });
+  store.displayedDeploymentId = 2;
+
+  let resolveHistory!: (rows: unknown) => void;
+  let resolveSteps!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { resolveHistory = resolve; })) as typeof store.client.get;
+  steps.client.get = vi.fn(() => new Promise(resolve => { resolveSteps = resolve; })) as typeof steps.client.get;
+  const historyRefresh = store.fetchDeployments(1);
+  const stepRefresh = steps.fetchStepsFromDeployment(1);
+  const updated = { ...store.deployments[3], finished: new Date(finished) };
+  store.onMessage(updated);
+  resolveHistory([]);
+  await historyRefresh;
+  const cachedAfterHistory = steps.steps[1];
+  resolveSteps([step(4, 1)]);
+  await stepRefresh;
+
+  expect(store.historyError).toBe("");
+  expect(store.historyIds).toEqual([3]);
+  expect(store.deployments[1]).toBeUndefined();
+  expect(cachedAfterHistory).toBeUndefined();
+  expect(steps.steps[4]).toBeUndefined();
+  expect(steps.stepsByDeployment[1]).toBeUndefined();
+  expect(steps.inventoryComplete[1]).toBeUndefined();
+  expect(store.deployments[2]).toBeDefined();
+  expect(store.deployments[3]).toEqual(updated);
+  expect(steps.inventoryComplete).toEqual({ 2: true, 3: true });
+  expect(Object.keys(steps.steps)).toEqual(["2", "3"]);
 });
 
 it("navigates service history and exposes load more and errors", async () => {
