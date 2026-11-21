@@ -107,21 +107,34 @@ it.each([
   expect(store.onMessage).not.toHaveBeenCalled();
 });
 
-it("dispatches existing valid domain and control variants", () => {
+it("admits domain messages only after each socket authenticates", async () => {
   const client = createWebsocketClient();
-  client.initWebsocketConnection("ws://synthetic", "token");
   const store = { onMessage: vi.fn() };
   client.registerStore(store);
-  const socket = Socket.instances[0];
-  for (const message of [step, { type: "service", id: 1, name: "s", data: {}, deleted: true },
+  for (const store of [useServices(), useDeployments()]) {
+    store.client = { get: vi.fn().mockResolvedValue([]) } as any;
+  }
+  const domainMessages = [step,
+    { type: "service", id: 1, name: "s", data: {}, deleted: true },
     { type: "deployment", id: 2, service_id: 1, origin: "test", user: "u", started: "2026-11-01T00:00:00Z", finished: null },
-    { type: "user", id: 1, name: "u" }]) socket.receive(message);
-  expect(store.onMessage).toHaveBeenCalledTimes(4);
-  socket.receive({ type: "authentication", status: "success", detail: null });
-  expect(useWebsocketStore().authentication).toBe("authenticated");
-  socket.receive({ type: "warning", detail: "expired" });
-  socket.receive({ message: "Client left" });
-  expect(store.onMessage).toHaveBeenCalledTimes(4);
+    { type: "user", id: 1, name: "u" }];
+
+  for (let i = 0; i < 2; i++) {
+    client.initWebsocketConnection("ws://synthetic", "token");
+    const socket = Socket.instances[i];
+    expect(useWebsocketStore().authentication).toBe("not authenticated");
+    store.onMessage.mockClear();
+    socket.receive({ type: "warning", detail: "synthetic warning" });
+    socket.receive({ message: "Client left" });
+    for (const message of domainMessages) socket.receive(message);
+    expect(store.onMessage).not.toHaveBeenCalled();
+
+    socket.receive({ type: "authentication", status: "success", detail: null });
+    expect(useWebsocketStore().authentication).toBe("authenticated");
+    for (const message of domainMessages) socket.receive(message);
+    expect(store.onMessage).toHaveBeenCalledTimes(4);
+  }
+  await flushPromises();
 });
 
 it.each(["hasOwnProperty", "has_own_property", "started"])("ignores undeclared %s fields before conversion", (key) => {
@@ -130,6 +143,7 @@ it.each(["hasOwnProperty", "has_own_property", "started"])("ignores undeclared %
   const store = { onMessage: vi.fn() };
   client.registerStore(store);
   const message: Record<string, unknown> = { type: "service", id: 1, name: "synthetic", data: {}, [key]: { toString: null } };
+  Socket.instances[0].receive({ type: "authentication", status: "success" });
   expect(() => Socket.instances[0].receive(message)).not.toThrow();
   expect(store.onMessage).toHaveBeenCalledOnce();
   expect(store.onMessage).toHaveBeenCalledWith({ type: "service", id: 1, name: "synthetic", data: {} });

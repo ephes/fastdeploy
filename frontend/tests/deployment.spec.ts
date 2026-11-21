@@ -39,6 +39,7 @@ describe("Deployment Store Websocket", () => {
     const deploymentsStore = useDeployments();
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(deploymentsStore);
+    websocketClient.onAuthenticationMessage({ type: "authentication", status: "success" });
     websocketClient.onMessage(
       createEvent({ ...apiDeployment, type: "deployment" })
     );
@@ -108,6 +109,7 @@ describe("Deployment Store Actions", () => {
     const deploymentsStore = useDeployments();
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(deploymentsStore);
+    websocketClient.onAuthenticationMessage({ type: "authentication", status: "success" });
     servicesStore.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
     let respond!: (value: any) => void;
     const client = {

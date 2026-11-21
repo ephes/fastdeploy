@@ -60,6 +60,7 @@ it.each(valid)('preserves REST/websocket conversion of supported timestamps: %s'
   expect(store.deployments[9].started).toEqual(new Date(value));
   expect(store.deployments[9].finished).toEqual(new Date(value));
   const client = createWebsocketClient(); client.registerStore(store);
+  client.onAuthenticationMessage({ type: 'authentication', status: 'success' });
   client.onMessage(createEvent({ ...row(8), type: 'deployment', started: value, finished: value }));
   expect(store.deployments[8].started).toEqual(new Date(value));
   expect(store.deployments[8].finished).toEqual(new Date(value));

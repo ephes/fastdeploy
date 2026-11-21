@@ -119,6 +119,7 @@ it('ignores a start acknowledgement for a deployment deleted while the POST was 
   const deployments = useDeployments();
   const websocket = createWebsocketClient();
   websocket.registerStore(deployments);
+  websocket.onAuthenticationMessage({ type: "authentication", status: "success" });
   vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-credential');
   const deleted = deferred<Response>();
   const unaffected = deferred<Response>();

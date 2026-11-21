@@ -297,6 +297,7 @@ export function createWebsocketClient(): WebsocketClient {
         return;
       }
       if (!("type" in message) || message.type === "warning") return;
+      if (message.type !== "authentication" && authenticatedGeneration !== generation) return;
       useWebsocketStore().receivedMessage();
       if (message.type === "authentication") {
         // special handling for authentication response
@@ -324,6 +325,7 @@ export function createWebsocketClient(): WebsocketClient {
       const websocketStore = useWebsocketStore();
       websocketStore.protocolError = "";
       websocketStore.handling = "init connection";
+      websocketStore.authentication = "not authenticated";
       const previous = this.connection;
       if (previous) {
         previous.onclose = previous.onopen = previous.onmessage = null;

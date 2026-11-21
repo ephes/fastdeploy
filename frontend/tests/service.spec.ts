@@ -30,6 +30,7 @@ describe("Services via Store Websocket", () => {
     const servicesStore = useServices();
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(servicesStore);
+    websocketClient.onAuthenticationMessage({ type: "authentication", status: "success" });
     websocketClient.onMessage(createEvent(service));
     expect(servicesStore.services[service.id]).toStrictEqual(service);
   });
@@ -38,6 +39,7 @@ describe("Services via Store Websocket", () => {
     const servicesStore = useServices();
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(servicesStore);
+    websocketClient.onAuthenticationMessage({ type: "authentication", status: "success" });
     servicesStore.services[service.id] = service;
     websocketClient.onMessage(createEvent({ ...service, deleted: true }));
     expect(servicesStore.services).toStrictEqual({});

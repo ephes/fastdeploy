@@ -36,6 +36,7 @@ describe("Steps Store Websocket", () => {
     const stepsStore = useSteps();
     const websocketClient = createWebsocketClient();
     websocketClient.registerStore(stepsStore);
+    websocketClient.onAuthenticationMessage({ type: "authentication", status: "success" });
     websocketClient.onMessage(createEvent(apiStep));
     expect(stepsStore.steps[step.id]).toStrictEqual(step);
   });

@@ -41,6 +41,7 @@ it('keeps completion when a delayed start event arrives, then agrees with REST',
   const store = useDeployments();
   const finished = { ...row(9), type: 'deployment', serviceId: 1, started: new Date(row(9).started), finished: new Date('2026-11-01T00:00:05Z') };
   const client = createWebsocketClient(); client.registerStore(store);
+  client.onAuthenticationMessage({ type: 'authentication', status: 'success' });
   client.onMessage(createEvent({ ...row(9), type: 'deployment', finished: finished.finished.toISOString() }));
   client.onMessage(createEvent({ ...row(9), type: 'deployment' }));
   expect(store.deployments[9].finished).toEqual(finished.finished);
