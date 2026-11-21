@@ -406,7 +406,8 @@ page, explicitly completes the inventory at that traversal. Inserts with higher 
 arrive through WebSocket or a fresh traversal; updates/deletions can happen during
 paging, so this is not a frozen database snapshot. The response remains an array,
 but consumers that previously expected all rows must now traverse pages.
-Each SQL read materializes at most 25 step rows; even maximally escaped persisted
+Each page reads the deployment and at most 25 step rows in a single SQL statement.
+An existing deployment with no matching steps returns an empty array. Even maximally escaped persisted
 name/message fields keep each response below the frontend's 1 MiB body limit.
 **Errors**: `404 {"detail": "Deployment not found"}` for an unknown deployment id
 **Response**:

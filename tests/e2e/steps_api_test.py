@@ -453,7 +453,9 @@ async def test_step_pages_bound_rows_and_traverse_exactly(
             )
             assert response.status_code == 422
     assert seen == list(range(1001, 0, -1))
-    step_selects = [sql for sql in statements if sql.lstrip().startswith("SELECT step.")]
     if database_type == "database_url":
-        assert step_selects
-        assert all("LIMIT" in sql and "ORDER BY step.id DESC" in sql for sql in step_selects)
+        page_reads = [sql for sql in statements if "FROM deployment" in sql or "FROM step" in sql]
+        assert len(page_reads) == len(seen) // 25 + 1
+        assert all(
+            "LEFT OUTER JOIN" in sql and "LIMIT" in sql and "ORDER BY step.id DESC" in sql for sql in page_reads
+        )

@@ -208,11 +208,9 @@ async def get_step_page(
     """Read only the requested step rows, without hydrating a deployment's inventory."""
     async with uow:
         try:
-            await uow.deployments.get(deployment_id)
+            return await uow.deployments.get_step_page(deployment_id, limit=limit, before_id=before_id)
         except NoResultFound as e:
             raise DeploymentNotFound(deployment_id) from e
-        steps = await uow.steps.page_by_deployment(deployment_id, limit=limit, before_id=before_id)
-    return steps
 
 
 def deployment_has_open_steps(steps: list[model.Step]) -> bool:

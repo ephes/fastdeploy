@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import and_, delete, or_, select, text, update
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import aliased
 
 from ..domain import model
 from . import orm
@@ -218,6 +219,11 @@ class AbstractDeploymentRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_step_page(self, deployment_id: int, *, limit: int, before_id: int | None = None) -> list[model.Step]:
+        """Read a bounded step page. Raise NoResultFound if the deployment is missing."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def get_for_update(self, deployment_id: int) -> model.Deployment:
         """
         Load the current state of a deployment and lock its row until the
@@ -274,6 +280,27 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         stmt = select(orm.deployments.c.service_id).where(orm.deployments.c.id == deployment_id)
         result = await self.session.execute(stmt)
         return result.scalar_one()
+
+    async def get_step_page(self, deployment_id: int, *, limit: int, before_id: int | None = None) -> list[model.Step]:
+        steps = select(model.Step).where(orm.steps.c.deployment_id == deployment_id)
+        if before_id is not None:
+            steps = steps.where(orm.steps.c.id < before_id)
+        page = steps.order_by(orm.steps.c.id.desc()).limit(limit).subquery("step_page")
+        # A left join keeps one row with a NULL step for an existing empty page.
+        # An absent deployment produces no rows in the same SQL snapshot.
+        parent_id = orm.deployments.c.id
+        stmt = (
+            select(parent_id, aliased(model.Step, page))
+            .select_from(orm.deployments)
+            .outerjoin(page, page.c.deployment_id == parent_id)
+            .where(parent_id == deployment_id)
+            .order_by(page.c.id.desc())
+        )
+        result = await self.session.execute(stmt)
+        rows = result.all()
+        if not rows:
+            raise NoResultFound(f"Deployment {deployment_id} not found")
+        return [step for _, step in rows if step is not None]
 
     async def get_for_update(self, deployment_id):
         # PostgreSQL ``SELECT ... FOR UPDATE``; populate_existing refreshes an
@@ -404,6 +431,13 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     async def get_service_id(self, deployment_id: int) -> int:
         return (await self.get(deployment_id)).service_id
 
+    async def get_step_page(self, deployment_id: int, *, limit: int, before_id: int | None = None) -> list[model.Step]:
+        # Neither in-memory read suspends, so writers cannot interleave.
+        await self.get(deployment_id)
+        if self.step_repository is None:
+            return []
+        return await self.step_repository.page_by_deployment(deployment_id, limit=limit, before_id=before_id)
+
     async def get_for_update(self, deployment_id):
         # In-memory repositories never suspend, so writers cannot interleave.
         return await self.get(deployment_id)
@@ -501,12 +535,6 @@ class AbstractStepRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def page_by_deployment(
-        self, deployment_id: int, *, limit: int, before_id: int | None = None
-    ) -> list[model.Step]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     async def list(self) -> list[model.Step]:
         # list has to be after get_steps_by_deployment otherwise
         # type annotation wont work, duh :/ - maybe a bug in pylance..
@@ -543,13 +571,6 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
             .execution_options(populate_existing=True)
         )
         result = await self.session.execute(stmt)
-        return result.scalars().all()
-
-    async def page_by_deployment(self, deployment_id, *, limit, before_id=None):
-        stmt = select(model.Step).where(model.Step.deployment_id == deployment_id)
-        if before_id is not None:
-            stmt = stmt.where(model.Step.id < before_id)
-        result = await self.session.execute(stmt.order_by(model.Step.id.desc()).limit(limit))
         return result.scalars().all()
 
 
