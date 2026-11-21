@@ -21,8 +21,13 @@ export function isWireDate(value: unknown): value is string {
   const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
   return month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1] &&
     hour <= 23 && minute <= 59 && second <= 59 && offsetHour <= 23 && offsetMinute <= 59 &&
-    Number.isFinite(Date.parse(value));
+    Number.isFinite(wireDateToDate(value).getTime());
 }
+/** Convert an admitted timestamp, treating legacy values without an offset as UTC. */
+export function wireDateToDate(value: string): Date {
+  return new Date(/(?:[Zz]|[+-]\d{2}:?\d{2})$/.test(value) ? value : value + 'Z');
+}
+
 export function isOptionalWireDate(value: unknown): value is string | null {
   return value === null || isWireDate(value);
 }

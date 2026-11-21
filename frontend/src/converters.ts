@@ -1,4 +1,5 @@
 import { HasStringKeys } from "./typings";
+import { wireDateToDate } from "./wireValues";
 
 /**
  * This module is used to convert different data representations.
@@ -49,13 +50,7 @@ export function snakeToCamel(obj: HasStringKeys) {
  * @returns newDate {Date} The converted date
  */
 export function utcStringToLocalDate(utcString: string | null): Date | null {
-  if (!utcString) {
-    return null;
-  } else {
-    // dunno why I don't have to append Z anymore :( weird
-    // return new Date(`${utcString}Z`);
-    return new Date(utcString);
-  }
+  return utcString ? wireDateToDate(utcString) : null;
 }
 
 /**

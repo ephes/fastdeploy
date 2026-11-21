@@ -449,9 +449,9 @@ Timestamps require real Gregorian calendar dates, including leap-year rules,
 hours 00–23, minutes/seconds 00–59 and valid offset components. Impossible dates
 and `24:00` are refused before conversion, rather than normalized into another
 day. Supported ISO forms retain optional seconds/fractions, `Z` or numeric offsets
-(`+05:30` / `-0530`), and legacy timestamps without a timezone. Naive values keep
-the browser's existing local-time interpretation; fractions keep JavaScript's
-millisecond conversion. Invalid dates refuse the whole REST snapshot or websocket
+(`+05:30` / `-0530`), and legacy timestamps without a timezone. REST and websocket both interpret legacy timestamps as UTC. Explicit offsets
+preserve the represented instant, and fractions keep JavaScript's millisecond
+conversion. Invalid dates refuse the whole REST snapshot or websocket
 message without changing business data.
 
 All admission runs after the existing session/refresh-generation ownership checks;
