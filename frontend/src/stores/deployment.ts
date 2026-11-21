@@ -268,6 +268,7 @@ export const useDeployments = defineStore("deployments", {
         for (const deployment of deployments) {
           if (!changed.has(deployment.id)) {
             this.deployments[deployment.id] = deployment;
+            if (deployment.finished) useSteps().finishDeployment(deployment.id);
           }
           if (this.deployments[deployment.id]) historyIds.add(deployment.id);
         }

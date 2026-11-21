@@ -96,16 +96,8 @@ export const useSteps = defineStore("steps", {
      * @returns {boolean} Whether the view should scroll to the step
      */
     shouldScrollToStep: (state) => (step: Step) => {
-      const byDeploymentId = state.stepsInProgressByDeployment[step.deploymentId];
-      if (byDeploymentId) {
-        const scrollToStep = byDeploymentId[4];
-        if (scrollToStep) {
-          if (scrollToStep.id === step.id) {
-            return true;
-          }
-        }
-      }
-      return false;
+      if (useDeployments().deployments[step.deploymentId]?.finished) return false;
+      return state.stepsInProgressByDeployment[step.deploymentId]?.[4]?.id === step.id;
     }
   },
   actions: {
@@ -167,14 +159,14 @@ export const useSteps = defineStore("steps", {
      *
      * @param step {Step} The step to add/update
      */
-    addStep(step: Step) {
-      if (!this.retainDeployment(step.deploymentId)) return;
+    addStep(step: Step): boolean {
+      if (!this.retainDeployment(step.deploymentId)) return false;
       const current = this.steps[step.id];
-      if (this.deletedSteps[step.id] || (current && current.deploymentId !== step.deploymentId)) return;
+      if (this.deletedSteps[step.id] || (current && current.deploymentId !== step.deploymentId)) return false;
       // One persisted id is one lifecycle; a rerun receives a fresh id.
       const rank = (state: string) => state === "pending" ? 0 : state === "running" ? 1 : 2;
       if (current && (rank(step.state) < rank(current.state) ||
-          (rank(current.state) === 2 && step.state !== current.state))) return;
+          (rank(current.state) === 2 && step.state !== current.state))) return false;
       this.steps[step.id] = step;
       if (step.deploymentId) {
         if (!this.stepsByDeployment[step.deploymentId]) {
@@ -184,7 +176,8 @@ export const useSteps = defineStore("steps", {
           this.stepCounts[step.deploymentId] = (this.stepCounts[step.deploymentId] ?? 0) + 1;
         }
         this.stepsByDeployment[step.deploymentId][step.id] = step;
-        if (step.state == "running" && current?.state !== "running" && !this.finishedDeployments[step.deploymentId]) {
+        if (step.state === "running" && current?.state !== "running" &&
+            !this.finishedDeployments[step.deploymentId] && !useDeployments().deployments[step.deploymentId]?.finished) {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
             this.stepsInProgressByDeployment[step.deploymentId] = [step];
           } else if (!this.stepsInProgressByDeployment[step.deploymentId].some(existing => existing.id === step.id)) {
@@ -195,6 +188,7 @@ export const useSteps = defineStore("steps", {
         }
       }
       this.pruneHistory();
+      return true;
     },
     /**
      * Delete step from store. Deleted steps are just normal steps
@@ -228,7 +222,7 @@ export const useSteps = defineStore("steps", {
     },
     /**
      * Traverse bounded step pages and publish only a completed inventory.
-     * WebSocket changes remain authoritative throughout the traversal.
+     * Accepted WebSocket changes remain authoritative throughout the traversal.
      *
      * @param deploymentId {number} The deployment id
      */
@@ -299,6 +293,11 @@ export const useSteps = defineStore("steps", {
         if (!pending.size) delete pendingFetches[deploymentId];
       }
     },
+    finishDeployment(id: number) {
+      if (!this.retainedDeploymentIds.includes(id)) return;
+      this.finishedDeployments[id] = true;
+      delete this.stepsInProgressByDeployment[id];
+    },
     /**
      * Event handler which is triggered by a message from the backend
      * which has the type "step". Steps can be added, updated or deleted.
@@ -309,16 +308,14 @@ export const useSteps = defineStore("steps", {
       if (message.type === "step") {
         const step = message as Step;
         if (!step.deleted && !this.steps[step.id] && step.id <= (this.stepEventFloors[step.deploymentId] ?? 0)) return;
-        if (step.deleted && !this.deleteStep(step)) return;
+        const accepted = step.deleted ? this.deleteStep(step) : this.addStep(step);
+        if (!accepted) return;
         for (const changed of this.pendingFetches[step.deploymentId] ?? []) changed.add(step.id);
-        if (!step.deleted) this.addStep(step);
       }
       if (message.type === "deployment") {
         const deployment = message as Deployment;
         if ((deployment.finished || deployment.deleted) && this.retainDeployment(deployment.id)) {
-          this.finishedDeployments[deployment.id] = true;
-          // Deployment has finished -> remove scroll to metadata
-          delete(this.stepsInProgressByDeployment[deployment.id]);
+          this.finishDeployment(deployment.id);
         }
         this.pruneHistory();
       }

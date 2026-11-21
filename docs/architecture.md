@@ -741,11 +741,14 @@ The client rejects regressions from terminal state and keeps deletion tombstones
 until history eviction or session reset, across both WebSocket events and REST refreshes. A legitimate
 rerun creates a fresh step id (possibly with the same name); ids are never reused.
 Deletion events must agree with the deployment recorded by any cached step or tombstone.
-A conflicting event leaves both inventories and any pending refresh unchanged.
+An event rejected for ownership or lifecycle leaves any pending step refresh free
+to apply the REST row. Accepted updates and deletions take precedence over in-flight
+step inventories.
 Scroll metadata retains only the five most recent steps observed running, including
 their completions, so the fifth entry remains the scroll target. Deletion removes
-a candidate; terminal/deleted deployment events retire this metadata for that
-retained history. Inactive histories and their markers follow the retention budgets below.
+a candidate. Deployment completion from REST or WebSocket and WebSocket
+deletion events retire this metadata for that retained history. Inactive histories
+and their markers follow the retention budgets below.
 
 
 ### Step inventory paging

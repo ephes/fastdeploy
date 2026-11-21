@@ -7,7 +7,7 @@ vi.mock('../src/App.vue', () => ({ default: { render: () => 'Mounted' } }));
 vi.mock('../src/routes', () => ({
   routes: [{ path: '/', name: 'login', component: { render: () => null } }],
 }));
-const api = 'https://staging.example.test';
+const api = 'https://staging.example.test/platform/api';
 const websocket = 'wss://staging.example.test/deployments/ws';
 
 beforeEach(() => {
@@ -34,6 +34,23 @@ it.each(['VITE_API_BASE_PROD', 'VITE_WEBSOCKET_URL_PROD'])(
 );
 
 it.each([
+  ['VITE_API_BASE_PROD', 'wss://example.test/api'],
+  ['VITE_WEBSOCKET_URL_PROD', 'https://example.test/ws'],
+  ['VITE_API_BASE_PROD', '/api'],
+  ['VITE_WEBSOCKET_URL_PROD', 'wss://[broken'],
+  ['VITE_API_BASE_PROD', 'https:example.test/api'],
+  ['VITE_API_BASE_PROD', 'https://user@example.test/api'],
+  ['VITE_API_BASE_PROD', 'https://example.test/api?query=1'],
+  ['VITE_WEBSOCKET_URL_PROD', 'wss://example.test/ws#fragment'],
+])('stops startup before app creation for invalid %s (%s)', async (key, invalid) => {
+  vi.stubEnv(key, invalid);
+  await expect(import('../src/main')).rejects.toThrow(
+    `Invalid frontend production configuration: ${key}`,
+  );
+  expect(createApp).not.toHaveBeenCalled();
+});
+
+it.each([
   ['production', true, api, websocket],
   ['staging', true, api, websocket],
   ['development', false, 'http://localhost:8000', 'ws://localhost:8000/deployments/ws'],
@@ -44,7 +61,26 @@ it.each([
   vi.stubEnv('VITE_WEBSOCKET_URL_DEV', undefined);
   await import('../src/main');
   const { useSettings } = await import('../src/stores/config');
+  expect(useSettings().env.MODE).toBe(mode);
   expect(useSettings().api).toBe(expectedApi);
   expect(useSettings().websocket).toBe(expectedWebsocket);
   expect(document.querySelector('#app')?.textContent).toBe('Mounted');
+});
+
+it.each(['staging', 'production'])('uses development overrides in %s mode with PROD disabled', async mode => {
+  const devApi = 'http://dev.example.test:9000/platform/api';
+  const devWebsocket = 'ws://dev.example.test:9000/platform/ws';
+  vi.stubEnv('MODE', mode);
+  vi.stubEnv('PROD', false);
+  vi.stubEnv('VITE_API_BASE_PROD', undefined);
+  vi.stubEnv('VITE_WEBSOCKET_URL_PROD', undefined);
+  vi.stubEnv('VITE_API_BASE_DEV', devApi);
+  vi.stubEnv('VITE_WEBSOCKET_URL_DEV', devWebsocket);
+
+  await import('../src/main');
+  const { useSettings } = await import('../src/stores/config');
+  const settings = useSettings();
+  expect(settings.env.MODE).toBe(mode);
+  expect(settings.api).toBe(devApi);
+  expect(settings.websocket).toBe(devWebsocket);
 });

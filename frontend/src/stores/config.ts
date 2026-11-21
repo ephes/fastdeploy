@@ -6,6 +6,7 @@ export const WEBSOCKET_URL_DEFAULT = "ws://localhost:8000/deployments/ws";
 
 export const ENV_DEFAULT: Environment = {
   MODE: "",
+  PROD: false,
   VITE_API_BASE_PROD: "",
   VITE_API_BASE_DEV: "",
   VITE_WEBSOCKET_URL_DEV: "",
@@ -25,42 +26,13 @@ export const useSettings = defineStore("settings", {
     };
   },
   getters: {
-    /**
-     * Uses the MODE from environment to determine which API base to use.
-     * If MODE is not set, returns the default API base.
-     *
-     * @param state
-     * @returns baseApiUrl {string} for the current environment
-     */
     api: (state) => {
-      if (state.env.MODE == "production" && state.env.VITE_API_BASE_PROD) {
-        return state.env.VITE_API_BASE_PROD;
-      } else if (
-        state.env.MODE == "development" &&
-        state.env.VITE_API_BASE_DEV
-      ) {
-        return state.env.VITE_API_BASE_DEV;
-      } else {
-        return state.developmentApi;
-      }
+      const endpoint = state.env.PROD ? state.env.VITE_API_BASE_PROD : state.env.VITE_API_BASE_DEV;
+      return endpoint || state.developmentApi;
     },
-    /**
-     * Uses the MODE from environment to determine which websocket url to use.
-     *
-     * @param state
-     * @returns websocketUrl {string} for the current environment
-     */
     websocket: (state) => {
-      if (state.env.MODE == "production" && state.env.VITE_WEBSOCKET_URL_PROD) {
-        return state.env.VITE_WEBSOCKET_URL_PROD;
-      } else if (
-        state.env.MODE == "development" &&
-        state.env.VITE_WEBSOCKET_URL_DEV
-      ) {
-        return state.env.VITE_WEBSOCKET_URL_DEV;
-      } else {
-        return state.developmentWebsocket;
-      }
+      const endpoint = state.env.PROD ? state.env.VITE_WEBSOCKET_URL_PROD : state.env.VITE_WEBSOCKET_URL_DEV;
+      return endpoint || state.developmentWebsocket;
     },
   },
   actions: {

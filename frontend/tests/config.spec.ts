@@ -1,5 +1,5 @@
 import "pinia";
-import { createApp, markRaw } from "vue";
+import { createApp } from "vue";
 import { setActivePinia, createPinia } from "pinia";
 import {
   useSettings,
@@ -20,42 +20,39 @@ describe("Settings Store", () => {
 
   it("has right backend api url", () => {
     const testCases = [
-      // [mode, vite_api_base_dev, vite_api_base_prod, expected]
-      ["development", "", "", API_BASE_DEFAULT], // default
-      ["", "http://localhost:9999", "", API_BASE_DEFAULT],
+      // [prod, vite_api_base_dev, vite_api_base_prod, expected]
+      [false, "", "", API_BASE_DEFAULT], // default
       [
-        "development",
+        false,
         "",
         "http://production.example.com:9999",
         API_BASE_DEFAULT,
       ],
       [
         // happy path
-        "development",
+        false,
         "http://localhost:9999",
         "http://production.example.com:9999",
         "http://localhost:9999",
       ],
-      ["production", "", "", API_BASE_DEFAULT], // default
-      ["", "", "http://production.example.com:9999", API_BASE_DEFAULT],
-      ["production", "http://localhost:9999", "", API_BASE_DEFAULT],
+      [true, "", "", API_BASE_DEFAULT], // default
+      [true, "http://localhost:9999", "", API_BASE_DEFAULT],
       [
         // happy path
-        "production",
+        true,
         "http://localhost:9999",
         "http://production.example.com:9999",
         "http://production.example.com:9999",
       ],
-    ];
+    ] as const;
     const settings = useSettings();
-    // settings.env = ENV_DEFAULT;  // dunno why this is needed
     for (const [
-      mode,
+      prod,
       vite_api_base_dev,
       vite_api_base_prod,
       expected,
     ] of testCases) {
-      settings.env.MODE = mode;
+      settings.env.PROD = prod;
       settings.env.VITE_API_BASE_DEV = vite_api_base_dev;
       settings.env.VITE_API_BASE_PROD = vite_api_base_prod;
       expect(settings.api).toBe(expected);
@@ -63,51 +60,44 @@ describe("Settings Store", () => {
   });
   it("has right websocket url", () => {
     const testCases = [
-      // [mode, vite_websocket_url_dev, vite_websocket_url_prod, expected]
-      ["development", "", "", WEBSOCKET_URL_DEFAULT], // default
-      ["", "ws://localhost:9999/deployments/ws", "", WEBSOCKET_URL_DEFAULT],
+      // [prod, vite_websocket_url_dev, vite_websocket_url_prod, expected]
+      [false, "", "", WEBSOCKET_URL_DEFAULT], // default
       [
-        "development",
+        false,
         "",
         "ws://production.example.com/deployments/ws",
         WEBSOCKET_URL_DEFAULT,
       ],
       [
         // happy path
-        "development",
+        false,
         "ws://localhost:9999/deployments/ws",
         "ws://production.example.com/deployments/ws",
         "ws://localhost:9999/deployments/ws",
       ],
-      ["production", "", "", WEBSOCKET_URL_DEFAULT], // default
+      [true, "", "", WEBSOCKET_URL_DEFAULT], // default
       [
-        "",
-        "",
-        "ws://production.example.com/deployments/ws",
-        WEBSOCKET_URL_DEFAULT,
-      ],
-      [
-        "production",
+        true,
         "ws://localhost:9999/deployments/ws",
         "",
         WEBSOCKET_URL_DEFAULT,
       ],
       [
         // happy path
-        "production",
+        true,
         "ws://localhost:9999/deployments/ws",
         "ws://production.example.com/deployments/ws",
         "ws://production.example.com/deployments/ws",
       ],
-    ];
+    ] as const;
     const settings = useSettings();
     for (const [
-      mode,
+      prod,
       vite_websocket_url_dev,
       vite_websocket_url_prod,
       expected,
     ] of testCases) {
-      settings.env.MODE = mode;
+      settings.env.PROD = prod;
       settings.env.VITE_WEBSOCKET_URL_DEV = vite_websocket_url_dev;
       settings.env.VITE_WEBSOCKET_URL_PROD = vite_websocket_url_prod;
       expect(settings.websocket).toBe(expected);

@@ -139,6 +139,38 @@ describe("Step lifecycle and scroll bounds", () => {
     expect(store.stepsInProgressByDeployment[1]).toBeUndefined();
   });
 
+  it("retires the scroll target when REST reports deployment completion", async () => {
+    const deployments = useDeployments();
+    const store = useSteps();
+    const deploymentRow = {
+      id: step.deploymentId,
+      service_id: 1,
+      origin: "test",
+      user: "test",
+      started: "2021-11-23T10:03:00Z",
+      finished: "2021-11-23T10:05:00Z",
+    };
+    deployments.client = {
+      get: vi.fn().mockResolvedValueOnce([{ ...deploymentRow, finished: null }])
+        .mockResolvedValueOnce([deploymentRow]),
+    } as any;
+    await deployments.fetchDeployments();
+    for (let id = 1; id <= 5; id++) {
+      const running: Step = { ...step, id, state: "running" };
+      store.onMessage(running);
+    }
+    expect(store.shouldScrollToStep(store.steps[1])).toBe(true);
+
+    await deployments.fetchDeployments();
+
+    expect(deployments.deployments[step.deploymentId].finished).toBeInstanceOf(Date);
+    expect(store.shouldScrollToStep(store.steps[1])).toBe(false);
+    const lateStep: Step = { ...step, id: 6, state: "running" };
+    store.onMessage(lateStep);
+    expect(store.stepsInProgressByDeployment[step.deploymentId]).toBeUndefined();
+    expect(store.steps[6].state).toBe("running");
+  });
+
   it("does not reinsert an evicted duplicate running event", () => {
     const store = useSteps();
     for (let id = 1; id <= 6; id++) store.onMessage({ ...step, id, state: "running" } as Step);
@@ -191,6 +223,22 @@ describe("Step inventory pages", () => {
     expect(store.deletedSteps).toEqual({});
     expect(store.deletedByDeployment).toEqual({});
     expect(changes.has(step.id)).toBe(false);
+  });
+
+  it("repairs a running step from REST after refusing a delayed pending event", async () => {
+    const store = useSteps();
+    store.addStep({ ...step, state: "running" });
+    let respond!: (rows: unknown) => void;
+    store.client = { get: () => new Promise(resolve => { respond = resolve; }) } as any;
+    const fetch = store.fetchStepsFromDeployment(step.deploymentId);
+
+    store.onMessage(step);
+    expect(store.steps[step.id].state).toBe("running");
+    respond([{ ...apiStep, state: "success", finished: "2021-11-23T10:05:00Z" }]);
+    await fetch;
+
+    expect(store.steps[step.id].state).toBe("success");
+    expect(store.stepsByDeployment[step.deploymentId][step.id]).toBe(store.steps[step.id]);
   });
 
   it("stages pages until completion and preserves events across boundaries", async () => {

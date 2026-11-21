@@ -17,10 +17,14 @@ must supply both `VITE_API_BASE_PROD` and `VITE_WEBSOCKET_URL_PROD` at build tim
 Set them for the target environment using Vite's environment files or build
 variables. The checked-in `.env.production` supplies the staging pair for the
 default production mode. If either value is missing or blank, startup stops
-before creating the app and names the missing variables in the error.
+before creating the app and names the missing variables in the error. The API
+base requires an absolute HTTP or HTTPS URL, and the WebSocket destination requires
+an absolute WS or WSS URL. Both support base paths and exclude embedded credentials,
+query strings and fragments. Startup names invalid settings in the error.
+Vite’s production flag selects the endpoint pair independently of the mode label.
 Development defaults to `http://localhost:8000` and
 `ws://localhost:8000/deployments/ws`, with `VITE_API_BASE_DEV` and
-`VITE_WEBSOCKET_URL_DEV` available as overrides.
+`VITE_WEBSOCKET_URL_DEV` available as overrides in any nonproduction Vite mode.
 
 ## Login and detail pages
 

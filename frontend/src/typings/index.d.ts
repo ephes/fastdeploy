@@ -6,6 +6,7 @@ type HasStringKeys = {
 
 type Environment = {
   MODE: string;
+  PROD: boolean;
   VITE_API_BASE_DEV: string;
   VITE_API_BASE_PROD: string;
   VITE_WEBSOCKET_URL_DEV: string;
