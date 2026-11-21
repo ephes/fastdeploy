@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Preserve the original request error or cancellation when logging a database close failure also fails.
 - Read and decode each service config once during sync preflight while retaining source generation checks.
 - Preserve the initiating operation error when logging a transaction cleanup failure also fails.
 - Continue deployment command dispatch, event handling and WebSocket publication when logging fails.

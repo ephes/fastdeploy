@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -115,3 +116,33 @@ async def test_supplied_uow_stays_owned_by_caller_on_bootstrap_failure(monkeypat
     with pytest.raises(RuntimeError, match="mapper"):
         await bootstrap.bootstrap(uow=uow)
     uow.close.assert_not_awaited()
+
+
+@pytest.mark.parametrize("primary_type", [ValueError, asyncio.CancelledError])
+async def test_request_cleanup_logging_failure_preserves_primary_and_retires_resources(
+    monkeypatch: pytest.MonkeyPatch, primary_type: type[BaseException]
+) -> None:
+    primary = primary_type("synthetic request failure")
+    session = SimpleNamespace(close=AsyncMock(side_effect=ValueError("synthetic session failure")))
+    connection = SimpleNamespace(close=AsyncMock(side_effect=OSError("synthetic connection failure")))
+    engine = SimpleNamespace(connect=AsyncMock(return_value=connection), dispose=AsyncMock())
+    state = SimpleNamespace(database_engine=engine, database_session_factory=Mock(return_value=session))
+    build_bus = AsyncMock(return_value=object())
+    monkeypatch.setattr(bootstrap, "bootstrap", build_bus)
+    log_error = Mock(side_effect=RuntimeError("synthetic logging failure"))
+    monkeypatch.setattr(bootstrap.logger, "error", log_error)
+
+    request = bootstrap.get_bus(SimpleNamespace(app=SimpleNamespace(state=state)))
+    assert await anext(request) is build_bus.return_value
+    uow = build_bus.await_args.kwargs["uow"]
+    with pytest.raises(primary_type) as raised:
+        await request.athrow(primary)
+
+    assert raised.value is primary
+    assert uow.connection is None
+    assert not hasattr(uow, "session")
+    await uow.close()
+    session.close.assert_awaited_once_with()
+    connection.close.assert_awaited_once_with()
+    engine.dispose.assert_not_awaited()
+    log_error.assert_called_once_with("request_cleanup_failed category=%s", "OSError")

@@ -723,8 +723,10 @@ already failing, an ordinary rollback failure is logged once as `uow_rollback_fa
 only its exception category (at most 100 characters); the initiating exception
 continues to the caller. With no initiating failure, the rollback error propagates.
 Cancellation or process-exit signals raised during rollback propagate directly.
-Request teardown still attempts session and connection closure; CLI-owned UOWs
-also dispose their engine.
+Request teardown still attempts session and connection closure. When the request
+is already failing, a close failure produces a best-effort category diagnostic
+and the original request error or cancellation propagates. CLI-owned UOWs also
+dispose their engine.
 
 ### Step lifecycle and scroll ownership
 
