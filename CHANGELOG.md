@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Evict cached steps when a history page removes their deployment, while preserving the open detail.
+- Retire the frontend login session when its WebSocket URL changes.
 - Reject conflicting wire types when constructing domain events.
 - Reject deployment, step and service REST snapshots with mismatched row types.
 - Continue exit cleanup of deployment configs after a retained descriptor fails to close.

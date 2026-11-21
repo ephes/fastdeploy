@@ -37,15 +37,22 @@ it('retires credentials, cached clients, sockets and stores on an API change', a
   expect(fetch).not.toHaveBeenCalled();
 });
 
-it.each([true, false])('rejects a late login completion after API changes (success %s)', async success => {
+it.each([
+  ['developmentApi', B, true],
+  ['developmentApi', B, false],
+  ['developmentWebsocket', 'wss://other.example/deployments/ws', true],
+  ['developmentWebsocket', 'wss://other.example/deployments/ws', false],
+] as const)('rejects a late login completion after %s changes to %s (success %s)', async (setting, destination, success) => {
   const auth = useAuth();
   let settle!: (value: any) => void;
   auth.client.post = vi.fn().mockReturnValue(new Promise((resolve, reject) => { settle = success ? resolve : reject; }));
   auth.username = 'synthetic'; auth.password = 'invented-password';
   auth.onLoginSuccess = vi.fn();
   const pending = auth.login();
-  useSettings().developmentApi = B;
-  useSettings().developmentApi = A;
+  const settings = useSettings();
+  const original = settings[setting];
+  settings[setting] = destination;
+  settings[setting] = original;
   settle(success ? { access_token: 'stale-a' } : { response: { status: 401 } });
   await pending;
   expect(auth.accessToken).toBeNull();

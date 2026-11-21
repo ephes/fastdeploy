@@ -45,7 +45,11 @@ export const useAuth = defineStore("auth", () => {
 
   // The store's effect scope owns this watcher, including after recreation
   // from retained state. A destination change retires pending logins too.
-  watch(() => settings.api, () => useAuth(pinia).endSession(), { flush: "sync" });
+  watch(
+    [() => settings.api, () => settings.websocket],
+    () => useAuth(pinia).endSession(),
+    { flush: "sync" },
+  );
 
   const actions = {
     $reset(): void {

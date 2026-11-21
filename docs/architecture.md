@@ -339,9 +339,11 @@ class WebSocketClient {
 
 ### Frontend transport lifetime
 
-The Pinia auth store owns one API destination watcher. It retires the current
-session and pending logins synchronously on a destination change. Pinia stops
-the watcher when disposing the store and installs a new one on recreation.
+The Pinia auth store watches the effective HTTP API and WebSocket destinations.
+A change to either retires the current session and pending logins synchronously.
+The existing client still reconnects after a connection drop while its destination
+and session remain current. Pinia stops the watcher when disposing the store and
+installs a new one on recreation.
 
 The websocket activity indicator stays lit for one second after the latest admitted
 message. Each status store owns one replaceable expiry timer, including during
@@ -774,7 +776,9 @@ Retry starts a fresh traversal; no partial inventory is published.
 A history page reconciles membership in one set before publishing the updated
 IDs. WebSocket changes and acknowledged starts during the request protect cached
 rows, and the cursor follows the server page even when a deletion hides its last
-row.
+row. An authoritative omission evicts the cached deployment and its step
+inventory, invalidating any step refresh for that inventory. An omitted row for
+the open detail leaves the list but keeps its cached deployment and steps.
 
 Browser history retains a window of at most 200 displayed deployments. Further
 load-more requests show a limit message; refresh or select a service to start a new

@@ -24,10 +24,11 @@ Development defaults to `http://localhost:8000` and
 
 ## Login and detail pages
 
-User credentials belong to the API base used for login. Changing the configured
-API base clears the session, password, stores and socket; sign in again at the new
-base. In-flight login/REST results and cached authenticated clients from the old
-session are retired, including when switching away and back before completion.
+The login session belongs to the configured API base and WebSocket URL. Changing
+either effective destination clears the session, password, stores and socket.
+Sign in again to use the new configuration. In-flight login/REST results and
+cached authenticated clients from the old session are retired, including when
+switching away and back before completion.
 
 Login uses labeled username/password fields with credential autocomplete. Enter in
 either field submits the form; one request runs at a time and failures are announced

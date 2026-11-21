@@ -258,8 +258,11 @@ export const useDeployments = defineStore("deployments", {
               && deployment.id >= oldest && (upper === null || deployment.id < upper)
               && !present.has(deployment.id) && !changed.has(deployment.id)
               && !startedMeanwhile.has(deployment.id)) {
-            delete this.deployments[deployment.id];
             historyIds.delete(deployment.id);
+            if (deployment.id !== this.displayedDeploymentId) {
+              delete this.deployments[deployment.id];
+              useSteps().evictDeployment(deployment.id);
+            }
           }
         }
         for (const deployment of deployments) {
