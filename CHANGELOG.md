@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Read and parse shared playbooks once per service sync inventory, with independent planned steps per service.
 - Close the service configuration descriptor when stream setup fails.
 - Batch deployment history membership updates when reconciling a page.
 - Scope deployment service tokens to the start request so reused clients keep their original credentials.

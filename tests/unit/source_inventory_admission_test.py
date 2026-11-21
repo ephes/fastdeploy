@@ -74,17 +74,67 @@ def test_shared_playbook_and_exact_inventory_boundary(tmp_path, monkeypatch):
     play = "- hosts: local\n  tasks: [{name: prepare}]\n"
     playbook.write_text(play)
     config = json.dumps({"ansible_playbook": str(playbook)})
-    write_configs(tmp_path, count=2, content=config)
-    monkeypatch.setattr(filesystem, "MAX_SOURCE_SERVICES", 2, raising=False)
-    monkeypatch.setattr(filesystem, "MAX_SOURCE_ENTRIES", 3, raising=False)
-    actual_bytes = 4 * len(config.encode()) + 2 * len(play.encode())
-    monkeypatch.setattr(filesystem, "MAX_SOURCE_BYTES", actual_bytes, raising=False)
-    configs = filesystem.Filesystem(tmp_path).get_configs()
-    assert len(configs) == 2
-    assert all(data["steps"] == [{"name": "Gathering Facts"}, {"name": "prepare"}] for _, data in configs)
+    write_configs(tmp_path, count=9, content=config)
+    relative_service = tmp_path / "relative-service"
+    relative_service.mkdir()
+    (relative_service / "config.json").write_text(relative_config := json.dumps({"ansible_playbook": playbook.name}))
+    monkeypatch.setattr(filesystem.settings, "project_root", tmp_path)
+    monkeypatch.setattr(filesystem, "MAX_SOURCE_SERVICES", 10)
+    monkeypatch.setattr(filesystem, "MAX_SOURCE_ENTRIES", 11)
+    reads, parses = [], []
+    original_read, original_load = filesystem._read_regular, filesystem._load_document
+
+    def read(root, relative, **kwargs):
+        if root / relative == playbook:
+            reads.append(relative)
+        return original_read(root, relative, **kwargs)
+
+    def load(content, **kwargs):
+        if kwargs.get("playbook"):
+            parses.append(content)
+        return original_load(content, **kwargs)
+
+    monkeypatch.setattr(filesystem, "_read_regular", read)
+    monkeypatch.setattr(filesystem, "_load_document", load)
+    actual_bytes = 2 * (9 * len(config.encode()) + len(relative_config.encode())) + len(play.encode())
+    monkeypatch.setattr(filesystem, "MAX_SOURCE_BYTES", actual_bytes)
+
+    reader = filesystem.Filesystem(tmp_path)
+    configs = reader.get_configs()
+    expected = [{"name": "Gathering Facts"}, {"name": "prepare"}]
+    assert len(configs) == 10
+    assert len(reads) == len(parses) == 1
+    assert all(data["steps"] == expected for _, data in configs)
+    configs[0][1]["steps"][0]["name"] = "changed"
+    configs[0][1]["steps"].pop()
+    assert all(data["steps"] == expected for _, data in configs[1:])
+    assert all(data["steps"] == expected for _, data in reader.get_configs())
+    assert len(reads) == len(parses) == 2
+
     monkeypatch.setattr(filesystem, "MAX_SOURCE_BYTES", actual_bytes - 1)
-    with pytest.raises(filesystem.ServiceConfigError):
+    with pytest.raises(filesystem.ServiceConfigError, match="total byte limit"):
+        reader.get_configs()
+
+
+def test_shared_playbook_change_after_parse_refuses_inventory(tmp_path, monkeypatch):
+    playbook = tmp_path / "shared.yml"
+    playbook.write_text("- hosts: local\n  tasks: [{name: prepare}]\n")
+    write_configs(tmp_path, count=10, content=json.dumps({"ansible_playbook": str(playbook)}))
+    original_load = filesystem._load_document
+    parses = 0
+
+    def load_and_change(content, **kwargs):
+        nonlocal parses
+        result = original_load(content, **kwargs)
+        if kwargs.get("playbook"):
+            parses += 1
+            playbook.write_text("- hosts: local\n  tasks: [{name: changed after parsing}]\n")
+        return result
+
+    monkeypatch.setattr(filesystem, "_load_document", load_and_change)
+    with pytest.raises(filesystem.ServiceConfigError, match="tree changed; retry sync"):
         filesystem.Filesystem(tmp_path).get_configs()
+    assert parses == 1
 
 
 def test_directory_scan_stops_before_materializing_excess_entries(tmp_path, monkeypatch):
