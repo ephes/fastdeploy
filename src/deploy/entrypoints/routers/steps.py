@@ -1,4 +1,5 @@
 import logging
+from contextlib import suppress
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from jwt import InvalidTokenError
@@ -42,12 +43,14 @@ async def process_step_result(
     except (InvalidCredentials, InvalidTokenError):
         raise credentials_exception() from None
     except model.StepReportConflict as e:
-        logger.warning("conflicting repeated step report for deployment %s", deployment.id)
+        with suppress(Exception):
+            logger.warning("conflicting repeated step report for deployment %s", deployment.id)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Step was already reported with a different result"
         ) from e
     except Exception as e:
-        logger.warning("could not process step for deployment %s", deployment.id, exc_info=True)
+        with suppress(Exception):
+            logger.warning("could not process step for deployment %s", deployment.id, exc_info=True)
         raise HTTPException(status_code=400, detail="Something went wrong") from e
     return {"detail": "step processed"}
 

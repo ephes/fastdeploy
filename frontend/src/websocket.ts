@@ -181,9 +181,8 @@ export function createWebsocketClient(): WebsocketClient {
           // only try to reconnect if the connection is closed
           // skip on OPEN, CONNECTING and CLOSING
           this.initWebsocketConnection(websocketUrl, accessToken);
-          // stop retrying after initWebsocketConnection is called
-          // because if it fails, it will call onConnectionClose again
-          // and we are using a global retryCount
+          // A later socket close starts its own loop with the same retry count.
+          // A synchronous construction refusal has no socket to retry.
           break;
         } else {
           console.log(
@@ -297,6 +296,7 @@ export function createWebsocketClient(): WebsocketClient {
         return;
       }
       if (!("type" in message) || message.type === "warning") return;
+      if (message.type !== "authentication" && authenticatedGeneration !== generation) return;
       useWebsocketStore().receivedMessage();
       if (message.type === "authentication") {
         // special handling for authentication response
@@ -323,14 +323,24 @@ export function createWebsocketClient(): WebsocketClient {
       // create the websocket connection
       const websocketStore = useWebsocketStore();
       websocketStore.protocolError = "";
+      websocketStore.connectionError = "";
       websocketStore.handling = "init connection";
+      websocketStore.authentication = "not authenticated";
+      const currentGeneration = ++generation;
       const previous = this.connection;
+      this.connection = undefined;
       if (previous) {
         previous.onclose = previous.onopen = previous.onmessage = null;
         previous.close();
       }
-      const currentGeneration = ++generation;
-      this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
+      try {
+        this.connection = new WebSocket(`${websocketUrl}/${this.uuid}`);
+      } catch {
+        websocketStore.connection = "CLOSED";
+        websocketStore.connectionError = "Unable to open websocket; refresh to try again.";
+        websocketStore.handling = websocketStore.connectionError;
+        return;
+      }
       websocketStore.connection = readyState[this.connection.readyState];
       console.log("connecting to websocket: ", this.connection);
 

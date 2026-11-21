@@ -344,7 +344,13 @@ The Pinia auth store watches the effective HTTP API and WebSocket destinations.
 A change to either retires the current session and pending logins synchronously.
 The existing client still reconnects after a connection drop while its destination
 and session remain current. Pinia stops the watcher when disposing the store and
-installs a new one on recreation.
+installs a new one on recreation. Each replacement socket starts unauthenticated.
+Deployment, step, service and user frames can update the stores only after the
+current socket receives an authentication success. Authentication and
+informational frames retain their existing handling.
+If the browser refuses to create a WebSocket, the UI shows an offline error and
+stops retrying that connection. Check the WebSocket URL and refresh to retry.
+The HTTP login stays active.
 
 The websocket activity indicator stays lit for one second after the latest admitted
 message. Each status store owns one replaceable expiry timer, including during

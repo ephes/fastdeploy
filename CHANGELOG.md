@@ -10,6 +10,10 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Keep foreign deployment details indistinguishable from missing deployments when diagnostics fail.
+- Preserve step-report 409 and 400 responses when diagnostic logging fails.
+- Show an offline error when the browser refuses to construct a WebSocket, including during reconnect.
+- Apply browser WebSocket domain updates only after the current connection authenticates.
 - Preserve the original request error or cancellation when logging a database close failure also fails.
 - Read and decode each service config once during sync preflight while retaining source generation checks.
 - Preserve the initiating operation error when logging a transaction cleanup failure also fails.

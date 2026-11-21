@@ -8,6 +8,7 @@ function initialState() {
        */
       connection: "not connected" as string,
       protocolError: "",
+      connectionError: "",
       /**
        * Information about the websocket authentication status
        */
