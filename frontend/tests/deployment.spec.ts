@@ -6,6 +6,7 @@ import { createWebsocketClient } from "../src/websocket";
 import { pythonToJavascript } from "../src/converters";
 import { useServices } from "../src/stores/service";
 import { useDeployments } from "../src/stores/deployment";
+import { getClient } from "../src/stores/httpClient";
 
 const apiDeployment = {
   id: 1,
@@ -138,25 +139,27 @@ describe("Deployment Store Actions", () => {
     expect(Object.keys(deploymentsStore.getDeploymentsByService(1))).toStrictEqual(["2"]);
   });
 
-  it("uses the service token only on the client of the start request", async () => {
+  it("uses the service token only for the start request on a reused client", async () => {
     const servicesStore = useServices();
     const deploymentsStore = useDeployments();
-    servicesStore.fetchServiceToken = vi.fn(async () => "service-token");
-    const seen: string[] = [];
-    const client = {
-      async post() {
-        seen.push(client.options.headers.Authorization);
-        return { ...apiDeployment, id: 3 };
-      },
-      options: { headers: {} as any },
-    } as any;
+    servicesStore.fetchServiceToken = vi.fn().mockResolvedValue("synthetic-service-token");
+    const client = getClient();
+    client.options.headers.Authorization = "Bearer synthetic-user-token";
+    const transport = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(apiDeployment)))
+      .mockResolvedValueOnce(new Response("[]"));
 
-    await deploymentsStore.startDeployment("fastdeploy", client);
+    try {
+      await deploymentsStore.startDeployment("fastdeploy", client);
+      await client.get("services/");
 
-    expect(seen).toStrictEqual(["Bearer service-token"]);
-    expect(deploymentsStore.client).not.toBe(client);
-    expect(JSON.stringify(deploymentsStore.client.options)).not.toContain("service-token");
-    expect(JSON.stringify(servicesStore.client.options)).not.toContain("service-token");
+      expect(transport.mock.calls.map(([, options]) =>
+        new Headers(options?.headers).get("Authorization")
+      )).toEqual(["Bearer synthetic-service-token", "Bearer synthetic-user-token"]);
+      expect(client.options.headers.Authorization).toBe("Bearer synthetic-user-token");
+    } finally {
+      transport.mockRestore();
+    }
   });
 
   it("shows the issuance refusal and never starts a run with a missing token", async () => {

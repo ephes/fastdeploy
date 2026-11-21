@@ -1,9 +1,10 @@
 import { vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
-import { reactive } from "vue";
+import { reactive, watch } from "vue";
 import { initPinia } from "./conftest";
 import { useDeployments } from "../src/stores/deployment";
 import { useAuth } from "../src/stores/auth";
+import { useServices } from "../src/stores/service";
 import DeploymentList from "../src/components/DeploymentList.vue";
 
 const { route } = vi.hoisted(() => ({ route: { query: {} as Record<string, string> } }));
@@ -81,6 +82,45 @@ it("keeps the history window and load-more capacity scoped to the new service", 
   expect(get).toHaveBeenLastCalledWith("deployments/?limit=50&service_id=2&before_id=51");
   expect(store.historyIds).toEqual([502, ...next.map(({ id }) => id), 50]);
   expect(store.historyDeployments.map(({ id }) => id)).toEqual(store.historyIds);
+});
+
+it("reconciles a full stale history with bounded collection updates", async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services[1] = { id: 1, name: "fixture", data: {} };
+  vi.spyOn(services, "fetchServiceToken").mockResolvedValue("synthetic-token");
+  const live = (id: number) => ({ ...row(id), type: "deployment" as const, serviceId: 1, finished: new Date() });
+  for (let id = 401; id <= 600; id++) store.onMessage(live(id));
+  expect(store.historyIds).toHaveLength(200);
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  store.client.post = vi.fn().mockResolvedValue(row(602));
+  const refresh = store.fetchDeployments(1);
+  const updated = live(575);
+  store.onMessage(updated);
+  const deleted = { ...live(299), deleted: true };
+  store.onMessage(deleted);
+  await store.startDeployment("fixture", store.client);
+
+  const replacement = Array.from({ length: 50 }, (_, i) => row(300 - i));
+  let publications = 0;
+  const stop = watch(() => store.historyIds, () => { publications++; }, { flush: "sync" });
+  try {
+    respond(replacement);
+    await refresh;
+    expect(store.historyIds).toEqual([575, ...replacement.map(({ id }) => id).filter(id => id !== 299)]);
+    expect(store.deployments[575]).toEqual(updated);
+    expect(store.deployments[602]).toBeDefined();
+    expect(store.deployments[600]).toBeUndefined();
+    expect(store.deployments[299]).toBeUndefined();
+    expect(store.historyBeforeId).toBe(251);
+    expect(store.historyHasMore).toBe(true);
+    // Reconciliation, pruning and cursor clipping each publish at most once.
+    expect(publications).toBeLessThanOrEqual(3);
+  } finally {
+    stop();
+  }
 });
 
 it("navigates service history and exposes load more and errors", async () => {

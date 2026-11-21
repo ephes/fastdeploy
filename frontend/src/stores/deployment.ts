@@ -137,7 +137,7 @@ export const useDeployments = defineStore("deployments", {
      * returned instead of being replaced by the start response.
      * A deletion observed while the POST is pending rejects the acknowledgement.
      *
-     * The service token is only set on the client of this one call.
+     * The service token authorizes only this request.
      *
      * Returns null if token issuance fails; the services store keeps the error.
      * Also returns null when the login session ended while waiting (logout,
@@ -171,13 +171,14 @@ export const useDeployments = defineStore("deployments", {
       if (!isCurrentSession() || !serviceToken) {
         return null;
       }
-      client.options.headers.Authorization = `Bearer ${serviceToken}`;
       const pending = this.pendingStartDeletions;
       const deletedMeanwhile = new Set<number>();
       pending.add(deletedMeanwhile);
       let response: unknown;
       try {
-        response = await client.post<unknown>("deployments/");
+        response = await client.post<unknown>("deployments/", undefined, {
+          headers: { Authorization: `Bearer ${serviceToken}` },
+        });
       } finally {
         pending.delete(deletedMeanwhile);
       }
@@ -241,11 +242,12 @@ export const useDeployments = defineStore("deployments", {
           return;
         }
         const deployments = deploymentPage(response, requestedServiceId, beforeId);
+        const historyIds = new Set(this.historyIds);
         if (!loadMore) {
-          this.historyIds = this.historyIds.filter(id =>
-            (changed.has(id) || startedMeanwhile.has(id)) &&
-            (requestedServiceId === undefined || this.deployments[id]?.serviceId === requestedServiceId)
-          );
+          for (const id of historyIds) {
+            const matchesService = requestedServiceId === undefined || this.deployments[id]?.serviceId === requestedServiceId;
+            if (!matchesService || (!changed.has(id) && !startedMeanwhile.has(id))) historyIds.delete(id);
+          }
           this.historyBeforeId = null;
         }
         const present = new Set(deployments.map(deployment => deployment.id));
@@ -257,17 +259,16 @@ export const useDeployments = defineStore("deployments", {
               && !present.has(deployment.id) && !changed.has(deployment.id)
               && !startedMeanwhile.has(deployment.id)) {
             delete this.deployments[deployment.id];
-            this.historyIds = this.historyIds.filter(id => id !== deployment.id);
+            historyIds.delete(deployment.id);
           }
         }
         for (const deployment of deployments) {
           if (!changed.has(deployment.id)) {
             this.deployments[deployment.id] = deployment;
           }
-          if (this.deployments[deployment.id] && !this.historyIds.includes(deployment.id)) {
-            this.historyIds.push(deployment.id);
-          }
+          if (this.deployments[deployment.id]) historyIds.add(deployment.id);
         }
+        this.historyIds = [...historyIds];
         this.pruneHistory();
         // Advance using the server page even when an event deleted its last row.
         if (deployments.length) this.historyBeforeId = deployments[deployments.length - 1].id;

@@ -1,3 +1,4 @@
+import type { ServiceWithId } from '../src/typings';
 import { vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createEvent, initPinia } from './conftest';
@@ -52,6 +53,31 @@ it('confirms the named service/history, cancels without a request, and deletes o
   expect(store.services[2].name).toBe('second');
   expect(action(wrapper, 'Delete', 'second').attributes('aria-label')).toBe('Delete second');
   wrapper.unmount();
+});
+
+it('shares the pending deletion with remounted lists and direct callers', async () => {
+  const { store, wrapper } = setup();
+  const response = deferred<unknown>();
+  const remove = vi.fn().mockReturnValue(response.promise);
+  store.client = { delete: remove } as any;
+  window.confirm = vi.fn().mockReturnValue(true);
+
+  await action(wrapper, 'Delete', 'first').trigger('click');
+  wrapper.unmount();
+  const remounted = mount(ServiceList, { global: { stubs: { 'router-link': true, ProgressCount: true } } });
+  const button = action(remounted, 'Delete', 'first');
+  await button.trigger('click');
+  const duplicate = store.deleteService(1);
+  expect(remove).toHaveBeenCalledTimes(1);
+  await expect(duplicate).resolves.toBe(false);
+  expect(button.attributes('disabled')).toBeDefined();
+
+  response.reject({ response: { status: 409 } });
+  await flushPromises();
+  expect(store.pendingDeletes.has(1)).toBe(false);
+  expect(button.attributes('disabled')).toBeUndefined();
+  expect(remounted.get('[role="alert"]').text()).toContain('running');
+  remounted.unmount();
 });
 
 it.each([409, 404, 0])('keeps deletion refusal/transport failure visible and retryable (%s)', async status => {
@@ -186,40 +212,35 @@ it.each([{ service_id: 2 }, { id: 0 }, { started: 'invalid' }, { finished: false
   wrapper.unmount();
 });
 
-it.each(['newer refusal', 'newer success', 'socket deletion'])('drops an old delete refusal after %s', async outcome => {
+it.each([true, false])('settles a socket-confirmed deletion without affecting a replacement (success: %s)', async success => {
   const store = useServices();
   store.services[1] = { id: 1, name: 'first', data: {} };
-  const old = deferred<unknown>();
-  const newer = deferred<unknown>();
-  store.client.delete = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(newer.promise);
+  const response = deferred<unknown>();
+  store.client.delete = vi.fn().mockReturnValue(response.promise);
   const first = store.deleteService(1);
-  if (outcome === 'socket deletion') {
-    store.onMessage({ type: 'service', id: 1, deleted: true } as any);
-  } else {
-    const second = store.deleteService(1);
-    if (outcome === 'newer success') newer.resolve(null);
-    else newer.reject({ response: { status: 404 } });
-    await second;
-  }
-  old.reject({ response: { status: 409 } });
-  await expect(first).resolves.toBe(false);
-  expect(store.deleteErrors[1]).toBe(
-    outcome === 'newer refusal' ? 'This service no longer exists. Refresh services.' : undefined,
-  );
+  store.onMessage({ type: 'service', id: 1, deleted: true } as any);
+  store.onMessage({ type: 'service', id: 1, name: 'replacement', data: {} } as ServiceWithId);
+  await expect(store.deleteService(1)).resolves.toBe(false);
+  expect(store.client.delete).toHaveBeenCalledTimes(1);
+
+  if (success) response.resolve(null);
+  else response.reject({ response: { status: 409 } });
+  await expect(first).resolves.toBe(success);
+  expect(store.services[1].name).toBe('replacement');
+  expect(store.deleteErrors[1]).toBeUndefined();
+  expect(store.pendingDeletes.has(1)).toBe(false);
 });
 
-it('reconciles an older confirmed deletion with a pending snapshot and a newer refusal', async () => {
+it('keeps a confirmed deletion out of a pending snapshot', async () => {
   const store = useServices();
   const row = { id: 1, name: 'first', data: {} };
   store.services[1] = row;
   const snapshot = deferred<unknown>();
   const old = deferred<unknown>();
   store.client.get = vi.fn().mockReturnValue(snapshot.promise);
-  store.client.delete = vi.fn().mockReturnValueOnce(old.promise).mockRejectedValueOnce({ response: { status: 404 } });
+  store.client.delete = vi.fn().mockReturnValue(old.promise);
   const refresh = store.fetchServices();
   const first = store.deleteService(1);
-  await expect(store.deleteService(1)).resolves.toBe(false);
-  expect(store.deleteErrors[1]).toContain('no longer exists');
   old.resolve(null);
   await expect(first).resolves.toBe(true);
   expect(store.deleteErrors[1]).toBeUndefined();

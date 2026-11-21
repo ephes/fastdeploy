@@ -373,6 +373,21 @@ sets the fixed protocol error and retires the connection without logout or retry
 Response contents never enter parser diagnostics. HTTP byte/deadline limits and
 session/generation ownership checks still apply.
 
+### Service view mutations
+
+A service deletion stays pending in the service store until its request settles.
+Remounting the list keeps the delete button disabled for that service. A WebSocket
+deletion removes the row immediately and retires the request's row and error
+updates.
+
+The service detail clears token feedback and discards outstanding token results
+when the route changes or the selected service disappears or changes identity.
+Updates to the same service ID and name keep the token form and result.
+
+A deployment start sends its service token in the Authorization header of
+`POST /deployments/`. Later requests on the same HTTP client use its original
+authentication defaults.
+
 ### REST snapshot admission
 
 Deployment history validates every row before modifying cached data or paging
@@ -743,6 +758,11 @@ rows and 8 MiB of cumulative response bytes as received (counted per streamed ch
 before JSON decoding, so whitespace or escapes cannot hide size). Oversize or timed-out traversals
 abort the pending request and preserve the last good rows and their completeness.
 Retry starts a fresh traversal; no partial inventory is published.
+
+A history page reconciles membership in one set before publishing the updated
+IDs. WebSocket changes and acknowledged starts during the request protect cached
+rows, and the cursor follows the server page even when a deletion hides its last
+row.
 
 Browser history retains a window of at most 200 displayed deployments. Further
 load-more requests show a limit message; refresh or select a service to start a new

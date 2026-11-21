@@ -28,7 +28,7 @@ export const useServices = defineStore("services", {
       servicesLoading: false,
       servicesError: "",
       deleteErrors: {} as Record<number, string>,
-      pendingDeletes: new Map<number, symbol>(),
+      pendingDeletes: new Map<number, { removed: boolean }>(),
       /**
        * Error message received from backend when trying to fetch
        * a service token.
@@ -136,20 +136,22 @@ export const useServices = defineStore("services", {
     },
     /** Delete only the requested row after a confirmed current-session response. */
     async deleteService(serviceId: number): Promise<boolean> {
+      if (this.pendingDeletes.has(serviceId)) return false;
       const isCurrentSession = rememberSession();
-      const attempt = Symbol();
+      const attempt = markRaw({ removed: false });
       this.pendingDeletes.set(serviceId, attempt);
+      const ownsAttempt = () => this.pendingDeletes.get(serviceId) === attempt;
       delete this.deleteErrors[serviceId];
       try {
         await this.client.delete(`/services/${serviceId}`);
-        if (!isCurrentSession()) return false;
+        if (!isCurrentSession() || !ownsAttempt()) return false;
+        if (attempt.removed) return true;
         for (const pending of this.pendingFetches) pending.add(serviceId);
         delete this.services[serviceId];
-        this.pendingDeletes.delete(serviceId);
         delete this.deleteErrors[serviceId];
         return true;
       } catch (error: any) {
-        if (isCurrentSession() && this.pendingDeletes.get(serviceId) === attempt) {
+        if (isCurrentSession() && ownsAttempt() && !attempt.removed) {
           this.deleteErrors[serviceId] = error?.response?.status === 409
             ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
             : error?.response?.status === 404
@@ -158,7 +160,7 @@ export const useServices = defineStore("services", {
         }
         return false;
       } finally {
-        if (this.pendingDeletes.get(serviceId) === attempt) this.pendingDeletes.delete(serviceId);
+        if (ownsAttempt()) this.pendingDeletes.delete(serviceId);
       }
     },
     /**
@@ -269,7 +271,8 @@ export const useServices = defineStore("services", {
         for (const pending of this.pendingFetches) pending.add(service.id);
         if (service.deleted) {
           delete this.services[service.id];
-          this.pendingDeletes.delete(service.id);
+          const attempt = this.pendingDeletes.get(service.id);
+          if (attempt) attempt.removed = true;
           delete this.deleteErrors[service.id];
         } else {
           this.services[service.id] = service;

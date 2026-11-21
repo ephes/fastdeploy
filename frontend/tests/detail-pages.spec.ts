@@ -1,3 +1,4 @@
+import type { ServiceWithId } from '../src/typings';
 import { vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -87,6 +88,38 @@ it('reacts to late services and route changes and fences an old token response',
   await page.router.push('/services/9'); await flushPromises();
   expect(wrapper.text()).toContain('Service not found');
   expect(wrapper.text()).not.toContain('current-token');
+  wrapper.unmount();
+});
+
+it('retires pending and displayed tokens when the service changes at the same route', async () => {
+  const page = await setup(ServiceDetail, '/services/1');
+  const store = useServices();
+  store.services[1] = { id: 1, name: 'first', data: {} };
+  const old = deferred<unknown>();
+  const current = deferred<unknown>();
+  const post = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
+  store.client = { post } as any;
+  const wrapper = page.mount();
+
+  await wrapper.get('button').trigger('click');
+  store.onMessage({ type: 'service', id: 1, deleted: true } as Pick<ServiceWithId, "type" | "id" | "deleted">);
+  store.onMessage({ type: 'service', id: 1, name: 'replacement', data: {} } as ServiceWithId);
+  await flushPromises();
+  expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
+  await wrapper.get('button').trigger('click');
+
+  old.resolve({ service_token: 'obsolete-token', token_type: 'bearer' });
+  await flushPromises();
+  expect(wrapper.find('pre').exists()).toBe(false);
+  expect(wrapper.get('button').attributes('disabled')).toBeDefined();
+
+  store.onMessage({ type: 'service', id: 1, name: 'replacement', data: { updated: true } } as ServiceWithId);
+  current.resolve({ service_token: 'current-token', token_type: 'bearer' });
+  await flushPromises();
+  expect(wrapper.get('pre').text()).toBe('current-token');
+  store.onMessage({ type: 'service', id: 1, name: 'another-service', data: {} } as ServiceWithId);
+  await flushPromises();
+  expect(wrapper.find('pre').exists()).toBe(false);
   wrapper.unmount();
 });
 
