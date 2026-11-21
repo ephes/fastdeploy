@@ -388,7 +388,9 @@ server local time): sending the same result again (same `state` and `message`) c
 `name` and `started` with a different `state` or `message` is rejected with **409 Conflict**, so a
 progress report and the result of a step need different `started` timestamps (the deploy task stamps
 every script line with its own). Steps that share a name but have different `started` timestamps are
-separate steps.
+separate steps. Other processing failures return **400** with
+`{"detail": "Something went wrong"}`. Both error responses are preserved if
+the diagnostic log fails.
 
 ### GET /steps/
 **Purpose**: List a bounded step page for a deployment

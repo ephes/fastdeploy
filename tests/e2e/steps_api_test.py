@@ -1,17 +1,20 @@
 import json
+import logging
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from deploy.auth import create_access_token
-from deploy.domain import events, model
+from deploy.domain import commands, events, model
 from deploy.entrypoints.helper_models import (
     MAX_STEP_MESSAGE_LENGTH,
     MAX_STEP_NAME_LENGTH,
     StepResult,
 )
+from deploy.entrypoints.routers import steps
 from deploy.tasks import MAX_STEP_MESSAGE_SIZE
 
 pytestmark = pytest.mark.asyncio
@@ -135,6 +138,47 @@ async def test_process_step_repeated_report(app, uow, step_result, publisher, va
     async with uow:
         [step] = await uow.steps.list()
         assert (step.name, step.state) == (step_result.name, "success")
+
+
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize(
+    "conflict, expected_status, detail",
+    [(True, 409, "Step was already reported with a different result"), (False, 400, "Something went wrong")],
+)
+async def test_step_report_error_survives_logging_failure(
+    app,
+    bus,
+    deployment_in_db,
+    step_result,
+    valid_deploy_token_in_db,
+    monkeypatch,
+    caplog,
+    conflict,
+    expected_status,
+    detail,
+):
+    error = (
+        model.StepReportConflict(deployment_id=deployment_in_db.id, name=step_result.name)
+        if conflict
+        else ValueError("synthetic report rejection")
+    )
+    monkeypatch.setitem(bus.command_handlers, commands.ProcessStep, AsyncMock(side_effect=error))
+    handler = logging.Handler()
+    handler.emit = Mock(side_effect=OSError("synthetic diagnostic outage"))
+    monkeypatch.setattr(steps.logger, "handlers", [handler])
+    caplog.set_level(logging.WARNING, logger=steps.logger.name)
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            app.url_path_for("process_step_result"),
+            json=json.loads(step_result.model_dump_json()),
+            headers={"authorization": f"Bearer {valid_deploy_token_in_db}"},
+        )
+
+    assert response.status_code == expected_status, response.text
+    handler.emit.assert_called_once()
+    assert response.json() == {"detail": detail}
 
 
 @pytest.mark.parametrize(
