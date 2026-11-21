@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Reject deployment, step and service REST snapshots with mismatched row types.
 - Continue exit cleanup of deployment configs after a retained descriptor fails to close.
 - Close the duplicate deployment config descriptor when write-stream setup fails.
 - Preserve message-bus handler outcomes when error logging fails.

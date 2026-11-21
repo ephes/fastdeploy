@@ -1,8 +1,9 @@
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 
-async function intercept(page: Page, token: string) {
+async function intercept(page: Page, token: string, deployments = (_url: URL): unknown => []) {
   await page.route('http://localhost:8000/**', async route => {
-    const path = new URL(route.request().url()).pathname;
+    const url = new URL(route.request().url());
+    const path = url.pathname;
     const headers = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'authorization,content-type',
@@ -17,7 +18,8 @@ async function intercept(page: Page, token: string) {
       headers,
       contentType: 'application/json',
       body: path === '/token' ? token : path === '/services/'
-        ? '[{"id":1,"name":"kept","data":{}}]' : '[]',
+        ? '[{"id":1,"name":"kept","data":{}}]' : path === '/deployments/'
+          ? JSON.stringify(deployments(url)) : '[]',
     });
   });
 }
@@ -56,3 +58,26 @@ for (const raw of [
     await expect(page).toHaveURL('/');
   });
 }
+
+
+test('conflicting REST row type leaves the previous history page usable', async ({ page }) => {
+  const row = (id: number) => ({
+    id, service_id: 1, origin: 'fixture', user: 'synthetic',
+    started: '2026-11-01T00:00:00Z', finished: null,
+  });
+  await intercept(page, '{"access_token":"synthetic"}', url => url.searchParams.has('before_id')
+    ? [{ ...row(1), type: 'step' }]
+    : Array.from({ length: 50 }, (_, index) => row(51 - index)));
+  await page.routeWebSocket('ws://localhost:8000/**', ws => {
+    ws.onMessage(() => ws.send('{"type":"authentication","status":"success"}'));
+  });
+  await login(page);
+  await page.getByRole('link', { name: 'Deployments', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'details for 51', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Load more', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not load deployment history');
+  await expect(page.getByRole('link', { name: 'details for 1', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'details for 51', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Retry history', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Load more', exact: true })).toBeEnabled();
+});

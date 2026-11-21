@@ -424,6 +424,10 @@ array of unique strings. Both responses are checked before publication, keep the
 last good state on rejection and use fixed, payload-free request-local error
 messages. Valid snapshots still preserve websocket-touched ids, including deletes.
 
+REST rows may omit `type`. When present, it must match the row kind
+(`deployment`, `step` or `service`); a mismatch rejects the entire response and
+leaves the last good snapshot available.
+
 An optional `deleted` flag on step or service rows must be a boolean, as on the
 websocket. REST and websocket admission share the identifier, timestamp, step-state
 and deletion predicates in `frontend/src/wireValues.ts`, so both paths keep one
