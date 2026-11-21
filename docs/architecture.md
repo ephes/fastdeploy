@@ -445,7 +445,7 @@ websocket. REST and websocket admission share the identifier, timestamp, step-st
 and deletion predicates in `frontend/src/wireValues.ts`, so both paths keep one
 wire contract.
 
-Timestamps require real Gregorian calendar dates, including leap-year rules,
+Timestamps require real Gregorian calendar dates in years 0001–9999, including leap-year rules,
 hours 00–23, minutes/seconds 00–59 and valid offset components. Impossible dates
 and `24:00` are refused before conversion, rather than normalized into another
 day. Supported ISO forms retain optional seconds/fractions, `Z` or numeric offsets
