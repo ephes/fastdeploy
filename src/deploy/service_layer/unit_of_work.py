@@ -85,6 +85,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
     def __init__(self, engine, session_factory, *, owns_engine: bool = True):
         self.engine = engine
         self.owns_engine = owns_engine
+        self._engine_needs_disposal = True
         self.session_factory = session_factory
         self.connection = None
 
@@ -93,6 +94,7 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         Being able to explicitly control when the connection starts. This
         is called at the beginning of each web request via `bootstrap.get_bus`.
         """
+        self._engine_needs_disposal = True
         self.connection = await self.engine.connect()
         self.session = self.session_factory(bind=self.connection)
 
@@ -101,17 +103,24 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
         Being able to explicitly control when the connection is closed.
         This is called at the end of each web request via `bootstrap.get_bus`.
         """
+        # Release ownership before the first await so a second close cannot
+        # retry failed cleanup or race the current cleanup for these handles.
+        session = getattr(self, "session", None)
+        if session is not None:
+            del self.session
+        connection, self.connection = self.connection, None
+        engine = self.engine if self.owns_engine and self._engine_needs_disposal else None
+        self._engine_needs_disposal = False
         try:
-            session = getattr(self, "session", None)
             if session is not None:
                 await session.close()
         finally:
             try:
-                if self.connection is not None:
-                    await self.connection.close()
+                if connection is not None:
+                    await connection.close()
             finally:
-                if self.owns_engine:
-                    await self.engine.dispose()
+                if engine is not None:
+                    await engine.dispose()
 
     async def __aenter__(self):
         self.services = repository.SqlAlchemyServiceRepository(self.session)
@@ -166,8 +175,7 @@ class TestableSqlAlchemyUnitOfWork(SqlAlchemyUnitOfWork):
         """
         Create a new connection implicitly when used in an async context_manager.
         """
-        self.connection = await self.engine.connect()
-        self.session = self.session_factory(bind=self.connection)
+        await self.connect()
         return await super().__aenter__()
 
     async def __aexit__(self, *args):

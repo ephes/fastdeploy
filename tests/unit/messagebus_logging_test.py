@@ -6,7 +6,8 @@ import pytest
 
 from deploy.adapters.repository import SqlAlchemyDeployedServiceRepository
 from deploy.domain import commands, events, model
-from deploy.service_layer.messagebus import MessageBus
+from deploy.service_layer import messagebus
+from deploy.service_layer.messagebus import Message, MessageBus
 
 
 @pytest.mark.asyncio
@@ -137,3 +138,36 @@ async def test_storage_failure_diagnostics_omit_sql_and_parameters(is_event, cap
     assert "category=OperationalError" in caplog.text
     assert "private-" not in caplog.text
     assert all(record.exc_info is None for record in caplog.records)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    [events.ServiceUpdated(id=7, name="synthetic", data={}), commands.FinishDeployment(deployment_id=41)],
+)
+async def test_error_logging_failure_preserves_dispatch_outcome(
+    message: Message, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handler_error = ValueError("synthetic handler failure")
+    log_error = Mock(side_effect=OSError("synthetic logging failure"))
+    monkeypatch.setattr(messagebus.logger, "error", log_error)
+    handler = AsyncMock(side_effect=handler_error)
+    next_handler = AsyncMock()
+    bus = MessageBus(
+        fs=Mock(),
+        cm=Mock(),
+        uow=Mock(collect_new_events=Mock(return_value=[])),
+        event_handlers={type(message): [handler, next_handler]},
+        command_handlers={type(message): handler},
+    )
+
+    if isinstance(message, events.Event):
+        assert await bus.handle(message) is None
+        next_handler.assert_awaited_once_with(message)
+    else:
+        with pytest.raises(ValueError) as caught:
+            await bus.handle(message)
+        assert caught.value is handler_error
+
+    handler.assert_awaited_once_with(message)
+    log_error.assert_called_once()
