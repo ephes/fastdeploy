@@ -3,7 +3,7 @@ Readonly views.
 """
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from datetime import datetime, timedelta, timezone
 from typing import TypeVar
 
@@ -15,7 +15,7 @@ from .config import settings
 from .domain import model
 from .service_layer import unit_of_work
 
-OPEN_STEP_STATES = {"pending", "running"}
+DEPLOYMENT_ACTIVITY_BATCH_SIZE = 50
 ORPHAN_RECONCILE_BATCH_SIZE = 50
 ORPHAN_RECONCILE_DELAY = timedelta(seconds=settings.deployment_orphan_reconcile_delay_seconds)
 # After the deployment token has expired the deploy task can neither report
@@ -23,29 +23,13 @@ ORPHAN_RECONCILE_DELAY = timedelta(seconds=settings.deployment_orphan_reconcile_
 STALE_DEPLOYMENT_AGE = timedelta(minutes=settings.deployment_access_token_expire_minutes)
 
 
-def _as_utc(dt: datetime | None) -> datetime | None:
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
-
-
 def last_deployment_activity(deployment: model.Deployment, steps: list[model.Step]) -> datetime | None:
-    """
-    Latest of the deployment start and the start/finish times of its steps, or
-    None if the deployment has no start time.
-    """
-    started = _as_utc(deployment.started)
-    if started is None:
+    """Latest deployment or step activity, or None for a deployment without a start."""
+    if deployment.started is None:
         return None
-    timestamps = [started]
-    for step in steps:
-        for value in (step.started, step.finished):
-            as_utc = _as_utc(value)
-            if as_utc is not None:
-                timestamps.append(as_utc)
-    return max(timestamps)
+    return model.latest_activity_timestamp(
+        deployment.started, *(value for step in steps for value in (step.started, step.finished))
+    )
 
 
 def deployment_is_too_new_for_reconciliation(
@@ -60,9 +44,11 @@ def deployment_is_too_new_for_reconciliation(
     example while retrying through a short API outage).
     """
     last_activity = last_deployment_activity(deployment, steps or [])
-    if last_activity is None:
-        return True
-    return (now - last_activity) < ORPHAN_RECONCILE_DELAY
+    return _activity_is_recent(last_activity, now)
+
+
+def _activity_is_recent(last_activity: datetime | None, now: datetime) -> bool:
+    return last_activity is None or now - last_activity < ORPHAN_RECONCILE_DELAY
 
 
 def deployment_is_orphaned(deployment: model.Deployment, steps: list[model.Step], now: datetime) -> bool:
@@ -215,7 +201,7 @@ async def get_step_page(
 
 def deployment_has_open_steps(steps: list[model.Step]) -> bool:
     """Return True if any step indicates the deployment is still active."""
-    return any(step.state in OPEN_STEP_STATES for step in steps)
+    return any(step.state in model.OPEN_STEP_STATES for step in steps)
 
 
 def classify_unfinished_deployment(
@@ -233,14 +219,40 @@ def classify_unfinished_deployment(
       not block new deployments but is left untouched.
     - "active": anything else. Blocks a new deployment of the same service.
     """
-    started = _as_utc(deployment.started)
+    return classify_unfinished_activity(
+        deployment.started,
+        last_deployment_activity(deployment, steps) if deployment.finished is None else None,
+        deployment_has_open_steps(steps),
+        now,
+    )
+
+
+def classify_unfinished_activity(
+    started: datetime | None, last_activity: datetime | None, has_open_steps: bool, now: datetime
+) -> str:
+    started = model.latest_activity_timestamp(started)
     if started is None:
         return "stale"
-    if deployment_is_orphaned(deployment, steps, now):
+    if not _activity_is_recent(last_activity, now) and not has_open_steps:
         return "orphaned"
     if (now - started) >= STALE_DEPLOYMENT_AGE:
         return "stale"
     return "active"
+
+
+async def unfinished_deployment_activity(
+    service_id: int, uow: unit_of_work.AbstractUnitOfWork
+) -> AsyncIterator[model.UnfinishedDeploymentActivity]:
+    after_id = None
+    while True:
+        page = await uow.deployments.get_unfinished_activity_page(
+            service_id, after_id=after_id, limit=DEPLOYMENT_ACTIVITY_BATCH_SIZE
+        )
+        for activity in page:
+            yield activity
+        if len(page) < DEPLOYMENT_ACTIVITY_BATCH_SIZE:
+            return
+        after_id = page[-1].id
 
 
 async def get_orphaned_unfinished_deployment_ids(

@@ -1,5 +1,5 @@
 import { Deployment, ServiceById, Step } from './typings';
-import { isId as id, isOptionalDeleted, isOptionalWireDate as date, isRecord as record, isStepState, isWireDate } from './wireValues';
+import { isId as id, isOptionalDeleted, isOptionalWireDate as date, isRecord as record, isStepState, isWireDate, wireDateToDate } from './wireValues';
 
 function invalid(): never {
   // Do not include wire values in diagnostics (service data may be private).
@@ -48,8 +48,8 @@ export function stepSnapshot(value: unknown, deploymentId: number): Step[] {
     return {
       id: row.id, deploymentId: row.deployment_id, name: row.name,
       state: row.state, message: row.message,
-      started: row.started === null ? null : new Date(row.started),
-      finished: row.finished === null ? null : new Date(row.finished),
+      started: row.started === null ? null : wireDateToDate(row.started),
+      finished: row.finished === null ? null : wireDateToDate(row.finished),
       ...(row.type === 'step' ? { type: 'step' as const } : {}),
       ...(typeof row.deleted === 'boolean' ? { deleted: row.deleted } : {}),
     };
@@ -86,7 +86,7 @@ export function deploymentSnapshot(value: unknown, serviceId?: number): Deployme
       !isWireDate(value.started) || !date(value.finished) || !isOptionalDeleted(value.deleted)) return invalid();
   return {
     id: value.id, serviceId: value.service_id, origin: value.origin, user: value.user,
-    started: new Date(value.started), finished: value.finished === null ? null : new Date(value.finished),
+    started: wireDateToDate(value.started), finished: value.finished === null ? null : wireDateToDate(value.finished),
     ...(value.type === 'deployment' ? { type: 'deployment' as const } : {}),
     ...(typeof value.deleted === 'boolean' ? { deleted: value.deleted } : {}),
   };

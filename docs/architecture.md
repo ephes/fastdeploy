@@ -445,13 +445,13 @@ websocket. REST and websocket admission share the identifier, timestamp, step-st
 and deletion predicates in `frontend/src/wireValues.ts`, so both paths keep one
 wire contract.
 
-Timestamps require real Gregorian calendar dates, including leap-year rules,
+Timestamps require real Gregorian calendar dates in years 0001–9999, including leap-year rules,
 hours 00–23, minutes/seconds 00–59 and valid offset components. Impossible dates
 and `24:00` are refused before conversion, rather than normalized into another
 day. Supported ISO forms retain optional seconds/fractions, `Z` or numeric offsets
-(`+05:30` / `-0530`), and legacy timestamps without a timezone. Naive values keep
-the browser's existing local-time interpretation; fractions keep JavaScript's
-millisecond conversion. Invalid dates refuse the whole REST snapshot or websocket
+(`+05:30` / `-0530`), and legacy timestamps without a timezone. REST and websocket both interpret legacy timestamps as UTC. Explicit offsets
+preserve the represented instant, and fractions keep JavaScript's millisecond
+conversion. Invalid dates refuse the whole REST snapshot or websocket
 message without changing business data.
 
 All admission runs after the existing session/refresh-generation ownership checks;
@@ -759,8 +759,17 @@ tracks refreshes in progress. Eviction or session reset clears the retained inve
 and its completeness. One event fence spans the whole traversal, so intervening live
 updates/deletions win even when their row appears on a later page. Terminal/deletion
 lifecycle guards also apply to subsequent completed REST traversals. The API checks
-deployment existence without loading its entire step collection. Internal runner and
-reconciliation reads retain their existing full-inventory behavior.
+deployment existence without loading its entire step collection.
+
+### Deployment classification under the service lock
+
+Deployment starts, direct service deletion and sync classify unfinished deployments
+in ascending ID batches of at most 50. Each batch reads deployment starts, latest
+activity and whether any step is pending or running. Deletion and sync stop after
+the first active deployment and report its ID. A start that reaches the end without
+a blocker reloads orphan candidates and their full step inventories while holding
+their deployment locks. It rechecks every candidate before staging any orphan
+finishes, so a step report received after classification can still block the start.
 
 ### Unit of work cleanup ownership
 

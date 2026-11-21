@@ -10,6 +10,10 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Read unfinished deployment activity in bounded batches for deployment starts and service deletion.
+- Stop service deletion and sync scans at the first active deployment.
+- Reject year zero in browser REST and WebSocket timestamps.
+- Interpret legacy deployment and step timestamps without offsets as UTC in REST and WebSocket updates.
 - Read each step page and its deployment in one database snapshot so a concurrent deletion cannot produce a false empty page.
 - Reject deployment and step page identifiers outside PostgreSQL's positive integer range with HTTP 422.
 - Keep foreign deployment details indistinguishable from missing deployments when diagnostics fail.
