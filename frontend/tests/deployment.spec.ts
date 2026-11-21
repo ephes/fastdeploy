@@ -130,7 +130,7 @@ describe("Deployment Store Actions", () => {
       type: "deployment",
     };
     websocketClient.onMessage(createEvent(finishedMessage));
-    respond({ ...finishedMessage, finished: null, type: undefined });
+    respond({ ...finishedMessage, finished: null });
     const started = (await starting)!;
 
     expect(deploymentsStore.deployments[2].finished).toBeInstanceOf(Date);

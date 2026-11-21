@@ -318,7 +318,10 @@ export const useDeploymentStore = defineStore('deployment', {
 
 ### Real-time Communication
 
-WebSocket integration provides live deployment updates:
+WebSocket integration provides live deployment updates. Concrete event models
+enforce their wire `type` at construction (`authentication`, `user`, `service`,
+`step` or `deployment`). Related variants share a type, such as service creation,
+updates and deletion.
 
 ```javascript
 class WebSocketClient {
@@ -423,6 +426,10 @@ string names and object (non-null, non-array) data. Available names require an
 array of unique strings. Both responses are checked before publication, keep the
 last good state on rejection and use fixed, payload-free request-local error
 messages. Valid snapshots still preserve websocket-touched ids, including deletes.
+
+REST rows may omit `type`. When present, it must match the row kind
+(`deployment`, `step` or `service`); a mismatch rejects the entire response and
+leaves the last good snapshot available.
 
 An optional `deleted` flag on step or service rows must be a boolean, as on the
 websocket. REST and websocket admission share the identifier, timestamp, step-state

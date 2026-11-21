@@ -8,6 +8,7 @@ beforeEach(() => initPinia());
 it.each([
   [row(4), null], [row(4), row(4)], [row(4), { ...row(3), service_id: 2 }],
   [row(3), row(4)], [row(4), { ...row(3), finished: 'bad-date' }],
+  [row(4), { ...row(3), type: 'step' }], [row(4), { ...row(3), type: null }],
   Array.from({ length: 51 }, (_, i) => row(100 - i)),
 ].map(response => ({ response })))('retains last-good history on an invalid refresh: %j', async ({ response }) => {
   const store = useDeployments();

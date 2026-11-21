@@ -39,7 +39,8 @@ export function stepSnapshot(value: unknown, deploymentId: number): Step[] {
   if (!Array.isArray(value)) return invalid();
   const seen = new Set<number>();
   return value.map(row => {
-    if (!record(row) || !id(row.id) || seen.has(row.id) || row.deployment_id !== deploymentId ||
+    if (!record(row) || ('type' in row && row.type !== 'step') ||
+        !id(row.id) || seen.has(row.id) || row.deployment_id !== deploymentId ||
         !id(row.deployment_id) || typeof row.name !== 'string' || typeof row.message !== 'string' ||
         !isStepState(row.state) || !date(row.started) || !date(row.finished) ||
         !isOptionalDeleted(row.deleted)) return invalid();
@@ -59,7 +60,8 @@ export function serviceSnapshot(value: unknown): ServiceById {
   if (!Array.isArray(value)) return invalid();
   const snapshot: ServiceById = {};
   for (const row of value) {
-    if (!record(row) || !id(row.id) || Object.hasOwn(snapshot, row.id) ||
+    if (!record(row) || ('type' in row && row.type !== 'service') ||
+        !id(row.id) || Object.hasOwn(snapshot, row.id) ||
         typeof row.name !== 'string' || !record(row.data) || !isOptionalDeleted(row.deleted)) return invalid();
     snapshot[row.id] = {
       id: row.id, name: row.name, data: row.data,
@@ -77,7 +79,8 @@ export function serviceNamesSnapshot(value: unknown): string[] {
 }
 
 export function deploymentSnapshot(value: unknown, serviceId?: number): Deployment {
-  if (!record(value) || !id(value.id) || !id(value.service_id) ||
+  if (!record(value) || ('type' in value && value.type !== 'deployment') ||
+      !id(value.id) || !id(value.service_id) ||
       (serviceId !== undefined && value.service_id !== serviceId) ||
       typeof value.origin !== 'string' || typeof value.user !== 'string' ||
       !isWireDate(value.started) || !date(value.finished) || !isOptionalDeleted(value.deleted)) return invalid();

@@ -3,6 +3,7 @@
 Tests for secure configuration file handling.
 """
 
+import errno
 import json
 import os
 import tempfile
@@ -512,3 +513,77 @@ def test_exit_cleanup_does_not_construct_default_handler(tmp_path, monkeypatch):
     )
     cleanup_temp_files()
     assert not path.exists()
+
+
+def test_failed_stream_adoption_releases_both_config_descriptors(tmp_path, monkeypatch):
+    handler = SecureConfig(tmp_path)
+    real_fdopen = os.fdopen
+    descriptors = []
+    configs = []
+
+    def fail_write_stream(fd, mode, **kwargs):
+        if mode == "w":
+            (path,) = tmp_path.iterdir()
+            configs.append(path)
+            descriptors.extend((_temp_files[path], fd))
+            raise OSError("stream adoption failed")
+        return real_fdopen(fd, mode, **kwargs)
+
+    monkeypatch.setattr(os, "fdopen", fail_write_stream)
+    try:
+        with pytest.raises(RuntimeError, match="stream adoption failed"):
+            make_config(handler)
+        (path,) = configs
+        assert path not in _temp_files
+        assert not path.exists()
+        for fd in descriptors:
+            with pytest.raises(OSError) as error:
+                os.fstat(fd)
+            assert error.value.errno == errno.EBADF
+    finally:
+        # Keep the regression safe when run on the leaking implementation.
+        if descriptors:
+            try:
+                os.close(descriptors[1])
+            except OSError as error:
+                assert error.errno == errno.EBADF
+
+
+@pytest.mark.parametrize("sync_fails", [False, True])
+def test_exit_cleanup_continues_after_retirement_close_error(tmp_path, monkeypatch, caplog, sync_fails):
+    handler = SecureConfig(tmp_path)
+    first = make_config(handler)
+    second = make_config(handler)
+    first_fd, second_fd = _temp_files[first], _temp_files[second]
+    real_close = os.close
+    real_fsync = os.fsync
+    first_inode, second_inode = first.stat().st_ino, second.stat().st_ino
+    sync_attempts = []
+
+    def sync(fd):
+        inode = os.fstat(fd).st_ino
+        sync_attempts.append(inode)
+        if sync_fails and inode == first_inode:
+            raise OSError("sync failed")
+        real_fsync(fd)
+
+    def fail_first_close(fd):
+        real_close(fd)
+        if fd == first_fd:
+            raise OSError("private retirement error")
+
+    with monkeypatch.context() as faults:
+        faults.setattr(os, "fsync", sync)
+        faults.setattr(os, "close", fail_first_close)
+        cleanup_temp_files()
+
+    assert first.exists() == sync_fails
+    assert not second.exists()
+    assert sync_attempts == [first_inode, second_inode]
+    for path, fd in [(first, first_fd), (second, second_fd)]:
+        assert path not in _temp_files
+        with pytest.raises(OSError) as error:
+            os.fstat(fd)
+        assert error.value.errno == errno.EBADF
+    assert "Failed to close retained deployment config descriptor" in caplog.text
+    assert "private retirement error" not in caplog.text

@@ -25,6 +25,7 @@ it.each([
   [step(4), { ...step(5), message: null }], [step(4), { ...step(5), name: null }],
   [step(4), { id: 5, deployment_id: 1 }], [step(4), { ...step(5), deleted: 'yes' }],
   [step(4), { ...step(5), deleted: null }],
+  [step(4), { ...step(3), type: 'service' }], [step(4), { ...step(3), type: null }],
 ])('rejects an entire malformed step snapshot without changing any index: %j', async response => {
   const store = useSteps();
   store.addStep({ id: 1, deploymentId: 1, name: 'old', state: 'running', message: '', started: null, finished: null });
@@ -58,6 +59,7 @@ it.each([
   [service(2), { ...service(3), name: 7 }], [service(2), { ...service(3), data: [] }],
   [service(2), { ...service(3), data: null }], [service(2), { id: 3, name: 'missing-data' }],
   [service(2), { ...service(3), deleted: 1 }],
+  [service(2), { ...service(3), type: 'deployment' }], [service(2), { ...service(3), type: null }],
 ])('retains services and deletion feedback after invalid REST response: %j', async response => {
   const store = useServices(); store.services = { 1: service(1) }; store.deleteErrors[1] = 'keep';
   const before = store.services;
@@ -104,12 +106,12 @@ it('admits an empty step snapshot and removes only the requested deployment', as
 
 it('admits boolean deletion flags in REST snapshots like websocket messages', async () => {
   const steps = useSteps();
-  steps.client = { get: vi.fn().mockResolvedValue([{ ...step(4), deleted: false }]) } as any;
+  steps.client = { get: vi.fn().mockResolvedValue([{ ...step(4), type: 'step', deleted: false }]) } as any;
   await steps.fetchStepsFromDeployment(1);
-  expect(steps.steps[4].deleted).toBe(false);
+  expect(steps.steps[4]).toMatchObject({ type: 'step', deleted: false });
   const services = useServices();
-  services.client = { get: vi.fn().mockResolvedValue([{ ...service(2), deleted: false }]) } as any;
+  services.client = { get: vi.fn().mockResolvedValue([{ ...service(2), type: 'service', deleted: false }]) } as any;
   await services.fetchServices();
-  expect(services.services[2].deleted).toBe(false);
+  expect(services.services[2]).toMatchObject({ type: 'service', deleted: false });
   expect(services.servicesError).toBe('');
 });

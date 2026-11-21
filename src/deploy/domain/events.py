@@ -7,13 +7,11 @@ EVENT_TYPES = Literal["authentication", "service", "step", "deployment", "user"]
 
 
 class Event(BaseModel):
-    # FIXME use Literal["service", ...] but it does not work
-    # in base class with pydantic atm dunno why
     type: str
 
 
 class AuthenticationSucceeded(Event):
-    type: EVENT_TYPES = "authentication"
+    type: Literal["authentication"] = "authentication"
     status: str = "success"
     detail: str | None = None
 
@@ -23,13 +21,13 @@ class AuthenticationFailed(AuthenticationSucceeded):
 
 
 class UserCreated(Event):
-    type: EVENT_TYPES = "user"
+    type: Literal["user"] = "user"
     id: int
     name: str
 
 
 class ServiceCreated(Event):
-    type: EVENT_TYPES = "service"
+    type: Literal["service"] = "service"
     id: int
     name: str
     data: dict = {}
@@ -44,7 +42,7 @@ class ServiceDeleted(ServiceCreated):
 
 
 class StepProcessed(Event):
-    type: EVENT_TYPES = "step"
+    type: Literal["step"] = "step"
     id: int
     name: str
     state: Literal["pending", "running", "success", "failure"]
@@ -60,7 +58,7 @@ class StepDeleted(StepProcessed):
 
 
 class DeploymentStarted(Event):
-    type: EVENT_TYPES = "deployment"
+    type: Literal["deployment"] = "deployment"
     id: int
     service_id: int
     origin: str
