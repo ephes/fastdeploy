@@ -164,14 +164,16 @@ including on success, rejection or cancellation. The normal event publisher stay
 registered.
 
 Events with no registered subscribers are skipped and the queue continues draining.
-An ordinary event-handler exception is logged and later handlers/events continue.
+After an ordinary event-handler exception, later handlers and events continue.
 Commands require a registered handler; missing command handlers raise `KeyError`.
 Command-handler exceptions propagate to the caller and abort that dispatch before
 collecting its generated events; this does not promise rollback of the unit of
 work's pending events.
 `asyncio.CancelledError` propagates during either kind of handler await, without
-running later handlers. Diagnostic message prefixes contain message type and ids,
-not command/event payloads; exception tracebacks are retained.
+running later handlers. Error diagnostics are best effort. A logging failure
+leaves both event continuation and the original command exception intact.
+Diagnostics include message type and IDs. Error records add a bounded exception
+category and omit payloads, exception messages and tracebacks.
 
 `uv run pytest tests/unit/messagebus_dispatch_test.py` protects these existing
 contracts with synthetic command/event classes and a fake unit of work. Tests

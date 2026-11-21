@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Preserve message-bus handler outcomes when error logging fails.
 - Retire SQLAlchemy unit-of-work resources once per connection lifecycle, even when cleanup fails.
 - Sign service tokens before saving their records or purging stale records, and return them after commit.
 - Start service token validity and measure the retention cutoff after locked service revalidation.

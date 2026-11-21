@@ -1,6 +1,7 @@
 import logging
 from collections import deque
 from collections.abc import Callable
+from contextlib import suppress
 from typing import Any
 
 from ..adapters import filesystem, websocket
@@ -10,6 +11,20 @@ from . import unit_of_work
 logger = logging.getLogger(__name__)
 
 Message = commands.Command | events.Event
+
+
+def _log_dispatch_error(kind: str, message: Message, error: Exception) -> None:
+    # A failing diagnostic sink must not interrupt dispatch or mask its error.
+    with suppress(Exception):
+        logger.error(
+            "Exception handling %s=%s id=%s service_id=%s deployment_id=%s category=%s",
+            kind,
+            type(message).__name__,
+            getattr(message, "id", None),
+            getattr(message, "service_id", None),
+            getattr(message, "deployment_id", None),
+            type(error).__name__[:100],
+        )
 
 
 class MessageBus:
@@ -69,15 +84,7 @@ class MessageBus:
                 await handler(event)
                 self.queue.extend(self.uow.collect_new_events())
             except Exception as exc:
-                logger.error(
-                    "Exception handling event=%s id=%s service_id=%s deployment_id=%s category=%s",
-                    type(event).__name__,
-                    getattr(event, "id", None),
-                    getattr(event, "service_id", None),
-                    getattr(event, "deployment_id", None),
-                    type(exc).__name__[:100],
-                )
-                continue
+                _log_dispatch_error("event", event, exc)
 
     async def handle_command(self, command: commands.Command) -> Any:
         logger.debug(
@@ -93,12 +100,5 @@ class MessageBus:
             self.queue.extend(self.uow.collect_new_events())
             return result
         except Exception as exc:
-            logger.error(
-                "Exception handling command=%s id=%s service_id=%s deployment_id=%s category=%s",
-                type(command).__name__,
-                getattr(command, "id", None),
-                getattr(command, "service_id", None),
-                getattr(command, "deployment_id", None),
-                type(exc).__name__[:100],
-            )
+            _log_dispatch_error("command", command, exc)
             raise
