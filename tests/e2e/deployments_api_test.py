@@ -1,5 +1,6 @@
+import logging
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 import pytest_asyncio
@@ -8,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from deploy.auth import create_access_token, issue_service_token
 from deploy.config import settings
 from deploy.domain import commands, events, model
+from deploy.entrypoints.routers import deployments
 
 pytestmark = pytest.mark.asyncio
 
@@ -150,8 +152,10 @@ async def test_get_deployment_details_wrong_service(app, uow, valid_service_toke
 
 
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
-async def test_get_deployment_details_foreign_token_does_not_reconcile_orphan(app, uow, valid_service_token_in_db):
-    """A service token must not be able to finish an orphaned deployment of another service."""
+async def test_get_deployment_details_foreign_orphan_stays_opaque_on_logging_failure(
+    app, bus, uow, valid_service_token_in_db, monkeypatch, caplog
+):
+    """A faulting log sink must not reveal or reconcile another service's deployment."""
     started = datetime.now(timezone.utc) - timedelta(minutes=10)
     service = model.Service(name="another service")
     async with uow:
@@ -175,14 +179,29 @@ async def test_get_deployment_details_foreign_token_does_not_reconcile_orphan(ap
         await uow.commit()
     deployment_id = deployment.id
 
+    reconcile = AsyncMock()
+    monkeypatch.setitem(bus.command_handlers, commands.FinishOrphanedDeployment, reconcile)
+    handler = logging.Handler()
+    handler.emit = Mock(side_effect=OSError("synthetic diagnostic outage"))
+    monkeypatch.setattr(deployments.logger, "handlers", [handler])
+    caplog.set_level(logging.INFO, logger=deployments.logger.name)
+
     headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
             app.url_path_for("get_deployment_details", deployment_id=deployment_id), headers=headers
         )
 
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Deployment not found"}
+        missing = await client.get(
+            app.url_path_for("get_deployment_details", deployment_id=deployment_id + 1), headers=headers
+        )
+
+    assert missing.status_code == 404
+    assert response.status_code == missing.status_code
+    assert response.json() == missing.json() == {"detail": "Deployment not found"}
+    handler.emit.assert_called_once()
+    reconcile.assert_not_called()
     async with uow:
         unchanged = await uow.deployments.get(deployment_id)
     assert unchanged.finished is None

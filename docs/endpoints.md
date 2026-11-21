@@ -309,7 +309,7 @@ iterate pages; CLI deployment operations do not consume this history endpoint.
 **Purpose**: Get deployment details with steps
 **Authentication**: Service token required (must match deployment's service)
 **Errors**: `404 {"detail": "Deployment not found"}` both for an unknown id and for a deployment of
-another service, so the response does not reveal which ids exist. An orphaned unfinished deployment
+another service, including when diagnostic logging fails. An orphaned unfinished deployment
 (see [Orphaned deployments](#orphaned-deployments)) is finished as failed on read, but only after the
 ownership check. The endpoint uses the deployment and steps already loaded for the response to
 identify candidates. Reconciliation rechecks under locks, and the endpoint reloads the detail

@@ -1,4 +1,5 @@
 import logging
+from contextlib import suppress
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -74,7 +75,8 @@ async def get_deployment_details(
     except views.DeploymentNotFound as e:
         raise not_found from e
     if service.id is None or service.id != deployment.service_id:
-        logger.info("service %s requested deployment %s of another service", service.id, deployment_id)
+        with suppress(Exception):
+            logger.info("service %s requested deployment %s of another service", service.id, deployment_id)
         raise not_found
 
     # Classify the authorized snapshot. The command rechecks under locks before writing.
