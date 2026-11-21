@@ -64,11 +64,17 @@ _temp_files: dict[Path, int] = {}
 _cleanup_lock = threading.RLock()
 
 
-def _forget_config(path: Path) -> None:
+def _forget_config(path: Path) -> bool:
     with _cleanup_lock:
         fd = _temp_files.pop(path, None)
         if fd is not None:
-            os.close(fd)
+            try:
+                os.close(fd)
+            except OSError:
+                # The descriptor may already be closed and its number reused.
+                logger.warning("Failed to close retained deployment config descriptor")
+                return False
+        return True
 
 
 def _open_config(path: Path, flags: int) -> int:
@@ -234,8 +240,7 @@ def _cleanup_config(config_path: Path) -> bool:
         try:
             config_path.lstat()
         except FileNotFoundError:
-            _forget_config(config_path)
-            return True
+            return _forget_config(config_path)
 
         owned_fd = _temp_files.get(config_path)
         if owned_fd is None:
@@ -256,7 +261,8 @@ def _cleanup_config(config_path: Path) -> bool:
                 raise PermissionError(f"Config file {config_path} was replaced during cleanup")
             config_path.unlink()
 
-        _forget_config(config_path)
+        if not _forget_config(config_path):
+            return False
         logger.debug(f"Securely removed config: {config_path}")
         return True
     except Exception as e:
