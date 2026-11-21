@@ -1,7 +1,7 @@
 import inspect
 import logging
 from collections.abc import Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -140,7 +140,8 @@ async def get_bus(connection: HTTPConnection):
         except BaseException as cleanup_error:
             if not failed:
                 raise
-            logger.error("request_cleanup_failed category=%s", type(cleanup_error).__name__[:100])
+            with suppress(Exception):
+                logger.error("request_cleanup_failed category=%s", type(cleanup_error).__name__[:100])
 
 
 async def get_bus_for_cli():

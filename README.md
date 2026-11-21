@@ -383,8 +383,8 @@ Invalid sources refuse the entire sync before database changes (HTTP
 
 Each complete sync admits at most 1,000 services and scans at most 4,096 root
 entries (including non-service files), reading at most 16 MiB total UTF-8 source
-bytes and doing at most 500,000 structural work units. Actual reads count again
-for discovery/preparation and shared playbooks. Work includes visited values,
+bytes and doing at most 500,000 structural work units. Each config and each shared
+playbook is read and decoded once per inventory. Work includes visited values,
 YAML parse events and materialized mapping/merge pairs. Limits refuse the entire sync,
 including force mode; inventories are never clipped into deletion candidates.
 Discovery and parsing use the framework's bounded thread pool. Cancellation waits

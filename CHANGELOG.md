@@ -10,6 +10,10 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Preserve the original request error or cancellation when logging a database close failure also fails.
+- Read and decode each service config once during sync preflight while retaining source generation checks.
+- Preserve the initiating operation error when logging a transaction cleanup failure also fails.
+- Continue deployment command dispatch, event handling and WebSocket publication when logging fails.
 - Evict cached steps when a history page removes their deployment, while preserving the open detail.
 - Retire the frontend login session when its WebSocket URL changes.
 - Reject conflicting wire types when constructing domain events.

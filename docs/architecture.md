@@ -170,8 +170,9 @@ Command-handler exceptions propagate to the caller and abort that dispatch befor
 collecting its generated events; this does not promise rollback of the unit of
 work's pending events.
 `asyncio.CancelledError` propagates during either kind of handler await, without
-running later handlers. Error diagnostics are best effort. A logging failure
-leaves both event continuation and the original command exception intact.
+running later handlers. Dispatch and WebSocket publication diagnostics are best
+effort. Delivery, command results and handler failure propagation continue when
+a diagnostic sink raises an ordinary exception.
 Diagnostics include message type and IDs. Error records add a bounded exception
 category and omit payloads, exception messages and tracebacks.
 
@@ -722,8 +723,10 @@ already failing, an ordinary rollback failure is logged once as `uow_rollback_fa
 only its exception category (at most 100 characters); the initiating exception
 continues to the caller. With no initiating failure, the rollback error propagates.
 Cancellation or process-exit signals raised during rollback propagate directly.
-Request teardown still attempts session and connection closure; CLI-owned UOWs
-also dispose their engine.
+Request teardown still attempts session and connection closure. When the request
+is already failing, a close failure produces a best-effort category diagnostic
+and the original request error or cancellation propagates. CLI-owned UOWs also
+dispose their engine.
 
 ### Step lifecycle and scroll ownership
 
@@ -757,9 +760,11 @@ reconciliation reads retain their existing full-inventory behavior.
 
 The SQLAlchemy UoW always attempts rollback after detaching rows, including when
 `expunge_all` raises. A body error or cancellation remains primary; otherwise the
-expunge error is primary. Ordinary cleanup failures while unwinding are logged only
-as bounded exception categories without messages or tracebacks. Cancellation raised
-by rollback keeps the base UoW's existing propagation semantics. Leaving a transaction
+expunge error is primary. Ordinary cleanup failures while unwinding produce
+best-effort diagnostics with bounded exception categories and no messages or
+tracebacks. The initiating exception still propagates if the diagnostic sink
+fails. Cancellation raised by rollback keeps the base UoW's existing
+propagation semantics. Leaving a transaction
 does not close caller-owned sessions, connections or engines: request/explicit close
 owns those resources and can settle them after a failed unwind. Close attempts
 session close, connection close and owned engine disposal once per connection

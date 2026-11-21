@@ -293,12 +293,12 @@ async def test_tree_change_refuses_sync_then_stable_retry_succeeds(
     other = root / "other"
     other.mkdir()
     (other / "config.json").write_text("{}")
-    original = services_filesystem.get_config_by_name
+    original = services_filesystem._prepare_config
     changed = False
 
-    def read_and_change(name, **kwargs):
+    def prepare_and_change(data, **kwargs):
         nonlocal changed
-        data = original(name, **kwargs)
+        original(data, **kwargs)
         if not changed:
             changed = True
             if mutation == "config":
@@ -316,10 +316,9 @@ async def test_tree_change_refuses_sync_then_stable_retry_succeeds(
                 config.parent.rmdir()
             else:
                 config.parent.rename(root / "renamed")
-        return data
 
     with monkeypatch.context() as scoped:
-        scoped.setattr(services_filesystem, "get_config_by_name", read_and_change)
+        scoped.setattr(services_filesystem, "_prepare_config", prepare_and_change)
         with pytest.raises(filesystem.ServiceConfigError):
             await bus.handle(commands.SyncServices(force=True))
     async with bus.uow as uow:

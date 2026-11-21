@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from deploy.domain import commands
+from deploy.service_layer import unit_of_work
 from deploy.service_layer.unit_of_work import SqlAlchemyUnitOfWork
 
 bootstrap_module = importlib.import_module("deploy.bootstrap")
@@ -116,3 +117,27 @@ async def test_clean_body_inside_exception_handler_still_surfaces_rollback_error
         with pytest.raises(OSError, match="rollback"):
             async with uow:
                 pass
+
+
+@pytest.mark.parametrize("primary_type", [ValueError, asyncio.CancelledError])
+@pytest.mark.parametrize("failure_point", ["expunge", "rollback"])
+async def test_cleanup_logging_failure_preserves_primary_and_rolls_back_once(
+    monkeypatch: pytest.MonkeyPatch, primary_type: type[BaseException], failure_point: str
+) -> None:
+    primary = primary_type("synthetic operation failure")
+    cleanup_error = OSError("synthetic cleanup failure")
+    expunge = Mock(side_effect=cleanup_error if failure_point == "expunge" else None)
+    rollback = AsyncMock(side_effect=cleanup_error if failure_point == "rollback" else None)
+    uow = SqlAlchemyUnitOfWork(Mock(), Mock())
+    uow.session = Mock(expunge_all=expunge, rollback=rollback)
+    log_error = Mock(side_effect=RuntimeError("synthetic logging failure"))
+    monkeypatch.setattr(unit_of_work.logger, "error", log_error)
+
+    with pytest.raises(primary_type) as raised:
+        async with uow:
+            raise primary
+
+    assert raised.value is primary
+    expunge.assert_called_once_with()
+    rollback.assert_awaited_once_with()
+    log_error.assert_called_once_with(f"uow_{failure_point}_failed category=%s", "OSError")
