@@ -2,6 +2,7 @@
 
 import errno
 import json
+from collections import Counter
 
 import pytest
 
@@ -49,10 +50,10 @@ async def test_aggregate_refusal_has_no_sync_writes(
     assert publisher.events == []
 
 
-def test_actual_utf8_bytes_include_both_config_reads(tmp_path, monkeypatch):
+def test_actual_utf8_bytes_count_each_config_once(tmp_path, monkeypatch):
     content = '{"extension":"Grüße"}'
     write_configs(tmp_path, count=2, content=content)
-    size = 4 * len(content.encode("utf-8"))  # discovery and preparation, two services
+    size = 2 * len(content.encode("utf-8"))
     monkeypatch.setattr(filesystem, "MAX_SOURCE_BYTES", size, raising=False)
     assert len(filesystem.Filesystem(tmp_path).get_configs()) == 2
     monkeypatch.setattr(filesystem, "MAX_SOURCE_BYTES", size - 1)
@@ -60,11 +61,11 @@ def test_actual_utf8_bytes_include_both_config_reads(tmp_path, monkeypatch):
         filesystem.Filesystem(tmp_path).get_configs()
 
 
-def test_work_limit_includes_discovery_and_preparation(tmp_path, monkeypatch):
+def test_structural_work_counts_each_config_once(tmp_path, monkeypatch):
     write_configs(tmp_path, count=2, content="{}")
-    monkeypatch.setattr(filesystem, "MAX_SOURCE_WORK", 4, raising=False)
+    monkeypatch.setattr(filesystem, "MAX_SOURCE_WORK", 2)
     assert len(filesystem.Filesystem(tmp_path).get_configs()) == 2
-    monkeypatch.setattr(filesystem, "MAX_SOURCE_WORK", 3)
+    monkeypatch.setattr(filesystem, "MAX_SOURCE_WORK", 1)
     with pytest.raises(filesystem.ServiceConfigError):
         filesystem.Filesystem(tmp_path).get_configs()
 
@@ -85,31 +86,33 @@ def test_shared_playbook_and_exact_inventory_boundary(tmp_path, monkeypatch):
     original_read, original_load = filesystem._read_regular, filesystem._load_document
 
     def read(root, relative, **kwargs):
-        if root / relative == playbook:
-            reads.append(relative)
+        reads.append(root / relative)
         return original_read(root, relative, **kwargs)
 
     def load(content, **kwargs):
-        if kwargs.get("playbook"):
-            parses.append(content)
+        parses.append(content)
         return original_load(content, **kwargs)
 
     monkeypatch.setattr(filesystem, "_read_regular", read)
     monkeypatch.setattr(filesystem, "_load_document", load)
-    actual_bytes = 2 * (9 * len(config.encode()) + len(relative_config.encode())) + len(play.encode())
+    actual_bytes = 9 * len(config.encode()) + len(relative_config.encode()) + len(play.encode())
     monkeypatch.setattr(filesystem, "MAX_SOURCE_BYTES", actual_bytes)
 
     reader = filesystem.Filesystem(tmp_path)
     configs = reader.get_configs()
     expected = [{"name": "Gathering Facts"}, {"name": "prepare"}]
     assert len(configs) == 10
-    assert len(reads) == len(parses) == 1
+    expected_reads = Counter([*tmp_path.glob("*/config.json"), playbook])
+    expected_parses = Counter({config: 9, relative_config: 1, play: 1})
+    assert Counter(reads) == expected_reads
+    assert Counter(parses) == expected_parses
     assert all(data["steps"] == expected for _, data in configs)
     configs[0][1]["steps"][0]["name"] = "changed"
     configs[0][1]["steps"].pop()
     assert all(data["steps"] == expected for _, data in configs[1:])
     assert all(data["steps"] == expected for _, data in reader.get_configs())
-    assert len(reads) == len(parses) == 2
+    assert Counter(reads) == expected_reads + expected_reads
+    assert Counter(parses) == expected_parses + expected_parses
 
     monkeypatch.setattr(filesystem, "MAX_SOURCE_BYTES", actual_bytes - 1)
     with pytest.raises(filesystem.ServiceConfigError, match="total byte limit"):

@@ -297,9 +297,10 @@ are preserved.
 One complete source preparation admits at most 1,000 services, 4,096 scanned root
 entries (including non-service files), 16 MiB of actual source bytes and 500,000
 work units. Directory scanning streams entries and refuses excess before collecting
-the whole tree. The shared byte/work budget covers both config discovery and
-preparation. Each shared playbook is read and parsed once per inventory for the
-same approved source path. Each service receives its own planned step list and
+the whole tree. Each config is read and decoded once, and its admitted object is
+reused for validation after all referenced playbook generations have been captured.
+Each shared playbook is read and parsed once per inventory for the same approved
+source path. Each service receives its own planned step list and
 objects. Each visited JSON/YAML value, YAML parse event, materialized mapping/merge
 pair and per-service playbook step consumes work.
 Reads stop after the remaining byte allowance plus one refusal byte. Exact-limit

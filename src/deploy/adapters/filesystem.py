@@ -12,6 +12,8 @@ import yaml
 
 from ..config import settings
 
+_PlaybookSteps = dict[tuple[Path, Path], list[dict]]
+
 
 class AbstractFilesystem(abc.ABC):
     def __init__(self, root: Path):
@@ -35,7 +37,7 @@ class AbstractFilesystem(abc.ABC):
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_CONFIG_DEPTH = 32
 MAX_CONFIG_NODES = 50000
-# One inventory, including repeated config discovery/preparation reads.
+# Total source limits for one inventory.
 MAX_SOURCE_ENTRIES = 4096
 MAX_SOURCE_SERVICES = 1000
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
@@ -364,20 +366,17 @@ class Filesystem(AbstractFilesystem):
                 _remember(observed, directory / "config.json", _lstat_service_file(directory / "config.json"))
             # Discover referenced files before preparing any service. A playbook
             # selected by a later service must not change unnoticed during earlier reads.
+            configs: list[tuple[str, dict]] = []
             for name in names:
-                data = _load_document(
-                    _read_regular(self.root, Path(name) / "config.json", observed=observed, budget=budget),
-                    budget=budget,
-                )
-                if isinstance(data, dict) and "ansible_playbook" in data:
+                data = self._read_config(name, observed=observed, budget=budget)
+                configs.append((name, data))
+                if "ansible_playbook" in data:
                     root, relative = _playbook_location(data["ansible_playbook"], self.root)
                     path = root / relative
                     _remember(observed, path, _lstat_service_file(path))
-            playbook_steps: dict[tuple[Path, Path], list[dict]] = {}
-            configs = [
-                (name, self.get_config_by_name(name, observed=observed, budget=budget, _playbook_steps=playbook_steps))
-                for name in names
-            ]
+            playbook_steps: _PlaybookSteps = {}
+            for _, data in configs:
+                self._prepare_config(data, observed=observed, budget=budget, playbook_steps=playbook_steps)
             # Include referenced playbooks and the descriptor-walk directories.
             for path, generation in observed.items():
                 if _generation(path.lstat()) != generation:
@@ -389,6 +388,11 @@ class Filesystem(AbstractFilesystem):
     def get_config_by_name(self, name, *, observed=None, budget=None, _playbook_steps=None):
         if budget is None:
             budget = _SourceBudget()
+        data = self._read_config(name, observed=observed, budget=budget)
+        self._prepare_config(data, observed=observed, budget=budget, playbook_steps=_playbook_steps)
+        return data
+
+    def _read_config(self, name: str, *, observed: dict | None, budget: _SourceBudget) -> dict:
         if not isinstance(name, str) or len(Path(name).parts) != 1 or name in (".", ".."):
             raise ServiceConfigError("invalid service directory name")
         data_dict = _load_document(
@@ -396,17 +400,26 @@ class Filesystem(AbstractFilesystem):
         )
         if not isinstance(data_dict, dict):
             raise ServiceConfigError("service config must be an object")
-        _validate_service_definition(data_dict)
-        if "ansible_playbook" in data_dict:
-            data_dict["steps"] = get_steps_from_playbook(
-                data_dict["ansible_playbook"],
+        return data_dict
+
+    def _prepare_config(
+        self,
+        data: dict,
+        *,
+        observed: dict | None,
+        budget: _SourceBudget,
+        playbook_steps: _PlaybookSteps | None,
+    ) -> None:
+        _validate_service_definition(data)
+        if "ansible_playbook" in data:
+            data["steps"] = get_steps_from_playbook(
+                data["ansible_playbook"],
                 config_root=self.root,
                 observed=observed,
                 budget=budget,
-                _inventory_steps=_playbook_steps,
+                _inventory_steps=playbook_steps,
             )
-        _validate_service_definition(data_dict)
-        return data_dict
+        _validate_service_definition(data)
 
 
 @contextlib.contextmanager
@@ -446,7 +459,7 @@ def get_steps_from_playbook(
     config_root: Path | None = None,
     observed=None,
     budget=None,
-    _inventory_steps: dict[tuple[Path, Path], list[dict]] | None = None,
+    _inventory_steps: _PlaybookSteps | None = None,
 ) -> list[dict]:
     """Read an admitted playbook below the project/config or approved extra roots."""
     if budget is None:
