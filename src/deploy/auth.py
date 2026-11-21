@@ -188,15 +188,6 @@ async def issue_service_token(
     Record a new service token and return the signed JWT for it. The JWT
     carries the record's ``jti``, so the token can be revoked later.
     """
-    issued_at = datetime.now(timezone.utc)
-    record = ServiceToken(
-        jti=uuid.uuid4().hex,
-        service=service,
-        origin=origin,
-        user=user,
-        issued_at=issued_at,
-        expires_at=issued_at + expires_delta,
-    )
     async with uow:
         if expected_service_id is not None:
             # Same row lock as deletion: issuance either commits before deletion
@@ -208,6 +199,15 @@ async def issue_service_token(
                 raise ServiceTokenIssueRefused("service changed during issuance") from None
             if current.id != expected_service_id:
                 raise ServiceTokenIssueRefused("service changed during issuance")
+        issued_at = datetime.now(timezone.utc)
+        record = ServiceToken(
+            jti=uuid.uuid4().hex,
+            service=service,
+            origin=origin,
+            user=user,
+            issued_at=issued_at,
+            expires_at=issued_at + expires_delta,
+        )
         await uow.service_tokens.add(record)
         # opportunistic cleanup: every issued token adds a row (the frontend
         # issues a 1-day token per deployment), so drop long dead records here
