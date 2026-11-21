@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 import pytest_asyncio
@@ -346,6 +346,33 @@ async def test_issue_service_token_purges_stale_records(user_in_db, uow, monkeyp
     async with uow:
         remaining = {token.jti for token in await uow.service_tokens.list()}
     assert remaining == {"revoked-recently", record.jti}
+
+
+async def test_signing_failure_leaves_service_token_inventory_unchanged(in_memory_uow, monkeypatch):
+    monkeypatch.setattr(settings, "service_token_retention_days", 30)
+    stale = token_record("expired-long-ago", expired_days_ago=31)
+    await in_memory_uow.service_tokens.add(stale)
+    monkeypatch.setattr(auth.jwt, "encode", Mock(side_effect=RuntimeError("synthetic signing failure")))
+
+    with pytest.raises(RuntimeError, match="synthetic signing failure"):
+        await issue(in_memory_uow)
+
+    assert await in_memory_uow.service_tokens.list() == [stale]
+    assert not in_memory_uow.committed
+
+
+async def test_failed_service_token_commit_propagates_after_signing(in_memory_uow, monkeypatch):
+    sign = Mock(wraps=auth.jwt.encode)
+    monkeypatch.setattr(auth.jwt, "encode", sign)
+
+    async def fail_commit():
+        raise RuntimeError("synthetic commit failure")
+
+    monkeypatch.setattr(in_memory_uow, "_commit", fail_commit)
+    with pytest.raises(RuntimeError, match="synthetic commit failure"):
+        await issue(in_memory_uow)
+
+    sign.assert_called_once()
 
 
 async def test_purged_service_token_is_rejected(bus, service_in_db, user_in_db, uow):
