@@ -8,7 +8,7 @@ shared with deployment starts.
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 from sqlalchemy.exc import NoResultFound
@@ -90,6 +90,31 @@ async def test_delete_service_guard_with_in_memory_repositories(bus, uow, servic
     async with uow:
         assert (await uow.services.get(service_in_db.id)).name == service_in_db.name
         assert [d.id for d in await uow.deployments.get_by_service(service_in_db.id)] == [deployment.id]
+
+
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize("sync", [False, True])
+async def test_deletion_stops_scanning_at_first_active_deployment(bus, uow, service_in_db, sync):
+    stale = await add_deployment(uow, service_in_db)
+    stale.started -= timedelta(days=2)
+    blocker = await add_deployment(uow, service_in_db)
+    for _ in range(100):
+        await add_deployment(uow, service_in_db, step_state="pending")
+
+    with patch.object(
+        uow.steps, "get_steps_by_deployment", new_callable=AsyncMock, wraps=uow.steps.get_steps_by_deployment
+    ) as step_loads:
+        if sync:
+            result = await bus.handle(commands.SyncServices(force=True))
+            assert result.skipped == [
+                model.SkippedService(name=service_in_db.name, reason=f"deployment {blocker.id} is still running")
+            ]
+        else:
+            with pytest.raises(model.ServiceHasActiveDeployment) as exc_info:
+                await bus.handle(commands.DeleteService(service_id=service_in_db.id))
+            assert exc_info.value.deployment_id == blocker.id
+
+    assert step_loads.await_args_list == [call(stale.id), call(blocker.id)]
 
 
 async def make_bus(publisher, services_filesystem):

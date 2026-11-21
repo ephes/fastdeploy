@@ -762,6 +762,10 @@ lifecycle guards also apply to subsequent completed REST traversals. The API che
 deployment existence without loading its entire step collection. Internal runner and
 reconciliation reads retain their existing full-inventory behavior.
 
+Direct service deletion and sync stop classifying unfinished deployments once
+they find the first active deployment in repository order. The refusal or sync
+skip reason includes that deployment's ID.
+
 ### Unit of work cleanup ownership
 
 The SQLAlchemy UoW always attempts rollback after detaching rows, including when

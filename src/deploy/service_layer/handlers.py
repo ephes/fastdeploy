@@ -33,9 +33,9 @@ async def delete_service(command: commands.DeleteService, uow: AbstractUnitOfWor
         # lock has committed its deployment once we get the lock.
         await uow.services.lock_for_deployment(command.service_id)
         service = await uow.services.get(command.service_id)
-        active_ids = await active_deployment_ids(command.service_id, uow, now)
-        if active_ids:
-            raise model.ServiceHasActiveDeployment(command.service_id, active_ids[0])
+        active_id = await first_active_deployment_id(command.service_id, uow, now)
+        if active_id is not None:
+            raise model.ServiceHasActiveDeployment(command.service_id, active_id)
         await uow.service_tokens.revoke_for_service(service.name, now)
         await uow.services.delete(service)
         service.delete()
@@ -69,11 +69,11 @@ async def sync_services(
             # Serialize with deployment starts: a start that already holds the
             # lock has committed its deployment once we get the lock.
             await uow.services.lock_for_deployment(service.id)
-            active_ids = await active_deployment_ids(service.id, uow, now)
-            if active_ids:
-                logger.warning("Not deleting service %s: deployments %s are still running", service.name, active_ids)
+            active_id = await first_active_deployment_id(service.id, uow, now)
+            if active_id is not None:
+                logger.warning("Not deleting service %s: deployment %s is still running", service.name, active_id)
                 skipped.append(
-                    model.SkippedService(name=service.name, reason=f"deployment {active_ids[0]} is still running")
+                    model.SkippedService(name=service.name, reason=f"deployment {active_id} is still running")
                 )
                 continue
             await uow.service_tokens.revoke_for_service(service.name, now)
@@ -92,19 +92,15 @@ async def sync_services(
     )
 
 
-async def active_deployment_ids(service_id: int, uow: AbstractUnitOfWork, now: datetime) -> list[int]:
-    """
-    Return the ids of the deployments of a service that are still running,
-    using the same rule as the per-service single-flight check.
-    """
-    active: list[int] = []
+async def first_active_deployment_id(service_id: int, uow: AbstractUnitOfWork, now: datetime) -> int | None:
+    """Return the first deployment that blocks service deletion."""
     for unfinished in await uow.deployments.get_unfinished_by_service(service_id):
         if unfinished.id is None:
             continue
         steps = await uow.steps.get_steps_by_deployment(unfinished.id)
         if views.classify_unfinished_deployment(unfinished, steps, now) == "active":
-            active.append(unfinished.id)
-    return active
+            return unfinished.id
+    return None
 
 
 async def revoke_service_token(command: commands.RevokeServiceToken, uow: AbstractUnitOfWork) -> model.ServiceToken:
