@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from deploy.adapters.repository import SqlAlchemyDeployedServiceRepository
+from deploy.adapters.websocket_eventpublisher import WebsocketEventpublisher
 from deploy.domain import commands, events, model
 from deploy.service_layer import messagebus
 from deploy.service_layer.messagebus import Message, MessageBus
@@ -171,3 +172,51 @@ async def test_error_logging_failure_preserves_dispatch_outcome(
 
     handler.assert_awaited_once_with(message)
     log_error.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "logger_name, level, prefix",
+    [
+        ("deploy.service_layer.messagebus", logging.DEBUG, "handling command="),
+        ("deploy.service_layer.messagebus", logging.DEBUG, "handling event="),
+        ("deploy.adapters.websocket_eventpublisher", logging.INFO, "Publishing event="),
+    ],
+)
+async def test_logging_sink_failure_does_not_skip_deployment_dispatch(
+    caplog: pytest.LogCaptureFixture, logger_name: str, level: int, prefix: str
+) -> None:
+    class FailingSink(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            if record.getMessage().startswith(prefix):
+                raise OSError("synthetic logging failure")
+
+    command = commands.FinishDeployment(deployment_id=41)
+    event = events.ServiceUpdated(id=7, name="synthetic", data={})
+    handler = AsyncMock(return_value="result")
+    manager = Mock(publish=AsyncMock())
+    publish = WebsocketEventpublisher(manager)
+    uow = Mock(collect_new_events=Mock(side_effect=[[event], []]))
+
+    async def publish_event(message: events.ServiceUpdated) -> None:
+        await publish("test-channel", message)
+
+    bus = MessageBus(
+        fs=Mock(),
+        cm=manager,
+        uow=uow,
+        event_handlers={type(event): [publish_event]},
+        command_handlers={type(command): handler},
+    )
+
+    logger = logging.getLogger(logger_name)
+    caplog.set_level(level, logger=logger_name)
+    sink = FailingSink()
+    logger.addHandler(sink)
+    try:
+        assert await bus.handle(command) == "result"
+    finally:
+        logger.removeHandler(sink)
+
+    handler.assert_awaited_once_with(command)
+    manager.publish.assert_awaited_once_with("test-channel", event)

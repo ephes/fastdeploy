@@ -170,8 +170,9 @@ Command-handler exceptions propagate to the caller and abort that dispatch befor
 collecting its generated events; this does not promise rollback of the unit of
 work's pending events.
 `asyncio.CancelledError` propagates during either kind of handler await, without
-running later handlers. Error diagnostics are best effort. A logging failure
-leaves both event continuation and the original command exception intact.
+running later handlers. Dispatch and WebSocket publication diagnostics are best
+effort. Delivery, command results and handler failure propagation continue when
+a diagnostic sink raises an ordinary exception.
 Diagnostics include message type and IDs. Error records add a bounded exception
 category and omit payloads, exception messages and tracebacks.
 

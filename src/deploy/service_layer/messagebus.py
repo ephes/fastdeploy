@@ -13,6 +13,18 @@ logger = logging.getLogger(__name__)
 Message = commands.Command | events.Event
 
 
+def _log_dispatch(kind: str, message: Message) -> None:
+    with suppress(Exception):
+        logger.debug(
+            "handling %s=%s id=%s service_id=%s deployment_id=%s",
+            kind,
+            type(message).__name__,
+            getattr(message, "id", None),
+            getattr(message, "service_id", None),
+            getattr(message, "deployment_id", None),
+        )
+
+
 def _log_dispatch_error(kind: str, message: Message, error: Exception) -> None:
     # A failing diagnostic sink must not interrupt dispatch or mask its error.
     with suppress(Exception):
@@ -73,27 +85,15 @@ class MessageBus:
 
     async def handle_event(self, event: events.Event):
         for handler in self.event_handlers.get(type(event), ()):
+            _log_dispatch("event", event)
             try:
-                logger.debug(
-                    "handling event=%s id=%s service_id=%s deployment_id=%s",
-                    type(event).__name__,
-                    getattr(event, "id", None),
-                    getattr(event, "service_id", None),
-                    getattr(event, "deployment_id", None),
-                )
                 await handler(event)
                 self.queue.extend(self.uow.collect_new_events())
             except Exception as exc:
                 _log_dispatch_error("event", event, exc)
 
     async def handle_command(self, command: commands.Command) -> Any:
-        logger.debug(
-            "handling command=%s id=%s service_id=%s deployment_id=%s",
-            type(command).__name__,
-            getattr(command, "id", None),
-            getattr(command, "service_id", None),
-            getattr(command, "deployment_id", None),
-        )
+        _log_dispatch("command", command)
         try:
             handler = self.command_handlers[type(command)]
             result = await handler(command)
