@@ -61,7 +61,26 @@ it.each([
   vi.stubEnv('VITE_WEBSOCKET_URL_DEV', undefined);
   await import('../src/main');
   const { useSettings } = await import('../src/stores/config');
+  expect(useSettings().env.MODE).toBe(mode);
   expect(useSettings().api).toBe(expectedApi);
   expect(useSettings().websocket).toBe(expectedWebsocket);
   expect(document.querySelector('#app')?.textContent).toBe('Mounted');
+});
+
+it.each(['staging', 'production'])('uses development overrides in %s mode with PROD disabled', async mode => {
+  const devApi = 'http://dev.example.test:9000/platform/api';
+  const devWebsocket = 'ws://dev.example.test:9000/platform/ws';
+  vi.stubEnv('MODE', mode);
+  vi.stubEnv('PROD', false);
+  vi.stubEnv('VITE_API_BASE_PROD', undefined);
+  vi.stubEnv('VITE_WEBSOCKET_URL_PROD', undefined);
+  vi.stubEnv('VITE_API_BASE_DEV', devApi);
+  vi.stubEnv('VITE_WEBSOCKET_URL_DEV', devWebsocket);
+
+  await import('../src/main');
+  const { useSettings } = await import('../src/stores/config');
+  const settings = useSettings();
+  expect(settings.env.MODE).toBe(mode);
+  expect(settings.api).toBe(devApi);
+  expect(settings.websocket).toBe(devWebsocket);
 });

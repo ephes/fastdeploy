@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Honor development frontend endpoint overrides in custom nonproduction Vite modes.
 - Reject invalid production API and WebSocket URLs before creating the frontend app.
 - Stop auto-scrolling to running steps when a REST history refresh reports deployment completion.
 - Let an in-flight step inventory repair a row after the browser refuses a stale WebSocket update.

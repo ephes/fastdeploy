@@ -15,7 +15,8 @@ import { createPinia } from "pinia";
 import { routes } from './routes';
 
 const env: Environment = {
-  MODE: import.meta.env.PROD ? "production" : import.meta.env.MODE || "development",
+  MODE: import.meta.env.MODE || "development",
+  PROD: import.meta.env.PROD,
   VITE_API_BASE_PROD: import.meta.env.VITE_API_BASE_PROD?.trim() ?? "",
   VITE_WEBSOCKET_URL_PROD: import.meta.env.VITE_WEBSOCKET_URL_PROD?.trim() ?? "",
   VITE_API_BASE_DEV: import.meta.env.VITE_API_BASE_DEV || API_BASE_DEFAULT,
@@ -32,7 +33,7 @@ function isEndpoint(value: string, protocols: readonly string[]): boolean {
   }
 }
 
-if (env.MODE === "production") {
+if (env.PROD) {
   const protocols = {
     VITE_API_BASE_PROD: ["http:", "https:"],
     VITE_WEBSOCKET_URL_PROD: ["ws:", "wss:"],
