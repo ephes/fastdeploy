@@ -2,6 +2,7 @@ import { vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { initPinia } from "./conftest";
 import ServiceList from "../src/components/ServiceList.vue";
+import WebsocketStatus from "../src/components/WebsocketStatus.vue";
 import { useAuth } from "../src/stores/auth";
 import { useSettings } from "../src/stores/config";
 import { useServices } from "../src/stores/service";
@@ -398,6 +399,46 @@ describe("Logout", () => {
     expect(useServices().services).toStrictEqual({});
     expect(useSteps().steps).toStrictEqual({});
     expect(FakeWebSocket.instances.length).toBe(1);
+  });
+
+  it.each(["login", "reconnect"])("settles WebSocket construction refusal during %s", async (phase) => {
+    const original = phase === "reconnect" ? (await aliceSession()).socket : undefined;
+    const oldClose = original?.onclose;
+    const oldMessage = original?.onmessage;
+    const construct = vi.fn(() => { throw new DOMException("synthetic invalid URL", "SyntaxError"); });
+    vi.stubGlobal("WebSocket", class extends FakeWebSocket {
+      constructor(url: string) {
+        construct();
+        super(url);
+      }
+    });
+
+    const settled = original
+      ? expect(original.drop()).resolves.toBeUndefined()
+      : loginAs("alice", "alice-token");
+    await Promise.all([settled, vi.advanceTimersByTimeAsync(5000)]);
+
+    const client = useAuth().websocketClient;
+    const websocket = useWebsocketStore();
+    expect(useAuth().isAuthenticated).toBe(true);
+    expect(client?.connection).toBeUndefined();
+    expect(client?.retryCount).toBe(original ? 1 : 0);
+    expect(websocket.connection).toBe("CLOSED");
+    expect(websocket.authentication).toBe("not authenticated");
+    const status = mount(WebsocketStatus);
+    expect(status.get('[role="alert"]').text()).toBe("Unable to open websocket; refresh to try again.");
+    status.unmount();
+
+    if (original) {
+      expect(original.onopen).toBeNull();
+      expect(original.onclose).toBeNull();
+      expect(original.onmessage).toBeNull();
+      oldMessage?.({ data: JSON.stringify({ type: "authentication", status: "failure" }) });
+      await oldClose?.({ target: original });
+    }
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(construct).toHaveBeenCalledOnce();
+    expect(useAuth().isAuthenticated).toBe(true);
   });
 
   it("logs out when the websocket authentication fails and stays logged out", async () => {

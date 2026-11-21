@@ -5,7 +5,9 @@ const websocketStore = useWebsocketStore();
 </script>
 
 <template>
-    <p v-if="websocketStore.protocolError" role="alert">{{ websocketStore.protocolError }}</p>
+    <p v-if="websocketStore.connectionError || websocketStore.protocolError" role="alert">
+      {{ websocketStore.connectionError || websocketStore.protocolError }}
+    </p>
     <div v-if="websocketStore.recentlyReceivedMessage" class="blink_me">&nbsp;</div>
     <div v-if="websocketStore.isOnline" class="websocket online"></div>
     <div v-else class="websocket offline"></div>

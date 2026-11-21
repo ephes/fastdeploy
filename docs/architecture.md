@@ -348,6 +348,9 @@ installs a new one on recreation. Each replacement socket starts unauthenticated
 Deployment, step, service and user frames can update the stores only after the
 current socket receives an authentication success. Authentication and
 informational frames retain their existing handling.
+If the browser refuses to create a WebSocket, the UI shows an offline error and
+stops retrying that connection. Check the WebSocket URL and refresh to retry.
+The HTTP login stays active.
 
 The websocket activity indicator stays lit for one second after the latest admitted
 message. Each status store owns one replaceable expiry timer, including during

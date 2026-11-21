@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Show an offline error when the browser refuses to construct a WebSocket, including during reconnect.
 - Apply browser WebSocket domain updates only after the current connection authenticates.
 - Preserve the original request error or cancellation when logging a database close failure also fails.
 - Read and decode each service config once during sync preflight while retaining source generation checks.
