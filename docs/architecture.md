@@ -750,8 +750,11 @@ expunge error is primary. Ordinary cleanup failures while unwinding are logged o
 as bounded exception categories without messages or tracebacks. Cancellation raised
 by rollback keeps the base UoW's existing propagation semantics. Leaving a transaction
 does not close caller-owned sessions, connections or engines: request/explicit close
-owns those resources and can settle them after a failed unwind. Shared engines are
-never disposed by a non-owning request UoW.
+owns those resources and can settle them after a failed unwind. Close attempts
+session close, connection close and owned engine disposal once per connection
+lifecycle, even when an earlier cleanup step raises. A later explicit connect
+starts a fresh lifecycle. Shared engines are never disposed by a non-owning
+request UoW.
 
 A complete step inventory is staged under one 30-second deadline, at most 1,000
 rows and 8 MiB of cumulative response bytes as received (counted per streamed chunk

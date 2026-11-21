@@ -60,11 +60,44 @@ async def test_close_attempts_remaining_resources_if_session_and_connection_fail
     engine = SimpleNamespace(dispose=AsyncMock())
     uow = SqlAlchemyUnitOfWork(engine, Mock())
     uow.session = SimpleNamespace(close=AsyncMock(side_effect=RuntimeError("session")))
-    uow.connection = SimpleNamespace(close=AsyncMock(side_effect=RuntimeError("connection")))
+    connection = SimpleNamespace(close=AsyncMock(side_effect=RuntimeError("connection")))
+    uow.connection = connection
     with pytest.raises(RuntimeError):
         await uow.close()
     engine.dispose.assert_awaited_once()
-    uow.connection.close.assert_awaited_once()
+    connection.close.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("owns_engine", "failed_resource"),
+    [(False, "session"), (False, "connection"), (True, "session"), (True, "connection"), (True, "engine")],
+)
+async def test_close_retires_each_owned_resource_once(owns_engine: bool, failed_resource: str) -> None:
+    failure = RuntimeError(failed_resource)
+    sessions = [SimpleNamespace(close=AsyncMock()), SimpleNamespace(close=AsyncMock())]
+    connections = [SimpleNamespace(close=AsyncMock()), SimpleNamespace(close=AsyncMock())]
+    engine = SimpleNamespace(connect=AsyncMock(side_effect=connections), dispose=AsyncMock())
+    retirement = {"session": sessions[0].close, "connection": connections[0].close, "engine": engine.dispose}
+    retirement[failed_resource].side_effect = [failure, None]
+    uow = SqlAlchemyUnitOfWork(engine, Mock(side_effect=sessions), owns_engine=owns_engine)
+
+    await uow.connect()
+    with pytest.raises(RuntimeError) as caught:
+        await uow.close()
+    assert caught.value is failure
+    await uow.close()
+
+    sessions[0].close.assert_awaited_once()
+    connections[0].close.assert_awaited_once()
+    assert engine.dispose.await_count == int(owns_engine)
+
+    await uow.connect()
+    await uow.close()
+    await uow.close()
+
+    sessions[1].close.assert_awaited_once()
+    connections[1].close.assert_awaited_once()
+    assert engine.dispose.await_count == 2 * int(owns_engine)
 
 
 async def test_session_factory_construction_failure_disposes_engine(monkeypatch):
