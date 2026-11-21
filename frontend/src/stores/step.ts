@@ -96,16 +96,8 @@ export const useSteps = defineStore("steps", {
      * @returns {boolean} Whether the view should scroll to the step
      */
     shouldScrollToStep: (state) => (step: Step) => {
-      const byDeploymentId = state.stepsInProgressByDeployment[step.deploymentId];
-      if (byDeploymentId) {
-        const scrollToStep = byDeploymentId[4];
-        if (scrollToStep) {
-          if (scrollToStep.id === step.id) {
-            return true;
-          }
-        }
-      }
-      return false;
+      if (useDeployments().deployments[step.deploymentId]?.finished) return false;
+      return state.stepsInProgressByDeployment[step.deploymentId]?.[4]?.id === step.id;
     }
   },
   actions: {
@@ -184,7 +176,8 @@ export const useSteps = defineStore("steps", {
           this.stepCounts[step.deploymentId] = (this.stepCounts[step.deploymentId] ?? 0) + 1;
         }
         this.stepsByDeployment[step.deploymentId][step.id] = step;
-        if (step.state == "running" && current?.state !== "running" && !this.finishedDeployments[step.deploymentId]) {
+        if (step.state === "running" && current?.state !== "running" &&
+            !this.finishedDeployments[step.deploymentId] && !useDeployments().deployments[step.deploymentId]?.finished) {
           if (!(step.deploymentId in this.stepsInProgressByDeployment)) {
             this.stepsInProgressByDeployment[step.deploymentId] = [step];
           } else if (!this.stepsInProgressByDeployment[step.deploymentId].some(existing => existing.id === step.id)) {
@@ -300,6 +293,11 @@ export const useSteps = defineStore("steps", {
         if (!pending.size) delete pendingFetches[deploymentId];
       }
     },
+    finishDeployment(id: number) {
+      if (!this.retainedDeploymentIds.includes(id)) return;
+      this.finishedDeployments[id] = true;
+      delete this.stepsInProgressByDeployment[id];
+    },
     /**
      * Event handler which is triggered by a message from the backend
      * which has the type "step". Steps can be added, updated or deleted.
@@ -317,9 +315,7 @@ export const useSteps = defineStore("steps", {
       if (message.type === "deployment") {
         const deployment = message as Deployment;
         if ((deployment.finished || deployment.deleted) && this.retainDeployment(deployment.id)) {
-          this.finishedDeployments[deployment.id] = true;
-          // Deployment has finished -> remove scroll to metadata
-          delete(this.stepsInProgressByDeployment[deployment.id]);
+          this.finishDeployment(deployment.id);
         }
         this.pruneHistory();
       }

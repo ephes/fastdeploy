@@ -746,8 +746,9 @@ to apply the REST row. Accepted updates and deletions take precedence over in-fl
 step inventories.
 Scroll metadata retains only the five most recent steps observed running, including
 their completions, so the fifth entry remains the scroll target. Deletion removes
-a candidate; terminal/deleted deployment events retire this metadata for that
-retained history. Inactive histories and their markers follow the retention budgets below.
+a candidate. Deployment completion from REST or WebSocket and WebSocket
+deletion events retire this metadata for that retained history. Inactive histories
+and their markers follow the retention budgets below.
 
 
 ### Step inventory paging

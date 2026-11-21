@@ -183,7 +183,7 @@ it("resnapshots mounted stores on authenticated reconnect, coalescing repeated a
   expect(deployments.deployments[7].finished).toEqual(new Date(finished));
   expect(deployments.deployments[8]).toBeUndefined();
   expect(steps.steps).toEqual({});
-  expect(steps.stepsInProgressByDeployment[7]).toEqual([]);
+  expect(steps.stepsInProgressByDeployment[7]).toBeUndefined();
   expect(get.mock.calls.filter(([url]) => url === "services/")).toHaveLength(1);
 });
 

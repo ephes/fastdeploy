@@ -139,6 +139,38 @@ describe("Step lifecycle and scroll bounds", () => {
     expect(store.stepsInProgressByDeployment[1]).toBeUndefined();
   });
 
+  it("retires the scroll target when REST reports deployment completion", async () => {
+    const deployments = useDeployments();
+    const store = useSteps();
+    const deploymentRow = {
+      id: step.deploymentId,
+      service_id: 1,
+      origin: "test",
+      user: "test",
+      started: "2021-11-23T10:03:00Z",
+      finished: "2021-11-23T10:05:00Z",
+    };
+    deployments.client = {
+      get: vi.fn().mockResolvedValueOnce([{ ...deploymentRow, finished: null }])
+        .mockResolvedValueOnce([deploymentRow]),
+    } as any;
+    await deployments.fetchDeployments();
+    for (let id = 1; id <= 5; id++) {
+      const running: Step = { ...step, id, state: "running" };
+      store.onMessage(running);
+    }
+    expect(store.shouldScrollToStep(store.steps[1])).toBe(true);
+
+    await deployments.fetchDeployments();
+
+    expect(deployments.deployments[step.deploymentId].finished).toBeInstanceOf(Date);
+    expect(store.shouldScrollToStep(store.steps[1])).toBe(false);
+    const lateStep: Step = { ...step, id: 6, state: "running" };
+    store.onMessage(lateStep);
+    expect(store.stepsInProgressByDeployment[step.deploymentId]).toBeUndefined();
+    expect(store.steps[6].state).toBe("running");
+  });
+
   it("does not reinsert an evicted duplicate running event", () => {
     const store = useSteps();
     for (let id = 1; id <= 6; id++) store.onMessage({ ...step, id, state: "running" } as Step);
