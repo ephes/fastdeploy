@@ -3,6 +3,7 @@
 Tests for secure configuration file handling.
 """
 
+import errno
 import json
 import os
 import tempfile
@@ -512,3 +513,37 @@ def test_exit_cleanup_does_not_construct_default_handler(tmp_path, monkeypatch):
     )
     cleanup_temp_files()
     assert not path.exists()
+
+
+def test_failed_stream_adoption_releases_both_config_descriptors(tmp_path, monkeypatch):
+    handler = SecureConfig(tmp_path)
+    real_fdopen = os.fdopen
+    descriptors = []
+    configs = []
+
+    def fail_write_stream(fd, mode, **kwargs):
+        if mode == "w":
+            (path,) = tmp_path.iterdir()
+            configs.append(path)
+            descriptors.extend((_temp_files[path], fd))
+            raise OSError("stream adoption failed")
+        return real_fdopen(fd, mode, **kwargs)
+
+    monkeypatch.setattr(os, "fdopen", fail_write_stream)
+    try:
+        with pytest.raises(RuntimeError, match="stream adoption failed"):
+            make_config(handler)
+        (path,) = configs
+        assert path not in _temp_files
+        assert not path.exists()
+        for fd in descriptors:
+            with pytest.raises(OSError) as error:
+                os.fstat(fd)
+            assert error.value.errno == errno.EBADF
+    finally:
+        # Keep the regression safe when run on the leaking implementation.
+        if descriptors:
+            try:
+                os.close(descriptors[1])
+            except OSError as error:
+                assert error.errno == errno.EBADF

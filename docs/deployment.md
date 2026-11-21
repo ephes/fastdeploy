@@ -444,6 +444,9 @@ no write permission. Readers also accept mode 0600 when running as the owner.
 The kernel checks access on open, and FastDeploy validates type and mode on that
 same descriptor. Symlinks and nonregular files are rejected.
 
+If staging cannot open a write stream, FastDeploy closes the duplicate write
+descriptor and runs its normal cleanup on the staged file.
+
 Cleanup only accepts files created by the current process. It retains a descriptor
 until cleanup to preserve the file's identity, refuses replacement paths and hard
 links, and overwrites the validated descriptor before unlinking. Exit cleanup uses

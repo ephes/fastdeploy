@@ -178,9 +178,13 @@ class SecureConfig:
             # The subprocess runs as deploy user who is in the fastdeploy group
             os.fchmod(fd, 0o640)  # rw-r----- (owner read/write, group read)
 
-            # Write configuration
-            with os.fdopen(os.dup(fd), "w") as f:
-                json.dump(config_data, f, indent=2)
+            # Retain ownership of the duplicate even if stream construction fails.
+            write_fd = os.dup(fd)
+            try:
+                with os.fdopen(write_fd, "w", closefd=False) as stream:
+                    json.dump(config_data, stream, indent=2)
+            finally:
+                os.close(write_fd)
 
             logger.info(f"Created secure config: {temp_file} for deployment {deployment_id}")
             return temp_file
