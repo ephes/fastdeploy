@@ -3,6 +3,7 @@ import { mount } from "@vue/test-utils";
 import { initPinia } from "./conftest";
 import ServiceList from "../src/components/ServiceList.vue";
 import { useAuth } from "../src/stores/auth";
+import { useSettings } from "../src/stores/config";
 import { useServices } from "../src/stores/service";
 import { useDeployments } from "../src/stores/deployment";
 import { useSteps } from "../src/stores/step";
@@ -287,6 +288,28 @@ describe("Logout", () => {
     expect(socket.sent.length).toBe(1);
   });
 
+  it("retires the session and ignores queued events when only the websocket URL changes", async () => {
+    const { authStore, socket } = await aliceSession();
+    const settings = useSettings();
+    const { onmessage } = socket;
+    const sessionId = authStore.sessionId;
+    const client = getClient();
+    const api = settings.api;
+
+    settings.developmentWebsocket = "wss://other.example/deployments/ws";
+    onmessage?.({ data: JSON.stringify(apiDeployment) });
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(settings.api).toBe(api);
+    expect(socket.closeCalls).toBe(1);
+    expect(authStore.websocketClient).toBeNull();
+    expect(authStore.sessionId).toBe(sessionId + 1);
+    expect(authStore.accessToken).toBeNull();
+    expect(useDeployments().deployments).toEqual({});
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    await expect(client.get("services/")).rejects.toThrow(/session changed/i);
+  });
+
   it("retires the active session and closes its websocket once on auth reset", async () => {
     const { authStore, socket } = await aliceSession();
     const sessionId = authStore.sessionId;
@@ -332,6 +355,7 @@ describe("Logout", () => {
     socket.drop();
     await vi.advanceTimersByTimeAsync(1000);
     expect(FakeWebSocket.instances.length).toBe(2);
+    expect(FakeWebSocket.instances[1].url).toBe(socket.url);
     FakeWebSocket.instances[1].open();
     expect(FakeWebSocket.instances[1].sent).toStrictEqual([
       JSON.stringify({ access_token: "alice-token" }),
