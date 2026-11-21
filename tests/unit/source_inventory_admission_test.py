@@ -1,5 +1,6 @@
 """The authoritative inventory is complete or refused under one aggregate budget."""
 
+import errno
 import json
 
 import pytest
@@ -111,6 +112,32 @@ def test_directory_scan_stops_before_materializing_excess_entries(tmp_path, monk
     with pytest.raises(filesystem.ServiceConfigError, match=r"source.*limit"):
         filesystem.Filesystem(tmp_path).list()
     assert len(visited) == 3
+
+
+def test_stream_construction_failure_closes_config_descriptor(tmp_path, monkeypatch):
+    write_configs(tmp_path, count=1)
+    descriptors = []
+
+    def fail_fdopen(descriptor, *args, **kwargs):
+        filesystem.os.fstat(descriptor)
+        descriptors.append(descriptor)
+        raise OSError("synthetic stream construction failure")
+
+    monkeypatch.setattr(filesystem.os, "fdopen", fail_fdopen)
+    try:
+        with pytest.raises(filesystem.ServiceConfigError, match=r"^service config file is unavailable or invalid$"):
+            filesystem.Filesystem(tmp_path).get_configs()
+        [descriptor] = descriptors
+        with pytest.raises(OSError) as closed:
+            filesystem.os.fstat(descriptor)
+        assert closed.value.errno == errno.EBADF
+    finally:
+        for descriptor in descriptors:
+            try:
+                filesystem.os.close(descriptor)
+            except OSError as exc:
+                if exc.errno != errno.EBADF:
+                    raise
 
 
 def test_reads_stop_at_remaining_total_bytes_plus_one(tmp_path, monkeypatch):

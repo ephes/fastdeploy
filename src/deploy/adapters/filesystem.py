@@ -107,8 +107,8 @@ def _read_regular(root: Path, relative: Path, *, observed=None, budget=None) -> 
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_CONFIG_BYTES:
                 raise ServiceConfigError("service config must be a regular file of at most 1 MiB")
             _remember(observed, root / relative, metadata)
-            # The duplicate keeps ExitStack responsible for the original handle.
-            with os.fdopen(os.dup(descriptor), "rb", buffering=0) as source:
+            # ExitStack owns the descriptor through stream setup and the final fstat.
+            with os.fdopen(descriptor, "rb", buffering=0, closefd=False) as source:
                 read_limit = MAX_CONFIG_BYTES
                 if budget is not None:
                     read_limit = min(read_limit, MAX_SOURCE_BYTES - budget.bytes_read)
