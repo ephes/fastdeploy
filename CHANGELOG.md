@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Preserve the initiating operation error when logging a transaction cleanup failure also fails.
 - Continue deployment command dispatch, event handling and WebSocket publication when logging fails.
 - Evict cached steps when a history page removes their deployment, while preserving the open detail.
 - Retire the frontend login session when its WebSocket URL changes.

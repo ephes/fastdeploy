@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import logging
+from contextlib import suppress
 
 from ..adapters import repository
 
@@ -52,7 +53,8 @@ class AbstractUnitOfWork(abc.ABC):
                 raise
             # Keep the initiating failure (including cancellation) and record
             # only a bounded category, never cleanup messages or a traceback.
-            logger.error("uow_rollback_failed category=%s", type(cleanup_error).__name__[:100])
+            with suppress(Exception):
+                logger.error("uow_rollback_failed category=%s", type(cleanup_error).__name__[:100])
 
     async def commit(self):
         await self._commit()
@@ -140,7 +142,8 @@ class SqlAlchemyUnitOfWork(AbstractUnitOfWork):
                 if exc_type is None:
                     primary = (type(cleanup_error), cleanup_error, cleanup_error.__traceback__)
                     raise
-                logger.error("uow_expunge_failed category=%s", type(cleanup_error).__name__[:100])
+                with suppress(Exception):
+                    logger.error("uow_expunge_failed category=%s", type(cleanup_error).__name__[:100])
         finally:
             # Rollback must run even when detaching rows fails. With no body
             # failure, the expunge error becomes primary for the base guard.

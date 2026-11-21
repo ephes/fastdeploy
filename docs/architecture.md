@@ -758,9 +758,11 @@ reconciliation reads retain their existing full-inventory behavior.
 
 The SQLAlchemy UoW always attempts rollback after detaching rows, including when
 `expunge_all` raises. A body error or cancellation remains primary; otherwise the
-expunge error is primary. Ordinary cleanup failures while unwinding are logged only
-as bounded exception categories without messages or tracebacks. Cancellation raised
-by rollback keeps the base UoW's existing propagation semantics. Leaving a transaction
+expunge error is primary. Ordinary cleanup failures while unwinding produce
+best-effort diagnostics with bounded exception categories and no messages or
+tracebacks. The initiating exception still propagates if the diagnostic sink
+fails. Cancellation raised by rollback keeps the base UoW's existing
+propagation semantics. Leaving a transaction
 does not close caller-owned sessions, connections or engines: request/explicit close
 owns those resources and can settle them after a failed unwind. Close attempts
 session close, connection close and owned engine disposal once per connection
