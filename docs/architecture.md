@@ -318,7 +318,10 @@ export const useDeploymentStore = defineStore('deployment', {
 
 ### Real-time Communication
 
-WebSocket integration provides live deployment updates:
+WebSocket integration provides live deployment updates. Concrete event models
+enforce their wire `type` at construction (`authentication`, `user`, `service`,
+`step` or `deployment`). Related variants share a type, such as service creation,
+updates and deletion.
 
 ```javascript
 class WebSocketClient {
