@@ -35,7 +35,7 @@ class AbstractFilesystem(abc.ABC):
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_CONFIG_DEPTH = 32
 MAX_CONFIG_NODES = 50000
-# One inventory, including repeated discovery/preparation reads and shared playbooks.
+# One inventory, including repeated config discovery/preparation reads.
 MAX_SOURCE_ENTRIES = 4096
 MAX_SOURCE_SERVICES = 1000
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
@@ -107,8 +107,8 @@ def _read_regular(root: Path, relative: Path, *, observed=None, budget=None) -> 
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_CONFIG_BYTES:
                 raise ServiceConfigError("service config must be a regular file of at most 1 MiB")
             _remember(observed, root / relative, metadata)
-            # The duplicate keeps ExitStack responsible for the original handle.
-            with os.fdopen(os.dup(descriptor), "rb", buffering=0) as source:
+            # ExitStack owns the descriptor through stream setup and the final fstat.
+            with os.fdopen(descriptor, "rb", buffering=0, closefd=False) as source:
                 read_limit = MAX_CONFIG_BYTES
                 if budget is not None:
                     read_limit = min(read_limit, MAX_SOURCE_BYTES - budget.bytes_read)
@@ -373,7 +373,11 @@ class Filesystem(AbstractFilesystem):
                     root, relative = _playbook_location(data["ansible_playbook"], self.root)
                     path = root / relative
                     _remember(observed, path, _lstat_service_file(path))
-            configs = [(name, self.get_config_by_name(name, observed=observed, budget=budget)) for name in names]
+            playbook_steps: dict[tuple[Path, Path], list[dict]] = {}
+            configs = [
+                (name, self.get_config_by_name(name, observed=observed, budget=budget, _playbook_steps=playbook_steps))
+                for name in names
+            ]
             # Include referenced playbooks and the descriptor-walk directories.
             for path, generation in observed.items():
                 if _generation(path.lstat()) != generation:
@@ -382,7 +386,7 @@ class Filesystem(AbstractFilesystem):
         except OSError:
             raise ServiceConfigError("service configuration tree changed or is unavailable; retry sync") from None
 
-    def get_config_by_name(self, name, *, observed=None, budget=None):
+    def get_config_by_name(self, name, *, observed=None, budget=None, _playbook_steps=None):
         if budget is None:
             budget = _SourceBudget()
         if not isinstance(name, str) or len(Path(name).parts) != 1 or name in (".", ".."):
@@ -395,7 +399,11 @@ class Filesystem(AbstractFilesystem):
         _validate_service_definition(data_dict)
         if "ansible_playbook" in data_dict:
             data_dict["steps"] = get_steps_from_playbook(
-                data_dict["ansible_playbook"], config_root=self.root, observed=observed, budget=budget
+                data_dict["ansible_playbook"],
+                config_root=self.root,
+                observed=observed,
+                budget=budget,
+                _inventory_steps=_playbook_steps,
             )
         _validate_service_definition(data_dict)
         return data_dict
@@ -433,12 +441,29 @@ def _playbook_location(path_from_config: str, config_root: Path | None = None) -
 
 
 def get_steps_from_playbook(
-    path_from_config: str, *, config_root: Path | None = None, observed=None, budget=None
+    path_from_config: str,
+    *,
+    config_root: Path | None = None,
+    observed=None,
+    budget=None,
+    _inventory_steps: dict[tuple[Path, Path], list[dict]] | None = None,
 ) -> list[dict]:
     """Read an admitted playbook below the project/config or approved extra roots."""
     if budget is None:
         budget = _SourceBudget()
     root, relative = _playbook_location(path_from_config, config_root)
+    if _inventory_steps is None:
+        return _read_playbook_steps(root, relative, observed=observed, budget=budget)
+    cache_key = (root.absolute(), relative)
+    if cache_key not in _inventory_steps:
+        _inventory_steps[cache_key] = _read_playbook_steps(root, relative, observed=observed, budget=budget)
+    # The scan rechecks the generation even when later services reuse the result.
+    steps = _inventory_steps[cache_key]
+    budget.add_work(len(steps))
+    return [step.copy() for step in steps]
+
+
+def _read_playbook_steps(root: Path, relative: Path, *, observed, budget: _SourceBudget) -> list[dict]:
     content = _read_regular(root, relative, observed=observed, budget=budget)
     parsed = _load_document(content, playbook=True, budget=budget)
     if not isinstance(parsed, list) or not parsed or not all(isinstance(play, dict) for play in parsed):

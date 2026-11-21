@@ -298,14 +298,17 @@ One complete source preparation admits at most 1,000 services, 4,096 scanned roo
 entries (including non-service files), 16 MiB of actual source bytes and 500,000
 work units. Directory scanning streams entries and refuses excess before collecting
 the whole tree. The shared byte/work budget covers both config discovery and
-preparation; repeated reads of a shared playbook count each time. Each visited
-JSON/YAML value, YAML parse event and materialized mapping/merge pair consumes work.
+preparation. Each shared playbook is read and parsed once per inventory for the
+same approved source path. Each service receives its own planned step list and
+objects. Each visited JSON/YAML value, YAML parse event, materialized mapping/merge
+pair and per-service playbook step consumes work.
 Reads stop after the remaining byte allowance plus one refusal byte. Exact-limit
 inventories are supported. Exhaustion refuses the entire authoritative sync before
 updates, deletions or events, also with `--force`; there is no partial inventory.
 
-Each descriptor read compares device/inode, mode, size and nanosecond mtime/ctime
-before and after reading. Service sync records the selected root/directories/configs
+The config reader owns its file descriptor through stream setup and releases it
+on failure. Each descriptor read compares device/inode, mode, size and nanosecond
+mtime/ctime before and after reading. Service sync records the selected root/directories/configs
 and referenced playbooks, then revalidates path generations after preparing the
 complete set, before any database updates or deletions. Same-inode rewrites,
 replacements and added/removed service directories refuse the whole sync with the

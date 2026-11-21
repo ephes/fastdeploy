@@ -265,9 +265,12 @@ Deleting a service, including a forced filesystem sync deletion, revokes its rec
 service tokens in the same transaction. A later service with the same name requires
 new tokens. Failed deletions roll back token retirement. Issuance and deletion use
 the service row lock: a racing issuance is either committed before deletion and
-revoked, or refused when its service identity has changed. Legacy tokens without
-`jti` cannot be retired individually; keep their optional migration grace disabled
-when reusing service names.
+revoked, or refused when its service identity has changed. The requested lifetime
+and stale-record retention cutoff use the time after locked service revalidation.
+Issuance signs the JWT before adding its record or pruning stale records, and
+returns it only after the transaction commits. Legacy tokens without `jti` cannot
+be retired individually. Keep their optional migration grace disabled when reusing
+service names.
 
 
 ### Launch-time service authority and identity claims

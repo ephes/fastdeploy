@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.orm.exc import NoResultFound
 
+from deploy import auth
 from deploy.auth import (
     ServiceTokenIssueRefused,
     authenticate_user,
@@ -112,6 +113,49 @@ async def test_service_from_token_happy(service_in_db, user_in_db, uow):
     assert verified_service == service_in_db
     assert verified_service.origin == "GitHub"
     assert verified_service.user == user_in_db.name
+
+
+async def test_service_token_lifetime_starts_after_locked_revalidation(in_memory_uow, monkeypatch):
+    started = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = started
+    lifetime = timedelta(minutes=5)
+    service = model.Service(name="sample")
+    await in_memory_uow.services.add(service)
+    get_by_name = in_memory_uow.services.get_by_name
+
+    class Clock:
+        @staticmethod
+        def now(tz):
+            return now.astimezone(tz)
+
+    async def delayed_lock(service_id):
+        nonlocal now
+        assert service_id == service.id
+        now += timedelta(minutes=10)
+
+    async def revalidate(name):
+        nonlocal now
+        now += timedelta(seconds=1)
+        return await get_by_name(name)
+
+    cleanup = AsyncMock(wraps=in_memory_uow.service_tokens.delete_stale)
+    monkeypatch.setattr(auth, "datetime", Clock)
+    monkeypatch.setattr(in_memory_uow.services, "lock_for_deployment", delayed_lock)
+    monkeypatch.setattr(in_memory_uow.services, "get_by_name", revalidate)
+    monkeypatch.setattr(in_memory_uow.service_tokens, "delete_stale", cleanup)
+    token, record = await issue_service_token(
+        service=service.name,
+        origin="fixture",
+        user="sample",
+        expires_delta=lifetime,
+        uow=in_memory_uow,
+        expected_service_id=service.id,
+    )
+
+    assert record.issued_at == started + timedelta(minutes=10, seconds=1)
+    assert record.expires_at == record.issued_at + lifetime
+    assert token_to_payload(token)["exp"] == int(record.expires_at.timestamp())
+    cleanup.assert_awaited_once_with(record.issued_at - timedelta(days=settings.service_token_retention_days))
 
 
 async def test_issue_service_token_records_token(user_in_db, uow):
@@ -302,6 +346,33 @@ async def test_issue_service_token_purges_stale_records(user_in_db, uow, monkeyp
     async with uow:
         remaining = {token.jti for token in await uow.service_tokens.list()}
     assert remaining == {"revoked-recently", record.jti}
+
+
+async def test_signing_failure_leaves_service_token_inventory_unchanged(in_memory_uow, monkeypatch):
+    monkeypatch.setattr(settings, "service_token_retention_days", 30)
+    stale = token_record("expired-long-ago", expired_days_ago=31)
+    await in_memory_uow.service_tokens.add(stale)
+    monkeypatch.setattr(auth.jwt, "encode", Mock(side_effect=RuntimeError("synthetic signing failure")))
+
+    with pytest.raises(RuntimeError, match="synthetic signing failure"):
+        await issue(in_memory_uow)
+
+    assert await in_memory_uow.service_tokens.list() == [stale]
+    assert not in_memory_uow.committed
+
+
+async def test_failed_service_token_commit_propagates_after_signing(in_memory_uow, monkeypatch):
+    sign = Mock(wraps=auth.jwt.encode)
+    monkeypatch.setattr(auth.jwt, "encode", sign)
+
+    async def fail_commit():
+        raise RuntimeError("synthetic commit failure")
+
+    monkeypatch.setattr(in_memory_uow, "_commit", fail_commit)
+    with pytest.raises(RuntimeError, match="synthetic commit failure"):
+        await issue(in_memory_uow)
+
+    sign.assert_called_once()
 
 
 async def test_purged_service_token_is_rejected(bus, service_in_db, user_in_db, uow):
