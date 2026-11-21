@@ -7,7 +7,7 @@ vi.mock('../src/App.vue', () => ({ default: { render: () => 'Mounted' } }));
 vi.mock('../src/routes', () => ({
   routes: [{ path: '/', name: 'login', component: { render: () => null } }],
 }));
-const api = 'https://staging.example.test';
+const api = 'https://staging.example.test/platform/api';
 const websocket = 'wss://staging.example.test/deployments/ws';
 
 beforeEach(() => {
@@ -32,6 +32,23 @@ it.each(['VITE_API_BASE_PROD', 'VITE_WEBSOCKET_URL_PROD'])(
     expect(createApp).not.toHaveBeenCalled();
   },
 );
+
+it.each([
+  ['VITE_API_BASE_PROD', 'wss://example.test/api'],
+  ['VITE_WEBSOCKET_URL_PROD', 'https://example.test/ws'],
+  ['VITE_API_BASE_PROD', '/api'],
+  ['VITE_WEBSOCKET_URL_PROD', 'wss://[broken'],
+  ['VITE_API_BASE_PROD', 'https:example.test/api'],
+  ['VITE_API_BASE_PROD', 'https://user@example.test/api'],
+  ['VITE_API_BASE_PROD', 'https://example.test/api?query=1'],
+  ['VITE_WEBSOCKET_URL_PROD', 'wss://example.test/ws#fragment'],
+])('stops startup before app creation for invalid %s (%s)', async (key, invalid) => {
+  vi.stubEnv(key, invalid);
+  await expect(import('../src/main')).rejects.toThrow(
+    `Invalid frontend production configuration: ${key}`,
+  );
+  expect(createApp).not.toHaveBeenCalled();
+});
 
 it.each([
   ['production', true, api, websocket],

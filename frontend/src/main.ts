@@ -21,11 +21,30 @@ const env: Environment = {
   VITE_API_BASE_DEV: import.meta.env.VITE_API_BASE_DEV || API_BASE_DEFAULT,
   VITE_WEBSOCKET_URL_DEV: import.meta.env.VITE_WEBSOCKET_URL_DEV || WEBSOCKET_URL_DEFAULT,
 };
+function isEndpoint(value: string, protocols: readonly string[]): boolean {
+  // Both clients append a path to the configured base URL.
+  if (!/^[a-z]+:\/\/[^/\\]/i.test(value) || /[?#]/.test(value)) return false;
+  try {
+    const url = new URL(value);
+    return !!url.hostname && protocols.includes(url.protocol) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 if (env.MODE === "production") {
-  const missing = (["VITE_API_BASE_PROD", "VITE_WEBSOCKET_URL_PROD"] as const)
-    .filter(key => !env[key]);
+  const protocols = {
+    VITE_API_BASE_PROD: ["http:", "https:"],
+    VITE_WEBSOCKET_URL_PROD: ["ws:", "wss:"],
+  } as const;
+  const keys = Object.keys(protocols) as (keyof typeof protocols)[];
+  const missing = keys.filter(key => !env[key]);
   if (missing.length) {
     throw new Error(`Missing frontend production configuration: ${missing.join(", ")}`);
+  }
+  const invalid = keys.filter(key => !isEndpoint(env[key], protocols[key]));
+  if (invalid.length) {
+    throw new Error(`Invalid frontend production configuration: ${invalid.join(", ")}`);
   }
 }
 
