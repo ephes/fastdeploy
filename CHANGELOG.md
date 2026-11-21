@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Read each step page and its deployment in one database snapshot so a concurrent deletion cannot produce a false empty page.
+- Reject deployment and step page identifiers outside PostgreSQL's positive integer range with HTTP 422.
 - Keep foreign deployment details indistinguishable from missing deployments when diagnostics fail.
 - Preserve step-report 409 and 400 responses when diagnostic logging fails.
 - Show an offline error when the browser refuses to construct a WebSocket, including during reconnect.

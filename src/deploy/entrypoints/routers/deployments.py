@@ -20,6 +20,7 @@ from ..dependencies import (
     get_current_active_user,
 )
 from ..helper_models import (
+    POSTGRES_INTEGER_MAX,
     Bus,
     Deployment,
     DeploymentWithDetailsUrl,
@@ -46,8 +47,8 @@ async def reconcile_orphaned_deployments(bus: Bus) -> None:
 async def get_deployments(
     bus: Bus = Depends(),
     limit: int = Query(50, ge=1, le=200),
-    before_id: int | None = Query(None, ge=1),
-    service_id: int | None = Query(None, ge=1),
+    before_id: int | None = Query(None, ge=1, le=POSTGRES_INTEGER_MAX),
+    service_id: int | None = Query(None, ge=1, le=POSTGRES_INTEGER_MAX),
 ) -> list[Deployment]:
     """
     Get a bounded deployment history page, ordered by descending id.

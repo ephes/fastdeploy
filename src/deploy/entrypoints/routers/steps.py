@@ -8,7 +8,7 @@ from ... import views
 from ...auth import InvalidCredentials
 from ...domain import commands, model
 from ..dependencies import OAUTH2_SCHEME, credentials_exception, get_current_active_deployment, get_current_active_user
-from ..helper_models import Bus, Deployment, Step, StepResult
+from ..helper_models import POSTGRES_INTEGER_MAX, Bus, Deployment, Step, StepResult
 
 logger = logging.getLogger(__name__)
 
@@ -57,10 +57,10 @@ async def process_step_result(
 
 @router.get("/", dependencies=[Depends(get_current_active_user)])
 async def get_steps_by_deployment(
-    deployment_id: int,
+    deployment_id: int = Query(..., ge=1, le=POSTGRES_INTEGER_MAX),
     bus: Bus = Depends(),
     limit: int = Query(25, ge=1, le=25),
-    before_id: int | None = Query(None, ge=1),
+    before_id: int | None = Query(None, ge=1, le=POSTGRES_INTEGER_MAX),
 ) -> list[Step]:
     """
     Get a bounded step page, newest id first. A short page completes the inventory.
