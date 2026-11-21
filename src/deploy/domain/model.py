@@ -5,6 +5,28 @@ from datetime import datetime, timedelta, timezone
 
 from . import events as events_module
 
+OPEN_STEP_STATES = ("pending", "running")
+
+
+@dataclass(frozen=True)
+class UnfinishedDeploymentActivity:
+    id: int
+    started: datetime | None
+    last_activity: datetime | None
+    has_open_steps: bool
+
+
+def latest_activity_timestamp(*timestamps: datetime | None) -> datetime | None:
+    """Compare activity instants with legacy naive values interpreted as UTC."""
+    return max(
+        (
+            value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+            for value in timestamps
+            if value is not None
+        ),
+        default=None,
+    )
+
 
 class Serializable(abc.ABC):
     @abc.abstractmethod

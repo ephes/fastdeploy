@@ -101,9 +101,14 @@ async def test_deletion_stops_scanning_at_first_active_deployment(bus, uow, serv
     for _ in range(100):
         await add_deployment(uow, service_in_db, step_state="pending")
 
-    with patch.object(
-        uow.steps, "get_steps_by_deployment", new_callable=AsyncMock, wraps=uow.steps.get_steps_by_deployment
-    ) as step_loads:
+    with (
+        patch.object(
+            uow.steps, "get_steps_by_deployment", new_callable=AsyncMock, wraps=uow.steps.get_steps_by_deployment
+        ) as step_loads,
+        patch.object(
+            uow.deployments, "get_unfinished_activity_page", wraps=uow.deployments.get_unfinished_activity_page
+        ) as activity_reads,
+    ):
         if sync:
             result = await bus.handle(commands.SyncServices(force=True))
             assert result.skipped == [
@@ -114,7 +119,8 @@ async def test_deletion_stops_scanning_at_first_active_deployment(bus, uow, serv
                 await bus.handle(commands.DeleteService(service_id=service_in_db.id))
             assert exc_info.value.deployment_id == blocker.id
 
-    assert step_loads.await_args_list == [call(stale.id), call(blocker.id)]
+    step_loads.assert_not_called()
+    assert activity_reads.await_args_list == [call(service_in_db.id, after_id=None, limit=50)]
 
 
 async def make_bus(publisher, services_filesystem):
@@ -145,10 +151,10 @@ async def test_delete_racing_with_deployment_start_keeps_the_deployment(
     assert service_id is not None
 
     start_holds_lock = asyncio.Event()
-    original = repository.SqlAlchemyDeploymentRepository.get_unfinished_by_service
+    original = repository.SqlAlchemyDeploymentRepository.get_unfinished_activity_page
 
-    async def slow_get_unfinished_by_service(self, service_id):
-        result = await original(self, service_id)
+    async def slow_get_unfinished_activity_page(self, service_id, **page):
+        result = await original(self, service_id, **page)
         if not start_holds_lock.is_set():
             # first caller is the start: it holds the service lock here
             start_holds_lock.set()
@@ -156,7 +162,7 @@ async def test_delete_racing_with_deployment_start_keeps_the_deployment(
         return result
 
     monkeypatch.setattr(
-        repository.SqlAlchemyDeploymentRepository, "get_unfinished_by_service", slow_get_unfinished_by_service
+        repository.SqlAlchemyDeploymentRepository, "get_unfinished_activity_page", slow_get_unfinished_activity_page
     )
 
     start_bus = await make_bus(publisher, services_filesystem)

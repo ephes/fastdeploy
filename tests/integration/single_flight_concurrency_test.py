@@ -41,15 +41,15 @@ def widen_check_insert_window(monkeypatch):
     "insert the new deployment" so that, without a lock, every concurrent
     start would pass the check before any of them inserts.
     """
-    original = repository.SqlAlchemyDeploymentRepository.get_unfinished_by_service
+    original = repository.SqlAlchemyDeploymentRepository.get_unfinished_activity_page
 
-    async def slow_get_unfinished_by_service(self, service_id):
-        result = await original(self, service_id)
+    async def slow_get_unfinished_activity_page(self, service_id, **page):
+        result = await original(self, service_id, **page)
         await asyncio.sleep(0.2)
         return result
 
     monkeypatch.setattr(
-        repository.SqlAlchemyDeploymentRepository, "get_unfinished_by_service", slow_get_unfinished_by_service
+        repository.SqlAlchemyDeploymentRepository, "get_unfinished_activity_page", slow_get_unfinished_activity_page
     )
 
 

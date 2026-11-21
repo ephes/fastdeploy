@@ -94,12 +94,12 @@ async def sync_services(
 
 async def first_active_deployment_id(service_id: int, uow: AbstractUnitOfWork, now: datetime) -> int | None:
     """Return the first deployment that blocks service deletion."""
-    for unfinished in await uow.deployments.get_unfinished_by_service(service_id):
-        if unfinished.id is None:
-            continue
-        steps = await uow.steps.get_steps_by_deployment(unfinished.id)
-        if views.classify_unfinished_deployment(unfinished, steps, now) == "active":
-            return unfinished.id
+    async for activity in views.unfinished_deployment_activity(service_id, uow):
+        if (
+            views.classify_unfinished_activity(activity.started, activity.last_activity, activity.has_open_steps, now)
+            == "active"
+        ):
+            return activity.id
     return None
 
 
@@ -227,15 +227,14 @@ async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitO
     """
     now = datetime.now(timezone.utc)
     orphan_ids: list[int] = []
-    for unfinished in await uow.deployments.get_unfinished_by_service(service_id):
-        if unfinished.id is None:
-            continue
-        steps = await uow.steps.get_steps_by_deployment(unfinished.id)
-        state = views.classify_unfinished_deployment(unfinished, steps, now)
+    async for activity in views.unfinished_deployment_activity(service_id, uow):
+        state = views.classify_unfinished_activity(
+            activity.started, activity.last_activity, activity.has_open_steps, now
+        )
         if state == "active":
-            raise model.DeploymentAlreadyRunning(service_id=service_id, deployment_id=unfinished.id)
+            raise model.DeploymentAlreadyRunning(service_id=service_id, deployment_id=activity.id)
         if state == "orphaned":
-            orphan_ids.append(unfinished.id)
+            orphan_ids.append(activity.id)
 
     # Lock and reload the orphans: the deploy task may have finished a deployment
     # or reported a step since it was classified (finishing and step processing

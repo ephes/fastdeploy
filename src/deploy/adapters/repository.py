@@ -1,7 +1,7 @@
 import abc
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, delete, or_, select, text, update
+from sqlalchemy import and_, delete, func, or_, select, text, update
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import aliased
 
@@ -238,7 +238,10 @@ class AbstractDeploymentRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get_unfinished_by_service(self, service_id: int) -> list[model.Deployment]:
+    async def get_unfinished_activity_page(
+        self, service_id: int, *, after_id: int | None, limit: int
+    ) -> list[model.UnfinishedDeploymentActivity]:
+        """Read unfinished activity in ascending deployment ID order."""
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -327,7 +330,7 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
             .where(
                 orm.steps.c.deployment_id == orm.deployments.c.id,
                 or_(
-                    orm.steps.c.state.in_(("pending", "running")),
+                    orm.steps.c.state.in_(model.OPEN_STEP_STATES),
                     orm.steps.c.started > activity_before,
                     orm.steps.c.finished > activity_before,
                 ),
@@ -347,6 +350,40 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         result = await self.session.execute(stmt)
         return list(result.scalars())
 
+    async def get_unfinished_activity_page(
+        self, service_id: int, *, after_id: int | None, limit: int
+    ) -> list[model.UnfinishedDeploymentActivity]:
+        deployments, steps = orm.deployments.c, orm.steps.c
+        page_query = select(deployments.id, deployments.started).where(
+            deployments.service_id == service_id, deployments.finished.is_(None)
+        )
+        if after_id is not None:
+            page_query = page_query.where(deployments.id > after_id)
+        page = page_query.order_by(deployments.id).limit(limit).cte("unfinished_page")
+        # Restrict the step aggregate to the current page in the same snapshot.
+        stmt = (
+            select(
+                page.c.id,
+                page.c.started,
+                func.max(steps.started),
+                func.max(steps.finished),
+                func.count(steps.id).filter(steps.state.in_(model.OPEN_STEP_STATES)),
+            )
+            .select_from(page.outerjoin(orm.steps, steps.deployment_id == page.c.id))
+            .group_by(page.c.id, page.c.started)
+            .order_by(page.c.id)
+        )
+        result = await self.session.execute(stmt)
+        return [
+            model.UnfinishedDeploymentActivity(
+                deployment_id,
+                started,
+                model.latest_activity_timestamp(started, step_start, step_finish),
+                bool(open_steps),
+            )
+            for deployment_id, started, step_start, step_finish, open_steps in result
+        ]
+
     async def list(self, *, limit=None, before_id=None, service_id=None, unfinished_only=False):
         stmt = select(model.Deployment).order_by(model.Deployment.id.desc())
         if before_id is not None:
@@ -357,16 +394,6 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
             stmt = stmt.where(model.Deployment.finished.is_(None))
         if limit is not None:
             stmt = stmt.limit(limit)
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
-
-    async def get_unfinished_by_service(self, service_id):
-        stmt = (
-            select(model.Deployment)
-            .where(model.Deployment.service_id == service_id)
-            .where(model.Deployment.finished.is_(None))
-            .order_by(model.Deployment.id)
-        )
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
@@ -445,8 +472,34 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
     async def get_by_service(self, service_id):
         return [d for d in self._deployments if d.service_id == service_id]
 
-    async def get_unfinished_by_service(self, service_id):
-        return [d for d in self._deployments if d.service_id == service_id and d.finished is None]
+    async def get_unfinished_activity_page(
+        self, service_id: int, *, after_id: int | None, limit: int
+    ) -> list[model.UnfinishedDeploymentActivity]:
+        candidates = {
+            d.id: d.started
+            for d in self._deployments
+            if d.id is not None
+            and d.service_id == service_id
+            and d.finished is None
+            and (after_id is None or d.id > after_id)
+        }
+        ids = sorted(candidates)[:limit]
+        latest = {identifier: model.latest_activity_timestamp(candidates[identifier]) for identifier in ids}
+        open_ids = set()
+        if self.step_repository is not None:
+            for step in await self.step_repository.list():
+                if step.deployment_id in latest:
+                    latest[step.deployment_id] = model.latest_activity_timestamp(
+                        latest[step.deployment_id], step.started, step.finished
+                    )
+                    if step.state in model.OPEN_STEP_STATES:
+                        open_ids.add(step.deployment_id)
+        return [
+            model.UnfinishedDeploymentActivity(
+                identifier, candidates[identifier], latest[identifier], identifier in open_ids
+            )
+            for identifier in ids
+        ]
 
     async def get_orphaned_ids(self, *, activity_before: datetime, limit: int) -> list[int]:
         def recent(value: datetime | None) -> bool:
@@ -467,7 +520,7 @@ class InMemoryDeploymentRepository(AbstractDeploymentRepository):
                 if self.step_repository is not None
                 else []
             )
-            if any(s.state in ("pending", "running") or recent(s.started) or recent(s.finished) for s in steps):
+            if any(s.state in model.OPEN_STEP_STATES or recent(s.started) or recent(s.finished) for s in steps):
                 continue
             candidates.append(deployment.id)
             if len(candidates) >= limit:

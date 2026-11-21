@@ -759,12 +759,17 @@ tracks refreshes in progress. Eviction or session reset clears the retained inve
 and its completeness. One event fence spans the whole traversal, so intervening live
 updates/deletions win even when their row appears on a later page. Terminal/deletion
 lifecycle guards also apply to subsequent completed REST traversals. The API checks
-deployment existence without loading its entire step collection. Internal runner and
-reconciliation reads retain their existing full-inventory behavior.
+deployment existence without loading its entire step collection.
 
-Direct service deletion and sync stop classifying unfinished deployments once
-they find the first active deployment in repository order. The refusal or sync
-skip reason includes that deployment's ID.
+### Deployment classification under the service lock
+
+Deployment starts, direct service deletion and sync classify unfinished deployments
+in ascending ID batches of at most 50. Each batch reads deployment starts, latest
+activity and whether any step is pending or running. Deletion and sync stop after
+the first active deployment and report its ID. A start that reaches the end without
+a blocker reloads orphan candidates and their full step inventories while holding
+their deployment locks. It rechecks every candidate before staging any orphan
+finishes, so a step report received after classification can still block the start.
 
 ### Unit of work cleanup ownership
 
