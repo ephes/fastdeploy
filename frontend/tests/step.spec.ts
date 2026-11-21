@@ -193,6 +193,22 @@ describe("Step inventory pages", () => {
     expect(changes.has(step.id)).toBe(false);
   });
 
+  it("repairs a running step from REST after refusing a delayed pending event", async () => {
+    const store = useSteps();
+    store.addStep({ ...step, state: "running" });
+    let respond!: (rows: unknown) => void;
+    store.client = { get: () => new Promise(resolve => { respond = resolve; }) } as any;
+    const fetch = store.fetchStepsFromDeployment(step.deploymentId);
+
+    store.onMessage(step);
+    expect(store.steps[step.id].state).toBe("running");
+    respond([{ ...apiStep, state: "success", finished: "2021-11-23T10:05:00Z" }]);
+    await fetch;
+
+    expect(store.steps[step.id].state).toBe("success");
+    expect(store.stepsByDeployment[step.deploymentId][step.id]).toBe(store.steps[step.id]);
+  });
+
   it("stages pages until completion and preserves events across boundaries", async () => {
     const store = useSteps();
     store.addStep({ ...step, id: 99 });

@@ -167,14 +167,14 @@ export const useSteps = defineStore("steps", {
      *
      * @param step {Step} The step to add/update
      */
-    addStep(step: Step) {
-      if (!this.retainDeployment(step.deploymentId)) return;
+    addStep(step: Step): boolean {
+      if (!this.retainDeployment(step.deploymentId)) return false;
       const current = this.steps[step.id];
-      if (this.deletedSteps[step.id] || (current && current.deploymentId !== step.deploymentId)) return;
+      if (this.deletedSteps[step.id] || (current && current.deploymentId !== step.deploymentId)) return false;
       // One persisted id is one lifecycle; a rerun receives a fresh id.
       const rank = (state: string) => state === "pending" ? 0 : state === "running" ? 1 : 2;
       if (current && (rank(step.state) < rank(current.state) ||
-          (rank(current.state) === 2 && step.state !== current.state))) return;
+          (rank(current.state) === 2 && step.state !== current.state))) return false;
       this.steps[step.id] = step;
       if (step.deploymentId) {
         if (!this.stepsByDeployment[step.deploymentId]) {
@@ -195,6 +195,7 @@ export const useSteps = defineStore("steps", {
         }
       }
       this.pruneHistory();
+      return true;
     },
     /**
      * Delete step from store. Deleted steps are just normal steps
@@ -228,7 +229,7 @@ export const useSteps = defineStore("steps", {
     },
     /**
      * Traverse bounded step pages and publish only a completed inventory.
-     * WebSocket changes remain authoritative throughout the traversal.
+     * Accepted WebSocket changes remain authoritative throughout the traversal.
      *
      * @param deploymentId {number} The deployment id
      */
@@ -309,9 +310,9 @@ export const useSteps = defineStore("steps", {
       if (message.type === "step") {
         const step = message as Step;
         if (!step.deleted && !this.steps[step.id] && step.id <= (this.stepEventFloors[step.deploymentId] ?? 0)) return;
-        if (step.deleted && !this.deleteStep(step)) return;
+        const accepted = step.deleted ? this.deleteStep(step) : this.addStep(step);
+        if (!accepted) return;
         for (const changed of this.pendingFetches[step.deploymentId] ?? []) changed.add(step.id);
-        if (!step.deleted) this.addStep(step);
       }
       if (message.type === "deployment") {
         const deployment = message as Deployment;
