@@ -273,8 +273,10 @@ Completed history is excluded from the orphan scan.
 
 **Query parameters** (additive; the response remains a JSON array):
 - `limit`: 1–200, default **50**.
-- `before_id`: positive deployment id, exclusive cursor; return ids strictly below it.
-- `service_id`: optional positive id, filters on the server (an unknown service returns `[]`).
+- `before_id`: exclusive deployment id cursor (1–2147483647); return ids strictly below it.
+- `service_id`: optional service filter (1–2147483647). An unknown service returns `[]`.
+
+Out-of-range identifiers return HTTP 422.
 
 Rows are ordered by **descending id**. Pass the last row's id as `before_id` for
 subsequent pages, retaining the same service filter. An empty page ends history;
@@ -395,8 +397,8 @@ the diagnostic log fails.
 ### GET /steps/
 **Purpose**: List a bounded step page for a deployment
 **Authentication**: User token required
-**Query Parameters**: `deployment_id` (required), `limit` (1–25, default 25),
-`before_id` (optional positive exclusive cursor).
+**Query Parameters**: `deployment_id` (required, 1–2147483647), `limit` (1–25, default 25),
+`before_id` (optional exclusive cursor, 1–2147483647). Out-of-range identifiers return HTTP 422.
 
 Rows are ordered by descending immutable step id. Pass the last id as `before_id`
 for the next page. A short page, including an empty page after an exactly full final

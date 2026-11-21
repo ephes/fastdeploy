@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from ... import views
 from ..dependencies import get_current_config
-from ..helper_models import Bus
+from ..helper_models import POSTGRES_INTEGER_MAX, Bus
 
 router = APIRouter(
     prefix="/deployed-services",
@@ -25,7 +25,7 @@ class DeployedService(BaseModel):
 async def list_deployed_services(
     bus: Bus = Depends(),
     limit: int | None = Query(None, ge=1, le=200),
-    before_id: int | None = Query(None, ge=1, le=2**31 - 1),
+    before_id: int | None = Query(None, ge=1, le=POSTGRES_INTEGER_MAX),
 ) -> list[DeployedService]:
     """List deployed services by descending ID, with optional cursor pagination."""
     if before_id is not None and limit is None:

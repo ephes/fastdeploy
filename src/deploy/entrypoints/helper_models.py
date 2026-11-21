@@ -8,6 +8,8 @@ from ..bootstrap import get_bus
 from ..domain.model import MAX_STEP_NAME_LENGTH, admitted_step_start
 from ..service_layer.messagebus import MessageBus
 
+POSTGRES_INTEGER_MAX = 2**31 - 1
+
 
 class StepBase(BaseModel):
     name: str
