@@ -81,10 +81,12 @@ async def login_for_access_token(
 
     Failed attempts are limited per user name and client address and per client
     address (`LOGIN_FAILURE_LIMIT`, `LOGIN_ADDRESS_FAILURE_LIMIT`,
-    `LOGIN_FAILURE_WINDOW_SECONDS`). At the limit the request is answered with
-    429 and a `Retry-After` header, without checking the password. When the
-    process-wide login capacity is exhausted the request is answered with 429
-    and `Retry-After: 1`. Both checks run before a database session is acquired.
+    `LOGIN_FAILURE_WINDOW_SECONDS`). Pending checks occupy a slot, and the
+    window for a failure starts when the failure is recorded. At the limit the
+    request is answered with 429 and a `Retry-After` header, without checking
+    the password. When the process-wide login capacity is exhausted the request
+    is answered with 429 and `Retry-After: 1`. Both checks run before a database
+    session is acquired.
     """
     try:
         user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)

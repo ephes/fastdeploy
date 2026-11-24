@@ -153,7 +153,7 @@ async def test_cancellation_holds_capacity_until_real_hash_work_finishes(monkeyp
     users.login_capacity.release()
 
 
-@pytest.mark.parametrize("outcome", ["success", "failure", "cancel"])
+@pytest.mark.parametrize("outcome", ["success", "failure", "cancel", "backend"])
 async def test_login_holds_pair_reservation_across_window(monkeypatch, outcome):
     from deploy.login_throttle import LoginThrottle
 
@@ -168,6 +168,8 @@ async def test_login_holds_pair_reservation_across_window(monkeypatch, outcome):
         await finish.wait()
         if outcome == "failure":
             raise auth.InvalidCredentials("invalid password")
+        if outcome == "backend":
+            raise RuntimeError("synthetic backend failure")
         return SimpleNamespace(name="user")
 
     monkeypatch.setattr(auth, "authenticate_user", authenticate)
@@ -184,4 +186,7 @@ async def test_login_holds_pair_reservation_across_window(monkeypatch, outcome):
             task.cancel()
         finish.set()
         await asyncio.gather(task, return_exceptions=True)
+    if outcome in ("failure", "cancel"):
+        assert throttle.retry_after("user", "same") == 60
+        now[0] += 60
     assert throttle.retry_after("user", "same") is None

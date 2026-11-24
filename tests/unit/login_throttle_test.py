@@ -179,7 +179,7 @@ def test_defaults_come_from_the_settings(monkeypatch):
 
 
 def test_pending_reservation_survives_window_until_owner_settles():
-    for outcome in ("success", "failure", "discard"):
+    for outcome in ("success", "discard"):
         throttle, clock = make(limit=1, address_limit=1)
         attempt = throttle.begin_attempt("user", "10.0.0.1")
         clock.now += 120
@@ -188,11 +188,28 @@ def test_pending_reservation_survives_window_until_owner_settles():
         assert throttle.retry_after("user", "10.0.0.2") is None
         if outcome == "success":
             throttle.record_success(attempt)
-        elif outcome == "failure":
-            throttle.record_failure(attempt)
         else:
             throttle.discard_attempt(attempt)
         assert throttle.retry_after("user", "10.0.0.1") is None
+        assert throttle.retry_after("other", "10.0.0.1") is None
+
+
+def test_long_password_check_counts_failure_from_completion():
+    throttle, clock = make(limit=1, address_limit=1)
+    attempt = throttle.begin_attempt("user", "10.0.0.1")
+    clock.now += 120
+    assert throttle.retry_after("user", "10.0.0.1") == 1
+    assert throttle.retry_after("other", "10.0.0.1") == 1
+
+    throttle.record_failure(attempt)
+    assert throttle.retry_after("user", "10.0.0.1") == 60
+    assert throttle.retry_after("other", "10.0.0.1") == 60
+
+    clock.now += 59
+    assert throttle.retry_after("user", "10.0.0.1") == 1
+    clock.now += 1
+    assert throttle.retry_after("user", "10.0.0.1") is None
+    assert throttle.retry_after("other", "10.0.0.1") is None
 
 
 def test_key_pressure_never_evicts_pending_owners():
