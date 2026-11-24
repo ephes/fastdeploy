@@ -402,8 +402,9 @@ session/generation ownership checks still apply.
 
 A synchronous store failure during delivery of an admitted domain event leaves
 the socket and login active, and the remaining stores still receive the event.
-The status displays one fixed resynchronization alert without event contents or
-exception details. Later deliveries and reconnects leave the alert visible.
+The status displays one fixed resynchronization alert and the console logs one
+fixed warning, both without event contents or exception details. Later
+deliveries and reconnects leave the alert visible.
 Reloading the page fetches current state, and resetting the session clears the alert.
 
 ### Service view mutations

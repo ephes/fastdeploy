@@ -184,6 +184,7 @@ export function createWebsocketClient(): WebsocketClient {
       if (deliveryFailed && !this.disposed) {
         // Reconnect refreshes cover a bounded subset of state. Keep the alert
         // until the user refreshes the page or the session resets.
+        console.warn("Websocket store failed to apply a live update; refresh to resynchronize.");
         useWebsocketStore().resyncError = "A live update could not be applied. Refresh to resynchronize.";
       }
     },

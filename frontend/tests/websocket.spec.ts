@@ -248,6 +248,7 @@ it("keeps delivering validated events after a store throws and shows that a refr
   const throwing = { onMessage: vi.fn().mockImplementationOnce(() => { throw new Error("synthetic detail"); }) };
   const last = { onMessage: vi.fn() };
   for (const store of [first, throwing, last]) client.registerStore(store);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
   const socket = Socket.instances[0];
   socket.readyState = 1;
@@ -272,6 +273,8 @@ it("keeps delivering validated events after a store throws and shows that a refr
   expect(auth.isAuthenticated).toBe(true);
   expect(socket.close).not.toHaveBeenCalled();
   expect(client.retryCount).toBe(0);
+  expect(warn).toHaveBeenCalledExactlyOnceWith("Websocket store failed to apply a live update; refresh to resynchronize.");
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("synthetic detail");
 
   socket.receive({ ...step, id: 2 });
   expect(last.onMessage).toHaveBeenCalledTimes(2);
