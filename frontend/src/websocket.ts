@@ -14,6 +14,7 @@ import { isId as id, isOptionalDeleted, isOptionalWireDate as optionalDate, isRe
 const isRecord = isWireRecord as (value: unknown) => value is Record<string, any>;
 
 const MAX_PARALLEL_STEP_REFRESHES = 4;
+const AUTHENTICATION_DEADLINE_MS = 15_000;
 
 const readyState: { [key: number]: string } = {
   0: "CONNECTING",
@@ -65,6 +66,12 @@ export function createWebsocketClient(): WebsocketClient {
   let generation = 0;
   let authenticatedGeneration = -1;
   let hasAuthenticated = false;
+  let authenticationDeadline: ReturnType<typeof setTimeout> | undefined;
+  function clearAuthenticationDeadline() {
+    clearTimeout(authenticationDeadline);
+    authenticationDeadline = undefined;
+  }
+
   // In-flight inventories retain their slots across socket replacements until they settle.
   const stepRefreshes = new Set<Promise<void>>();
   const client: WebsocketClient = {
@@ -96,6 +103,7 @@ export function createWebsocketClient(): WebsocketClient {
      */
     dispose() {
       this.disposed = true;
+      clearAuthenticationDeadline();
       this.stores = [];
       const connection = this.connection;
       if (connection !== undefined) {
@@ -174,6 +182,7 @@ export function createWebsocketClient(): WebsocketClient {
      * @param authenticationMessage: {AuthenticationMessage} The authentication message received from the server
      */
     onAuthenticationMessage(authenticationMessage: AuthenticationMessage) {
+      clearAuthenticationDeadline();
       const websocketStore = useWebsocketStore();
       if (authenticationMessage.status === "success") {
         websocketStore.handling = "on authentication message";
@@ -244,6 +253,7 @@ export function createWebsocketClient(): WebsocketClient {
         // Retire queued callbacks as well as installed handlers. Recovery is an
         // explicit refresh, avoiding a reconnect loop on a broken protocol.
         generation++;
+        clearAuthenticationDeadline();
         const connection = this.connection;
         if (connection) {
           connection.onopen = connection.onclose = connection.onmessage = null;
@@ -281,6 +291,7 @@ export function createWebsocketClient(): WebsocketClient {
       if (this.disposed) {
         return;
       }
+      clearAuthenticationDeadline();
       // create the websocket connection
       const websocketStore = useWebsocketStore();
       websocketStore.protocolError = "";
@@ -316,7 +327,13 @@ export function createWebsocketClient(): WebsocketClient {
           this.onConnectionOpen(accessToken, event);
         } catch {
           void closeAndReconnect(websocketUrl, accessToken, "Unable to send websocket credentials.");
+          return;
         }
+        authenticationDeadline = setTimeout(() => {
+          if (isCurrent()) {
+            void closeAndReconnect(websocketUrl, accessToken, "Websocket authentication timed out.");
+          }
+        }, AUTHENTICATION_DEADLINE_MS);
       };
       this.connection.onmessage = (event) => {
         if (isCurrent()) this.onMessage(event);
@@ -343,6 +360,7 @@ export function createWebsocketClient(): WebsocketClient {
 
     // Retire the socket before closing it so queued events cannot use the session.
     const closingGeneration = ++generation;
+    clearAuthenticationDeadline();
     client.connection = undefined;
     connection.onclose = connection.onopen = connection.onmessage = null;
     const websocketStore = useWebsocketStore();

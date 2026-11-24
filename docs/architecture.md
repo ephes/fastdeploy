@@ -355,6 +355,11 @@ If sending WebSocket credentials throws, the browser retires the socket, shows
 `Unable to send websocket credentials.`, and uses the same three-attempt reconnect
 budget as a normal close. Retrying does not wait for a close event from that socket.
 The diagnostic contains no credentials or transport exception details.
+After successfully sending credentials, each browser socket waits up to 15 seconds
+for a valid authentication reply. A reply, close, replacement, protocol error or
+logout cancels that socket's deadline. If the peer stays silent, the browser
+retires the socket and uses the same bounded reconnect path. The HTTP login
+stays active on timeout.
 
 The websocket activity indicator stays lit for one second after the latest admitted
 message. Each status store owns one replaceable expiry timer, including during
