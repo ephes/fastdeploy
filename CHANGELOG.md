@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Issue an already expired access token when its requested lifetime is zero or negative.
+- Use the verified numeric expiry for WebSocket access tokens, including legacy integer strings.
 - Honor development frontend endpoint overrides in custom nonproduction Vite modes.
 - Reject invalid production API and WebSocket URLs before creating the frontend app.
 - Stop auto-scrolling to running steps when a REST history refresh reports deployment completion.

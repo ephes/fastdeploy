@@ -93,15 +93,18 @@ def create_access_token(payload: dict, expires_delta: timedelta | None = None):
     """
     Create an access token from a payload.
 
-    Use a timedelta to set the expiration of the token and use
-    the secret_key from settings to sign the token with the sign
-    algorithm from settings.
+    The default lifetime is 15 minutes. An explicit zero or negative lifetime
+    creates an already expired token.
     """
     to_encode = payload.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    if expires_delta is None:
+        expires_delta = timedelta(minutes=15)
+    now = datetime.now(timezone.utc)
+    expire = now + expires_delta
+    if expires_delta <= timedelta(0):
+        # exp is truncated to whole seconds and the verifier accepts exp equal
+        # to the current second, so end at least one second before it.
+        expire = min(expire, now.replace(microsecond=0) - timedelta(seconds=1))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.token_sign_algorithm)
     return encoded_jwt
@@ -119,7 +122,7 @@ def _numeric_date(value) -> int:
     return result
 
 
-def token_to_payload(token: str):
+def token_to_payload(token: str) -> dict:
     """
     Parse a JWT token and return a dict of its payload.
 
@@ -127,6 +130,12 @@ def token_to_payload(token: str):
     expiry boundary and iat type check below, allowing future iat values.
     Raise ExpiredSignatureError for expired tokens; exp remains optional.
     """
+    payload, _ = _decode_token(token)
+    return payload
+
+
+def _decode_token(token: str) -> tuple[dict, int | None]:
+    """Return the verified claims and their normalized expiry."""
     payload = jwt.decode(
         token,
         settings.secret_key,
@@ -140,6 +149,7 @@ def token_to_payload(token: str):
             _numeric_date(payload["iat"])
         except (ValueError, TypeError, OverflowError) as exc:
             raise jwt.InvalidIssuedAtError("Issued At claim (iat) must be an integer.") from exc
+    expires_at = None
     if "exp" in payload:
         try:
             expires_at = _numeric_date(payload["exp"])
@@ -147,7 +157,7 @@ def token_to_payload(token: str):
             raise jwt.DecodeError("Expiration Time claim (exp) must be an integer.") from exc
         if expires_at < int(datetime.now(timezone.utc).timestamp()):
             raise jwt.ExpiredSignatureError("Signature has expired.")
-    return payload
+    return payload, expires_at
 
 
 def _identity_string(value: object, *, maximum: int = 255, allow_empty: bool = False) -> str:
@@ -165,7 +175,22 @@ async def user_from_token(token: str, uow: AbstractUnitOfWork) -> User:
     """
     Turn a JWT token into a User model.
     """
-    payload = token_to_payload(token)
+    return await _user_from_payload(token_to_payload(token), uow)
+
+
+async def user_from_token_with_expiry(token: str, uow: AbstractUnitOfWork) -> tuple[User, int]:
+    """Authenticate a user and require a numeric expiry for session scheduling."""
+    payload, expires_at = _decode_token(token)
+    if expires_at is None:
+        raise InvalidCredentials("access token expiry is required")
+    user = await _user_from_payload(payload, uow)
+    # The user lookup can outlast the token. Recheck time without decoding again.
+    if expires_at < int(datetime.now(timezone.utc).timestamp()):
+        raise jwt.ExpiredSignatureError("Signature has expired.")
+    return user, expires_at
+
+
+async def _user_from_payload(payload: dict, uow: AbstractUnitOfWork) -> User:
     if payload.get("type") != "user":
         raise InvalidCredentials("not an access token")
 

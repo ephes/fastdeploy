@@ -1,7 +1,7 @@
 """Fixtures minted with python-jose 3.5.0, HS256 and test-secret-key before removal."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -71,6 +71,40 @@ def test_expiry_whole_second_boundary(monkeypatch):
     with pytest.raises(jwt.ImmatureSignatureError):
         auth.token_to_payload(jwt.encode({"nbf": 4102444800}, settings.secret_key, algorithm="HS256"))
     assert auth.token_to_payload(jwt.encode({"iat": 4102444800}, settings.secret_key, algorithm="HS256"))
+
+
+@pytest.mark.parametrize(
+    ("duration", "expected_offset"),
+    [
+        (None, 900),
+        (timedelta(0), -1),
+        (timedelta(seconds=60), 60),
+        (timedelta(seconds=-60), -60),
+        (timedelta(milliseconds=-500), -1),
+        (timedelta(microseconds=-1), -1),
+    ],
+)
+def test_access_token_issuance_expiry(
+    monkeypatch: pytest.MonkeyPatch, duration: timedelta | None, expected_offset: int
+) -> None:
+    issued_second = 2000000000
+
+    class Clock:
+        @staticmethod
+        def now(tz: timezone) -> datetime:
+            return datetime.fromtimestamp(issued_second + 0.75, tz)
+
+    monkeypatch.setattr(auth, "datetime", Clock)
+    token = auth.create_access_token({"type": "user", "user": "synthetic"}, duration)
+    claims = jwt.decode(
+        token, settings.secret_key, algorithms=[settings.token_sign_algorithm], options={"verify_exp": False}
+    )
+    assert claims["exp"] == issued_second + expected_offset
+    if expected_offset < 0:
+        with pytest.raises(jwt.ExpiredSignatureError):
+            auth.token_to_payload(token)
+    else:
+        assert auth.token_to_payload(token) == claims
 
 
 @pytest.mark.parametrize("algorithm", ["none", "RS256", "bogus"])
