@@ -91,6 +91,56 @@ it("times out a silent websocket peer and uses only the bounded retries", async 
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it("retires sockets stuck before opening and uses only the bounded retries", async () => {
+  const client = createWebsocketClient();
+  const status = useWebsocketStore();
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  client.initWebsocketConnection("ws://synthetic", "token");
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const socket = Socket.instances[attempt];
+    const lateOpen = socket.onopen;
+    await vi.advanceTimersByTimeAsync(14999);
+    expect(status.connection).toBe("CONNECTING");
+    expect(socket.close).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(socket.close).toHaveBeenCalledOnce();
+    expect(status.connection).toBe("CLOSED");
+    expect(status.connectionError).toBe("Websocket connection timed out.");
+    lateOpen({ target: socket });
+    expect(socket.send).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+  }
+
+  expect(Socket.instances).toHaveLength(4);
+  expect(client.retryCount).toBe(3);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("hands off the opening deadline to authentication on a replacement socket", async () => {
+  const client = createWebsocketClient();
+  const status = useWebsocketStore();
+  client.initWebsocketConnection("ws://synthetic", "old-token");
+  const first = Socket.instances[0];
+  await vi.advanceTimersByTimeAsync(10000);
+  client.initWebsocketConnection("ws://synthetic", "new-token");
+  const replacement = Socket.instances[1];
+  await vi.advanceTimersByTimeAsync(14000);
+  replacement.readyState = 1;
+  replacement.onopen({ target: replacement });
+  expect(vi.getTimerCount()).toBe(1);
+  await vi.advanceTimersByTimeAsync(14000);
+
+  expect(first.close).toHaveBeenCalledOnce();
+  expect(replacement.close).not.toHaveBeenCalled();
+  expect(status.authentication).toBe("authenticating...");
+  replacement.receive({ type: "authentication", status: "success" });
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(status.isOnline).toBe(true);
+  expect(status.connectionError).toBe("");
+  expect(vi.getTimerCount()).toBe(0);
+});
+
 it.each(["success", "failure", "logout", "replacement", "close", "invalid frame"])(
   "cancels the websocket authentication deadline on %s",
   async (outcome) => {
@@ -127,9 +177,10 @@ it.each(["success", "failure", "logout", "replacement", "close", "invalid frame"
         break;
     }
 
-    // Success leaves the activity indicator timer, and close leaves the retry wait.
-    expect(vi.getTimerCount()).toBe(outcome === "success" || outcome === "close" ? 1 : 0);
-    await vi.advanceTimersByTimeAsync(16000);
+    // Success leaves the activity timer, close leaves the retry wait, and a
+    // replacement has its own deadline. Advance past the original deadline only.
+    expect(vi.getTimerCount()).toBe(["success", "close", "replacement"].includes(outcome) ? 1 : 0);
+    await vi.advanceTimersByTimeAsync(10001);
     expect(status.connectionError).toBe("");
     expect(Socket.instances).toHaveLength(outcome === "replacement" || outcome === "close" ? 2 : 1);
     if (outcome === "success") {
@@ -186,6 +237,56 @@ it("retires a reconnect continuation when its socket is replaced", async () => {
 });
 
 const step = { type: "step", id: 1, deployment_id: 2, name: "synthetic", state: "running", message: "ok", started: null, finished: null };
+
+it("keeps delivering validated events after a store throws and shows that a refresh is needed", async () => {
+  const auth = useAuth();
+  auth.authenticatedApi = useSettings().api;
+  auth.accessToken = "token";
+  await auth.initWebsocketClient();
+  const client = auth.websocketClient!;
+  const first = { onMessage: vi.fn() };
+  const throwing = { onMessage: vi.fn().mockImplementationOnce(() => { throw new Error("synthetic detail"); }) };
+  const last = { onMessage: vi.fn() };
+  for (const store of [first, throwing, last]) client.registerStore(store);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+  const socket = Socket.instances[0];
+  socket.readyState = 1;
+  socket.onopen({ target: socket });
+  socket.receive(step);
+  expect(first.onMessage).not.toHaveBeenCalled();
+  socket.receive({ type: "authentication", status: "success" });
+  expect(() => socket.receive({ ...step, extra: "ignored" })).not.toThrow();
+  const { deployment_id, ...fields } = step;
+  for (const store of [first, throwing, last]) {
+    expect(store.onMessage).toHaveBeenCalledExactlyOnceWith({ ...fields, deploymentId: deployment_id });
+  }
+
+  const state = useWebsocketStore();
+  const status = mount(WebsocketStatus);
+  const refreshMessage = "A live update could not be applied. Refresh to resynchronize.";
+  expect(state.resyncError).toBe(refreshMessage);
+  expect(status.get('[role="alert"]').text()).toBe(refreshMessage);
+  expect(state.protocolError).toBe("");
+  expect(state.connectionError).toBe("");
+  expect(state.isOnline).toBe(true);
+  expect(auth.isAuthenticated).toBe(true);
+  expect(socket.close).not.toHaveBeenCalled();
+  expect(client.retryCount).toBe(0);
+  expect(warn).toHaveBeenCalledExactlyOnceWith("Websocket store failed to apply a live update; refresh to resynchronize.");
+  expect(JSON.stringify(warn.mock.calls)).not.toContain("synthetic detail");
+
+  socket.receive({ ...step, id: 2 });
+  expect(last.onMessage).toHaveBeenCalledTimes(2);
+  expect(state.resyncError).toBe(refreshMessage);
+  client.initWebsocketConnection("ws://synthetic", "token");
+  expect(state.resyncError).toBe(refreshMessage);
+
+  auth.logout();
+  expect(state.resyncError).toBe("");
+  status.unmount();
+});
+
 it.each([
   "invalid sentinel-secret", "null", "[]", '{}', '{"type":"unknown"}',
   '{"type":"authentication","status":true}', '{"type":"authentication","status":"failure","detail":42}',

@@ -103,9 +103,10 @@ run at most four at a time per WebSocket client. Logout or a socket replacement
 retires queued work from the old refresh. In-flight requests keep their slots
 until they settle, and retired requests cannot publish results.
 
-The browser retires the socket if sending credentials throws or if no valid
-authentication reply arrives within 15 seconds of sending them. It retries up to
-three times and keeps the HTTP login active. Logout cancels the handshake deadline.
+The browser retires the socket if it takes more than 15 seconds to open, if
+sending credentials throws or if no valid authentication reply arrives within
+15 seconds of sending them. It retries up to three times and keeps the HTTP
+login active. Logout cancels the active handshake deadline.
 
 Incoming frames must match the
 existing service, deployment, step, user, authentication or control shapes before
@@ -114,6 +115,12 @@ extra fields are ignored. Malformed JSON or fields close the connection and show
 “Invalid websocket message; refresh to resynchronize.” Refresh the page to fetch
 current state and reconnect; malformed frames never trigger logout or automatic
 retry. Diagnostics exclude frame contents.
+
+If a store throws while applying an accepted live update, the other stores
+still receive it and the session continues. The status shows “A live update
+could not be applied. Refresh to resynchronize.” The console logs one fixed
+warning without event contents or exception details. The alert persists across
+later updates and reconnects until the page is refreshed or the session resets.
 
 CI runs the full-lock npm audit independently of the Python audits on pushes and a
 weekly Monday schedule; the root README documents the Python audit.

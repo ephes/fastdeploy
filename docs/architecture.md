@@ -351,13 +351,17 @@ informational frames retain their existing handling.
 If the browser refuses to create a WebSocket, the UI shows an offline error and
 stops retrying that connection. Check the WebSocket URL and refresh to retry.
 The HTTP login stays active.
+Each new browser socket has 15 seconds to open. If it stays pending, the browser
+shows `Websocket connection timed out.` and retires the socket using the normal
+reconnect budget. Opening cancels that deadline and starts authentication.
 If sending WebSocket credentials throws, the browser retires the socket, shows
 `Unable to send websocket credentials.`, and uses the same three-attempt reconnect
 budget as a normal close. Retrying does not wait for a close event from that socket.
 The diagnostic contains no credentials or transport exception details.
 After successfully sending credentials, each browser socket waits up to 15 seconds
-for a valid authentication reply. A reply, close, replacement, protocol error or
-logout cancels that socket's deadline. If the peer stays silent, the browser
+for a valid authentication reply. Close, replacement, protocol error or logout
+cancels whichever deadline is active. A valid authentication reply ends the
+authentication deadline. If the peer stays silent, the browser
 retires the socket and uses the same bounded reconnect path. The HTTP login
 stays active on timeout.
 
@@ -395,6 +399,13 @@ business snapshot; ambiguous token responses cannot authenticate. Websocket refu
 sets the fixed protocol error and retires the connection without logout or retry.
 Response contents never enter parser diagnostics. HTTP byte/deadline limits and
 session/generation ownership checks still apply.
+
+A synchronous store failure during delivery of an admitted domain event leaves
+the socket and login active, and the remaining stores still receive the event.
+The status displays one fixed resynchronization alert and the console logs one
+fixed warning, both without event contents or exception details. Later
+deliveries and reconnects leave the alert visible.
+Reloading the page fetches current state, and resetting the session clears the alert.
 
 ### Service view mutations
 

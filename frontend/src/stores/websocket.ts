@@ -9,6 +9,7 @@ function initialState() {
       connection: "not connected" as string,
       protocolError: "",
       connectionError: "",
+      resyncError: "",
       /**
        * Information about the websocket authentication status
        */
