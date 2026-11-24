@@ -25,6 +25,10 @@ integer expiry, including legacy strings containing an integer Unix timestamp.
 WebSocket authentication requires an expiry that can be represented as a UTC
 datetime so it can schedule session closure.
 
+When server code calls `create_access_token()`, omitting `expires_delta` uses a
+15-minute default. An explicit `timedelta(0)` issues a token that is already
+expired. The login endpoint supplies its configured lifetime explicitly.
+
 The browser binds a user token to the API base used for login. Changing that base
 ends the session immediately, clears credentials and cached stores, and disposes
 the websocket. Log in again at the new destination. Pending login and REST results
