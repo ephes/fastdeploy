@@ -93,16 +93,18 @@ def create_access_token(payload: dict, expires_delta: timedelta | None = None):
     """
     Create an access token from a payload.
 
-    The default lifetime is 15 minutes. An explicit zero lifetime creates an
-    already expired token.
+    The default lifetime is 15 minutes. An explicit zero or negative lifetime
+    creates an already expired token.
     """
     to_encode = payload.copy()
     if expires_delta is None:
         expires_delta = timedelta(minutes=15)
-    elif expires_delta == timedelta(0):
-        # The verifier accepts exp equal to the current whole second.
-        expires_delta = timedelta(seconds=-1)
-    expire = datetime.now(timezone.utc) + expires_delta
+    now = datetime.now(timezone.utc)
+    expire = now + expires_delta
+    if expires_delta <= timedelta(0):
+        # exp is truncated to whole seconds and the verifier accepts exp equal
+        # to the current second, so end at least one second before it.
+        expire = min(expire, now.replace(microsecond=0) - timedelta(seconds=1))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.token_sign_algorithm)
     return encoded_jwt

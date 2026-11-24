@@ -80,6 +80,8 @@ def test_expiry_whole_second_boundary(monkeypatch):
         (timedelta(0), -1),
         (timedelta(seconds=60), 60),
         (timedelta(seconds=-60), -60),
+        (timedelta(milliseconds=-500), -1),
+        (timedelta(microseconds=-1), -1),
     ],
 )
 def test_access_token_issuance_expiry(
