@@ -14,6 +14,7 @@ import { isId as id, isOptionalDeleted, isOptionalWireDate as optionalDate, isRe
 const isRecord = isWireRecord as (value: unknown) => value is Record<string, any>;
 
 const MAX_PARALLEL_STEP_REFRESHES = 4;
+const AUTHENTICATION_DEADLINE_MS = 15_000;
 
 const readyState: { [key: number]: string } = {
   0: "CONNECTING",
@@ -65,6 +66,12 @@ export function createWebsocketClient(): WebsocketClient {
   let generation = 0;
   let authenticatedGeneration = -1;
   let hasAuthenticated = false;
+  let authenticationDeadline: ReturnType<typeof setTimeout> | undefined;
+  function clearAuthenticationDeadline() {
+    clearTimeout(authenticationDeadline);
+    authenticationDeadline = undefined;
+  }
+
   // In-flight inventories retain their slots across socket replacements until they settle.
   const stepRefreshes = new Set<Promise<void>>();
   const client: WebsocketClient = {
@@ -96,6 +103,7 @@ export function createWebsocketClient(): WebsocketClient {
      */
     dispose() {
       this.disposed = true;
+      clearAuthenticationDeadline();
       this.stores = [];
       const connection = this.connection;
       if (connection !== undefined) {
@@ -150,47 +158,8 @@ export function createWebsocketClient(): WebsocketClient {
      * @param accessToken {string} The access token to use for authentication
      * @param event {CloseEvent} The close event
      */
-    async onConnectionClose(
-      accessToken: string,
-      websocketUrl: string,
-      event: CloseEvent
-    ) {
-      if (this.connection === undefined || this.disposed) {
-        // undefined should never happen. It's just a type guard to make
-        // typescript happy. Disposed: logged out, do not reconnect.
-        return;
-      }
-      const connection = this.connection;
-      const closingGeneration = generation;
-      const websocketStore = useWebsocketStore();
-      websocketStore.handling = "on close";
-      websocketStore.connection = readyState[this.connection.readyState];
-      websocketStore.authentication = "not authenticated";
-      while (this.retryCount < 3) {
-        this.retryCount++;
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        if (this.disposed || generation !== closingGeneration || this.connection !== connection) {
-          // logged out while waiting: the token of this loop is void
-          return;
-        }
-        console.log(
-          "Attempting to reconnect to websocket server: ",
-          this.retryCount
-        );
-        if (this.connection.readyState === WebSocket.CLOSED) {
-          // only try to reconnect if the connection is closed
-          // skip on OPEN, CONNECTING and CLOSING
-          this.initWebsocketConnection(websocketUrl, accessToken);
-          // A later socket close starts its own loop with the same retry count.
-          // A synchronous construction refusal has no socket to retry.
-          break;
-        } else {
-          console.log(
-            "Skipping reconnection attempt because of readyState: ",
-            readyState[this.connection.readyState]
-          );
-        }
-      }
+    onConnectionClose(accessToken: string, websocketUrl: string, _event: CloseEvent) {
+      return closeAndReconnect(websocketUrl, accessToken);
     },
     /**
      * Pass message to the different stores.
@@ -213,6 +182,7 @@ export function createWebsocketClient(): WebsocketClient {
      * @param authenticationMessage: {AuthenticationMessage} The authentication message received from the server
      */
     onAuthenticationMessage(authenticationMessage: AuthenticationMessage) {
+      clearAuthenticationDeadline();
       const websocketStore = useWebsocketStore();
       if (authenticationMessage.status === "success") {
         websocketStore.handling = "on authentication message";
@@ -283,6 +253,7 @@ export function createWebsocketClient(): WebsocketClient {
         // Retire queued callbacks as well as installed handlers. Recovery is an
         // explicit refresh, avoiding a reconnect loop on a broken protocol.
         generation++;
+        clearAuthenticationDeadline();
         const connection = this.connection;
         if (connection) {
           connection.onopen = connection.onclose = connection.onmessage = null;
@@ -320,6 +291,7 @@ export function createWebsocketClient(): WebsocketClient {
       if (this.disposed) {
         return;
       }
+      clearAuthenticationDeadline();
       // create the websocket connection
       const websocketStore = useWebsocketStore();
       websocketStore.protocolError = "";
@@ -350,7 +322,18 @@ export function createWebsocketClient(): WebsocketClient {
         if (isCurrent()) return this.onConnectionClose(accessToken, websocketUrl, event);
       };
       this.connection.onopen = (event) => {
-        if (isCurrent()) this.onConnectionOpen(accessToken, event);
+        if (!isCurrent()) return;
+        try {
+          this.onConnectionOpen(accessToken, event);
+        } catch {
+          void closeAndReconnect(websocketUrl, accessToken, "Unable to send websocket credentials.");
+          return;
+        }
+        authenticationDeadline = setTimeout(() => {
+          if (isCurrent()) {
+            void closeAndReconnect(websocketUrl, accessToken, "Websocket authentication timed out.");
+          }
+        }, AUTHENTICATION_DEADLINE_MS);
       };
       this.connection.onmessage = (event) => {
         if (isCurrent()) this.onMessage(event);
@@ -370,5 +353,33 @@ export function createWebsocketClient(): WebsocketClient {
       websocketStore.authentication = "authenticating...";
     },
   };
+
+  async function closeAndReconnect(websocketUrl: string, accessToken: string, error?: string) {
+    const connection = client.connection;
+    if (!connection || client.disposed) return;
+
+    // Retire the socket before closing it so queued events cannot use the session.
+    const closingGeneration = ++generation;
+    clearAuthenticationDeadline();
+    client.connection = undefined;
+    connection.onclose = connection.onopen = connection.onmessage = null;
+    const websocketStore = useWebsocketStore();
+    websocketStore.connection = "CLOSED";
+    websocketStore.authentication = "not authenticated";
+    websocketStore.handling = error ?? "on close";
+    if (error) {
+      websocketStore.connectionError = error;
+      console.warn(error);
+      try { connection.close(); } catch { /* The socket has already been retired. */ }
+    }
+
+    if (client.retryCount >= 3) return;
+    client.retryCount++;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (client.disposed || generation !== closingGeneration) return;
+    console.log("Attempting to reconnect to websocket server: ", client.retryCount);
+    client.initWebsocketConnection(websocketUrl, accessToken);
+  }
+
   return client;
 }

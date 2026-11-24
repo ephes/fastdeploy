@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Recover from browser WebSocket credential send errors with a fixed diagnostic and bounded retries.
+- Retry stalled browser WebSocket authentication after a 15-second deadline and cancel the deadline when the socket or session ends.
 - Require a JSON integer for `POST /service-token` lifetimes, keeping the one-day default when omitted.
 - Count failed logins for a full throttle window after the failure is recorded.
 - Issue an already expired access token when its requested lifetime is zero or negative.
