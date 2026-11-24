@@ -114,7 +114,7 @@ async def login_for_access_token(
 class ServiceIn(BaseModel):
     service: str
     origin: str
-    expiration_in_days: int = Field(1, ge=1, le=settings.service_token_max_expire_days)
+    expiration_in_days: int = Field(1, strict=True, ge=1, le=settings.service_token_max_expire_days)
 
 
 class ServiceTokenOut(BaseModel):
@@ -139,6 +139,8 @@ async def service_token(
     """
     Obtain a service token for the specified service/origin/current_user.
     Requires membership in SERVICE_TOKEN_ADMIN_USERS (otherwise 403).
+    If supplied, expiration_in_days must be a JSON integer between 1 and
+    SERVICE_TOKEN_MAX_EXPIRE_DAYS. Omission uses one day.
 
     The token is recorded with its id (`jti`), which can be used to revoke it
     via `DELETE /service-token/{jti}`.

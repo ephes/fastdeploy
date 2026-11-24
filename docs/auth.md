@@ -69,8 +69,10 @@ nor reveals by its duration whether a user exists.
 `python commands.py issueservicetoken --service S --user U --days N [--origin O]` (prints only the token).
 
 The API and CLI both require an existing service and user, a nonblank origin and a lifetime
-from 1 to `SERVICE_TOKEN_MAX_EXPIRE_DAYS`. The API returns **422** for refused issuance
-without creating a token record; the administrator check still runs first (**403**).
+from 1 to `SERVICE_TOKEN_MAX_EXPIRE_DAYS`. In the API, `expiration_in_days` must be a JSON integer
+when supplied. Booleans, strings and floating-point numbers return **422** before issuance.
+With a valid request body, the API checks administrator membership (**403**) before applying the
+issuance rules (**422** if refused). A refused request creates no token record.
 
 FastDeploy has no stored admin/staff role. `SERVICE_TOKEN_ADMIN_USERS` is an explicit JSON list of
 existing user names (for example `SERVICE_TOKEN_ADMIN_USERS='["operator"]'`). It defaults to `[]`:

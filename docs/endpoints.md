@@ -38,10 +38,12 @@ username=<username>&password=<password>
   "expiration_in_days": 1
 }
 ```
-`expiration_in_days` defaults to 1 and may be at most `SERVICE_TOKEN_MAX_EXPIRE_DAYS` (default 90).
+`expiration_in_days` defaults to 1 when omitted. When supplied, it must be a JSON integer from 1
+to `SERVICE_TOKEN_MAX_EXPIRE_DAYS` (default 90). Booleans, strings and floating-point values
+return **422** before issuance.
 The service and current user must exist and `origin` must contain non-whitespace text,
-as in CLI issuance. Invalid issuance returns **422** without recording a token;
-non-admins are refused with **403** before issuance validation.
+as in CLI issuance. Invalid issuance returns **422** without recording a token.
+With a valid request body, non-admins are refused with **403** before the issuance rules are applied.
 The token is recorded with its id (`jti`) so it can be revoked.
 
 **Response**:
