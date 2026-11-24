@@ -1,8 +1,10 @@
 import asyncio
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 from uuid import uuid4
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect, WebSocketState
@@ -10,6 +12,7 @@ from starlette.websockets import WebSocketDisconnect, WebSocketState
 from deploy.adapters.websocket import ConnectionManager
 from deploy.auth import create_access_token, get_password_hash
 from deploy.bootstrap import bootstrap, get_bus
+from deploy.config import settings
 from deploy.domain import model
 from deploy.entrypoints.fastapi_app import app as fastapi_app
 from deploy.service_layer import unit_of_work
@@ -31,7 +34,6 @@ def ws_client(cm, services_filesystem):
     an in-memory unit of work containing one user.
     """
     uow = unit_of_work.InMemoryUnitOfWork()
-    uow.users._users.append(model.User(id=1, name="user", password=get_password_hash("password")))
 
     async def noop_publish(*args):
         pass
@@ -48,6 +50,7 @@ def ws_client(cm, services_filesystem):
     )
     fastapi_app.dependency_overrides[get_bus] = lambda: bus
     with TestClient(fastapi_app) as client:
+        uow.users._users.append(model.User(id=1, name="user", password=get_password_hash("password")))
         yield client
     fastapi_app.dependency_overrides.pop(get_bus, None)
 
@@ -58,6 +61,43 @@ def user_token(name="user"):
 
 def ws_path(client_id):
     return f"/deployments/ws/{client_id}"
+
+
+@pytest.mark.parametrize(
+    ("expiry_case", "http_status", "ws_status"),
+    [
+        ("integer", 200, "success"),
+        ("legacy-string", 200, "success"),
+        ("invalid", 401, "failure"),
+        ("expired", 401, "failure"),
+        ("missing", 200, "failure"),
+        ("out-of-range", 200, "failure"),
+    ],
+)
+def test_user_token_expiry_admission(
+    ws_client: TestClient, expiry_case: str, http_status: int, ws_status: str
+) -> None:
+    now = int(datetime.now(timezone.utc).timestamp())
+    expiries = {
+        "integer": now + 300,
+        "legacy-string": str(now + 300),
+        "invalid": f"{now + 300}.5",
+        "expired": str(now - 60),
+        "out-of-range": 10**20,
+    }
+    payload: dict[str, str | int] = {"type": "user", "user": "user"}
+    if expiry_case != "missing":
+        payload["exp"] = expiries[expiry_case]
+    token = jwt.encode(payload, settings.secret_key, algorithm=settings.token_sign_algorithm)
+    assert ws_client.get("/users/me", headers={"Authorization": f"Bearer {token}"}).status_code == http_status
+
+    with patch("deploy.auth.jwt.decode", wraps=jwt.decode) as decode:
+        with ws_client.websocket_connect(ws_path(uuid4())) as ws:
+            ws.send_json({"access_token": token})
+            assert ws.receive_json()["status"] == ws_status
+            if ws_status == "failure":
+                assert_refused(ws, 1008)
+        decode.assert_called_once()
 
 
 def test_websocket_service_token_is_rejected_and_connection_released(ws_client, cm):
@@ -165,7 +205,7 @@ def test_websocket_authentication_deadline_covers_verifying_the_token(ws_client,
     """A token sent in time does not help if looking up its user outlasts the deadline."""
     lookup_cancelled = False
 
-    async def slow_user_from_token(token, uow):
+    async def slow_user_from_token_with_expiry(token, uow):
         nonlocal lookup_cancelled
         try:
             await asyncio.sleep(3600)
@@ -173,7 +213,7 @@ def test_websocket_authentication_deadline_covers_verifying_the_token(ws_client,
             lookup_cancelled = True
             raise
 
-    monkeypatch.setattr("deploy.adapters.websocket.user_from_token", slow_user_from_token)
+    monkeypatch.setattr("deploy.adapters.websocket.user_from_token_with_expiry", slow_user_from_token_with_expiry)
     client_id = uuid4()
     with ws_client.websocket_connect(ws_path(client_id)) as ws:
         ws.send_json({"access_token": user_token()})
@@ -280,13 +320,13 @@ def token_lookups(monkeypatch):
     from deploy.adapters import websocket as websocket_module
 
     seen = []
-    real = websocket_module.user_from_token
+    real = websocket_module.user_from_token_with_expiry
 
-    async def recording_user_from_token(token, uow):
+    async def recording_user_from_token_with_expiry(token, uow):
         seen.append(token)
         return await real(token, uow)
 
-    monkeypatch.setattr(websocket_module, "user_from_token", recording_user_from_token)
+    monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", recording_user_from_token_with_expiry)
     return seen
 
 

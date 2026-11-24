@@ -65,10 +65,10 @@ async def test_concurrent_sends_share_one_fifo(second, monkeypatch):
     elif second == "authentication":
 
         async def user(*args):
-            return type("User", (), {"name": "synthetic"})()
+            expiry = int(datetime.now(timezone.utc).timestamp()) + 60
+            return type("User", (), {"name": "synthetic"})(), expiry
 
-        monkeypatch.setattr(module, "user_from_token", user)
-        monkeypatch.setattr(module, "token_to_payload", lambda _: {"exp": datetime.now(timezone.utc).timestamp() + 60})
+        monkeypatch.setattr(module, "user_from_token_with_expiry", user)
         next_send = cm.authenticate(client_id, "synthetic", None)
     elif second == "reject":
         next_send = cm.reject(client_id, "synthetic")

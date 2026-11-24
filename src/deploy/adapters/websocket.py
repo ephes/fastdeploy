@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import WebSocket, status
 from pydantic import BaseModel
 
-from ..auth import token_to_payload, user_from_token
+from ..auth import user_from_token_with_expiry
 from ..config import settings
 from ..domain import events
 from ..service_layer.unit_of_work import AbstractUnitOfWork
@@ -279,9 +279,8 @@ class ConnectionManager:
         if websocket is None:
             return False
         try:
-            user = await user_from_token(access_token, uow)
-            payload = token_to_payload(access_token)
-            expires_at = datetime.fromtimestamp(payload["exp"], timezone.utc)
+            user, expiry = await user_from_token_with_expiry(access_token, uow)
+            expires_at = datetime.fromtimestamp(expiry, timezone.utc)
             username = user.name
             if not username:
                 raise ValueError("user without name")

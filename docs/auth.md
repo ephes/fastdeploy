@@ -20,6 +20,11 @@ creates a new exception and header mapping so traceback state is request-local.
 
 **Default Expiration**: 30 minutes
 
+HTTP and WebSocket authentication both accept signed user tokens with an
+integer expiry, including legacy strings containing an integer Unix timestamp.
+WebSocket authentication requires an expiry that can be represented as a UTC
+datetime so it can schedule session closure.
+
 The browser binds a user token to the API base used for login. Changing that base
 ends the session immediately, clears credentials and cached stores, and disposes
 the websocket. Log in again at the new destination. Pending login and REST results

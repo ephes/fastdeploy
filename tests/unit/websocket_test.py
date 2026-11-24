@@ -362,12 +362,12 @@ async def test_websocket_failing_authentication_does_not_touch_replacement_conne
     cm.active_connections[client_id] = old
     cm.principals[client_id] = "user"
 
-    async def user_from_token_with_replacement(token, uow):
+    async def authenticate_with_replacement(token, uow):
         await cm.close(client_id, "Your session has expired.")
         await cm.connect(client_id, new)
         raise LookupError("user was deleted")
 
-    monkeypatch.setattr(websocket_module, "user_from_token", user_from_token_with_replacement)
+    monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", authenticate_with_replacement)
 
     assert not await cm.authenticate(client_id, valid_access_token, uow)
 
@@ -385,14 +385,14 @@ async def test_websocket_successful_authentication_does_not_touch_replacement_co
     client_id = uuid4()
     old, new = RecordingWebsocket(), RecordingWebsocket()
     await cm.connect(client_id, old)
-    original_user_from_token = websocket_module.user_from_token
+    original_authenticate = websocket_module.user_from_token_with_expiry
 
-    async def user_from_token_with_replacement(token, uow):
+    async def authenticate_with_replacement(token, uow):
         cm.disconnect(client_id, old)
         await cm.connect(client_id, new)
-        return await original_user_from_token(token, uow)
+        return await original_authenticate(token, uow)
 
-    monkeypatch.setattr(websocket_module, "user_from_token", user_from_token_with_replacement)
+    monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", authenticate_with_replacement)
 
     assert not await cm.authenticate(client_id, valid_access_token_in_db, uow)
 
