@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Retire browser WebSockets that fail to open within 15 seconds and retry within the normal connection budget.
 - Recover from browser WebSocket credential send errors with a fixed diagnostic and bounded retries.
 - Retry stalled browser WebSocket authentication after a 15-second deadline and cancel the deadline when the socket or session ends.
 - Require a JSON integer for `POST /service-token` lifetimes, keeping the one-day default when omitted.

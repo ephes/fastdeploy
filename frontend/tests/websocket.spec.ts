@@ -91,6 +91,56 @@ it("times out a silent websocket peer and uses only the bounded retries", async 
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it("retires sockets stuck before opening and uses only the bounded retries", async () => {
+  const client = createWebsocketClient();
+  const status = useWebsocketStore();
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  client.initWebsocketConnection("ws://synthetic", "token");
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const socket = Socket.instances[attempt];
+    const lateOpen = socket.onopen;
+    await vi.advanceTimersByTimeAsync(14999);
+    expect(status.connection).toBe("CONNECTING");
+    expect(socket.close).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(socket.close).toHaveBeenCalledOnce();
+    expect(status.connection).toBe("CLOSED");
+    expect(status.connectionError).toBe("Websocket connection timed out.");
+    lateOpen({ target: socket });
+    expect(socket.send).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+  }
+
+  expect(Socket.instances).toHaveLength(4);
+  expect(client.retryCount).toBe(3);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it("hands off the opening deadline to authentication on a replacement socket", async () => {
+  const client = createWebsocketClient();
+  const status = useWebsocketStore();
+  client.initWebsocketConnection("ws://synthetic", "old-token");
+  const first = Socket.instances[0];
+  await vi.advanceTimersByTimeAsync(10000);
+  client.initWebsocketConnection("ws://synthetic", "new-token");
+  const replacement = Socket.instances[1];
+  await vi.advanceTimersByTimeAsync(14000);
+  replacement.readyState = 1;
+  replacement.onopen({ target: replacement });
+  expect(vi.getTimerCount()).toBe(1);
+  await vi.advanceTimersByTimeAsync(14000);
+
+  expect(first.close).toHaveBeenCalledOnce();
+  expect(replacement.close).not.toHaveBeenCalled();
+  expect(status.authentication).toBe("authenticating...");
+  replacement.receive({ type: "authentication", status: "success" });
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(status.isOnline).toBe(true);
+  expect(status.connectionError).toBe("");
+  expect(vi.getTimerCount()).toBe(0);
+});
+
 it.each(["success", "failure", "logout", "replacement", "close", "invalid frame"])(
   "cancels the websocket authentication deadline on %s",
   async (outcome) => {
@@ -127,9 +177,10 @@ it.each(["success", "failure", "logout", "replacement", "close", "invalid frame"
         break;
     }
 
-    // Success leaves the activity indicator timer, and close leaves the retry wait.
-    expect(vi.getTimerCount()).toBe(outcome === "success" || outcome === "close" ? 1 : 0);
-    await vi.advanceTimersByTimeAsync(16000);
+    // Success leaves the activity timer, close leaves the retry wait, and a
+    // replacement has its own deadline. Advance past the original deadline only.
+    expect(vi.getTimerCount()).toBe(["success", "close", "replacement"].includes(outcome) ? 1 : 0);
+    await vi.advanceTimersByTimeAsync(10001);
     expect(status.connectionError).toBe("");
     expect(Socket.instances).toHaveLength(outcome === "replacement" || outcome === "close" ? 2 : 1);
     if (outcome === "success") {
