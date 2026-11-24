@@ -400,6 +400,12 @@ sets the fixed protocol error and retires the connection without logout or retry
 Response contents never enter parser diagnostics. HTTP byte/deadline limits and
 session/generation ownership checks still apply.
 
+A synchronous store failure during delivery of an admitted domain event leaves
+the socket and login active, and the remaining stores still receive the event.
+The status displays one fixed resynchronization alert without event contents or
+exception details. Later deliveries and reconnects leave the alert visible.
+Reloading the page fetches current state, and resetting the session clears the alert.
+
 ### Service view mutations
 
 A service deletion stays pending in the service store until its request settles.

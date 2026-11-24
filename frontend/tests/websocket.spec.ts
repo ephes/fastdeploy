@@ -237,6 +237,53 @@ it("retires a reconnect continuation when its socket is replaced", async () => {
 });
 
 const step = { type: "step", id: 1, deployment_id: 2, name: "synthetic", state: "running", message: "ok", started: null, finished: null };
+
+it("keeps delivering validated events after a store throws and shows that a refresh is needed", async () => {
+  const auth = useAuth();
+  auth.authenticatedApi = useSettings().api;
+  auth.accessToken = "token";
+  await auth.initWebsocketClient();
+  const client = auth.websocketClient!;
+  const first = { onMessage: vi.fn() };
+  const throwing = { onMessage: vi.fn().mockImplementationOnce(() => { throw new Error("synthetic detail"); }) };
+  const last = { onMessage: vi.fn() };
+  for (const store of [first, throwing, last]) client.registerStore(store);
+
+  const socket = Socket.instances[0];
+  socket.readyState = 1;
+  socket.onopen({ target: socket });
+  socket.receive(step);
+  expect(first.onMessage).not.toHaveBeenCalled();
+  socket.receive({ type: "authentication", status: "success" });
+  expect(() => socket.receive({ ...step, extra: "ignored" })).not.toThrow();
+  const { deployment_id, ...fields } = step;
+  for (const store of [first, throwing, last]) {
+    expect(store.onMessage).toHaveBeenCalledExactlyOnceWith({ ...fields, deploymentId: deployment_id });
+  }
+
+  const state = useWebsocketStore();
+  const status = mount(WebsocketStatus);
+  const refreshMessage = "A live update could not be applied. Refresh to resynchronize.";
+  expect(state.resyncError).toBe(refreshMessage);
+  expect(status.get('[role="alert"]').text()).toBe(refreshMessage);
+  expect(state.protocolError).toBe("");
+  expect(state.connectionError).toBe("");
+  expect(state.isOnline).toBe(true);
+  expect(auth.isAuthenticated).toBe(true);
+  expect(socket.close).not.toHaveBeenCalled();
+  expect(client.retryCount).toBe(0);
+
+  socket.receive({ ...step, id: 2 });
+  expect(last.onMessage).toHaveBeenCalledTimes(2);
+  expect(state.resyncError).toBe(refreshMessage);
+  client.initWebsocketConnection("ws://synthetic", "token");
+  expect(state.resyncError).toBe(refreshMessage);
+
+  auth.logout();
+  expect(state.resyncError).toBe("");
+  status.unmount();
+});
+
 it.each([
   "invalid sentinel-secret", "null", "[]", '{}', '{"type":"unknown"}',
   '{"type":"authentication","status":true}', '{"type":"authentication","status":"failure","detail":42}',

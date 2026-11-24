@@ -172,8 +172,19 @@ export function createWebsocketClient(): WebsocketClient {
         return;
       }
       const newMessage = pythonToJavascript(message);
+      let deliveryFailed = false;
       for (const store of this.stores) {
-        store.onMessage(newMessage);
+        if (this.disposed) return;
+        try {
+          store.onMessage(newMessage);
+        } catch {
+          deliveryFailed = true;
+        }
+      }
+      if (deliveryFailed && !this.disposed) {
+        // Reconnect refreshes cover a bounded subset of state. Keep the alert
+        // until the user refreshes the page or the session resets.
+        useWebsocketStore().resyncError = "A live update could not be applied. Refresh to resynchronize.";
       }
     },
     /**

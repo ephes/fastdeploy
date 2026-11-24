@@ -116,6 +116,11 @@ extra fields are ignored. Malformed JSON or fields close the connection and show
 current state and reconnect; malformed frames never trigger logout or automatic
 retry. Diagnostics exclude frame contents.
 
+If a store throws while applying an accepted live update, the other stores
+still receive it and the session continues. The status shows “A live update
+could not be applied. Refresh to resynchronize.” The alert persists across
+later updates and reconnects until the page is refreshed or the session resets.
+
 CI runs the full-lock npm audit independently of the Python audits on pushes and a
 weekly Monday schedule; the root README documents the Python audit.
 
