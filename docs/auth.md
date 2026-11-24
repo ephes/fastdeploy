@@ -44,10 +44,12 @@ the slot without counting a password failure.
 **Failed login limit**: `POST /token` answers `429` with a `Retry-After` header once a user name had
 `LOGIN_FAILURE_LIMIT` (default 10) failed attempts from one client address, or one client address had
 `LOGIN_ADDRESS_FAILURE_LIMIT` (default 50) failed attempts for any user names, inside
-`LOGIN_FAILURE_WINDOW_SECONDS` (default 900). A successful login clears the count for that user name and
-address; `LOGIN_FAILURE_LIMIT=0` turns the limit off. The counts are kept in memory by the API process
-(a restart clears them; with several worker processes each one counts on its own). The client address is
-the one the ASGI server reports: behind a reverse proxy, uvicorn must trust the proxy's forwarded headers
+`LOGIN_FAILURE_WINDOW_SECONDS` (default 900). Pending password checks count while they run. A failed
+attempt counts for a full window from the time its outcome is recorded. A successful login clears the
+count for that user name and address; `LOGIN_FAILURE_LIMIT=0` turns the limit off. The counts are kept
+in memory by the API process (a restart clears them; with several worker processes each one counts on
+its own). The client address is the one the ASGI server reports: behind a reverse proxy, uvicorn must
+trust the proxy's forwarded headers
 (its default for a proxy on `127.0.0.1`, see `--forwarded-allow-ips`), otherwise every client shares the
 proxy's address and the per-address limit applies to all of them together. The password hash check runs
 in a worker thread and is also spent on unknown user names, so a login attempt neither blocks the API
@@ -67,8 +69,10 @@ nor reveals by its duration whether a user exists.
 `python commands.py issueservicetoken --service S --user U --days N [--origin O]` (prints only the token).
 
 The API and CLI both require an existing service and user, a nonblank origin and a lifetime
-from 1 to `SERVICE_TOKEN_MAX_EXPIRE_DAYS`. The API returns **422** for refused issuance
-without creating a token record; the administrator check still runs first (**403**).
+from 1 to `SERVICE_TOKEN_MAX_EXPIRE_DAYS`. In the API, `expiration_in_days` must be a JSON integer
+when supplied. Booleans, strings and floating-point numbers return **422** before issuance.
+With a valid request body, the API checks administrator membership (**403**) before applying the
+issuance rules (**422** if refused). A refused request creates no token record.
 
 FastDeploy has no stored admin/staff role. `SERVICE_TOKEN_ADMIN_USERS` is an explicit JSON list of
 existing user names (for example `SERVICE_TOKEN_ADMIN_USERS='["operator"]'`). It defaults to `[]`:

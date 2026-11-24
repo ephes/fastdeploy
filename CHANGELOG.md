@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Require a JSON integer for `POST /service-token` lifetimes, keeping the one-day default when omitted.
+- Count failed logins for a full throttle window after the failure is recorded.
 - Issue an already expired access token when its requested lifetime is zero or negative.
 - Use the verified numeric expiry for WebSocket access tokens, including legacy integer strings.
 - Honor development frontend endpoint overrides in custom nonproduction Vite modes.

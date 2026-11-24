@@ -5,7 +5,8 @@ Attempts are counted per (user name, client address) and per client address
 inside a fixed window. An attempt is counted when it begins, before the
 password is checked, and taken back when the login succeeds, so requests sent
 in parallel cannot exceed the limit while their password checks are still
-running. State lives in this process, which matches the single API process.
+running. The window for a failed attempt starts when its failure is recorded.
+State lives in this process, which matches the single API process.
 """
 
 import math
@@ -26,8 +27,8 @@ Key = tuple[str, ...]
 @dataclass(eq=False)
 class Attempt:
     """
-    One login attempt. It counts from the moment it begins; ``pending`` is
-    True until its password check has finished.
+    One login attempt. It counts from the moment it begins. For a recorded
+    failure, ``stamp`` is the time of settlement.
     """
 
     stamp: float
@@ -155,8 +156,9 @@ class LoginThrottle:
         return attempt
 
     def record_failure(self, attempt: Attempt | None) -> None:
-        """The password check of this attempt finished without a login: it stays counted."""
-        if attempt is not None:
+        """Keep a failed attempt counted for a full window from settlement."""
+        if attempt is not None and attempt.pending:
+            attempt.stamp = self.clock()
             attempt.pending = False
             for key in (attempt.pair_key, attempt.address_key):
                 self._store(key, self._attempts.get(key, []))

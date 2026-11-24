@@ -81,10 +81,12 @@ async def login_for_access_token(
 
     Failed attempts are limited per user name and client address and per client
     address (`LOGIN_FAILURE_LIMIT`, `LOGIN_ADDRESS_FAILURE_LIMIT`,
-    `LOGIN_FAILURE_WINDOW_SECONDS`). At the limit the request is answered with
-    429 and a `Retry-After` header, without checking the password. When the
-    process-wide login capacity is exhausted the request is answered with 429
-    and `Retry-After: 1`. Both checks run before a database session is acquired.
+    `LOGIN_FAILURE_WINDOW_SECONDS`). Pending checks occupy a slot, and the
+    window for a failure starts when the failure is recorded. At the limit the
+    request is answered with 429 and a `Retry-After` header, without checking
+    the password. When the process-wide login capacity is exhausted the request
+    is answered with 429 and `Retry-After: 1`. Both checks run before a database
+    session is acquired.
     """
     try:
         user = await auth.authenticate_user(form_data.username, form_data.password, bus.uow)
@@ -112,7 +114,7 @@ async def login_for_access_token(
 class ServiceIn(BaseModel):
     service: str
     origin: str
-    expiration_in_days: int = Field(1, ge=1, le=settings.service_token_max_expire_days)
+    expiration_in_days: int = Field(1, strict=True, ge=1, le=settings.service_token_max_expire_days)
 
 
 class ServiceTokenOut(BaseModel):
@@ -137,6 +139,8 @@ async def service_token(
     """
     Obtain a service token for the specified service/origin/current_user.
     Requires membership in SERVICE_TOKEN_ADMIN_USERS (otherwise 403).
+    If supplied, expiration_in_days must be a JSON integer between 1 and
+    SERVICE_TOKEN_MAX_EXPIRE_DAYS. Omission uses one day.
 
     The token is recorded with its id (`jti`), which can be used to revoke it
     via `DELETE /service-token/{jti}`.
