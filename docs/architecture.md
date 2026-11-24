@@ -351,6 +351,10 @@ informational frames retain their existing handling.
 If the browser refuses to create a WebSocket, the UI shows an offline error and
 stops retrying that connection. Check the WebSocket URL and refresh to retry.
 The HTTP login stays active.
+If sending WebSocket credentials throws, the browser retires the socket, shows
+`Unable to send websocket credentials.`, and uses the same three-attempt reconnect
+budget as a normal close. Retrying does not wait for a close event from that socket.
+The diagnostic contains no credentials or transport exception details.
 
 The websocket activity indicator stays lit for one second after the latest admitted
 message. Each status store owns one replaceable expiry timer, including during

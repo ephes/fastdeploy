@@ -31,6 +31,35 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+it("recovers when sending websocket credentials throws", async () => {
+  const client = createWebsocketClient();
+  const status = useWebsocketStore();
+  const logout = vi.spyOn(useAuth(), "logout");
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  client.initWebsocketConnection("ws://synthetic", "synthetic-secret");
+  const socket = Socket.instances[0];
+  const lateMessage = socket.onmessage;
+  const lateClose = socket.onclose;
+  socket.readyState = 1;
+  socket.send.mockImplementation(() => { throw new Error("synthetic-secret"); });
+  // An unresponsive peer may leave the retired transport closing.
+  socket.close.mockImplementation(() => { socket.readyState = 2; });
+
+  expect(() => socket.onopen({ target: socket })).not.toThrow();
+  expect(socket.close).toHaveBeenCalledOnce();
+  expect(status.connection).toBe("CLOSED");
+  expect(status.authentication).toBe("not authenticated");
+  expect(status.connectionError).toBe("Unable to send websocket credentials.");
+  expect(warn).toHaveBeenCalledExactlyOnceWith(status.connectionError);
+
+  lateMessage({ data: JSON.stringify({ type: "authentication", status: "failure" }) });
+  lateClose({ target: socket });
+  expect(logout).not.toHaveBeenCalled();
+  expect(client.retryCount).toBe(1);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(Socket.instances).toHaveLength(2);
+});
+
 it("ignores all queued callbacks from a replaced socket", async () => {
   const client = createWebsocketClient();
   const store = { onMessage: vi.fn() };
