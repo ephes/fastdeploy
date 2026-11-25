@@ -1,8 +1,9 @@
 import typing
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .runner_limits import DEPLOYMENT_FINALIZATION_SECONDS
@@ -83,6 +84,21 @@ class Settings(BaseSettings):
     services_sync_path: str = Field("/services/sync/", alias="services_sync_path")
     repository: str = Field("sqlite", alias="repository")
     sudo_user: str = Field("jochen", alias="sudo_user")
+
+    @field_validator("api_url")
+    @classmethod
+    def normalize_api_url(cls, value: str) -> str:
+        if any(char.isspace() or ord(char) < 32 or char in "\\?#\x7f" for char in value):
+            raise ValueError(
+                "API base must not contain whitespace, control characters, backslashes, queries or fragments"
+            )
+        base = urlsplit(value)
+        if base.scheme not in {"http", "https"} or not base.hostname or base.username is not None:
+            raise ValueError("API base must be an absolute HTTP(S) URL with a host and without credentials")
+        # Accessing the port also validates its syntax and range.
+        if base.port == 0:
+            raise ValueError("API base port must be positive")
+        return value.rstrip("/")
 
     @model_validator(mode="after")
     def deployment_token_covers_runner(self) -> "Settings":

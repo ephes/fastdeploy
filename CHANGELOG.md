@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Preserve reverse-proxy prefixes and normalize trailing slashes in API bases for runner callbacks and service sync.
 - Treat a service deletion confirmed by WebSocket as successful if its HTTP response is lost.
 - Prevent overlapping service sync submissions from the browser and preserve the confirmed receipt.
 - Keep the original runner failure when deployment finalization is cancelled after an acknowledged failed step.
