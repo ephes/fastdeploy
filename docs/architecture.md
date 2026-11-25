@@ -364,6 +364,10 @@ cancels whichever deadline is active. A valid authentication reply ends the
 authentication deadline. If the peer stays silent, the browser
 retires the socket and uses the same bounded reconnect path. The HTTP login
 stays active on timeout.
+If the connection still drops after three retries, the dashboard shows
+`Websocket reconnect attempts exhausted. Refresh to try again.` alongside its offline
+indicator. Refresh the page to establish a fresh connection and reload current state.
+Starting a fresh connection or ending the session clears the alert.
 
 The websocket activity indicator stays lit for one second after the latest admitted
 message. Each status store owns one replaceable expiry timer, including during

@@ -11,6 +11,8 @@ import { useServices } from "../src/stores/service";
 import { useDeployments } from "../src/stores/deployment";
 import { useSteps } from "../src/stores/step";
 
+const reconnectExhausted = "Websocket reconnect attempts exhausted. Refresh to try again.";
+
 class Socket {
   static CLOSED = 3;
   static instances: Socket[] = [];
@@ -80,7 +82,7 @@ it("times out a silent websocket peer and uses only the bounded retries", async 
     expect(socket.close).toHaveBeenCalledOnce();
     expect(status.connection).toBe("CLOSED");
     expect(status.authentication).toBe("not authenticated");
-    expect(status.connectionError).toBe("Websocket authentication timed out.");
+    expect(status.connectionError).toBe(attempt < 3 ? "Websocket authentication timed out." : reconnectExhausted);
     lateMessage({ data: JSON.stringify({ type: "authentication", status: "failure" }) });
     expect(logout).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000);
@@ -106,7 +108,7 @@ it("retires sockets stuck before opening and uses only the bounded retries", asy
     await vi.advanceTimersByTimeAsync(1);
     expect(socket.close).toHaveBeenCalledOnce();
     expect(status.connection).toBe("CLOSED");
-    expect(status.connectionError).toBe("Websocket connection timed out.");
+    expect(status.connectionError).toBe(attempt < 3 ? "Websocket connection timed out." : reconnectExhausted);
     lateOpen({ target: socket });
     expect(socket.send).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000);
@@ -115,6 +117,46 @@ it("retires sockets stuck before opening and uses only the bounded retries", asy
   expect(Socket.instances).toHaveLength(4);
   expect(client.retryCount).toBe(3);
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it("alerts operators when abnormal closes exhaust the reconnect budget", async () => {
+  const client = createWebsocketClient();
+  const status = mount(WebsocketStatus);
+  const logout = vi.spyOn(useAuth(), "logout");
+  client.initWebsocketConnection("ws://synthetic", "token");
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    expect(Socket.instances).toHaveLength(attempt + 1);
+    const socket = Socket.instances[attempt];
+    socket.readyState = Socket.CLOSED;
+    const disconnected = socket.onclose({ target: socket, code: 1006, reason: "synthetic detail" });
+    await vi.advanceTimersByTimeAsync(999);
+    if (attempt < 3) {
+      expect(status.find('[role="alert"]').exists()).toBe(false);
+      expect(Socket.instances).toHaveLength(attempt + 1);
+    }
+    await vi.advanceTimersByTimeAsync(1);
+    await disconnected;
+  }
+
+  expect(Socket.instances).toHaveLength(4);
+  expect(client.retryCount).toBe(3);
+  expect(vi.getTimerCount()).toBe(0);
+  expect(logout).not.toHaveBeenCalled();
+  expect(status.get('[role="alert"]').text()).toBe(reconnectExhausted);
+  expect(status.find(".websocket.offline").exists()).toBe(true);
+
+  client.initWebsocketConnection("ws://synthetic", "token");
+  const recovered = Socket.instances[4];
+  recovered.readyState = 1;
+  recovered.onopen({ target: recovered });
+  recovered.receive({ type: "authentication", status: "success" });
+  await status.vm.$nextTick();
+
+  expect(status.find('[role="alert"]').exists()).toBe(false);
+  expect(status.find(".websocket.online").exists()).toBe(true);
+  expect(client.retryCount).toBe(0);
+  status.unmount();
 });
 
 it("hands off the opening deadline to authentication on a replacement socket", async () => {
