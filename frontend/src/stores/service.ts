@@ -44,7 +44,7 @@ export const useServices = defineStore("services", {
        * Error message of a failed services sync (other than a refusal).
        */
       syncErrorMessage: "",
-      syncGeneration: 0,
+      pendingSync: null as (() => boolean) | null,
       /**
        * List of available service names.
        */
@@ -56,6 +56,7 @@ export const useServices = defineStore("services", {
     };
   },
   getters: {
+    syncPending: (state): boolean => state.pendingSync?.() ?? false,
     /**
      * Only services which are known to the backend can be added.
      * To choose a valid service name, users have to know which ones
@@ -105,43 +106,47 @@ export const useServices = defineStore("services", {
      * @returns synced {boolean} - Whether the sync succeeded
      */
     async syncServices(confirmation?: string): Promise<boolean> {
+      if (this.syncPending) return false;
+      const isCurrentSession = rememberSession();
+      this.pendingSync = isCurrentSession;
+      const ownsSync = () => this.pendingSync === isCurrentSession;
+      const isCurrent = () => ownsSync() && isCurrentSession();
       this.syncRefusal = null;
       this.syncReceipt = null;
       this.syncErrorMessage = "";
-      const isCurrentSession = rememberSession();
-      const generation = ++this.syncGeneration;
-      const isCurrent = () => isCurrentSession() && generation === this.syncGeneration;
-      let response: unknown;
       try {
-        response = await this.client.post<unknown>(
-          "/services/sync",
-          undefined,
-          confirmation === undefined ? {} : { query: { force: "true", confirmation } }
-        );
-      } catch (err: any) {
-        if (!isCurrent()) {
+        let response: unknown;
+        try {
+          response = await this.client.post<unknown>(
+            "/services/sync",
+            undefined,
+            confirmation === undefined ? {} : { query: { force: "true", confirmation } }
+          );
+        } catch (err: any) {
+          if (!isCurrent()) return false;
+          const detail = err?.body?.detail;
+          if (err?.response?.status === 409) {
+            this.syncRefusal = syncRefusal(detail);
+            if (!this.syncRefusal) this.syncErrorMessage = "Services sync failed";
+          } else {
+            const reason = typeof detail === "string" ? detail : err?.message;
+            this.syncErrorMessage = `Services sync failed${reason ? ": " + reason : ""}`;
+          }
           return false;
         }
-        const detail = err?.body?.detail;
-        if (err?.response?.status === 409) {
-          this.syncRefusal = syncRefusal(detail);
-          if (!this.syncRefusal) this.syncErrorMessage = "Services sync failed";
-        } else {
-          const reason = typeof detail === "string" ? detail : err?.message;
-          this.syncErrorMessage = `Services sync failed${reason ? ": " + reason : ""}`;
-        }
-        return false;
-      }
 
-      if (!isCurrent()) return false;
-      try {
-        this.syncReceipt = syncReceipt(response);
-      } catch {
-        this.syncErrorMessage = "Could not verify the services sync receipt. Refresh services before retrying.";
-        return false;
+        if (!isCurrent()) return false;
+        try {
+          this.syncReceipt = syncReceipt(response);
+        } catch {
+          this.syncErrorMessage = "Could not verify the services sync receipt. Refresh services before retrying.";
+          return false;
+        }
+        await this.fetchServices(isCurrent);
+        return isCurrent();
+      } finally {
+        if (ownsSync()) this.pendingSync = null;
       }
-      await this.fetchServices();
-      return isCurrent();
     },
     /** Delete only the requested row after a confirmed current-session response. */
     async deleteService(serviceId: number): Promise<boolean> {
@@ -160,13 +165,13 @@ export const useServices = defineStore("services", {
         delete this.deleteErrors[serviceId];
         return true;
       } catch (error: any) {
-        if (isCurrentSession() && ownsAttempt() && !attempt.removed) {
-          this.deleteErrors[serviceId] = error?.response?.status === 409
-            ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
-            : error?.response?.status === 404
-              ? "This service no longer exists. Refresh services."
-              : "Could not confirm deletion. Refresh services before retrying.";
-        }
+        if (!isCurrentSession() || !ownsAttempt()) return false;
+        if (attempt.removed) return error?.response == null;
+        this.deleteErrors[serviceId] = error?.response?.status === 409
+          ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
+          : error?.response?.status === 404
+            ? "This service no longer exists. Refresh services."
+            : "Could not confirm deletion. Refresh services before retrying.";
         return false;
       } finally {
         if (ownsAttempt()) this.pendingDeletes.delete(serviceId);

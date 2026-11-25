@@ -22,6 +22,7 @@ async function deleteService(id: number, name: string) {
 }
 
 async function forceSync() {
+  if (serviceStore.syncPending) return;
   const refusal = serviceStore.syncRefusal;
   if (!refusal?.wouldDelete.length) return;
   const names = refusal.wouldDelete.join(", ");
@@ -67,15 +68,15 @@ async function startDeployment(id: number, serviceName: string) {
       <button @click="serviceStore.fetchServiceNames()">Retry service names</button>
     </p>
     <div v-if="serviceStore.getAvailableServiceNames.length">
-      <button @click="serviceStore.syncServices()">sync</button>
+      <button :disabled="serviceStore.syncPending" @click="serviceStore.syncServices()">sync</button>
     </div>
     <div v-if="serviceStore.syncRefusal" class="sync-refusal" role="alert">
       <p>Services sync refused: {{ serviceStore.syncRefusal.message }}</p>
       <p v-if="serviceStore.syncRefusal.wouldDelete.length">
         Services that would be deleted: {{ serviceStore.syncRefusal.wouldDelete.join(", ") }}
       </p>
-      <button v-if="serviceStore.syncRefusal.wouldDelete.length" @click="forceSync()">force sync</button>
-      <button v-else @click="serviceStore.syncServices()">retry sync</button>
+      <button v-if="serviceStore.syncRefusal.wouldDelete.length" :disabled="serviceStore.syncPending" @click="forceSync()">force sync</button>
+      <button v-else :disabled="serviceStore.syncPending" @click="serviceStore.syncServices()">retry sync</button>
       <button @click="serviceStore.syncRefusal = null">dismiss</button>
     </div>
     <div v-if="serviceStore.syncErrorMessage" class="sync-error" role="alert">

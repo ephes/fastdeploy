@@ -213,23 +213,69 @@ it.each([{ service_id: 2 }, { id: 0 }, { started: 'invalid' }, { finished: false
   wrapper.unmount();
 });
 
-it.each([true, false])('settles a socket-confirmed deletion without affecting a replacement (success: %s)', async success => {
+it.each(['success', 'transport loss', 'HTTP conflict'])('settles a socket-confirmed deletion without affecting a replacement (%s)', async outcome => {
   const store = useServices();
   store.services[1] = { id: 1, name: 'first', data: {} };
   const response = deferred<unknown>();
   store.client.delete = vi.fn().mockReturnValue(response.promise);
+  const websocket = createWebsocketClient();
+  websocket.registerStore(store);
+  websocket.onAuthenticationMessage({ type: 'authentication', status: 'success' });
   const first = store.deleteService(1);
-  store.onMessage({ type: 'service', id: 1, deleted: true } as any);
-  store.onMessage({ type: 'service', id: 1, name: 'replacement', data: {} } as ServiceWithId);
+  websocket.onMessage(createEvent({ ...store.services[1], type: 'service', deleted: true }));
+  expect(store.services[1]).toBeUndefined();
+  websocket.onMessage(createEvent({ type: 'service', id: 1, name: 'replacement', data: {} } as ServiceWithId));
   await expect(store.deleteService(1)).resolves.toBe(false);
   expect(store.client.delete).toHaveBeenCalledTimes(1);
 
-  if (success) response.resolve(null);
+  if (outcome === 'success') response.resolve(null);
+  else if (outcome === 'transport loss') response.reject(new TypeError('Connection lost'));
   else response.reject({ response: { status: 409 } });
-  await expect(first).resolves.toBe(success);
+  await expect(first).resolves.toBe(outcome !== 'HTTP conflict');
   expect(store.services[1].name).toBe('replacement');
   expect(store.deleteErrors[1]).toBeUndefined();
   expect(store.pendingDeletes.has(1)).toBe(false);
+});
+
+it('keeps a transport failure unconfirmed when the socket deleted a different service', async () => {
+  const { store, wrapper } = setup();
+  const response = deferred<unknown>();
+  store.client.delete = vi.fn().mockReturnValue(response.promise);
+  const pending = store.deleteService(1);
+  store.onMessage({ type: 'service', id: 2, deleted: true } as ServiceWithId);
+
+  response.reject(new TypeError('Connection lost'));
+  await expect(pending).resolves.toBe(false);
+  expect(store.services[2]).toBeUndefined();
+  expect(store.services[1].name).toBe('first');
+  expect(store.deleteErrors[1]).toContain('Could not confirm deletion');
+  wrapper.unmount();
+});
+
+it('ignores a socket-confirmed deletion from a retired session when its HTTP response is lost', async () => {
+  const store = useServices();
+  const auth = useAuth();
+  const row = { id: 1, name: 'first', data: {} };
+  store.services[1] = row;
+  const old = deferred<unknown>();
+  store.client.delete = vi.fn().mockReturnValue(old.promise);
+  const retiring = store.deleteService(1);
+  store.onMessage({ type: 'service', id: 1, deleted: true } as ServiceWithId);
+  auth.logout();
+
+  store.services[1] = row;
+  const current = deferred<unknown>();
+  store.client.delete = vi.fn().mockReturnValue(current.promise);
+  const pending = store.deleteService(1);
+  old.reject(new TypeError('Connection lost'));
+  await expect(retiring).resolves.toBe(false);
+  expect(store.pendingDeletes.has(1)).toBe(true);
+  expect(store.services[1]).toEqual(row);
+  expect(store.deleteErrors[1]).toBeUndefined();
+
+  current.reject(new TypeError('Connection lost'));
+  await expect(pending).resolves.toBe(false);
+  expect(store.deleteErrors[1]).toContain('Could not confirm deletion');
 });
 
 it('keeps a confirmed deletion out of a pending snapshot', async () => {
