@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import NoResultFound
@@ -211,9 +212,10 @@ async def finish_orphaned_deployment(command: commands.FinishOrphanedDeployment,
         steps = deployment.steps
         if not views.deployment_is_orphaned(deployment, steps, now):
             return False
-        logger.warning("Finishing orphaned deployment %s as failed", deployment.id)
         await stage_orphaned_deployment_finish(deployment, steps, uow)
         await uow.commit()
+    with suppress(Exception):
+        logger.warning("Finished orphaned deployment %s as failed", command.deployment_id)
     return True
 
 

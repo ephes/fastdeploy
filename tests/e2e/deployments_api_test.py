@@ -10,6 +10,7 @@ from deploy.auth import create_access_token, issue_service_token
 from deploy.config import settings
 from deploy.domain import commands, events, model
 from deploy.entrypoints.routers import deployments
+from deploy.service_layer import handlers
 
 pytestmark = pytest.mark.asyncio
 
@@ -781,6 +782,35 @@ async def test_get_deployments_finishes_orphan_as_failed(app, uow, publisher, se
     assert any(
         isinstance(event, events.StepProcessed) and event.name == model.ORPHANED_STEP_NAME and event.state == "failure"
         for event in published
+    )
+
+
+@pytest.mark.db("in_memory")
+async def test_history_settles_orphan_once_when_warning_fails(
+    app, uow, publisher, service_in_db, valid_access_token_in_db, monkeypatch
+):
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    orphan = await add_unfinished_deployment(uow, service_in_db.id, old, step_states=("success",), step_finished=old)
+    warn = Mock(side_effect=RuntimeError("warning sink unavailable"))
+    monkeypatch.setattr(handlers.logger, "warning", warn)
+
+    headers = {"authorization": f"Bearer {valid_access_token_in_db}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        history_url = app.url_path_for("get_deployments")
+        response = await client.get(history_url, headers=headers)
+        again = await client.get(history_url, headers=headers)
+
+    assert response.status_code == again.status_code == 200
+    assert next(d for d in response.json() if d["id"] == orphan.id)["finished"] is not None
+    assert again.json() == response.json()
+    warn.assert_called_once()
+    async with uow:
+        steps = await uow.steps.get_steps_by_deployment(orphan.id)
+    assert sum(step.name == model.ORPHANED_STEP_NAME for step in steps) == 1
+    assert_finished_as_orphaned(steps)
+    assert (
+        sum(isinstance(event, events.DeploymentFinished) and event.id == orphan.id for _, event in publisher.events)
+        == 1
     )
 
 
