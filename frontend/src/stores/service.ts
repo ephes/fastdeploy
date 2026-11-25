@@ -165,13 +165,13 @@ export const useServices = defineStore("services", {
         delete this.deleteErrors[serviceId];
         return true;
       } catch (error: any) {
-        if (isCurrentSession() && ownsAttempt() && !attempt.removed) {
-          this.deleteErrors[serviceId] = error?.response?.status === 409
-            ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
-            : error?.response?.status === 404
-              ? "This service no longer exists. Refresh services."
-              : "Could not confirm deletion. Refresh services before retrying.";
-        }
+        if (!isCurrentSession() || !ownsAttempt()) return false;
+        if (attempt.removed) return error?.response == null;
+        this.deleteErrors[serviceId] = error?.response?.status === 409
+          ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
+          : error?.response?.status === 404
+            ? "This service no longer exists. Refresh services."
+            : "Could not confirm deletion. Refresh services before retrying.";
         return false;
       } finally {
         if (ownsAttempt()) this.pendingDeletes.delete(serviceId);
