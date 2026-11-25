@@ -5,8 +5,10 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from deploy.bootstrap import get_bus
-from deploy.entrypoints.dependencies import get_current_active_user
+from deploy.domain import model
+from deploy.entrypoints.dependencies import get_current_active_service, get_current_active_user
 from deploy.entrypoints.routers import deployments, steps
+from deploy.service_layer.unit_of_work import InMemoryUnitOfWork
 
 MAX_ID = 2**31 - 1
 
@@ -49,3 +51,38 @@ async def test_page_validates_database_identifiers_before_page_reads(
             assert response.json() == []
             args, kwargs = read_page.await_args
             assert (args[0] if parameter == "deployment_id" else kwargs[parameter]) == valid_id
+
+
+@pytest.mark.asyncio
+async def test_deployment_detail_bounds_ids_before_repository_lookup(monkeypatch) -> None:
+    app = FastAPI()
+    app.include_router(deployments.router)
+    uow = InMemoryUnitOfWork()
+    bus = Mock(uow=uow)
+    service = model.Service(id=1)
+    app.dependency_overrides[get_bus] = lambda: bus
+    app.dependency_overrides[get_current_active_service] = lambda: service
+    for deployment_id in (1, MAX_ID):
+        await uow.deployments.add(model.Deployment(id=deployment_id, service_id=1, origin="test", user="test"))
+    lookup = AsyncMock(wraps=uow.deployments.get)
+    monkeypatch.setattr(uow.deployments, "get", lookup)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for invalid_id in (-1, 0, MAX_ID + 1):
+            response = await client.get(f"/deployments/{invalid_id}")
+            assert response.status_code == 404
+            assert response.json() == {"detail": "Deployment not found"}
+            lookup.assert_not_awaited()
+
+        for valid_id in (1, MAX_ID):
+            response = await client.get(f"/deployments/{valid_id}")
+            assert response.status_code == 200
+            assert response.json()["id"] == valid_id
+            lookup.assert_awaited_once_with(valid_id)
+            lookup.reset_mock()
+
+        service.id = 2
+        response = await client.get(f"/deployments/{MAX_ID}")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Deployment not found"}
+        lookup.assert_awaited_once_with(MAX_ID)

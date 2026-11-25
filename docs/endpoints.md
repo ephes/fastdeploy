@@ -313,8 +313,9 @@ iterate pages; CLI deployment operations do not consume this history endpoint.
 ### GET /deployments/{deployment_id}
 **Purpose**: Get deployment details with steps
 **Authentication**: Service token required (must match deployment's service)
-**Errors**: `404 {"detail": "Deployment not found"}` both for an unknown id and for a deployment of
-another service, including when diagnostic logging fails. An orphaned unfinished deployment
+**Errors**: `404 {"detail": "Deployment not found"}` for an unknown id, an integer id outside
+1–2147483647, or a deployment of another service. Out-of-range ids are rejected before the
+deployment lookup. The 404 is preserved if diagnostic logging fails. An orphaned unfinished deployment
 (see [Orphaned deployments](#orphaned-deployments)) is finished as failed on read, but only after the
 ownership check. The endpoint uses the deployment and steps already loaded for the response to
 identify candidates. Reconciliation rechecks under locks, and the endpoint reloads the detail
@@ -394,8 +395,9 @@ server local time): sending the same result again (same `state` and `message`) c
 progress report and the result of a step need different `started` timestamps (the deploy task stamps
 every script line with its own). Steps that share a name but have different `started` timestamps are
 separate steps. Other processing failures return **400** with
-`{"detail": "Something went wrong"}`. Both error responses are preserved if
-the diagnostic log fails.
+`{"detail": "Something went wrong"}`. The route logs the deployment ID and exception class name
+(up to 100 characters) for these failures, omitting exception text and tracebacks.
+Both error responses are preserved if the diagnostic log fails.
 
 ### GET /steps/
 **Purpose**: List a bounded step page for a deployment

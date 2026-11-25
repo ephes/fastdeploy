@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Redact exception messages and tracebacks from unexpected step-report failure logs.
+- Return 404 for deployment detail IDs outside PostgreSQL's positive integer range.
 - Continue delivering browser WebSocket events when a store throws and show a refresh alert for potentially stale state.
 - Retire browser WebSockets that fail to open within 15 seconds and retry within the normal connection budget.
 - Recover from browser WebSocket credential send errors with a fixed diagnostic and bounded retries.

@@ -130,6 +130,17 @@ async def test_get_deployment_details_no_such_deployment(app, valid_service_toke
     assert response.json() == {"detail": "Deployment not found"}
 
 
+async def test_get_deployment_details_outside_postgres_integer_range(app, valid_service_token_in_db) -> None:
+    headers = {"authorization": f"Bearer {valid_service_token_in_db}"}
+    async with AsyncClient(
+        transport=ASGITransport(app=app, raise_app_exceptions=False), base_url="http://test"
+    ) as client:
+        response = await client.get(app.url_path_for("get_deployment_details", deployment_id=2**31), headers=headers)
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Deployment not found"}
+
+
 async def test_get_deployment_details_wrong_service(app, uow, valid_service_token_in_db):
     service = model.Service(name="another service")
     async with uow:

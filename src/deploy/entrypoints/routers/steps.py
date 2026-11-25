@@ -50,7 +50,9 @@ async def process_step_result(
         ) from e
     except Exception as e:
         with suppress(Exception):
-            logger.warning("could not process step for deployment %s", deployment.id, exc_info=True)
+            logger.warning(
+                "could not process step for deployment %s category=%s", deployment.id, type(e).__name__[:100]
+            )
         raise HTTPException(status_code=400, detail="Something went wrong") from e
     return {"detail": "step processed"}
 
