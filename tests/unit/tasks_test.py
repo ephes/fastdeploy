@@ -435,6 +435,43 @@ async def test_finish_deployment_failure_does_not_replace_original_error(task_kw
     assert "could not finish deployment" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("primary_error", [RuntimeError("script failed"), None], ids=["failed", "successful"])
+async def test_cancellation_during_finish_deployment(task, capsys, primary_error):
+    requests = []
+    finishing = asyncio.Event()
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "PUT":
+            finishing.set()
+            await asyncio.Event().wait()
+        return httpx.Response(200, stream=httpx.ByteStream(b""))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        task.client = client
+        task.steps_url = "http://test/steps"
+        task.deployment_finish_url = "http://test/finish"
+        with patch.object(DeployTask, "deploy_steps", side_effect=primary_error):
+            running = asyncio.create_task(task.run_deploy())
+            await asyncio.wait_for(finishing.wait(), timeout=1)
+            running.cancel("finish interrupted")
+            expected_type = type(primary_error) if primary_error is not None else asyncio.CancelledError
+            with pytest.raises(expected_type) as error:
+                await running
+
+    if primary_error is None:
+        assert error.value.args == ("finish interrupted",)
+        assert [request.method for request in requests] == ["PUT"]
+    else:
+        assert error.value is primary_error
+        assert [request.method for request in requests] == ["POST", "PUT"]
+        failed_step = json.loads(requests[0].content)
+        assert failed_step["name"] == "failed step"
+        assert failed_step["state"] == "failure"
+        assert failed_step["message"] == "deployment failed: script failed"
+        assert "deployment finalization was cancelled" in capsys.readouterr().err
+
+
 async def test_failed_step_report_gets_finish_attempts(task_kwargs, no_sleep):
     client = FlakyClient(post_errors=[connect_error() for _ in range(5)])
     task = make_task(task_kwargs, client)

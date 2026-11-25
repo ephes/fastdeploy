@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Keep the original runner failure when deployment finalization is cancelled after an acknowledged failed step.
 - Preserve the runner failure and report its exception type when its message cannot be formatted.
 - Reuse historical deployment steps in ID order so the first planned step starts as running.
 - Exclude deployments with a missing legacy step state when choosing a successful historical plan.

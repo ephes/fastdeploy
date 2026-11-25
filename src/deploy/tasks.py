@@ -671,8 +671,14 @@ class DeployTask(BaseSettings):
             else:
                 try:
                     await self.finish_deployment()
+                except asyncio.CancelledError:
+                    if not failed:
+                        raise
+                    with suppress(Exception):
+                        self.log("deployment finalization was cancelled")
                 except Exception as e:
-                    self.log(f"could not finish deployment: {type(e).__name__}: {e}")
+                    with suppress(Exception):
+                        self.log(f"could not finish deployment: {type(e).__name__}: {e}")
                     if not failed:
                         raise
 
