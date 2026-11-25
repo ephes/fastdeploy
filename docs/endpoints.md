@@ -106,7 +106,7 @@ A services directory that cannot be listed, or that exceeds the source admission
 ### POST /services/sync
 **Purpose**: Synchronize filesystem services to database
 **Authentication**: User token required
-**Query Parameters**: `force` (optional, default `false`)
+**Query Parameters**: `force` (optional, default `false`), `confirmation` (optional, from a 409 response)
 
 Services that have no directory in the services directory are deleted together with all of their
 deployments and steps. Two guards protect against wiping the history by accident:
@@ -115,7 +115,7 @@ deployments and steps. Two guards protect against wiping the history by accident
   database has some, or when more than half of the services in the database would be deleted.
   Nothing is changed. Pass `force=true` to delete them anyway.
   ```json
-  {"detail": {"message": "...", "would_delete": ["service1"], "total": 1}}
+  {"detail": {"message": "...", "would_delete": ["service1"], "total": 1, "confirmation": "<opaque value>"}}
   ```
 - A service with a running deployment is never deleted, not even with `force=true`. It is reported
   in `skipped` and removed by a later sync once the deployment has finished.
@@ -124,11 +124,14 @@ All additions, edits and deletions in a sync commit together. A database failure
 rolls back service changes and history cascades, and publishes no success events;
 a later request can retry the entire sync.
 
-The web frontend shows the deletion-count refusal and offers **force sync** after
-a 409 response with a nonblank message, a positive safe integer total, and unique
-nonempty service names accounting for more than half and at most all of that total.
-Other conflicts show generic sync failure feedback. The force button retries with
-`force=true` after a confirmation dialog.
+The web frontend names the services in the confirmation dialog and retries with
+`force=true` and the opaque `confirmation` from the refusal. Under the sync lock,
+a change in the candidate services (including a replacement with the same name)
+returns a fresh 409 with the current names and confirmation before applying any
+changes. If no deletions remain, the frontend offers an ordinary retry.
+Automation can continue to use `force=true` without a confirmation. Clients
+that pass a confirmation must match the current deletion candidates.
+
 Only the latest sync attempt in the current login session owns its success/refusal/error
 feedback. Starting another attempt retires earlier responses even if they finish later;
 it does not cancel or undo server-side work. Force confirmation remains required.
@@ -619,7 +622,8 @@ All endpoints may return these standard error responses:
   not deleted; `detail.deployment_id` names it
 
 - **409 Conflict** (`POST /services/sync`): The sync would delete all or more than half of the
-  services; `detail.would_delete` lists them. Retry with `force=true` if that is intended
+  services, or the supplied confirmation no longer matches the proposed deletions.
+  Review `detail.would_delete` and pass `detail.confirmation` with `force=true` to confirm that set.
 
 - **404 Not Found**: Resource does not exist, or (`GET /deployments/{deployment_id}`) belongs to
   another service

@@ -87,10 +87,17 @@ class SyncResult(BaseModel):
 
 @router.post(
     "/sync",
-    responses={409: {"description": "Sync refused because it would delete all or most services"}},
+    responses={409: {"description": "Sync needs confirmation of the current deletion candidates"}},
 )
 async def sync_services(
     force: bool = Query(False, description="Delete services even if all or more than half of them would be removed"),
+    confirmation: str | None = Query(
+        None,
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+        description="Deletion confirmation from HTTP 409",
+    ),
     bus: Bus = Depends(),
 ) -> SyncResult:
     """
@@ -99,9 +106,10 @@ async def sync_services(
     Services without a directory are deleted together with their deployments.
     A sync that would delete all services or more than half of them is refused
     with 409 Conflict unless `force=true` is passed. Services with a running
-    deployment are never deleted and are reported as skipped.
+    deployment are never deleted and are reported as skipped. If a deletion
+    confirmation is supplied, it must still match the planned deletions.
     """
-    cmd = commands.SyncServices(force=force)
+    cmd = commands.SyncServices(force=force, confirmation=confirmation)
     try:
         result: model.ServiceSyncResult = await bus.handle(cmd)
     except ServiceConfigError as e:
@@ -109,7 +117,12 @@ async def sync_services(
     except model.ServiceSyncRefused as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"message": e.reason, "would_delete": e.would_delete, "total": e.total},
+            detail={
+                "message": e.reason,
+                "would_delete": e.would_delete,
+                "total": e.total,
+                "confirmation": e.confirmation,
+            },
         ) from e
     return SyncResult(
         detail="Services synced",

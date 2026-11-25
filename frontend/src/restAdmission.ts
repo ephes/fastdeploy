@@ -6,24 +6,26 @@ function invalid(): never {
   throw new Error('Invalid REST snapshot');
 }
 
-/** Details of a sync refused by the deletion-count guard (HTTP 409). */
+/** Details of a sync that needs confirmation of its current deletion candidates. */
 export interface SyncRefusal {
   message: string;
   wouldDelete: string[];
   total: number;
+  confirmation: string;
 }
 
 export function syncRefusal(value: unknown): SyncRefusal | null {
   if (!record(value)) return null;
-  const { message, would_delete: wouldDelete, total } = value;
-  if (typeof message !== 'string' || !message.trim() || !id(total) ||
-      !Array.isArray(wouldDelete) || wouldDelete.length <= total / 2 || wouldDelete.length > total) return null;
+  const { message, would_delete: wouldDelete, total, confirmation } = value;
+  if (typeof message !== 'string' || !message.trim() || (total !== 0 && !id(total)) ||
+      !Array.isArray(wouldDelete) || wouldDelete.length > total ||
+      typeof confirmation !== 'string' || confirmation.length !== 64 || !/^[0-9a-f]+$/.test(confirmation)) return null;
   const names = new Set<string>();
   for (const name of wouldDelete) {
     if (typeof name !== 'string' || !name.length || names.has(name)) return null;
     names.add(name);
   }
-  return { message, wouldDelete: [...names], total };
+  return { message, wouldDelete: [...names], total, confirmation };
 }
 
 /** Only admit the fields used by the credential consumer; never echo wire values. */

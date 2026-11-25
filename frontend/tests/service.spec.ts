@@ -108,11 +108,13 @@ function syncError(status: number, body: any) {
   return err;
 }
 
+const originalConfirmation = "a".repeat(64);
 const refusalBody = {
   detail: {
     message: "Refusing to delete 2 of 3 services (more than half)",
     would_delete: ["a", "b"],
     total: 3,
+    confirmation: originalConfirmation,
   },
 };
 
@@ -137,7 +139,7 @@ describe("Services sync", () => {
         const post = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(latest.promise);
         store.client = { post, options: { headers: {} } } as any;
         const ordinary = store.syncServices();
-        const forced = store.syncServices(true);
+        const forced = store.syncServices(originalConfirmation);
         const settleOlder = async () => {
           if (olderOutcome === "success") older.resolve({ detail: "Services synced" });
           else older.reject(syncError(olderOutcome === "refusal" ? 409 : 500, refusalBody));
@@ -149,7 +151,7 @@ describe("Services sync", () => {
         latest.resolve({ detail: "Services synced" });
         expect(await forced).toBe(true);
         if (!olderFirst) await settleOlder();
-        expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true" } });
+        expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true", confirmation: originalConfirmation } });
       });
     }
   }
@@ -162,7 +164,7 @@ describe("Services sync", () => {
       options: { headers: {} },
     } as any;
     const ordinary = store.syncServices();
-    expect(await store.syncServices(true)).toBe(false);
+    expect(await store.syncServices(originalConfirmation)).toBe(false);
     const refusal = store.syncRefusal;
     const error = store.syncErrorMessage;
     expect(status === 409 ? refusal : error).toBeTruthy();
@@ -181,7 +183,7 @@ describe("Services sync", () => {
     // A later login starts with a reset services store and fresh clients.
     useAuth().sessionId++;
     store.client = { post: vi.fn().mockResolvedValue({}), options: { headers: {} } } as any;
-    expect(await store.syncServices(true)).toBe(true);
+    expect(await store.syncServices(originalConfirmation)).toBe(true);
     if (outcome === "success") old.resolve({});
     else old.reject(syncError(outcome === "refusal" ? 409 : 500, refusalBody));
     expect(await pending).toBe(false);
@@ -201,6 +203,7 @@ describe("Services sync", () => {
       message: "Refusing to delete 2 of 3 services (more than half)",
       wouldDelete: ["a", "b"],
       total: 3,
+      confirmation: originalConfirmation,
     });
     expect(servicesStore.syncErrorMessage).toBe("");
   });
@@ -209,10 +212,10 @@ describe("Services sync", () => {
     const servicesStore = useServices();
     const post = vi.fn().mockResolvedValue({ detail: "Services synced" });
     servicesStore.client = { post, options: { headers: {} } } as any;
-    servicesStore.syncRefusal = { message: "refused", wouldDelete: ["a"], total: 1 };
-    const synced = await servicesStore.syncServices(true);
+    servicesStore.syncRefusal = { message: "refused", wouldDelete: ["a"], total: 1, confirmation: originalConfirmation };
+    const synced = await servicesStore.syncServices(originalConfirmation);
     expect(synced).toBe(true);
-    expect(post).toHaveBeenCalledWith("/services/sync", undefined, { query: { force: "true" } });
+    expect(post).toHaveBeenCalledWith("/services/sync", undefined, { query: { force: "true", confirmation: originalConfirmation } });
     expect(servicesStore.syncRefusal).toBeNull();
   });
 
@@ -267,11 +270,11 @@ describe("ServiceList sync refusal", () => {
     { ...refusalBody.detail, would_delete: ["a", 2] },
     { ...refusalBody.detail, would_delete: ["a", ""] },
     { ...refusalBody.detail, would_delete: ["a", "a"] },
-    { ...refusalBody.detail, would_delete: [] },
+    { ...refusalBody.detail, confirmation: undefined },
+    { ...refusalBody.detail, confirmation: "invalid" },
     { ...refusalBody.detail, total: "3" },
     { ...refusalBody.detail, total: 2.5 },
     { ...refusalBody.detail, total: 1 },
-    { ...refusalBody.detail, total: 4 },
   ])("does not offer force after an invalid conflict: %j", async detail => {
     const post = vi.fn().mockRejectedValue(syncError(409, { detail }));
     const { servicesStore, wrapper } = await mountWithRefusal(post);
@@ -285,7 +288,7 @@ describe("ServiceList sync refusal", () => {
 
   it.each([
     refusalBody.detail,
-    { message: "No services found in the services directory, refusing to delete all 1 services", would_delete: ["a"], total: 1 },
+    { message: "No services found in the services directory, refusing to delete all 1 services", would_delete: ["a"], total: 1, confirmation: originalConfirmation },
   ])("shows a valid refusal and retries with force after confirmation: %j", async detail => {
     const post = vi
       .fn()
@@ -304,9 +307,29 @@ describe("ServiceList sync refusal", () => {
     await flushPromises();
 
     expect(confirm).toHaveBeenCalled();
-    expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true" } });
+    expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true", confirmation: originalConfirmation } });
     expect(servicesStore.syncRefusal).toBeNull();
     expect(wrapper.find(".sync-refusal").exists()).toBe(false);
+  });
+
+  it("sends the displayed confirmation and asks again when the deletion set changes", async () => {
+    const confirmation = originalConfirmation;
+    const replacement = "b".repeat(64);
+    const post = vi.fn()
+      .mockRejectedValueOnce(syncError(409, { detail: { ...refusalBody.detail, confirmation } }))
+      .mockRejectedValueOnce(syncError(409, {
+        detail: { message: "The deletion set changed", would_delete: ["a", "b", "c"], total: 3, confirmation: replacement },
+      }));
+    window.confirm = vi.fn().mockReturnValue(true);
+    const { servicesStore, wrapper } = await mountWithRefusal(post);
+    await wrapper.findAll(".sync-refusal button").find(button => button.text() === "force sync")!.trigger("click");
+    await flushPromises();
+
+    expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true", confirmation } });
+    expect(wrapper.get(".sync-refusal").text()).toContain("a, b, c");
+    expect(servicesStore.syncRefusal).toMatchObject({ confirmation: replacement });
+    expect(post).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
   });
 
   it("does not force the sync when the confirmation is cancelled", async () => {

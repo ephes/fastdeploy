@@ -35,8 +35,8 @@ export const useServices = defineStore("services", {
        */
       serviceTokenErrorMessage: "",
       /**
-       * Set when the backend refused a services sync because it would
-       * delete all or most services. Cleared on the next sync attempt.
+       * Set when the backend requests confirmation of the deletion candidates.
+       * Cleared on the next sync attempt.
        */
       syncRefusal: null as SyncRefusal | null,
       /**
@@ -99,14 +99,11 @@ export const useServices = defineStore("services", {
     /**
      * Sync services between filesystem and database on the backend.
      *
-     * The backend refuses (409 Conflict) a sync that would delete all
-     * or most services. The refusal is stored in `syncRefusal` so it can
-     * be shown to the user, who may then retry with `force` set.
-     *
-     * @param force {boolean} - Delete services even if the sync would remove all or most of them
+     * The backend can require confirmation of the current deletion candidates.
+     * @param confirmation - Confirmation from the refusal shown to the user
      * @returns synced {boolean} - Whether the sync succeeded
      */
-    async syncServices(force: boolean = false): Promise<boolean> {
+    async syncServices(confirmation?: string): Promise<boolean> {
       this.syncRefusal = null;
       this.syncErrorMessage = "";
       const isCurrentSession = rememberSession();
@@ -116,7 +113,7 @@ export const useServices = defineStore("services", {
         await this.client.post(
           "/services/sync",
           undefined,
-          force ? { query: { force: "true" } } : {}
+          confirmation === undefined ? {} : { query: { force: "true", confirmation } }
         );
         return isCurrent();
       } catch (err: any) {
