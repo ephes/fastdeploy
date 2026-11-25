@@ -402,8 +402,8 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         Returns the id of the last successful deployment for a service.
 
         A deployment is successful if it is finished, has at least one step
-        and all of its steps succeeded. A single failed step (including the
-        failure step recorded for an orphaned deployment) disqualifies it.
+        and all of its steps succeeded. A step with a missing state or any
+        state other than success disqualifies it.
         """
         statement = text(
             """
@@ -419,7 +419,7 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
             and not exists (
                 select 1 from step
                 where step.deployment_id = deployment.id
-                and step.state != 'success'
+                and (step.state is null or step.state != 'success')
             )
             order by deployment.started desc nulls last, deployment.id desc
             limit 1
@@ -621,6 +621,7 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
         stmt = (
             select(model.Step)
             .where(model.Step.deployment_id == deployment_id)
+            .order_by(model.Step.id)
             .execution_options(populate_existing=True)
         )
         result = await self.session.execute(stmt)
@@ -663,7 +664,8 @@ class InMemoryStepRepository(AbstractStepRepository):
         self._steps.remove(step)
 
     async def get_steps_by_deployment(self, deployment_id):
-        return [s for s in self._steps if s.deployment_id == deployment_id]
+        steps = [s for s in self._steps if s.deployment_id == deployment_id]
+        return sorted(steps, key=lambda step: step.id)
 
     async def page_by_deployment(self, deployment_id, *, limit, before_id=None):
         steps = [
