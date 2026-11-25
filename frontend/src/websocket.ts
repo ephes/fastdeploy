@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { pythonToJavascript } from "./converters";
-import { WebsocketClient, Message, AuthenticationMessage } from "./typings";
+import { WebsocketClient, Message, AuthenticationMessage, WarningMessage } from "./typings";
 import { useWebsocketStore } from "./stores/websocket";
 import { useAuth } from "./stores/auth";
 import { useServices } from "./stores/service";
@@ -16,6 +16,7 @@ const isRecord = isWireRecord as (value: unknown) => value is Record<string, any
 const MAX_PARALLEL_STEP_REFRESHES = 4;
 const CONNECTION_OPEN_DEADLINE_MS = 15_000;
 const AUTHENTICATION_DEADLINE_MS = 15_000;
+const MAX_SERVER_WARNING_LENGTH = 256;
 
 const readyState: { [key: number]: string } = {
   0: "CONNECTING",
@@ -203,6 +204,7 @@ export function createWebsocketClient(): WebsocketClient {
         this.retryCount = 0; // reset retry count for next onConnectionClose event
         if (authenticatedGeneration !== generation) {
           authenticatedGeneration = generation;
+          websocketStore.serverWarning = "";
           const reconnect = hasAuthenticated;
           hasAuthenticated = true;
           if (reconnect) {
@@ -279,8 +281,13 @@ export function createWebsocketClient(): WebsocketClient {
         console.warn("Invalid websocket message; refresh to resynchronize.");
         return;
       }
-      if (!("type" in message) || message.type === "warning") return;
+      if (!("type" in message)) return;
       if (message.type !== "authentication" && authenticatedGeneration !== generation) return;
+      if (message.type === "warning") {
+        const warning = message as WarningMessage;
+        useWebsocketStore().serverWarning = warning.detail.slice(0, MAX_SERVER_WARNING_LENGTH);
+        return;
+      }
       useWebsocketStore().receivedMessage();
       if (message.type === "authentication") {
         // special handling for authentication response

@@ -369,6 +369,11 @@ If the connection still drops after three retries, the dashboard shows
 indicator. Refresh the page to establish a fresh connection and reload current state.
 Starting a fresh connection or ending the session clears the alert.
 
+The dashboard shows the latest server close warning from the authenticated socket,
+such as `Your session has expired.`, as plain text capped at 256 UTF-16 code units.
+The warning remains visible during closure and reconnect attempts. It clears when a
+replacement socket authenticates or the session ends.
+
 The websocket activity indicator stays lit for one second after the latest admitted
 message. Each status store owns one replaceable expiry timer, including during
 bursts. Resetting the store (also on logout) cancels that timer; an old session

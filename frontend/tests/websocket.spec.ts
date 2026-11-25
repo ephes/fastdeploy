@@ -119,6 +119,55 @@ it("retires sockets stuck before opening and uses only the bounded retries", asy
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it("retains the bounded warning from the authenticated socket until its replacement authenticates", async () => {
+  const client = createWebsocketClient();
+  const status = mount(WebsocketStatus);
+  const domain = { onMessage: vi.fn() };
+  client.registerStore(domain);
+  for (const store of [useServices(), useDeployments()]) {
+    store.client = { get: vi.fn().mockResolvedValue([]) } as any;
+  }
+  const expired = { type: "warning", detail: "Your session has expired." };
+  const success = { type: "authentication", status: "success" };
+  client.initWebsocketConnection("ws://synthetic", "token");
+  const socket = Socket.instances[0];
+  socket.receive(expired);
+  await status.vm.$nextTick();
+  expect(status.find('[role="alert"]').exists()).toBe(false);
+
+  socket.readyState = 1;
+  socket.onopen({ target: socket });
+  socket.receive(success);
+  socket.receive({ type: "warning", detail: "x".repeat(300) });
+  await status.vm.$nextTick();
+  expect(status.find(".websocket.online").exists()).toBe(true);
+  expect(status.get('[role="alert"]').text()).toBe("x".repeat(256));
+  socket.receive(expired);
+  socket.receive(success);
+  const lateMessage = socket.onmessage;
+  socket.readyState = Socket.CLOSED;
+  const closing = socket.onclose({ target: socket });
+  await status.vm.$nextTick();
+  expect(status.get('[role="alert"]').text()).toBe(expired.detail);
+  expect(status.find(".websocket.offline").exists()).toBe(true);
+
+  await vi.advanceTimersByTimeAsync(1000);
+  await closing;
+  const replacement = Socket.instances[1];
+  const unrelatedWarning = { type: "warning", detail: "unrelated warning" };
+  lateMessage({ data: JSON.stringify(unrelatedWarning) });
+  replacement.receive(unrelatedWarning);
+  await status.vm.$nextTick();
+  expect(status.get('[role="alert"]').text()).toBe(expired.detail);
+
+  replacement.readyState = 1;
+  replacement.onopen({ target: replacement });
+  replacement.receive(success);
+  await flushPromises();
+  expect(status.find('[role="alert"]').exists()).toBe(false);
+  expect(domain.onMessage).not.toHaveBeenCalled();
+});
+
 it("alerts operators when abnormal closes exhaust the reconnect budget", async () => {
   const client = createWebsocketClient();
   const status = mount(WebsocketStatus);

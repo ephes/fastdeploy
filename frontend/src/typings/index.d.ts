@@ -17,6 +17,11 @@ type Message = {
   type?: "service" | "deployment" | "step" | "authentication" | "user" | "warning";
 };
 
+type WarningMessage = Message & {
+  type: "warning";
+  detail: string;
+};
+
 type AuthenticationMessage = Message & {
   type: "authentication";
   status: "success" | "failure";
