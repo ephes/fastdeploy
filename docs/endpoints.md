@@ -60,7 +60,9 @@ The token is recorded with its id (`jti`) so it can be revoked.
 ```
 **403 Forbidden**: current user is not an allowlisted administrator; checked before looking up the id
 
-**404 Not Found**: no service token with this id was issued (administrators only)
+Administrators receive **404 Not Found** when the ID is unknown or cannot fit
+the stored identifier format. IDs must contain 1–64 characters without NUL.
+An ID outside these limits is rejected before the token lookup.
 
 ### GET /users/me
 **Purpose**: Get current authenticated user

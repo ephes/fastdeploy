@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Return 404 for service-token revocation IDs that exceed 64 characters or contain NUL.
 - Return 404 for service deletion IDs outside PostgreSQL's positive integer range.
 - Show a dashboard recovery alert when WebSocket reconnect attempts are exhausted.
 - Close refused or unavailable WebSockets even when diagnostic logging fails.

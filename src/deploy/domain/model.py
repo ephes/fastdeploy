@@ -703,6 +703,9 @@ class DeployedService(EventsMixin):
         return hash(self.deployment_id)
 
 
+SERVICE_TOKEN_JTI_MAX_LENGTH = 64
+
+
 class ServiceToken:
     """
     Record of an issued service token. The token itself is a JWT carrying

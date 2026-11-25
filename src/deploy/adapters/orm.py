@@ -70,7 +70,7 @@ service_tokens = Table(
     "service_token",
     metadata_obj,
     Column("id", Integer, primary_key=True),
-    Column("jti", String(64), unique=True, nullable=False),
+    Column("jti", String(model.SERVICE_TOKEN_JTI_MAX_LENGTH), unique=True, nullable=False),
     Column("service", String(255), nullable=False),
     Column("origin", String(255), nullable=False, default=""),
     Column("user", String(255), nullable=False),
