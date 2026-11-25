@@ -7,7 +7,6 @@ import { useServices } from "./stores/service";
 import { useDeployments } from "./stores/deployment";
 import { useSteps } from "./stores/step";
 import { rememberSession } from "./stores/session";
-import { readStrictJson } from "./strictJson";
 import { isId as id, isOptionalDeleted, isOptionalWireDate as optionalDate, isRecord as isWireRecord, isStepState, isWireDate as date } from "./wireValues";
 
 // The message switch reads several optional fields; REST admission keeps the stricter `unknown` view.
@@ -262,7 +261,7 @@ export function createWebsocketClient(): WebsocketClient {
       let message: any;
       try {
         if (typeof event.data !== "string") throw new Error();
-        message = readStrictJson(event.data);
+        message = JSON.parse(event.data);
         if (!validMessage(message)) throw new Error();
       } catch {
         // Retire queued callbacks as well as installed handlers. Recovery is an

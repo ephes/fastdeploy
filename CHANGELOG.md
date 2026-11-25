@@ -105,13 +105,9 @@ Unreleased
   and the initial command's result.
 - Reuse the authorized deployment detail and steps for orphan detection. Recheck
   under locks before reconciliation and refresh the response after a successful update.
-- Refuse duplicate decoded JSON member names, including nested and escaped names,
-  in browser REST responses and websocket frames before authentication or business
-  state publication. Refuse nesting deeper than 512 levels with the same content-free
-  error. Keep existing invalid-response feedback and socket retirement.
 - Refuse impossible browser wire calendar dates and time components before date
   conversion, including February 30, April 31 and 24:00. Retain leap days, fractions,
-  supported offsets and legacy naive timestamps. Both fixes require a frontend rebuild.
+  supported offsets and legacy naive timestamps. Requires a frontend rebuild.
 - Bound authoritative service sync to 1,000 services, 4,096 root entries, 16 MiB
   of actual source reads and 500,000 structural work units across discovery and
   preparation. Refuse the whole sync on exhaustion, including force mode.

@@ -12,7 +12,6 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
-    "jsonc-parser": "^3.3.1",
     "mande": "^2.0.9",
     "pinia": "^3.0.3",
     "uuid": "^13",

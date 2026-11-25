@@ -30,16 +30,7 @@ async function login(page: Page) {
   await page.getByLabel('Password', { exact: true }).press('Enter');
 }
 
-test('duplicate decoded token members cannot log in', async ({ page }) => {
-  await intercept(page, '{"access_token":"first","access_\\u0074oken":"second"}');
-  await login(page);
-  await expect(page.getByRole('button', { name: 'Login', exact: true })).toBeEnabled();
-  await expect(page).toHaveURL('/login');
-  await expect(page.getByRole('heading', { name: 'Services', exact: true })).toHaveCount(0);
-});
-
 for (const raw of [
-  '{"type":"service","id":1,"name":"replaced","data":{"key":1,"k\\u0065y":2}}',
   '{"type":"deployment","id":2,"service_id":1,"origin":"fixture","user":"synthetic","started":"2026-02-30T12:00:00Z","finished":null}',
 ]) {
   test(`invalid websocket preserves the visible snapshot: ${raw}`, async ({ page }) => {

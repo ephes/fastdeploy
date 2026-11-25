@@ -396,19 +396,6 @@ released by their existing completion paths. No request is automatically retried
 A timed-out deployment or service sync may already have reached the server: refresh
 its state before deciding whether to retry.
 
-REST JSON responses and websocket frames share `frontend/src/strictJson.ts`.
-It uses the public `jsonc-parser` visitor to reject duplicate decoded object
-member names at every nesting level before standard JSON decoding and typed
-admission. Escaped names count as the same member; repeated names in separate
-objects remain valid. Comments, trailing commas and malformed JSON are refused.
-Object/array nesting deeper than 512 levels is refused the same way, so the
-recursive visitor never reaches the engine stack limit.
-REST refusal follows existing invalid-response feedback and retains the last good
-business snapshot; ambiguous token responses cannot authenticate. Websocket refusal
-sets the fixed protocol error and retires the connection without logout or retry.
-Response contents never enter parser diagnostics. HTTP byte/deadline limits and
-session/generation ownership checks still apply.
-
 A synchronous store failure during delivery of an admitted domain event leaves
 the socket and login active, and the remaining stores still receive the event.
 The status displays one fixed resynchronization alert and the console logs one

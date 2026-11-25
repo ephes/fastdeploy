@@ -1,7 +1,6 @@
 import { mande, MandeInstance, Options, ResponseAsTypes } from "mande";
 import { useAuth } from "./auth";
 import { useSettings } from "./config";
-import { readStrictJson } from "../strictJson";
 
 /**
  * The HttpClient is used to make requests to the backend.
@@ -55,7 +54,7 @@ async function decodeBounded(
     if (responseAs === 'response') return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
     const text = new TextDecoder().decode(bytes);
     if (responseAs === 'text') return text;
-    try { return readStrictJson(text); } catch { return null; }
+    try { return JSON.parse(text); } catch { return null; }
   } catch (error) {
     cancel();
     throw error;
