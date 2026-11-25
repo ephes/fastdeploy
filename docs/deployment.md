@@ -220,11 +220,14 @@ report-construction failure, makes the run incomplete even if the script exits z
 `failed step` before calling finish. A later accepted ordinary step does not erase earlier report loss.
 Lines that are not a JSON object with a `name` member are
 skipped. A JSON object without a `name` is logged to the task's stderr with its size and up to 10 shortened keys,
-never its values. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
-deployment is finished afterwards. Cancellation during failure reporting leaves the report unacknowledged,
-and the runner logs the interruption and propagates the original deployment error. The original error also
-takes precedence if finishing fails after a failed deploy. Without an acknowledged failed step, the deployment
-stays open and stops blocking new deployments once it is older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`.
+never its values. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing.
+If the exception message cannot be formatted, the failed step records the exception type instead. Diagnostics on stderr
+are best effort and failure reporting preserves the original deployment error. Cancellation during failure reporting
+leaves the report unacknowledged, and the runner logs the interruption. The original error also
+takes precedence if finishing fails or is cancelled after a failed deploy. The runner logs interrupted finalization
+in that case. After a successful deploy, cancellation during finalization propagates to the caller.
+Without an acknowledged failed step, the deployment stays open and stops blocking new deployments once it is older
+than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`.
 If such a deployment has no running or pending steps left (every step was already reported as successful before the
 script failed), it is orphaned: once `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` passed without activity, the orphan
 reconciliation finishes it as failed with a `deployment orphaned` failure step that records the reason (see

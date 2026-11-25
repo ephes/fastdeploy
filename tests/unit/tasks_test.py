@@ -373,6 +373,41 @@ async def test_run_deploy_finishes_after_step_post_failures(task_kwargs, no_slee
     assert client.put_attempts == 1
 
 
+class UnformattableError(RuntimeError):
+    def __str__(self) -> str:
+        raise ValueError("cannot format error")
+
+
+async def test_run_deploy_reports_type_when_primary_error_cannot_be_formatted(task):
+    primary_error = UnformattableError()
+    with (
+        patch.object(DeployTask, "deploy_steps", side_effect=primary_error),
+        pytest.raises(UnformattableError) as error,
+    ):
+        await task.run_deploy()
+
+    assert error.value is primary_error
+    [failed_step] = task.client.post_calls
+    assert failed_step["name"] == "failed step"
+    assert failed_step["state"] == "failure"
+    assert failed_step["message"] == "deployment failed: UnformattableError"
+
+
+async def test_run_deploy_preserves_primary_error_when_report_error_cannot_be_formatted(task, capsys):
+    primary_error = RuntimeError("script failed")
+    with (
+        patch.object(DeployTask, "deploy_steps", side_effect=primary_error),
+        patch.object(DeployTask, "finish_step", side_effect=UnformattableError()),
+        patch.object(DeployTask, "finish_deployment") as finish,
+        pytest.raises(RuntimeError) as error,
+    ):
+        await task.run_deploy()
+
+    assert error.value is primary_error
+    finish.assert_not_awaited()
+    assert "could not report failed step: UnformattableError" in capsys.readouterr().err
+
+
 async def test_finish_deployment_is_retried(task_kwargs, no_sleep):
     client = FlakyClient(put_errors=[connect_error(), status_error(503)])
     task = make_task(task_kwargs, client)
@@ -398,6 +433,43 @@ async def test_finish_deployment_failure_does_not_replace_original_error(task_kw
     assert client.put_attempts == task.finish_attempts
     assert [step["name"] for step in client.post_calls] == ["failed step"]
     assert "could not finish deployment" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("primary_error", [RuntimeError("script failed"), None], ids=["failed", "successful"])
+async def test_cancellation_during_finish_deployment(task, capsys, primary_error):
+    requests = []
+    finishing = asyncio.Event()
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "PUT":
+            finishing.set()
+            await asyncio.Event().wait()
+        return httpx.Response(200, stream=httpx.ByteStream(b""))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        task.client = client
+        task.steps_url = "http://test/steps"
+        task.deployment_finish_url = "http://test/finish"
+        with patch.object(DeployTask, "deploy_steps", side_effect=primary_error):
+            running = asyncio.create_task(task.run_deploy())
+            await asyncio.wait_for(finishing.wait(), timeout=1)
+            running.cancel("finish interrupted")
+            expected_type = type(primary_error) if primary_error is not None else asyncio.CancelledError
+            with pytest.raises(expected_type) as error:
+                await running
+
+    if primary_error is None:
+        assert error.value.args == ("finish interrupted",)
+        assert [request.method for request in requests] == ["PUT"]
+    else:
+        assert error.value is primary_error
+        assert [request.method for request in requests] == ["POST", "PUT"]
+        failed_step = json.loads(requests[0].content)
+        assert failed_step["name"] == "failed step"
+        assert failed_step["state"] == "failure"
+        assert failed_step["message"] == "deployment failed: script failed"
+        assert "deployment finalization was cancelled" in capsys.readouterr().err
 
 
 async def test_failed_step_report_gets_finish_attempts(task_kwargs, no_sleep):
