@@ -2,7 +2,7 @@
 
 import asyncio
 import signal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import httpx
 import pytest
@@ -229,7 +229,10 @@ async def test_error_status_precedes_oversized_or_dripping_body(task, status):
 
 @pytest.mark.parametrize("status, attempts", [(200, 1), (422, 1), (503, 2)])
 @pytest.mark.parametrize("close_fault", ["error", "timeout"])
-async def test_report_verdict_survives_close_failure(task, monkeypatch, capsys, status, attempts, close_fault):
+@pytest.mark.parametrize("stderr_fails", [False, True])
+async def test_report_verdict_survives_close_failure(
+    task, monkeypatch, capsys, status, attempts, close_fault, stderr_fails
+):
     if close_fault == "timeout":
         monkeypatch.setattr(tasks, "REPORT_RESPONSE_TIMEOUT_SECONDS", 0.1)
     bodies = []
@@ -246,15 +249,22 @@ async def test_report_verdict_survives_close_failure(task, monkeypatch, capsys, 
         bodies.append(body)
         return httpx.Response(status, stream=body)
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
-        task.client = client
-        if status == 200:
-            await task.request_with_retries("post", task.steps_url, attempts=2)
-        else:
-            with pytest.raises(httpx.HTTPStatusError) as error:
+    broken_write = Mock(side_effect=BrokenPipeError("synthetic stderr failure"))
+    with monkeypatch.context() as diagnostics:
+        if stderr_fails:
+            diagnostics.setattr(tasks.sys.stderr, "write", broken_write)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            task.client = client
+            if status == 200:
                 await task.request_with_retries("post", task.steps_url, attempts=2)
-            assert error.value.response.status_code == status
+            else:
+                with pytest.raises(httpx.HTTPStatusError) as error:
+                    await task.request_with_retries("post", task.steps_url, attempts=2)
+                assert error.value.response.status_code == status
 
     assert len(bodies) == attempts
     assert all(body.closed and body.reads == (1 if status == 200 else 0) for body in bodies)
-    assert "could not close report response" in capsys.readouterr().err
+    if stderr_fails:
+        assert broken_write.call_count == attempts
+    else:
+        assert "could not close report response" in capsys.readouterr().err

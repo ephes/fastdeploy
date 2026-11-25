@@ -346,7 +346,8 @@ class DeployTask(BaseSettings):
                     acknowledged = True
         except Exception as error:
             if status_error is not None or acknowledged:
-                self.log("could not close report response")
+                with suppress(Exception):
+                    self.log("could not close report response")
             elif isinstance(error, TimeoutError):
                 raise httpx.ReadTimeout("report response exceeded elapsed limit") from error
             else:
