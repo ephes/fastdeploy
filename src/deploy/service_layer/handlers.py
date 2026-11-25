@@ -250,9 +250,11 @@ async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitO
             continue
         if orphan.finished is not None:
             continue
-        if not views.deployment_is_orphaned(orphan, orphan.steps, now):
+        state = views.classify_unfinished_deployment(orphan, orphan.steps, datetime.now(timezone.utc))
+        if state == "active":
             raise model.DeploymentAlreadyRunning(service_id=service_id, deployment_id=orphan_id)
-        locked.append(orphan)
+        if state == "orphaned":
+            locked.append(orphan)
 
     for orphan in locked:
         logger.warning("Finishing orphaned deployment %s as failed before starting a new one", orphan.id)
