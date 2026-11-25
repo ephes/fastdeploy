@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
@@ -632,20 +633,24 @@ class DeployTask(BaseSettings):
         raises, so the original error is preserved. Returns whether the failed step was
         accepted by the API.
         """
-        step_result = {
-            "name": "failed step",
-            "error_message": f"deployment failed: {str(error) or type(error).__name__}",
-            "state": "failure",
-            "started": datetime.now(timezone.utc),
-        }
         try:
+            message = type(error).__name__
+            with suppress(Exception):
+                message = str(error) or message
+            step_result = {
+                "name": "failed step",
+                "error_message": f"deployment failed: {message}",
+                "state": "failure",
+                "started": datetime.now(timezone.utc),
+            }
             return await self.finish_step(step_result, attempts=self.finish_attempts)
         except asyncio.CancelledError:
-            self.log("failed step reporting was cancelled")
-            return False
+            with suppress(Exception):
+                self.log("failed step reporting was cancelled")
         except Exception as e:
-            self.log(f"could not report failed step: {type(e).__name__}: {e}")
-            return False
+            with suppress(Exception):
+                self.log(f"could not report failed step: {type(e).__name__}")
+        return False
 
     async def run_deploy(self):
         failed = False
@@ -661,7 +666,8 @@ class DeployTask(BaseSettings):
                 # Finishing now would remove the open steps and make the failed
                 # deployment look successful. Leave it unfinished instead: it stops
                 # blocking new deployments once it is stale.
-                self.log("not finishing the deployment, because its failure could not be reported")
+                with suppress(Exception):
+                    self.log("not finishing the deployment, because its failure could not be reported")
             else:
                 try:
                     await self.finish_deployment()
