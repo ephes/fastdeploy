@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Keep the requested deployment history depth through interrupted WebSocket reconnects.
 - Show the service sync receipt and refresh the service list over REST even when the WebSocket is offline.
 - Bind browser force-sync confirmation to the proposed services and ask again if the deletion candidates change.
 - Keep the original deployment error and leave the deployment open when failure reporting is cancelled.
