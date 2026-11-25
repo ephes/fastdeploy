@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # add 5 seconds to avoid closing a reconnecting client
 EXPIRY_GRACE_SECONDS = 5
+EXPIRY_WARNING = "Your session has expired."
 # A broadcast or control send waits at most this long for a client. A
 # client that is slower is disconnected, so it cannot hold back the others.
 BROADCAST_SEND_TIMEOUT_SECONDS = 5.0
@@ -233,17 +234,19 @@ class ConnectionManager:
         There is at most one pending expiry per client id. Scheduling a new
         one (re-authentication) or disconnecting cancels the previous one.
         """
-        self._cancel_expiry(client_id)
-        message = "Your session has expired."
-        now = datetime.now(timezone.utc)
-        if now >= expires_at:
-            await self.close(client_id, message)
-            return
+        remaining = (expires_at - datetime.now(timezone.utc)).total_seconds()
         websocket = self.all_connections.get(client_id)
-        if websocket is None:
-            return
-        delay = (expires_at - now).total_seconds() + EXPIRY_GRACE_SECONDS
-        task = asyncio.create_task(self._close_after(client_id, websocket, delay, message))
+        if websocket is not None and remaining > 0:
+            self._schedule_expiry(client_id, websocket, remaining)
+        else:
+            self._cancel_expiry(client_id)
+            if websocket is not None:
+                await self.close(client_id, EXPIRY_WARNING)
+
+    def _schedule_expiry(self, client_id: UUID, websocket: WebSocket, remaining: float) -> None:
+        self._cancel_expiry(client_id)
+        delay = remaining + EXPIRY_GRACE_SECONDS
+        task = asyncio.create_task(self._close_after(client_id, websocket, delay, EXPIRY_WARNING))
         self.expiry_tasks[client_id] = task
         self.owned_timers.add(task)
         task.add_done_callback(self.owned_timers.discard)
@@ -299,10 +302,14 @@ class ConnectionManager:
             await self.reject(client_id, "client id is bound to a different user", websocket)
             return False
 
+        remaining = (expires_at - datetime.now(timezone.utc)).total_seconds()
+        if remaining <= 0:
+            await self.reject(client_id, "access token expired during verification", websocket)
+            return False
+
         self.principals[client_id] = username
         self.active_connections[client_id] = websocket
-        # after successful authentication, add connection close callback on token expiration
-        await self.close_on_expire(client_id, expires_at)
+        self._schedule_expiry(client_id, websocket, remaining)
         auth_event = events.AuthenticationSucceeded(detail=f"access token verification successful for user {username}")
         try:
             return await self._send_ordered(client_id, websocket, auth_event.model_dump())
