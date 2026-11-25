@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.exc import NoResultFound
@@ -198,7 +199,6 @@ async def finish_orphaned_deployment(command: commands.FinishOrphanedDeployment,
             service_id = await uow.deployments.get_service_id(command.deployment_id)
         except NoResultFound:
             return False
-    now = datetime.now(timezone.utc)
     async with uow:
         # Same service lock as deployment starts and services syncs, then the
         # deployment lock that finishing and step processing take as well, so the
@@ -209,11 +209,13 @@ async def finish_orphaned_deployment(command: commands.FinishOrphanedDeployment,
         except views.DeploymentNotFound:
             return False  # deleted in the meantime
         steps = deployment.steps
+        now = datetime.now(timezone.utc)
         if not views.deployment_is_orphaned(deployment, steps, now):
             return False
-        logger.warning("Finishing orphaned deployment %s as failed", deployment.id)
         await stage_orphaned_deployment_finish(deployment, steps, uow)
         await uow.commit()
+    with suppress(Exception):
+        logger.warning("Finished orphaned deployment %s as failed", command.deployment_id)
     return True
 
 
