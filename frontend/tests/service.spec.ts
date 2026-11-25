@@ -1,6 +1,6 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, vi } from "vitest";
-import { ServiceWithId, Service } from "../src/typings";
+import { ServiceWithId } from "../src/typings";
 import { createWebsocketClient } from "../src/websocket";
 import { useServices } from "../src/stores/service";
 import { useAuth } from "../src/stores/auth";
@@ -51,26 +51,6 @@ describe("Services Store Actions", () => {
     initPinia();
   });
 
-  it("adds a service to the store", async () => {
-    const servicesStore = useServices();
-    const newService: Service = {
-      name: "fastdeploy",
-      data: {},
-    };
-    servicesStore.client = {
-      async post<T = unknown>(): Promise<T> {
-        return new Promise<any>((resolve) => {
-          resolve({ detail: "Services synced"});
-        });
-      },
-      options: {headers: {}},
-    } as any;
-    await servicesStore.syncServices();
-    const serviceViaWebsocket = {...newService, id: 1}
-    servicesStore.services[serviceViaWebsocket.id] = serviceViaWebsocket;
-    expect(servicesStore.services[1]).toStrictEqual({ ...newService, id: 1 });
-  });
-
   it("deletes a service from the store", async () => {
     const servicesStore = useServices();
     servicesStore.services[service.id] = service;
@@ -108,6 +88,7 @@ function syncError(status: number, body: any) {
   return err;
 }
 
+const emptyReceipt = { detail: "Services synced", updated: [], deleted: [], skipped: [] };
 const originalConfirmation = "a".repeat(64);
 const refusalBody = {
   detail: {
@@ -137,18 +118,18 @@ describe("Services sync", () => {
         const older = deferred();
         const latest = deferred();
         const post = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(latest.promise);
-        store.client = { post, options: { headers: {} } } as any;
+        store.client = { post, get: vi.fn().mockResolvedValue([]), options: { headers: {} } } as any;
         const ordinary = store.syncServices();
         const forced = store.syncServices(originalConfirmation);
         const settleOlder = async () => {
-          if (olderOutcome === "success") older.resolve({ detail: "Services synced" });
+          if (olderOutcome === "success") older.resolve(emptyReceipt);
           else older.reject(syncError(olderOutcome === "refusal" ? 409 : 500, refusalBody));
           expect(await ordinary).toBe(false);
           expect(store.syncRefusal).toBeNull();
           expect(store.syncErrorMessage).toBe("");
         };
         if (olderFirst) await settleOlder();
-        latest.resolve({ detail: "Services synced" });
+        latest.resolve(emptyReceipt);
         expect(await forced).toBe(true);
         if (!olderFirst) await settleOlder();
         expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true", confirmation: originalConfirmation } });
@@ -168,7 +149,7 @@ describe("Services sync", () => {
     const refusal = store.syncRefusal;
     const error = store.syncErrorMessage;
     expect(status === 409 ? refusal : error).toBeTruthy();
-    older.resolve({ detail: "Services synced" });
+    older.resolve(emptyReceipt);
     expect(await ordinary).toBe(false);
     expect(store.syncRefusal).toEqual(refusal);
     expect(store.syncErrorMessage).toBe(error);
@@ -182,11 +163,15 @@ describe("Services sync", () => {
     useAuth().logout();
     // A later login starts with a reset services store and fresh clients.
     useAuth().sessionId++;
-    store.client = { post: vi.fn().mockResolvedValue({}), options: { headers: {} } } as any;
+    const get = vi.fn().mockResolvedValue([]);
+    const currentReceipt = { ...emptyReceipt, updated: ["current session"] };
+    store.client = { post: vi.fn().mockResolvedValue(currentReceipt), get, options: { headers: {} } } as any;
     expect(await store.syncServices(originalConfirmation)).toBe(true);
-    if (outcome === "success") old.resolve({});
+    if (outcome === "success") old.resolve({ ...emptyReceipt, updated: ["former session"] });
     else old.reject(syncError(outcome === "refusal" ? 409 : 500, refusalBody));
     expect(await pending).toBe(false);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(store.syncReceipt).toEqual({ updated: ["current session"], deleted: [], skipped: [] });
     expect(store.syncRefusal).toBeNull();
     expect(store.syncErrorMessage).toBe("");
   });
@@ -210,8 +195,8 @@ describe("Services sync", () => {
 
   it("sends force and clears the refusal on a forced sync", async () => {
     const servicesStore = useServices();
-    const post = vi.fn().mockResolvedValue({ detail: "Services synced" });
-    servicesStore.client = { post, options: { headers: {} } } as any;
+    const post = vi.fn().mockResolvedValue(emptyReceipt);
+    servicesStore.client = { post, get: vi.fn().mockResolvedValue([]), options: { headers: {} } } as any;
     servicesStore.syncRefusal = { message: "refused", wouldDelete: ["a"], total: 1, confirmation: originalConfirmation };
     const synced = await servicesStore.syncServices(originalConfirmation);
     expect(synced).toBe(true);
@@ -221,10 +206,25 @@ describe("Services sync", () => {
 
   it("does not send force on a normal sync", async () => {
     const servicesStore = useServices();
-    const post = vi.fn().mockResolvedValue({ detail: "Services synced" });
-    servicesStore.client = { post, options: { headers: {} } } as any;
+    const post = vi.fn().mockResolvedValue(emptyReceipt);
+    servicesStore.client = { post, get: vi.fn().mockResolvedValue([]), options: { headers: {} } } as any;
     await servicesStore.syncServices();
     expect(post).toHaveBeenCalledWith("/services/sync", undefined, {});
+  });
+
+  it.each([
+    { detail: "Services synced" },
+    { ...emptyReceipt, deleted: [1] },
+    { ...emptyReceipt, updated: ["duplicate"], deleted: ["duplicate"] },
+    { ...emptyReceipt, skipped: [{ name: "busy", reason: 42 }] },
+  ])("does not admit an invalid sync receipt: %j", async response => {
+    const store = useServices();
+    const get = vi.fn();
+    store.client = { post: vi.fn().mockResolvedValue(response), get } as any;
+    expect(await store.syncServices()).toBe(false);
+    expect(store.syncReceipt).toBeNull();
+    expect(store.syncErrorMessage).toContain("Could not verify");
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("stores an error message for other failures", async () => {
@@ -237,6 +237,50 @@ describe("Services sync", () => {
     expect(synced).toBe(false);
     expect(servicesStore.syncRefusal).toBeNull();
     expect(servicesStore.syncErrorMessage).toBe("Services sync failed: Internal Server Error");
+  });
+});
+
+describe("ServiceList sync receipt", () => {
+  beforeEach(() => initPinia());
+
+  it.each([false, true])("shows a settled sync without socket delivery (refresh fails: %s)", async refreshFails => {
+    const store = useServices();
+    const busy = { id: 2, name: "busy", data: {} };
+    const added = { id: 3, name: "added", data: {} };
+    const receipt = {
+      detail: "Services synced",
+      updated: [added.name],
+      deleted: [service.name],
+      skipped: [{ name: busy.name, reason: "deployment 42 is still running" }],
+    };
+    const get = vi.fn().mockResolvedValue([busy, added]);
+    if (refreshFails) get.mockRejectedValueOnce(new Error("offline"));
+    const post = vi.fn().mockResolvedValue(receipt);
+    store.client = { post, get } as any;
+    store.services = { [service.id]: service, [busy.id]: busy };
+    store.serviceNames = [added.name];
+    const wrapper = mount(ServiceList, {
+      global: { stubs: { "router-link": true, "progress-count": true } },
+    });
+
+    await wrapper.findAll("button").find(button => button.text() === "sync")!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.get(".sync-receipt").text()).toContain("Updated added");
+    expect(wrapper.get(".sync-receipt").text()).toContain("Deleted fastdeploy");
+    expect(wrapper.get(".sync-receipt").text()).toContain("deployment 42 is still running");
+    expect(get).toHaveBeenCalledExactlyOnceWith("services/");
+    expect(store.syncErrorMessage).toBe("");
+    if (refreshFails) {
+      expect(wrapper.text()).toContain("Could not load services");
+      expect(store.getServices.map(row => row.name)).toEqual(["busy", "fastdeploy"]);
+      await wrapper.findAll("button").find(button => button.text() === "Retry services")!.trigger("click");
+      await flushPromises();
+    }
+    expect(wrapper.text()).not.toContain("Could not load services");
+    expect(store.getServices.map(row => row.name)).toEqual(["added", "busy"]);
+    expect(post).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
   });
 });
 
@@ -253,7 +297,7 @@ describe("ServiceList sync refusal", () => {
 
   async function mountWithRefusal(post: any) {
     const servicesStore = useServices();
-    servicesStore.client = { post, options: { headers: {} } } as any;
+    servicesStore.client = { post, get: vi.fn().mockResolvedValue([]), options: { headers: {} } } as any;
     servicesStore.serviceNames = ["a"];
     await servicesStore.syncServices();
     const wrapper = mount(ServiceList, {
@@ -293,7 +337,7 @@ describe("ServiceList sync refusal", () => {
     const post = vi
       .fn()
       .mockRejectedValueOnce(syncError(409, { detail }))
-      .mockResolvedValueOnce({ detail: "Services synced" });
+      .mockResolvedValueOnce(emptyReceipt);
     const confirm = vi.fn().mockReturnValue(true);
     window.confirm = confirm;
     const { servicesStore, wrapper } = await mountWithRefusal(post);

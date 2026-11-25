@@ -135,6 +135,10 @@ that pass a confirmation must match the current deletion candidates.
 Only the latest sync attempt in the current login session owns its success/refusal/error
 feedback. Starting another attempt retires earlier responses even if they finish later;
 it does not cancel or undo server-side work. Force confirmation remains required.
+After a valid success response the frontend shows which services were updated,
+deleted or skipped, including the reasons for skips. It reloads the service list
+via REST even while the WebSocket is offline. If that read fails, the receipt
+stays visible and **Retry services** retries the read.
 
 **Response**:
 ```json

@@ -1,6 +1,6 @@
 import { markRaw } from "vue";
 import { getClient } from "./httpClient";
-import { serviceSnapshot, serviceNamesSnapshot, serviceToken, syncRefusal, type SyncRefusal } from "../restAdmission";
+import { serviceSnapshot, serviceNamesSnapshot, serviceToken, syncReceipt, syncRefusal, type SyncReceipt, type SyncRefusal } from "../restAdmission";
 import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
@@ -39,6 +39,7 @@ export const useServices = defineStore("services", {
        * Cleared on the next sync attempt.
        */
       syncRefusal: null as SyncRefusal | null,
+      syncReceipt: null as SyncReceipt | null,
       /**
        * Error message of a failed services sync (other than a refusal).
        */
@@ -105,17 +106,18 @@ export const useServices = defineStore("services", {
      */
     async syncServices(confirmation?: string): Promise<boolean> {
       this.syncRefusal = null;
+      this.syncReceipt = null;
       this.syncErrorMessage = "";
       const isCurrentSession = rememberSession();
       const generation = ++this.syncGeneration;
       const isCurrent = () => isCurrentSession() && generation === this.syncGeneration;
+      let response: unknown;
       try {
-        await this.client.post(
+        response = await this.client.post<unknown>(
           "/services/sync",
           undefined,
           confirmation === undefined ? {} : { query: { force: "true", confirmation } }
         );
-        return isCurrent();
       } catch (err: any) {
         if (!isCurrent()) {
           return false;
@@ -130,6 +132,16 @@ export const useServices = defineStore("services", {
         }
         return false;
       }
+
+      if (!isCurrent()) return false;
+      try {
+        this.syncReceipt = syncReceipt(response);
+      } catch {
+        this.syncErrorMessage = "Could not verify the services sync receipt. Refresh services before retrying.";
+        return false;
+      }
+      await this.fetchServices();
+      return isCurrent();
     },
     /** Delete only the requested row after a confirmed current-session response. */
     async deleteService(serviceId: number): Promise<boolean> {
@@ -187,7 +199,7 @@ export const useServices = defineStore("services", {
           if (!snapshot[Number(id)]) delete this.deleteErrors[Number(id)];
         }
       } catch {
-        if (isCurrent()) this.servicesError = "Could not load services. Try logging in again.";
+        if (isCurrent()) this.servicesError = "Could not load services. Try again.";
       } finally {
         this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
         if (isCurrentSession() && generation === this.fetchGeneration) this.servicesLoading = false;

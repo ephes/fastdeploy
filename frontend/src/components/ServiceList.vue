@@ -81,6 +81,23 @@ async function startDeployment(id: number, serviceName: string) {
     <div v-if="serviceStore.syncErrorMessage" class="sync-error" role="alert">
       {{ serviceStore.syncErrorMessage }}
     </div>
+    <div v-if="serviceStore.syncReceipt" class="sync-receipt" role="status">
+      <p>Services synced.</p>
+      <p v-if="serviceStore.syncReceipt.updated.length">Updated {{ serviceStore.syncReceipt.updated.join(", ") }}</p>
+      <p v-if="serviceStore.syncReceipt.deleted.length">Deleted {{ serviceStore.syncReceipt.deleted.join(", ") }}</p>
+      <template v-if="serviceStore.syncReceipt.skipped.length">
+        <p>Skipped services</p>
+        <ul>
+          <li v-for="service in serviceStore.syncReceipt.skipped" :key="service.name">
+            {{ service.name }} · {{ service.reason }}
+          </li>
+        </ul>
+      </template>
+    </div>
+    <p v-if="serviceStore.servicesError" role="alert">
+      {{ serviceStore.servicesError }}
+      <button @click="serviceStore.fetchServices()">Retry services</button>
+    </p>
     <div v-if="serviceStore.serviceTokenErrorMessage" role="alert">
       {{ serviceStore.serviceTokenErrorMessage }}
     </div>
