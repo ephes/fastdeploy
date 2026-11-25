@@ -405,6 +405,11 @@ Reloading the page fetches current state, and resetting the session clears the a
 
 ### Service view mutations
 
+The Services view allows one sync action per login session at a time. The sync,
+force sync and retry sync controls are disabled while the action is pending,
+including the service list refresh after a verified receipt. Signing out or
+replacing the session releases the controls for the next session.
+
 A service deletion stays pending in the service store until its request settles.
 Remounting the list keeps the delete button disabled for that service. A WebSocket
 deletion removes the row immediately and retires the request's row and error

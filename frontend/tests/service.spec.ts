@@ -111,51 +111,7 @@ describe("Services sync", () => {
     initPinia();
   });
 
-  for (const olderOutcome of ["success", "refusal", "error"]) {
-    for (const olderFirst of [true, false]) {
-      it(`retires older ${olderOutcome} when forced sync starts (older settles first: ${olderFirst})`, async () => {
-        const store = useServices();
-        const older = deferred();
-        const latest = deferred();
-        const post = vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(latest.promise);
-        store.client = { post, get: vi.fn().mockResolvedValue([]), options: { headers: {} } } as any;
-        const ordinary = store.syncServices();
-        const forced = store.syncServices(originalConfirmation);
-        const settleOlder = async () => {
-          if (olderOutcome === "success") older.resolve(emptyReceipt);
-          else older.reject(syncError(olderOutcome === "refusal" ? 409 : 500, refusalBody));
-          expect(await ordinary).toBe(false);
-          expect(store.syncRefusal).toBeNull();
-          expect(store.syncErrorMessage).toBe("");
-        };
-        if (olderFirst) await settleOlder();
-        latest.resolve(emptyReceipt);
-        expect(await forced).toBe(true);
-        if (!olderFirst) await settleOlder();
-        expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true", confirmation: originalConfirmation } });
-      });
-    }
-  }
-
-  it.each([409, 500])("keeps the latest failure (%s) after an older success", async status => {
-    const store = useServices();
-    const older = deferred();
-    store.client = {
-      post: vi.fn().mockReturnValueOnce(older.promise).mockRejectedValueOnce(syncError(status, refusalBody)),
-      options: { headers: {} },
-    } as any;
-    const ordinary = store.syncServices();
-    expect(await store.syncServices(originalConfirmation)).toBe(false);
-    const refusal = store.syncRefusal;
-    const error = store.syncErrorMessage;
-    expect(status === 409 ? refusal : error).toBeTruthy();
-    older.resolve(emptyReceipt);
-    expect(await ordinary).toBe(false);
-    expect(store.syncRefusal).toEqual(refusal);
-    expect(store.syncErrorMessage).toBe(error);
-  });
-
-  it.each(["success", "refusal", "error"])("retires old-session %s even when reset reuses a generation", async outcome => {
+  it.each(["success", "refusal", "error"])("retires old-session %s without releasing the new session’s pending sync", async outcome => {
     const store = useServices();
     const old = deferred();
     store.client = { post: () => old.promise, options: { headers: {} } } as any;
@@ -165,11 +121,17 @@ describe("Services sync", () => {
     useAuth().sessionId++;
     const get = vi.fn().mockResolvedValue([]);
     const currentReceipt = { ...emptyReceipt, updated: ["current session"] };
-    store.client = { post: vi.fn().mockResolvedValue(currentReceipt), get, options: { headers: {} } } as any;
-    expect(await store.syncServices(originalConfirmation)).toBe(true);
+    const current = deferred();
+    const post = vi.fn().mockReturnValueOnce(current.promise).mockResolvedValue(emptyReceipt);
+    store.client = { post, get, options: { headers: {} } } as any;
+    const syncing = store.syncServices(originalConfirmation);
     if (outcome === "success") old.resolve({ ...emptyReceipt, updated: ["former session"] });
     else old.reject(syncError(outcome === "refusal" ? 409 : 500, refusalBody));
     expect(await pending).toBe(false);
+    expect(await store.syncServices()).toBe(false);
+    expect(post).toHaveBeenCalledTimes(1);
+    current.resolve(currentReceipt);
+    expect(await syncing).toBe(true);
     expect(get).toHaveBeenCalledTimes(1);
     expect(store.syncReceipt).toEqual({ updated: ["current session"], deleted: [], skipped: [] });
     expect(store.syncRefusal).toBeNull();
@@ -372,6 +334,39 @@ describe("ServiceList sync refusal", () => {
     expect(post).toHaveBeenLastCalledWith("/services/sync", undefined, { query: { force: "true", confirmation } });
     expect(wrapper.get(".sync-refusal").text()).toContain("a, b, c");
     expect(servicesStore.syncRefusal).toMatchObject({ confirmation: replacement });
+    expect(post).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+  });
+
+  it.each(["sync", "force sync"])("submits only one %s action and keeps its deletion receipt", async action => {
+    const response = deferred();
+    const refresh = deferred();
+    const post = vi.fn()
+      .mockRejectedValueOnce(syncError(409, refusalBody))
+      .mockReturnValueOnce(response.promise)
+      .mockRejectedValue(syncError(409, refusalBody));
+    window.confirm = vi.fn().mockReturnValue(true);
+    const { servicesStore, wrapper } = await mountWithRefusal(post);
+    servicesStore.client.get = vi.fn().mockReturnValue(refresh.promise);
+    const sync = wrapper.findAll("button").find(button => button.text() === "sync")!;
+    const submit = wrapper.findAll("button").find(button => button.text() === action)!;
+
+    // Dispatch two clicks before Vue can update the buttons.
+    const clicked = submit.trigger("click");
+    await sync.trigger("click");
+    await clicked;
+    expect(post).toHaveBeenCalledTimes(2); // Initial refusal, then the chosen action.
+    expect(sync.attributes("disabled")).toBeDefined();
+    expect(await servicesStore.syncServices(originalConfirmation)).toBe(false);
+
+    response.resolve({ ...emptyReceipt, deleted: ["a", "b"] });
+    await flushPromises();
+    expect(wrapper.get(".sync-receipt").text()).toContain("Deleted a, b");
+    expect(sync.attributes("disabled")).toBeDefined();
+    refresh.resolve([]);
+    await flushPromises();
+    expect(sync.attributes("disabled")).toBeUndefined();
+    expect(wrapper.get(".sync-receipt").text()).toContain("Deleted a, b");
     expect(post).toHaveBeenCalledTimes(2);
     wrapper.unmount();
   });
