@@ -67,10 +67,12 @@ async def get_deployment_details(
     """
     Fetch details of a deployment including the steps. Needs to be authenticated
     with a service token for the service which is associated with the deployment.
-    Unknown deployments and deployments of other services both return 404, so the
-    response does not reveal whether a deployment id exists.
+    Unknown deployments, integer ids outside the storage range, and deployments
+    of other services all return 404.
     """
     not_found = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
+    if not 1 <= deployment_id <= POSTGRES_INTEGER_MAX:
+        raise not_found
     try:
         deployment = await views.get_deployment_with_steps(deployment_id, bus.uow)
     except views.DeploymentNotFound as e:
