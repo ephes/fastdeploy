@@ -664,7 +664,8 @@ class InMemoryStepRepository(AbstractStepRepository):
         self._steps.remove(step)
 
     async def get_steps_by_deployment(self, deployment_id):
-        return [s for s in self._steps if s.deployment_id == deployment_id]
+        steps = [s for s in self._steps if s.deployment_id == deployment_id]
+        return sorted(steps, key=lambda step: step.id)
 
     async def page_by_deployment(self, deployment_id, *, limit, before_id=None):
         steps = [

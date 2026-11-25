@@ -77,8 +77,9 @@ async def test_reused_historical_plan_starts_first_persisted_step(request, backe
         historical = model.Deployment(service_id=service.id, origin="test", user="test", started=now, finished=now)
         await uow.deployments.add(historical)
         await uow.flush()
-        for name in ("prepare", "verify"):
-            await uow.steps.add(model.Step(name=name, state="success", deployment_id=historical.id))
+        # Insert out of ID order so neither backend can rely on insertion order.
+        for step_id, name in ((11, "verify"), (10, "prepare")):
+            await uow.steps.add(model.Step(id=step_id, name=name, state="success", deployment_id=historical.id))
         await uow.commit()
 
     launches = []
