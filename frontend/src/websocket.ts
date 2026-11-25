@@ -392,7 +392,11 @@ export function createWebsocketClient(): WebsocketClient {
       try { connection.close(); } catch { /* The socket has already been retired. */ }
     }
 
-    if (client.retryCount >= 3) return;
+    if (client.retryCount >= 3) {
+      websocketStore.connectionError = "Websocket reconnect attempts exhausted. Refresh to try again.";
+      websocketStore.handling = websocketStore.connectionError;
+      return;
+    }
     client.retryCount++;
     await new Promise((resolve) => setTimeout(resolve, 1000));
     if (client.disposed || generation !== closingGeneration) return;

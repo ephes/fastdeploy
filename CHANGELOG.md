@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Show a dashboard recovery alert when WebSocket reconnect attempts are exhausted.
 - Close refused or unavailable WebSockets even when diagnostic logging fails.
 - Recheck deployment activity under lock so expired deployments with newly visible steps allow a new start.
 - Commit deployment launch failures and return the deployment ID even when diagnostic logging fails.
