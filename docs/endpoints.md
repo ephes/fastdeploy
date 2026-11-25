@@ -394,8 +394,9 @@ server local time): sending the same result again (same `state` and `message`) c
 progress report and the result of a step need different `started` timestamps (the deploy task stamps
 every script line with its own). Steps that share a name but have different `started` timestamps are
 separate steps. Other processing failures return **400** with
-`{"detail": "Something went wrong"}`. Both error responses are preserved if
-the diagnostic log fails.
+`{"detail": "Something went wrong"}`. The route logs the deployment ID and exception class name
+(up to 100 characters) for these failures, omitting exception text and tracebacks.
+Both error responses are preserved if the diagnostic log fails.
 
 ### GET /steps/
 **Purpose**: List a bounded step page for a deployment

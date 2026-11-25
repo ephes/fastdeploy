@@ -181,6 +181,31 @@ async def test_step_report_error_survives_logging_failure(
     assert response.json() == {"detail": detail}
 
 
+@pytest.mark.db("in_memory")
+async def test_step_report_error_logs_only_bounded_category_and_deployment_id(
+    app, bus, deployment_in_db, step_result, valid_deploy_token_in_db, monkeypatch, caplog
+) -> None:
+    marker = "synthetic settlement payload"
+    error_type = type("SyntheticSettlementError" + "X" * 100, (ValueError,), {})
+    monkeypatch.setitem(bus.command_handlers, commands.ProcessStep, AsyncMock(side_effect=error_type(marker)))
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            app.url_path_for("process_step_result"),
+            json=step_result.model_dump(mode="json"),
+            headers={"authorization": f"Bearer {valid_deploy_token_in_db}"},
+        )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Something went wrong"}
+    assert marker not in caplog.text
+    [record] = [record for record in caplog.records if record.name == steps.logger.name]
+    assert record.exc_info is None
+    assert record.getMessage() == (
+        f"could not process step for deployment {deployment_in_db.id} category={error_type.__name__[:100]}"
+    )
+
+
 @pytest.mark.parametrize(
     "field, limit",
     [("message", MAX_STEP_MESSAGE_LENGTH), ("name", MAX_STEP_NAME_LENGTH)],
