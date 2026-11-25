@@ -149,6 +149,9 @@ it does not cancel or undo server-side work. Force confirmation remains required
 {"detail": "Service 1 deleted"}
 ```
 
+Integer service IDs outside 1–2,147,483,647 return **404 Not Found** before the
+delete is dispatched. Missing services within that range return the same response.
+
 A service with a running deployment is not deleted. The request is rejected with **409 Conflict**
 and nothing changes, because the detached deploy task would keep running without its deployment
 record:

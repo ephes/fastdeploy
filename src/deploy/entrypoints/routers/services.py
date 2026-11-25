@@ -6,7 +6,7 @@ from ... import views
 from ...adapters.filesystem import ServiceConfigError
 from ...domain import commands, model
 from ..dependencies import get_current_active_user
-from ..helper_models import Bus
+from ..helper_models import POSTGRES_INTEGER_MAX, Bus
 
 router = APIRouter(
     prefix="/services",
@@ -43,6 +43,9 @@ async def delete_service(service_id: int, bus: Bus = Depends()) -> dict:
     A service with a running deployment is not deleted: the request is
     rejected with 409 Conflict and nothing changes.
     """
+    if not 1 <= service_id <= POSTGRES_INTEGER_MAX:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service does not exist")
+
     cmd = commands.DeleteService(service_id=service_id)
     try:
         await bus.handle(cmd)
@@ -52,7 +55,7 @@ async def delete_service(service_id: int, bus: Bus = Depends()) -> dict:
             detail={"message": str(e), "deployment_id": e.deployment_id},
         ) from e
     except NoResultFound as e:
-        raise HTTPException(status_code=404, detail="Service does not exist") from e
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service does not exist") from e
     return {"detail": f"Service {service_id} deleted"}
 
 

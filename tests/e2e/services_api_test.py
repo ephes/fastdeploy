@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
+from unittest.mock import Mock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.orm.exc import NoResultFound
 
-from deploy.domain import model
+from deploy.domain import commands, model
 
 pytestmark = pytest.mark.asyncio
 
@@ -99,6 +100,33 @@ async def test_delete_non_existing_service(app, valid_access_token_in_db):
             headers={"authorization": f"Bearer {valid_access_token_in_db}"},
         )
 
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Service does not exist"}
+
+
+@pytest.mark.parametrize(
+    "_backend",
+    [
+        pytest.param("memory", marks=pytest.mark.db("in_memory")),
+        pytest.param("postgresql", marks=pytest.mark.db("database_url")),
+    ],
+)
+@pytest.mark.parametrize(
+    ("service_id", "dispatch"),
+    [(-(2**31) - 1, False), (-(2**31), False), (0, False), (1, True), (2**31 - 1, True), (2**31, False)],
+)
+async def test_delete_service_integer_boundary(
+    app, bus, valid_access_token_in_db, monkeypatch, _backend, service_id, dispatch
+):
+    handler = Mock(wraps=bus.command_handlers[commands.DeleteService])
+    monkeypatch.setitem(bus.command_handlers, commands.DeleteService, handler)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.delete(
+            app.url_path_for("delete_service", service_id=service_id),
+            headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+        )
+
+    assert handler.call_count == int(dispatch)
     assert response.status_code == 404
     assert response.json() == {"detail": "Service does not exist"}
 
