@@ -1,12 +1,15 @@
 """Credential boundaries through HTTP, using synthetic in-memory records."""
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
+from urllib.parse import quote
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from deploy.auth import token_to_payload
 from deploy.config import settings
+from deploy.domain import model
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.db("in_memory")]
 
@@ -30,6 +33,50 @@ async def test_non_admin_cannot_revoke_or_probe_service_tokens(
     assert response.json() == {"detail": "Service token revocation requires an administrator"}
     handle.assert_not_called()
     assert record.revoked_at is None
+
+
+@pytest.mark.parametrize("jti", ["é" * 65, "invalid\x00id"], ids=["too-long", "nul"])
+@pytest.mark.parametrize("is_admin", [True, False])
+async def test_revocation_refuses_invalid_jti_before_lookup(
+    app, bus, valid_access_token_in_db, monkeypatch, jti, is_admin
+):
+    monkeypatch.setattr(settings, "service_token_admin_users", ["user"] if is_admin else [])
+    repository = bus.uow.service_tokens
+    with patch.object(repository, "get_by_jti", wraps=repository.get_by_jti) as lookup:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.delete(
+                f"/service-token/{quote(jti, safe='')}",
+                headers={"authorization": f"Bearer {valid_access_token_in_db}"},
+            )
+
+    lookup.assert_not_called()
+    if is_admin:
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Service token not found"}
+    else:
+        assert response.status_code == 403
+        assert response.json() == {"detail": "Service token revocation requires an administrator"}
+
+
+async def test_admin_can_revoke_legacy_jti_at_storage_limit(app, bus, valid_access_token_in_db, monkeypatch):
+    monkeypatch.setattr(settings, "service_token_admin_users", ["user"])
+    jti = " Legacy-" + "é" * 55 + " "
+    now = datetime.now(UTC)
+    async with bus.uow as uow:
+        await uow.service_tokens.add(
+            model.ServiceToken(
+                jti=jti, service="fixture", user="user", issued_at=now, expires_at=now + timedelta(days=1)
+            )
+        )
+        await uow.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.delete(
+            f"/service-token/{quote(jti, safe='')}", headers={"authorization": f"Bearer {valid_access_token_in_db}"}
+        )
+
+    assert response.status_code == 200
+    assert response.json()["jti"] == jti
 
 
 async def test_admin_revocation_is_idempotent(app, valid_access_token_in_db, valid_service_token_in_db, monkeypatch):
@@ -67,8 +114,6 @@ def assert_private_response(response):
 async def test_secret_bearing_http_responses_are_not_stored(
     app, service_in_db, deployed_service_in_db, valid_access_token_in_db, user_in_db, password, monkeypatch
 ):
-    from datetime import timedelta
-
     from deploy.auth import create_access_token
 
     monkeypatch.setattr(settings, "service_token_admin_users", ["user"])
@@ -107,8 +152,6 @@ async def test_secret_response_policy_includes_authentication_errors(app, path):
 
 
 async def test_config_response_rechecks_same_credentials_after_expiry(app, deployed_service_in_db, monkeypatch):
-    from datetime import datetime, timedelta, timezone
-
     from deploy import auth
     from deploy.auth import create_access_token
 
@@ -122,7 +165,7 @@ async def test_config_response_rechecks_same_credentials_after_expiry(app, deplo
         class Later(datetime):
             @classmethod
             def now(cls, tz=None):
-                return datetime.now(timezone.utc) + timedelta(minutes=10)
+                return datetime.now(UTC) + timedelta(minutes=10)
 
         monkeypatch.setattr(auth, "datetime", Later)
         second = await client.get("/deployed-services/", headers=headers)

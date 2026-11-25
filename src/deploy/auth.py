@@ -13,7 +13,7 @@ from sqlalchemy.exc import NoResultFound
 
 from . import views
 from .config import settings
-from .domain.model import Deployment, Service, ServiceToken, User
+from .domain.model import SERVICE_TOKEN_JTI_MAX_LENGTH, Deployment, Service, ServiceToken, User
 from .service_layer.unit_of_work import AbstractUnitOfWork
 
 PWD_CONTEXT = CryptContext(schemes=[settings.password_hash_algorithm], deprecated="auto")
@@ -320,7 +320,7 @@ async def service_from_payload(payload: dict, uow: AbstractUnitOfWork, *, for_up
     origin = _identity_string(payload.get("origin", ""), allow_empty=True)
     jti = payload.get("jti")
     if "jti" in payload:
-        jti = _identity_string(jti, maximum=64)
+        jti = _identity_string(jti, maximum=SERVICE_TOKEN_JTI_MAX_LENGTH)
     elif not legacy_service_tokens_accepted(datetime.now(timezone.utc)):
         raise InvalidCredentials("legacy service token without jti is no longer accepted")
 

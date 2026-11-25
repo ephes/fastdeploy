@@ -60,7 +60,9 @@ The token is recorded with its id (`jti`) so it can be revoked.
 ```
 **403 Forbidden**: current user is not an allowlisted administrator; checked before looking up the id
 
-**404 Not Found**: no service token with this id was issued (administrators only)
+Administrators receive **404 Not Found** when the ID is unknown or cannot fit
+the stored identifier format. IDs must contain 1–64 characters without NUL.
+An ID outside these limits is rejected before the token lookup.
 
 ### GET /users/me
 **Purpose**: Get current authenticated user
@@ -148,6 +150,9 @@ it does not cancel or undo server-side work. Force confirmation remains required
 ```json
 {"detail": "Service 1 deleted"}
 ```
+
+Integer service IDs outside 1–2,147,483,647 return **404 Not Found** before the
+delete is dispatched. Missing services within that range return the same response.
 
 A service with a running deployment is not deleted. The request is rejected with **409 Conflict**
 and nothing changes, because the detached deploy task would keep running without its deployment

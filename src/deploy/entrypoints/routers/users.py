@@ -189,9 +189,13 @@ async def revoke_service_token(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Service token revocation requires an administrator"
         )
+    not_found = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service token not found")
+    if not 1 <= len(jti) <= model.SERVICE_TOKEN_JTI_MAX_LENGTH or "\x00" in jti:
+        raise not_found
+
     try:
         record: model.ServiceToken = await bus.handle(commands.RevokeServiceToken(jti=jti))
     except model.ServiceTokenNotFound as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service token not found") from e
+        raise not_found from e
     assert record.revoked_at is not None
     return RevokedServiceTokenOut(detail=f"Service token {jti} revoked", jti=jti, revoked_at=record.revoked_at)
