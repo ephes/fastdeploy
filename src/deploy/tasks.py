@@ -317,23 +317,42 @@ class DeployTask(BaseSettings):
 
     async def request_once(self, method: str, url: str, **kwargs) -> None:
         """Discard bounded wire data, without decoding or logging response bodies."""
-
-        async def exchange():
-            async with self.client.stream(method, url, **kwargs) as response:
-                # Status alone decides error retries; never read an error body.
-                response.raise_for_status()
-                size = 0
-                async for chunk in response.aiter_raw(chunk_size=1024):
-                    size += len(chunk)
-                    if size > REPORT_RESPONSE_MAX_BYTES:
-                        raise httpx.ReadError("report response exceeds byte limit", request=response.request)
-
+        status_error = None
+        acknowledged = False
         try:
-            # Includes headers, body reads and stream closure, even with a peer
-            # that keeps sending bytes within the client's inactivity timeout.
-            await asyncio.wait_for(exchange(), timeout=REPORT_RESPONSE_TIMEOUT_SECONDS)
-        except asyncio.TimeoutError as error:
-            raise httpx.ReadTimeout("report response exceeded elapsed limit") from error
+            # Bound the whole exchange, including stream closure.
+            async with (
+                asyncio.timeout(REPORT_RESPONSE_TIMEOUT_SECONDS),
+                self.client.stream(method, url, **kwargs) as response,
+            ):
+                # Status alone decides error retries; never read an error body.
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as error:
+                    status_error = error
+                else:
+                    size = 0
+                    try:
+                        async for chunk in response.aiter_raw(chunk_size=1024):
+                            size += len(chunk)
+                            if size > REPORT_RESPONSE_MAX_BYTES:
+                                raise httpx.ReadError("report response exceeds byte limit", request=response.request)
+                    except (Exception, asyncio.CancelledError) as error:
+                        # HTTPX marks the response closed before awaiting aclose(),
+                        # which aiter_raw() calls only after yielding the whole body.
+                        acknowledged = response.is_closed and not isinstance(error, httpx.StreamError)
+                        raise
+                    acknowledged = True
+        except Exception as error:
+            if status_error is not None or acknowledged:
+                self.log("could not close report response")
+            elif isinstance(error, TimeoutError):
+                raise httpx.ReadTimeout("report response exceeded elapsed limit") from error
+            else:
+                raise
+
+        if status_error is not None:
+            raise status_error
 
     async def send_step(self, step_url, step, attempts: int | None = None) -> bool:
         """
@@ -621,6 +640,9 @@ class DeployTask(BaseSettings):
         }
         try:
             return await self.finish_step(step_result, attempts=self.finish_attempts)
+        except asyncio.CancelledError:
+            self.log("failed step reporting was cancelled")
+            return False
         except Exception as e:
             self.log(f"could not report failed step: {type(e).__name__}: {e}")
             return False

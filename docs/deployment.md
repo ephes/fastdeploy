@@ -195,9 +195,11 @@ non-JSON console lines remain skippable, including bracket-prefixed output such 
 on the merged stderr, a bare `{` or `[` of pretty-printed JSON, and valid non-object JSON.
 Each report/finish attempt streams at most 4096 response wire bytes and has a
 10-second elapsed budget covering headers, body and closure. Success bodies are discarded without
-decoding or logging them; error statuses are checked immediately without reading bodies,
-so `4xx` responses remain non-retryable regardless of body size or speed. Oversized bodies and elapsed timeouts count as transport
-failures and follow the same retries; every opened response is closed.
+decoding or logging them. Error statuses are checked immediately without reading bodies and
+still determine retries if closing the response fails. A `2xx` response with a complete body
+within the byte limit still acknowledges the report if closing fails. The runner logs the close
+failure. Oversized bodies and timeouts before a verdict count as transport failures and follow
+the same retries.
 Connection errors and `5xx` responses are retried with
 exponential backoff (4 attempts per step, 6 for finishing the deployment, starting at 3 seconds), so a short API
 restart, for example while fastdeploy deploys itself, does not leave the deployment active.
@@ -219,9 +221,10 @@ report-construction failure, makes the run incomplete even if the script exits z
 Lines that are not a JSON object with a `name` member are
 skipped. A JSON object without a `name` is logged to the task's stderr with its size and up to 10 shortened keys,
 never its values. When the deploy fails, a "failed step" is reported with the same number of attempts as finishing, and the
-deployment is finished afterwards; if finishing fails after a failed deploy, the original error is kept. If the failed
-step cannot be reported at all, the deployment is left unfinished instead of being finished as an apparent success,
-and it stops blocking new deployments once it is older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`.
+deployment is finished afterwards. Cancellation during failure reporting leaves the report unacknowledged,
+and the runner logs the interruption and propagates the original deployment error. The original error also
+takes precedence if finishing fails after a failed deploy. Without an acknowledged failed step, the deployment
+stays open and stops blocking new deployments once it is older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`.
 If such a deployment has no running or pending steps left (every step was already reported as successful before the
 script failed), it is orphaned: once `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` passed without activity, the orphan
 reconciliation finishes it as failed with a `deployment orphaned` failure step that records the reason (see
