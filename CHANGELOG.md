@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Keep the original deployment error and leave the deployment open when failure reporting is cancelled.
+- Preserve runner report HTTP rejections and complete acknowledgements when response closure fails.
 - Reject WebSocket tokens that expire during verification before registering the connection as authenticated.
 - Keep server WebSocket close warnings visible through reconnect attempts until a replacement authenticates.
 - Return 404 for service-token revocation IDs that exceed 64 characters or contain NUL.

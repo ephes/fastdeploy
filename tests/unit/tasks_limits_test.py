@@ -225,3 +225,36 @@ async def test_error_status_precedes_oversized_or_dripping_body(task, status):
     assert len(bodies) == (1 if status == 422 else 2)
     assert bodies[0].closed
     assert bodies[0].reads == 0
+
+
+@pytest.mark.parametrize("status, attempts", [(200, 1), (422, 1), (503, 2)])
+@pytest.mark.parametrize("close_fault", ["error", "timeout"])
+async def test_report_verdict_survives_close_failure(task, monkeypatch, capsys, status, attempts, close_fault):
+    if close_fault == "timeout":
+        monkeypatch.setattr(tasks, "REPORT_RESPONSE_TIMEOUT_SECONDS", 0.1)
+    bodies = []
+
+    class FailingClose(Body):
+        async def aclose(self):
+            await super().aclose()
+            if close_fault == "timeout":
+                await asyncio.Event().wait()
+            raise httpx.CloseError("synthetic close failure")
+
+    def handle(request):
+        body = FailingClose([b"receipt"])
+        bodies.append(body)
+        return httpx.Response(status, stream=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        task.client = client
+        if status == 200:
+            await task.request_with_retries("post", task.steps_url, attempts=2)
+        else:
+            with pytest.raises(httpx.HTTPStatusError) as error:
+                await task.request_with_retries("post", task.steps_url, attempts=2)
+            assert error.value.response.status_code == status
+
+    assert len(bodies) == attempts
+    assert all(body.closed and body.reads == (1 if status == 200 else 0) for body in bodies)
+    assert "could not close report response" in capsys.readouterr().err

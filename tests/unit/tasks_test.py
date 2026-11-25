@@ -443,6 +443,34 @@ async def test_cancelled_deployment_reports_failure_before_finishing(task):
     assert failed_step["message"] == "deployment failed: CancelledError"
 
 
+@pytest.mark.parametrize("primary_error", [RuntimeError("script failed"), asyncio.CancelledError("script cancelled")])
+async def test_cancelled_failure_report_preserves_original_error(task, capsys, primary_error):
+    requests = []
+    reporting = asyncio.Event()
+
+    async def handle(request):
+        requests.append(request)
+        reporting.set()
+        await asyncio.Event().wait()
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+        task.client = client
+        task.steps_url = "http://test/steps"
+        task.deployment_finish_url = "http://test/finish"
+        with patch.object(DeployTask, "deploy_steps", side_effect=primary_error):
+            running = asyncio.create_task(task.run_deploy())
+            await asyncio.wait_for(reporting.wait(), timeout=1)
+            running.cancel("failure reporting interrupted")
+            with pytest.raises(type(primary_error)) as error:
+                await running
+
+    assert error.value is primary_error
+    assert [request.method for request in requests] == ["POST"]
+    stderr = capsys.readouterr().err
+    assert "failed step reporting was cancelled" in stderr
+    assert "not finishing the deployment" in stderr
+
+
 async def test_deploy_steps_skips_json_that_is_not_an_object(task):
     proc = DeployProc([[], "a string", 42, {"name": "step1", "state": "success"}, None])
 
