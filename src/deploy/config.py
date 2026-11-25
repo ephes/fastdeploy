@@ -22,7 +22,8 @@ class RestorePolicy(BaseModel):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=(ROOT_DIR / ".env"), extra="ignore")
+    # Keep rejected values (which may carry credentials or tokens) out of startup errors.
+    model_config = SettingsConfigDict(env_file=(ROOT_DIR / ".env"), extra="ignore", hide_input_in_errors=True)
 
     app_name: str = "Small Deployment Frontend"
     admin_email: str = "jochen-fastdeploy@wersdoerfer.de"
@@ -92,12 +93,17 @@ class Settings(BaseSettings):
             raise ValueError(
                 "API base must not contain whitespace, control characters, backslashes, queries or fragments"
             )
-        base = urlsplit(value)
-        if base.scheme not in {"http", "https"} or not base.hostname or base.username is not None:
+        # urlsplit and its accessors quote the rejected text in their own errors
+        # (netloc normalization, port syntax), so report fixed messages instead.
+        try:
+            base = urlsplit(value)
+            scheme, hostname, username, port = base.scheme, base.hostname, base.username, base.port
+        except ValueError:
+            raise ValueError("API base must be an absolute HTTP(S) URL with a valid host and port") from None
+        if scheme not in {"http", "https"} or not hostname or username is not None:
             raise ValueError("API base must be an absolute HTTP(S) URL with a host and without credentials")
-        # Accessing the port also validates its syntax and range.
-        if base.port == 0:
-            raise ValueError("API base port must be positive")
+        if port == 0:
+            raise ValueError("API base port must be an integer between 1 and 65535")
         return value.rstrip("/")
 
     @model_validator(mode="after")

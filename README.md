@@ -109,6 +109,7 @@ API_URL=http://localhost:8000
 `API_URL` must be an absolute HTTP(S) URL without credentials, a query or a fragment.
 FastDeploy preserves a reverse-proxy prefix such as `https://deploy.example.test/team/deploy/`
 and removes trailing slashes from the base before adding the runner and service sync routes.
+Invalid settings stop startup with an error that names the field but does not echo its value.
 
 `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` adds a safety window before unfinished deployments are considered orphaned by reconciliation on read endpoints and before starting a new deployment. It counts from the latest activity of the deployment (its start or the last reported step). Orphaned deployments are finished as failed with a `deployment orphaned` failure step that records the reason, see [docs/endpoints.md](docs/endpoints.md#orphaned-deployments). Increase the delay if step creation is delayed in your environment.
 
