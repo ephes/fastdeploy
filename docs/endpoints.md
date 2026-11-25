@@ -543,6 +543,8 @@ Ordinary transport send errors also forget and close that connection with code `
 without waiting for a receive-side disconnect. This removes its principal and expiry
 timer and preserves healthy peers and any newer connection using the same client id.
 The caller waits at most 1 second for transport close.
+Refused handshakes and failed broadcast sends are closed before diagnostics are logged.
+A logging handler failure cannot prevent this cleanup or propagate to the broadcaster.
 
 Control messages (authentication success/failure and expiry warnings) also have a 5-second
 send budget. All control and endpoint-cleanup callers wait at most 1 second for a close,

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import ClassVar
 from uuid import uuid4
@@ -236,6 +237,60 @@ async def test_websocket_connect_refuses_duplicate_client_id():
     assert attacker.close_code == 1008
     assert cm.all_connections[client_id] is victim
     assert cm.active_connections[client_id] is victim
+
+
+@pytest.fixture
+def failing_websocket_log_handler(monkeypatch):
+    class FailingHandler(logging.Handler):
+        def emit(self, record):
+            raise RuntimeError("synthetic logging failure")
+
+    handler = FailingHandler()
+    logger = logging.getLogger("tests.websocket.failing_handler")
+    monkeypatch.setattr(logger, "level", logging.INFO)
+    monkeypatch.setattr(websocket_module, "logger", logger)
+    logger.addHandler(handler)
+    try:
+        yield
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+
+async def test_websocket_refusal_closes_even_if_logging_fails(failing_websocket_log_handler):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    existing, refused = RecordingWebsocket(), RecordingWebsocket()
+    assert await cm.connect(client_id, existing)
+
+    assert not await cm.connect(client_id, refused)
+    assert not refused.accepted
+    assert refused.close_code == 1008
+    assert cm.all_connections[client_id] is existing
+
+
+@pytest.mark.parametrize("failure", ["queue_timeout", "transport_error"])
+async def test_broadcast_retires_unavailable_socket_even_if_logging_fails(
+    test_message, short_broadcast_budget, failing_websocket_log_handler, failure
+):
+    cm = ConnectionManager()
+    failed_id, healthy_id = uuid4(), uuid4()
+    failed, healthy = RecordingWebsocket(fail_on_send=True), RecordingWebsocket()
+    for client_id, websocket in ((failed_id, failed), (healthy_id, healthy)):
+        assert await cm.connect(client_id, websocket)
+        cm.active_connections[client_id] = websocket
+        cm.principals[client_id] = "synthetic"
+
+    if failure == "queue_timeout":
+        async with cm.send_locks[failed_id].lock:
+            await cm.broadcast(test_message)
+    else:
+        await cm.broadcast(test_message)
+
+    assert_forgotten(cm, failed_id)
+    assert failed_id not in cm.send_locks
+    assert failed.close_code == 1013
+    assert healthy.sent == [test_message.model_dump_json()]
 
 
 async def test_websocket_disconnect_of_stale_connection_keeps_newer_connection():

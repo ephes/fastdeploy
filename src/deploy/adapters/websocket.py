@@ -166,8 +166,9 @@ class ConnectionManager:
         else:
             reason = ""
         if reason:
-            logger.warning("refusing websocket connection: %s", reason)
             await self.close_socket(websocket, code)
+            with contextlib.suppress(Exception):  # diagnostics are best effort
+                logger.warning("refusing websocket connection: %s", reason)
             return False
         # reserve the id before awaiting, so concurrent connects cannot both succeed
         self.all_connections[client_id] = websocket
@@ -350,20 +351,19 @@ class ConnectionManager:
     async def _send_within_budget(self, client_id: UUID, websocket: WebSocket, text: str) -> None:
         try:
             await self._send_ordered(client_id, websocket, text)
-        except asyncio.TimeoutError:
-            logger.warning(
-                "disconnecting websocket client %s: broadcast not sent within %s seconds",
-                client_id,
-                BROADCAST_SEND_TIMEOUT_SECONDS,
-            )
-            # Forget it first: the cancelled send may have written a partial
-            # frame, so this connection must not get another broadcast.
+        except Exception as exc:
+            # A send can time out in the queue before it reaches the transport.
             self.disconnect(client_id, websocket)
             await self.close_socket(websocket, status.WS_1013_TRY_AGAIN_LATER)
-        except Exception:  # one broken connection must not stop the broadcast
-            logger.info("broadcast to websocket client %s failed", client_id, exc_info=True)
-            self.disconnect(client_id, websocket)
-            await self.close_socket(websocket, status.WS_1013_TRY_AGAIN_LATER)
+            with contextlib.suppress(Exception):  # diagnostics must not fail the broadcast
+                if isinstance(exc, asyncio.TimeoutError):
+                    logger.warning(
+                        "disconnecting websocket client %s: broadcast not sent within %s seconds",
+                        client_id,
+                        BROADCAST_SEND_TIMEOUT_SECONDS,
+                    )
+                else:
+                    logger.info("broadcast to websocket client %s failed", client_id, exc_info=True)
 
     async def publish(self, channel, event):  # noqa: ARG002 -- channel is part of the publisher interface; all clients get every event
         await self.broadcast(event)
