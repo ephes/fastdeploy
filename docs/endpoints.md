@@ -246,9 +246,11 @@ is finished and has at least one step, with every step in `success` state. A ste
 with a missing legacy state disqualifies the deployment. Among qualifying
 deployments, the latest recorded start wins. Deployments without a recorded start sort last.
 For equal timestamps or multiple missing start times, the highest deployment ID
-wins. The deployment and its planned steps are committed in one transaction before the
-detached deploy task is started, so a task that reports its first step immediately finds the planned
-steps. If the deploy task cannot be started, the deployment is finished as failed at once: its planned
+wins. Reused steps are planned in ascending order of their historical step IDs.
+The first planned step starts in `running` state. The deployment and its planned
+steps are committed in one transaction before the detached deploy task is started,
+so a task that reports its first step immediately finds the planned steps.
+If the deploy task cannot be started, the deployment is finished as failed at once: its planned
 steps are removed and a step named `deployment launch failed` with state `failure` records the error
 type. After this result is committed, fastDeploy attempts to log the details. If logging fails,
 the request still returns **500** with the failed deployment id and the service is free for the next start:

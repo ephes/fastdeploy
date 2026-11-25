@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Reuse historical deployment steps in ID order so the first planned step starts as running.
 - Exclude deployments with a missing legacy step state when choosing a successful historical plan.
 - Keep the requested deployment history depth through interrupted WebSocket reconnects.
 - Show the service sync receipt and refresh the service list over REST even when the WebSocket is offline.

@@ -621,6 +621,7 @@ class SqlAlchemyStepRepository(AbstractStepRepository):
         stmt = (
             select(model.Step)
             .where(model.Step.deployment_id == deployment_id)
+            .order_by(model.Step.id)
             .execution_options(populate_existing=True)
         )
         result = await self.session.execute(stmt)
