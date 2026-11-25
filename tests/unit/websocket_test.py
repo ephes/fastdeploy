@@ -83,23 +83,22 @@ async def test_websocket_authenticate_invalid_token(uow, invalid_access_token, s
     assert "failed" in stub_websocket.sent[0]["detail"]
 
 
+@pytest.mark.db("in_memory")
 async def test_websocket_authenticate_valid_token(uow, valid_access_token_in_db, stub_websocket):
     cm = ConnectionManager()
     client_id = uuid4()
     cm.all_connections[client_id] = stub_websocket
 
-    # mock close on expire to avoid cm.close was never awaited warning
-    async def do_nothing(*args, **kwargs): ...
-
-    cm.close_on_expire = do_nothing
-
     # make sure connection was not authenticated already
     assert client_id not in cm.active_connections
 
-    await cm.authenticate(client_id, valid_access_token_in_db, uow)
-
-    assert client_id in cm.active_connections
-    assert "successful" in stub_websocket.sent[0]["detail"]
+    try:
+        assert await cm.authenticate(client_id, valid_access_token_in_db, uow)
+        assert client_id in cm.active_connections
+        assert client_id in cm.expiry_tasks
+        assert "successful" in stub_websocket.sent[0]["detail"]
+    finally:
+        await cm.shutdown()
 
 
 @pytest.fixture
@@ -179,6 +178,39 @@ def assert_forgotten(cm, client_id):
     assert client_id not in cm.active_connections
     assert client_id not in cm.principals
     assert client_id not in cm.expiry_tasks
+
+
+async def test_websocket_rejects_token_that_expires_during_verification(in_memory_uow, monkeypatch):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    registrations = []
+    events = []
+
+    class TrackedConnections(dict):
+        def __setitem__(self, key, value):
+            registrations.append(key)
+            super().__setitem__(key, value)
+
+    class Socket(RecordingWebsocket):
+        async def send_json(self, message):
+            events.append((message["type"], message.get("status")))
+
+        async def close(self, code=1000, reason=None):
+            events.append(("close", code))
+
+    async def verify(token, uow):
+        await asyncio.sleep(0)
+        return model.User(name="synthetic"), (datetime.now(timezone.utc) - timedelta(seconds=1)).timestamp()
+
+    monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", verify)
+    cm.active_connections = TrackedConnections()
+    assert await cm.connect(client_id, Socket())
+
+    assert not await cm.authenticate(client_id, "synthetic-token", in_memory_uow)
+    assert registrations == []
+    assert_forgotten(cm, client_id)
+    assert not cm.owned_timers
+    assert events == [("authentication", "failure"), ("close", 1008)]
 
 
 async def test_websocket_authenticate_with_service_token_closes_and_cleans_up(uow, valid_service_token_in_db):

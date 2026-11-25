@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Reject WebSocket tokens that expire during verification before registering the connection as authenticated.
+- Keep server WebSocket close warnings visible through reconnect attempts until a replacement authenticates.
 - Return 404 for service-token revocation IDs that exceed 64 characters or contain NUL.
 - Return 404 for service deletion IDs outside PostgreSQL's positive integer range.
 - Show a dashboard recovery alert when WebSocket reconnect attempts are exhausted.
