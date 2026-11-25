@@ -24,6 +24,7 @@ class DeleteService(Command):
 class SyncServices(Command):
     # Allow a sync that deletes all or more than half of the services.
     force: bool = False
+    confirmation: str | None = None
 
 
 class RevokeServiceToken(Command):

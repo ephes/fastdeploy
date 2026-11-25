@@ -233,7 +233,7 @@ describe("Logout", () => {
     const { authStore } = await aliceSession();
     useServices().serviceNames = ["fastdeploy", "other"];
     useServices().serviceTokenErrorMessage = "private error";
-    useServices().syncRefusal = { message: "refused", wouldDelete: ["fastdeploy"], total: 1 };
+    useServices().syncRefusal = { message: "refused", wouldDelete: ["fastdeploy"], total: 1, confirmation: "a".repeat(64) };
     useServices().syncErrorMessage = "private sync error";
     authStore.password = "typed-again";
 

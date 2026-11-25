@@ -1,6 +1,6 @@
 import { markRaw } from "vue";
 import { getClient } from "./httpClient";
-import { serviceSnapshot, serviceNamesSnapshot, serviceToken, syncRefusal, type SyncRefusal } from "../restAdmission";
+import { serviceSnapshot, serviceNamesSnapshot, serviceToken, syncReceipt, syncRefusal, type SyncReceipt, type SyncRefusal } from "../restAdmission";
 import { rememberSession } from "./session";
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { Service, ServiceById, ServiceWithId, Message } from "../typings";
@@ -35,10 +35,11 @@ export const useServices = defineStore("services", {
        */
       serviceTokenErrorMessage: "",
       /**
-       * Set when the backend refused a services sync because it would
-       * delete all or most services. Cleared on the next sync attempt.
+       * Set when the backend requests confirmation of the deletion candidates.
+       * Cleared on the next sync attempt.
        */
       syncRefusal: null as SyncRefusal | null,
+      syncReceipt: null as SyncReceipt | null,
       /**
        * Error message of a failed services sync (other than a refusal).
        */
@@ -99,26 +100,24 @@ export const useServices = defineStore("services", {
     /**
      * Sync services between filesystem and database on the backend.
      *
-     * The backend refuses (409 Conflict) a sync that would delete all
-     * or most services. The refusal is stored in `syncRefusal` so it can
-     * be shown to the user, who may then retry with `force` set.
-     *
-     * @param force {boolean} - Delete services even if the sync would remove all or most of them
+     * The backend can require confirmation of the current deletion candidates.
+     * @param confirmation - Confirmation from the refusal shown to the user
      * @returns synced {boolean} - Whether the sync succeeded
      */
-    async syncServices(force: boolean = false): Promise<boolean> {
+    async syncServices(confirmation?: string): Promise<boolean> {
       this.syncRefusal = null;
+      this.syncReceipt = null;
       this.syncErrorMessage = "";
       const isCurrentSession = rememberSession();
       const generation = ++this.syncGeneration;
       const isCurrent = () => isCurrentSession() && generation === this.syncGeneration;
+      let response: unknown;
       try {
-        await this.client.post(
+        response = await this.client.post<unknown>(
           "/services/sync",
           undefined,
-          force ? { query: { force: "true" } } : {}
+          confirmation === undefined ? {} : { query: { force: "true", confirmation } }
         );
-        return isCurrent();
       } catch (err: any) {
         if (!isCurrent()) {
           return false;
@@ -133,6 +132,16 @@ export const useServices = defineStore("services", {
         }
         return false;
       }
+
+      if (!isCurrent()) return false;
+      try {
+        this.syncReceipt = syncReceipt(response);
+      } catch {
+        this.syncErrorMessage = "Could not verify the services sync receipt. Refresh services before retrying.";
+        return false;
+      }
+      await this.fetchServices();
+      return isCurrent();
     },
     /** Delete only the requested row after a confirmed current-session response. */
     async deleteService(serviceId: number): Promise<boolean> {
@@ -190,7 +199,7 @@ export const useServices = defineStore("services", {
           if (!snapshot[Number(id)]) delete this.deleteErrors[Number(id)];
         }
       } catch {
-        if (isCurrent()) this.servicesError = "Could not load services. Try logging in again.";
+        if (isCurrent()) this.servicesError = "Could not load services. Try again.";
       } finally {
         this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
         if (isCurrentSession() && generation === this.fetchGeneration) this.servicesLoading = false;

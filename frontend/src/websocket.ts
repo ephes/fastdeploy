@@ -211,18 +211,6 @@ export function createWebsocketClient(): WebsocketClient {
             const isCurrentSession = rememberSession();
             const ownsRefresh = () => !this.disposed && generation === refreshGeneration && isCurrentSession();
             const services = useServices(), deployments = useDeployments(), steps = useSteps();
-            // Revisit only the already visible number of pages, never drain history.
-            const pages = Math.max(1, Math.ceil(deployments.historyIds.length / 50));
-            const serviceId = deployments.historyServiceId;
-            const refreshHistory = async () => {
-              const firstPage = deployments.fetchDeployments(serviceId, false, ownsRefresh);
-              const historyGeneration = deployments.historyGeneration;
-              await firstPage;
-              for (let page = 1; page < pages && ownsRefresh() && deployments.historyGeneration === historyGeneration
-                  && deployments.historyHasMore && !deployments.historyError; page++) {
-                await deployments.fetchDeployments(serviceId, true, ownsRefresh);
-              }
-            };
             const relevant = new Set([...Object.keys(steps.stepsByDeployment), ...Object.keys(steps.fetchGenerations)]);
             const refreshSteps = async () => {
               for (const id of relevant) {
@@ -236,7 +224,8 @@ export function createWebsocketClient(): WebsocketClient {
             };
             // Store actions retain event-touched ids; all failures are observed.
             void Promise.allSettled([
-              services.fetchServices(ownsRefresh), services.fetchServiceNames(ownsRefresh), refreshHistory(),
+              services.fetchServices(ownsRefresh), services.fetchServiceNames(ownsRefresh),
+              deployments.restoreHistory(ownsRefresh),
               refreshSteps(),
             ]);
           }

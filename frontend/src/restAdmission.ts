@@ -6,24 +6,47 @@ function invalid(): never {
   throw new Error('Invalid REST snapshot');
 }
 
-/** Details of a sync refused by the deletion-count guard (HTTP 409). */
+/** Details of a sync that needs confirmation of its current deletion candidates. */
 export interface SyncRefusal {
   message: string;
   wouldDelete: string[];
   total: number;
+  confirmation: string;
 }
 
 export function syncRefusal(value: unknown): SyncRefusal | null {
   if (!record(value)) return null;
-  const { message, would_delete: wouldDelete, total } = value;
-  if (typeof message !== 'string' || !message.trim() || !id(total) ||
-      !Array.isArray(wouldDelete) || wouldDelete.length <= total / 2 || wouldDelete.length > total) return null;
+  const { message, would_delete: wouldDelete, total, confirmation } = value;
+  if (typeof message !== 'string' || !message.trim() || (total !== 0 && !id(total)) ||
+      !Array.isArray(wouldDelete) || wouldDelete.length > total ||
+      typeof confirmation !== 'string' || confirmation.length !== 64 || !/^[0-9a-f]+$/.test(confirmation)) return null;
   const names = new Set<string>();
   for (const name of wouldDelete) {
     if (typeof name !== 'string' || !name.length || names.has(name)) return null;
     names.add(name);
   }
-  return { message, wouldDelete: [...names], total };
+  return { message, wouldDelete: [...names], total, confirmation };
+}
+
+export interface SyncReceipt {
+  updated: string[];
+  deleted: string[];
+  skipped: { name: string; reason: string }[];
+}
+
+export function syncReceipt(value: unknown): SyncReceipt {
+  if (!record(value) || value.detail !== 'Services synced' || !Array.isArray(value.skipped)) return invalid();
+  const updated = serviceNamesSnapshot(value.updated);
+  const deleted = serviceNamesSnapshot(value.deleted);
+  const skipped = value.skipped.map(row => {
+    if (!record(row) || typeof row.name !== 'string' || typeof row.reason !== 'string' || !row.reason.trim()) {
+      return invalid();
+    }
+    return { name: row.name, reason: row.reason };
+  });
+  const names = [...updated, ...deleted, ...skipped.map(row => row.name)];
+  if (new Set(names).size !== names.length) return invalid();
+  return { updated, deleted, skipped };
 }
 
 /** Only admit the fields used by the credential consumer; never echo wire values. */

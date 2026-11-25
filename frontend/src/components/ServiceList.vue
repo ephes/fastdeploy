@@ -23,12 +23,10 @@ async function deleteService(id: number, name: string) {
 
 async function forceSync() {
   const refusal = serviceStore.syncRefusal;
-  const count = refusal ? refusal.wouldDelete.length : 0;
-  const confirmed = window.confirm(
-    `Force the services sync? This deletes ${count} service(s) together with their deployment history.`
-  );
-  if (confirmed) {
-    await serviceStore.syncServices(true);
+  if (!refusal?.wouldDelete.length) return;
+  const names = refusal.wouldDelete.join(", ");
+  if (window.confirm(`Force the services sync? This can delete ${names} together with their deployment history.`)) {
+    await serviceStore.syncServices(refusal.confirmation);
   }
 }
 
@@ -76,12 +74,30 @@ async function startDeployment(id: number, serviceName: string) {
       <p v-if="serviceStore.syncRefusal.wouldDelete.length">
         Services that would be deleted: {{ serviceStore.syncRefusal.wouldDelete.join(", ") }}
       </p>
-      <button @click="forceSync()">force sync</button>
+      <button v-if="serviceStore.syncRefusal.wouldDelete.length" @click="forceSync()">force sync</button>
+      <button v-else @click="serviceStore.syncServices()">retry sync</button>
       <button @click="serviceStore.syncRefusal = null">dismiss</button>
     </div>
     <div v-if="serviceStore.syncErrorMessage" class="sync-error" role="alert">
       {{ serviceStore.syncErrorMessage }}
     </div>
+    <div v-if="serviceStore.syncReceipt" class="sync-receipt" role="status">
+      <p>Services synced.</p>
+      <p v-if="serviceStore.syncReceipt.updated.length">Updated {{ serviceStore.syncReceipt.updated.join(", ") }}</p>
+      <p v-if="serviceStore.syncReceipt.deleted.length">Deleted {{ serviceStore.syncReceipt.deleted.join(", ") }}</p>
+      <template v-if="serviceStore.syncReceipt.skipped.length">
+        <p>Skipped services</p>
+        <ul>
+          <li v-for="service in serviceStore.syncReceipt.skipped" :key="service.name">
+            {{ service.name }} · {{ service.reason }}
+          </li>
+        </ul>
+      </template>
+    </div>
+    <p v-if="serviceStore.servicesError" role="alert">
+      {{ serviceStore.servicesError }}
+      <button @click="serviceStore.fetchServices()">Retry services</button>
+    </p>
     <div v-if="serviceStore.serviceTokenErrorMessage" role="alert">
       {{ serviceStore.serviceTokenErrorMessage }}
     </div>

@@ -34,7 +34,7 @@ def test_sync_services_delete():
         model.Service(name="bar", data={"description": "bar baz foo", "steps": []}),
     ]
     services_from_fs = []
-    updated_services, deleted_services = model.sync_services(services_from_fs, services_from_db)
+    updated_services, deleted_services = model.sync_services(services_from_fs, services_from_db, force=True)
     assert updated_services == []
     assert deleted_services == services_from_db
 

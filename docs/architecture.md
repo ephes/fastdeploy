@@ -432,6 +432,10 @@ before the launch request. Invalid success responses are ambiguous outcomes:
 no row or navigation is published, and users must refresh history before retrying.
 A cached terminal deployment cannot regress to unfinished through a delayed start
 event. Deletion events remain effective; reconnect REST remains authoritative.
+A reconnect restores the previously visible history depth up to 200 rows. If
+another disconnect interrupts paging, the next reconnect retries that depth for
+the same filter. Selecting a different service or explicitly reloading the list
+starts a fresh first page.
 
 Step pages above the 25-row limit are rejected before any row is read or projected.
 Step hydration builds a complete isolated snapshot. Every row needs a positive

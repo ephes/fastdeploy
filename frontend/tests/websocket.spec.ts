@@ -487,6 +487,72 @@ it("resnapshots mounted stores on authenticated reconnect, coalescing repeated a
   expect(get.mock.calls.filter(([url]) => url === "services/")).toHaveLength(1);
 });
 
+it.each([false, true])("restores history after a second disconnect (filter changed: %s)", async changeFilter => {
+  const client = createWebsocketClient();
+  const history = useDeployments();
+  useServices().client = { get: vi.fn().mockResolvedValue([]) } as any;
+  const page = (newest: number, serviceId: number) => Array.from({ length: 50 }, (_, index) => ({
+    id: newest - index, service_id: serviceId, origin: "fixture", user: "synthetic",
+    started: "2026-11-01T00:00:00Z", finished: null,
+  }));
+  const pages = [page(180, 1), page(130, 1), page(80, 1)];
+  const get = vi.fn()
+    .mockResolvedValueOnce(pages[0])
+    .mockResolvedValueOnce(pages[1])
+    .mockResolvedValueOnce(pages[2]);
+  history.client = { get } as any;
+  await history.fetchDeployments(1);
+  await history.fetchDeployments(1, true);
+  await history.fetchDeployments(1, true);
+  expect(history.historyIds).toHaveLength(150);
+
+  const success = { type: "authentication", status: "success" };
+  client.initWebsocketConnection("ws://synthetic", "token");
+  Socket.instances[0].receive(success);
+  const reconnect = async (socket: Socket) => {
+    socket.readyState = 3;
+    const closing = socket.onclose({});
+    await vi.advanceTimersByTimeAsync(1000);
+    await closing;
+    const next = Socket.instances[Socket.instances.length - 1];
+    next.receive(success);
+    await flushPromises();
+    return next;
+  };
+
+  let finishInterrupted!: (rows: typeof pages[number]) => void;
+  const interrupted = new Promise<typeof pages[number]>(resolve => { finishInterrupted = resolve; });
+  get.mockResolvedValueOnce(pages[0]).mockReturnValueOnce(interrupted);
+  const firstReplacement = await reconnect(Socket.instances[0]);
+  expect(history.historyIds).toEqual(pages[0].map(row => row.id));
+  expect(get).toHaveBeenLastCalledWith("deployments/?limit=50&service_id=1&before_id=131");
+
+  const filteredPage = page(220, 2);
+  if (changeFilter) {
+    get.mockResolvedValueOnce(filteredPage);
+    await history.fetchDeployments(2);
+  }
+  get.mockClear()
+    .mockResolvedValueOnce(changeFilter ? filteredPage : pages[0])
+    .mockResolvedValueOnce(pages[1])
+    .mockResolvedValueOnce(pages[2]);
+  await reconnect(firstReplacement);
+  finishInterrupted(pages[1]);
+  await flushPromises();
+
+  const expected = changeFilter ? filteredPage : pages.flat();
+  expect(history.historyIds).toEqual(expected.map(row => row.id));
+  expect(get.mock.calls.map(([url]) => url)).toEqual(changeFilter
+    ? ["deployments/?limit=50&service_id=2"]
+    : [
+      "deployments/?limit=50&service_id=1",
+      "deployments/?limit=50&service_id=1&before_id=131",
+      "deployments/?limit=50&service_id=1&before_id=81",
+    ]);
+  expect(history.historyError).toBe("");
+  client.dispose();
+});
+
 it.each(["logout", "replacement"])("fences a reconnect refresh after %s", async outcome => {
   const client = createWebsocketClient();
   const services = useServices();

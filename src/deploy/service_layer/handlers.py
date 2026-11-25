@@ -50,16 +50,18 @@ async def sync_services(
     Orchestrate the sync of services between filesystem and database.
 
     Raises ``ServiceSyncRefused`` (and changes nothing) when the sync would
-    delete all or more than half of the services and is not forced. Services
-    with an active deployment are never deleted, they are reported as skipped.
+    delete all or more than half of the services without force, or when the
+    supplied confirmation differs from the current candidates. Services with
+    an active deployment are reported as skipped.
     """
     async with uow:
         await uow.services.lock_for_sync()
         source_services = await views.get_services_from_filesystem(fs)
         now = datetime.now(timezone.utc)
         target_services = await uow.services.list()
-        updated_services, candidates = model.sync_services(source_services, target_services)
-        model.check_sync_deletions(source_services, target_services, candidates, command.force)
+        updated_services, candidates = model.sync_services(
+            source_services, target_services, force=command.force, confirmation=command.confirmation
+        )
 
         deleted: list[model.Service] = []
         skipped: list[model.SkippedService] = []

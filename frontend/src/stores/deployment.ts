@@ -8,6 +8,9 @@ import { useSteps } from "./step";
 import { deploymentSnapshot, deploymentPage } from "../restAdmission";
 import { Deployment, Message, DeploymentById } from "../typings";
 
+const HISTORY_PAGE_SIZE = 50;
+const MAX_HISTORY_ROWS = 200;
+
 /**
  * This store can be used to start deployments and holds information
  * about deployments.
@@ -25,6 +28,7 @@ export const useDeployments = defineStore("deployments", {
       pendingStarts: [] as Set<number>[],
       pendingStartDeletions: markRaw(new Set<Set<number>>()),
       historyIds: [] as number[],
+      historyRestorePages: null as number | null,
       historyBeforeId: null as number | null,
       historyServiceId: undefined as number | undefined,
       historyHasMore: true,
@@ -105,7 +109,7 @@ export const useDeployments = defineStore("deployments", {
     },
     pruneHistory() {
       // The displayed window is finite even when live events keep arriving.
-      this.historyIds = this.historyIds.sort((a, b) => b - a).slice(0, 200);
+      this.historyIds = this.historyIds.sort((a, b) => b - a).slice(0, MAX_HISTORY_ROWS);
       const pinned = this.pinnedIds();
       const inactive = Object.keys(this.deployments).map(Number).filter(id => !pinned.has(id));
       for (const id of inactive.slice(0, Math.max(0, inactive.length - 100))) {
@@ -207,10 +211,27 @@ export const useDeployments = defineStore("deployments", {
       this.pruneHistory();
       return started;
     },
-    /** Fetch a bounded history page; only an explicit load-more extends it. */
+    /** Restore the visible depth, retaining the target if a socket drops mid-refresh. */
+    async restoreHistory(ownsRefresh: () => boolean) {
+      const pages = Math.min(
+        MAX_HISTORY_ROWS / HISTORY_PAGE_SIZE,
+        Math.max(1, this.historyRestorePages ?? 0, Math.ceil(this.historyIds.length / HISTORY_PAGE_SIZE)),
+      );
+      const serviceId = this.historyServiceId;
+      const firstPage = this.fetchDeployments(serviceId, false, ownsRefresh);
+      const generation = this.historyGeneration;
+      this.historyRestorePages = pages;
+      const isCurrent = () => ownsRefresh() && generation === this.historyGeneration;
+      await firstPage;
+      for (let page = 1; page < pages && isCurrent() && this.historyHasMore && !this.historyError; page++) {
+        await this.fetchDeployments(serviceId, true, ownsRefresh);
+      }
+      if (isCurrent() && !this.historyError) this.historyRestorePages = null;
+    },
+    /** Replace the history window or append one bounded page. */
     async fetchDeployments(serviceId?: number, loadMore = false, ownsRefresh: () => boolean = () => true) {
       if (loadMore && (this.historyLoading || !this.historyHasMore)) return;
-      if (loadMore && this.historyIds.length >= 200) {
+      if (loadMore && this.historyIds.length >= MAX_HISTORY_ROWS) {
         this.historyError = "History limit reached. Select a service or refresh history.";
         return;
       }
@@ -218,6 +239,7 @@ export const useDeployments = defineStore("deployments", {
       if (!loadMore) {
         this.historyGeneration++;
         this.historyServiceId = serviceId;
+        this.historyRestorePages = null;
       }
       const generation = this.historyGeneration;
       const ownsHistory = () => isCurrentSession() && generation === this.historyGeneration;
@@ -232,7 +254,7 @@ export const useDeployments = defineStore("deployments", {
       this.historyError = "";
       const requestedServiceId = this.historyServiceId;
       const beforeId = loadMore ? this.historyBeforeId : null;
-      const params = new URLSearchParams({ limit: "50" });
+      const params = new URLSearchParams({ limit: String(HISTORY_PAGE_SIZE) });
       if (requestedServiceId !== undefined) params.set("service_id", String(requestedServiceId));
       if (beforeId !== null) params.set("before_id", String(beforeId));
       try {
@@ -251,7 +273,7 @@ export const useDeployments = defineStore("deployments", {
           this.historyBeforeId = null;
         }
         const present = new Set(deployments.map(deployment => deployment.id));
-        const oldest = deployments.length === 50 ? deployments[deployments.length - 1].id : 0;
+        const oldest = deployments.length === HISTORY_PAGE_SIZE ? deployments[deployments.length - 1].id : 0;
         const upper = beforeId;
         for (const deployment of Object.values(this.deployments)) {
           if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
@@ -276,7 +298,7 @@ export const useDeployments = defineStore("deployments", {
         this.pruneHistory();
         // Advance using the server page even when an event deleted its last row.
         if (deployments.length) this.historyBeforeId = deployments[deployments.length - 1].id;
-        this.historyHasMore = deployments.length === 50;
+        this.historyHasMore = deployments.length === HISTORY_PAGE_SIZE;
         if (this.historyHasMore && this.historyBeforeId !== null) {
           // First-page events arrived before a cursor existed: hide older gaps.
           const oldestId = this.historyBeforeId;

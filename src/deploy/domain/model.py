@@ -2,6 +2,7 @@ import abc
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 
 from . import events as events_module
 
@@ -577,9 +578,16 @@ class Deployment(EventsMixin):
 
 
 def sync_services(
-    source_services: list[Service], target_services: list[Service]
+    source_services: list[Service],
+    target_services: list[Service],
+    *,
+    force: bool = False,
+    confirmation: str | None = None,
 ) -> tuple[list[Service], list[Service]]:
-    """Compare source and target services and update/delete accordingly"""
+    """Check deletion candidates before applying any service updates."""
+    source_names = {service.name for service in source_services}
+    deleted_services = [service for service in target_services if service.name not in source_names]
+    check_sync_deletions(source_services, target_services, deleted_services, force, confirmation)
     updated_services = []
     target_name_lookup = {service.name: service for service in target_services}
     for service in source_services:
@@ -598,14 +606,6 @@ def sync_services(
             updated_services.append(service)
             service.update()
 
-    # check if any services in target are not in source. The caller decides
-    # which of them are actually deleted (see check_sync_deletions) and records
-    # the deleted event via Service.delete().
-    deleted_services = []
-    source_name_lookup = {service.name: service for service in source_services}
-    for service in target_services:
-        if service.name not in source_name_lookup:
-            deleted_services.append(service)
     return updated_services, deleted_services
 
 
@@ -627,45 +627,40 @@ class ServiceSyncResult:
 
 
 class ServiceSyncRefused(Exception):
-    """
-    Raised when a services sync would delete suspiciously many services,
-    for example because the services directory is empty or points to the
-    wrong place. Deleting a service also deletes all of its deployments and
-    steps, so such a sync has to be forced explicitly.
-    """
+    """A sync needs confirmation of its current deletion candidates."""
 
-    def __init__(self, reason: str, would_delete: list[str], total: int):
+    def __init__(self, reason: str, candidates: list[Service], total: int, confirmation: str):
         self.reason = reason
-        self.would_delete = would_delete
+        self.would_delete = sorted(service.name for service in candidates)
         self.total = total
+        self.confirmation = confirmation
         super().__init__(reason)
 
 
 def check_sync_deletions(
-    source_services: list[Service], target_services: list[Service], deleted_services: list[Service], force: bool
+    source_services: list[Service],
+    target_services: list[Service],
+    deleted_services: list[Service],
+    force: bool,
+    confirmation: str | None = None,
 ) -> None:
-    """
-    Refuse a sync that would wipe out the service history unless it is forced:
-
-    - the filesystem lists no services at all while the database has some
-    - more than half of the services in the database would be deleted
-    """
-    if force or not deleted_services:
-        return
+    """Check confirmed identities and refuse unusually large unforced deletions."""
     total = len(target_services)
-    would_delete = sorted(service.name for service in deleted_services)
-    if not source_services:
-        raise ServiceSyncRefused(
-            f"No services found in the services directory, refusing to delete all {total} services",
-            would_delete=would_delete,
-            total=total,
-        )
-    if len(deleted_services) * 2 > total:
-        raise ServiceSyncRefused(
-            f"Refusing to delete {len(deleted_services)} of {total} services (more than half)",
-            would_delete=would_delete,
-            total=total,
-        )
+    suspicious = bool(deleted_services) and (not source_services or len(deleted_services) * 2 > total)
+    if confirmation is None and (force or not suspicious):
+        return
+
+    identities = sorted((service.name, service.id or 0) for service in deleted_services)
+    current = sha256(json.dumps(identities).encode()).hexdigest()
+    if confirmation is not None and confirmation != current:
+        reason = "The services that would be deleted have changed. Review them before retrying."
+    elif force or not suspicious:
+        return
+    elif not source_services:
+        reason = f"No services found in the services directory, refusing to delete all {total} services"
+    else:
+        reason = f"Refusing to delete {len(deleted_services)} of {total} services (more than half)"
+    raise ServiceSyncRefused(reason, deleted_services, total, current)
 
 
 class DeployedService(EventsMixin):

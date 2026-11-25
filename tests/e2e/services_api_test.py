@@ -247,6 +247,43 @@ async def test_sync_services_empty_directory_is_refused(app, uow, valid_access_t
     assert service.id == service_in_db.id
 
 
+@pytest.mark.db("in_memory")
+async def test_force_sync_requires_fresh_confirmation_when_deletion_candidates_change(
+    app, uow, valid_access_token_in_db, service_in_fs, publisher
+):
+    names = {"missing-a", "missing-b", service_in_fs.name}
+    async with uow:
+        for name in names:
+            await uow.services.add(model.Service(name=name, data={}))
+        await uow.commit()
+
+    proposed = await post_sync(app, valid_access_token_in_db)
+    assert proposed.status_code == 409
+    detail = proposed.json()["detail"]
+    assert detail["would_delete"] == ["missing-a", "missing-b"]
+
+    (service_in_fs / "config.json").unlink()
+    service_in_fs.rmdir()
+    forced = await post_sync(
+        app,
+        valid_access_token_in_db,
+        params={"force": "true", "confirmation": detail.get("confirmation", "0" * 64)},
+    )
+    assert forced.status_code == 409
+    replacement = forced.json()["detail"]
+    assert replacement["would_delete"] == sorted(names)
+    assert replacement["confirmation"] != detail["confirmation"]
+    async with uow:
+        assert {service.name for service in await uow.services.list()} == names
+    assert publisher.events == []
+
+    confirmed = await post_sync(
+        app, valid_access_token_in_db, params={"force": "true", "confirmation": replacement["confirmation"]}
+    )
+    assert confirmed.status_code == 200
+    assert set(confirmed.json()["deleted"]) == names
+
+
 async def test_sync_services_empty_directory_force(app, uow, valid_access_token_in_db, service_in_db):
     response = await post_sync(app, valid_access_token_in_db, params={"force": "true"})
 
