@@ -241,8 +241,10 @@ admission and do not launch a task or publish a deployment start.
 **Start order**: the service definition is loaded after taking the service row lock.
 Planning and launch use that snapshot, so a service sync committed before the lock
 is acquired supplies the current script and configuration. The lock stays held
-through admission. When reusing a previous successful deployment's step names,
-the latest recorded start wins. Deployments without a recorded start sort last.
+through admission. A previous deployment qualifies for step plan reuse when it
+is finished and has at least one step, with every step in `success` state. A step
+with a missing legacy state disqualifies the deployment. Among qualifying
+deployments, the latest recorded start wins. Deployments without a recorded start sort last.
 For equal timestamps or multiple missing start times, the highest deployment ID
 wins. The deployment and its planned steps are committed in one transaction before the
 detached deploy task is started, so a task that reports its first step immediately finds the planned

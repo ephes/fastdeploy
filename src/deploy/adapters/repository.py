@@ -402,8 +402,8 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
         Returns the id of the last successful deployment for a service.
 
         A deployment is successful if it is finished, has at least one step
-        and all of its steps succeeded. A single failed step (including the
-        failure step recorded for an orphaned deployment) disqualifies it.
+        and all of its steps succeeded. A step with a missing state or any
+        state other than success disqualifies it.
         """
         statement = text(
             """
@@ -419,7 +419,7 @@ class SqlAlchemyDeploymentRepository(AbstractDeploymentRepository):
             and not exists (
                 select 1 from step
                 where step.deployment_id = deployment.id
-                and step.state != 'success'
+                and (step.state is null or step.state != 'success')
             )
             order by deployment.started desc nulls last, deployment.id desc
             limit 1
