@@ -321,13 +321,15 @@ async def start_deployment(command: commands.StartDeployment, uow: AbstractUnitO
             # Without a deploy task nothing would ever finish the deployment, and it
             # would block the service until it counts as orphaned. Details stay in
             # the log: the step message is shown to users.
-            logger.exception("Could not start deploy task of deployment %s", deployment.id)
-            assert deployment.id is not None
-            failed = await get_deployment_for_update(deployment.id, uow)
+            deployment_id = deployment.id
+            assert deployment_id is not None
+            failed = await get_deployment_for_update(deployment_id, uow)
             message = f"The deploy task could not be started ({type(e).__name__}). See the fastdeploy service log."
             await stage_failed_deployment_finish(failed, model.LAUNCH_FAILED_STEP_NAME, message, uow)
             await uow.commit()
-            raise model.DeploymentLaunchFailed(deployment.id) from e
+            with suppress(Exception):
+                logger.exception("Could not start deploy task of deployment %s", deployment_id)
+            raise model.DeploymentLaunchFailed(deployment_id) from e
 
 
 def validate_deployment_authority(token: str | None, deployment_id: int) -> None:

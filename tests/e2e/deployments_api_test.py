@@ -615,11 +615,23 @@ async def test_deploy_start_after_finish_is_allowed(popen, app, bus, valid_servi
 
 
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+@pytest.mark.parametrize("broken_logging", [False, True])
 @patch("deploy.tasks.subprocess.Popen")
-async def test_deploy_launch_failure_finishes_deployment_as_failed(popen, app, uow, valid_service_token_in_db):
+async def test_deploy_launch_failure_finishes_deployment_as_failed(
+    popen, app, uow, valid_service_token_in_db, monkeypatch, broken_logging
+):
     popen.side_effect = OSError("cannot fork /secret/path")
 
+    if broken_logging:
+        handler = logging.Handler(level=logging.ERROR)
+        emit = Mock(side_effect=RuntimeError("logging sink unavailable"))
+        monkeypatch.setattr(handler, "emit", emit)
+        monkeypatch.setattr(handlers.logger, "handlers", [handler])
+
     failed = await post_start_deployment(app, valid_service_token_in_db)
+
+    if broken_logging:
+        emit.assert_called_once()
 
     assert failed.status_code == 500
     detail = failed.json()["detail"]

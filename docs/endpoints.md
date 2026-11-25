@@ -234,8 +234,8 @@ wins. The deployment and its planned steps are committed in one transaction befo
 detached deploy task is started, so a task that reports its first step immediately finds the planned
 steps. If the deploy task cannot be started, the deployment is finished as failed at once: its planned
 steps are removed and a step named `deployment launch failed` with state `failure` records the error
-type (details are in the fastdeploy service log). The request is answered with **500** and the failed
-deployment id, and the service is free for the next start:
+type. After this result is committed, fastDeploy attempts to log the details. If logging fails,
+the request still returns **500** with the failed deployment id and the service is free for the next start:
 ```json
 {
   "detail": {

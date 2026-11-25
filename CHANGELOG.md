@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Commit deployment launch failures and return the deployment ID even when diagnostic logging fails.
 - Recheck orphaned deployment age against the current time after acquiring both cleanup locks.
 - Preserve orphaned deployment settlement and history reads when writing a cleanup warning fails.
 - Redact exception messages and tracebacks from unexpected step-report failure logs.
