@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from deploy import views
 from deploy.auth import create_access_token, issue_service_token
 from deploy.config import settings
 from deploy.domain import commands, events, model
@@ -615,11 +616,23 @@ async def test_deploy_start_after_finish_is_allowed(popen, app, bus, valid_servi
 
 
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
+@pytest.mark.parametrize("broken_logging", [False, True])
 @patch("deploy.tasks.subprocess.Popen")
-async def test_deploy_launch_failure_finishes_deployment_as_failed(popen, app, uow, valid_service_token_in_db):
+async def test_deploy_launch_failure_finishes_deployment_as_failed(
+    popen, app, uow, valid_service_token_in_db, monkeypatch, broken_logging
+):
     popen.side_effect = OSError("cannot fork /secret/path")
 
+    if broken_logging:
+        handler = logging.Handler(level=logging.ERROR)
+        emit = Mock(side_effect=RuntimeError("logging sink unavailable"))
+        monkeypatch.setattr(handler, "emit", emit)
+        monkeypatch.setattr(handlers.logger, "handlers", [handler])
+
     failed = await post_start_deployment(app, valid_service_token_in_db)
+
+    if broken_logging:
+        emit.assert_called_once()
 
     assert failed.status_code == 500
     detail = failed.json()["detail"]
@@ -714,6 +727,36 @@ async def test_deploy_not_blocked_by_deployment_older_than_token_lifetime(
     async with uow:
         untouched = await uow.deployments.get(stale.id)
     assert untouched.finished is None
+
+
+@pytest.mark.db("in_memory")
+@patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_start_leaves_expired_orphan_with_new_open_step_untouched(
+    popen, app, uow, service_in_db, valid_service_token_in_db, monkeypatch
+):
+    now = datetime.now(timezone.utc)
+    started = now - views.STALE_DEPLOYMENT_AGE - views.ORPHAN_RECONCILE_DELAY
+    orphan = await add_unfinished_deployment(uow, service_in_db.id, started)
+    late_step = model.Step(name="late report", deployment_id=orphan.id, state="running", started=now)
+    get_for_update = uow.deployments.get_for_update
+
+    async def report_before_lock(deployment_id: int) -> model.Deployment:
+        assert deployment_id == orphan.id
+        await uow.steps.add(late_step)
+        return await get_for_update(deployment_id)
+
+    monkeypatch.setattr(uow.deployments, "get_for_update", report_before_lock)
+
+    response = await post_start_deployment(app, valid_service_token_in_db)
+
+    assert response.status_code == 200
+    assert response.json()["id"] != orphan.id
+    popen.assert_called_once()
+    async with uow:
+        untouched = await uow.deployments.get(orphan.id)
+        [step] = await uow.steps.get_steps_by_deployment(orphan.id)
+    assert untouched.finished is None
+    assert (step.id, step.name, step.state) == (late_step.id, "late report", "running")
 
 
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])

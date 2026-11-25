@@ -215,11 +215,13 @@ deployment is created or started. The response names the running deployment:
 }
 ```
 Orphaned unfinished deployments of the service (see [Orphaned deployments](#orphaned-deployments))
-do not block: they are finished as failed as part of a successful start, so a stale row cannot wedge
-the service. A rejected (409) start changes nothing. Unfinished deployments started longer ago than the deployment token
-lifetime (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) can no longer report or finish
-and do not block new deployments either. Concurrent starts for the same service are serialized
-by a database row lock on the service, so exactly one of them succeeds.
+are reclassified after their deployment rows are locked, using the current time and steps.
+Rows that are still orphaned are finished as failed as part of a successful start. A row that
+has become active blocks the start, and a rejected (409) start changes nothing. Other unfinished
+deployments that have reached the deployment token lifetime
+(`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) are left untouched and allow the new start,
+even when a step has appeared since the first check. Concurrent starts for the same service are
+serialized by a database row lock on the service, so exactly one of them succeeds.
 
 Admission flush, planned-step insertion or commit failures roll back the entire
 admission and do not launch a task or publish a deployment start.
@@ -234,8 +236,8 @@ wins. The deployment and its planned steps are committed in one transaction befo
 detached deploy task is started, so a task that reports its first step immediately finds the planned
 steps. If the deploy task cannot be started, the deployment is finished as failed at once: its planned
 steps are removed and a step named `deployment launch failed` with state `failure` records the error
-type (details are in the fastdeploy service log). The request is answered with **500** and the failed
-deployment id, and the service is free for the next start:
+type. After this result is committed, fastDeploy attempts to log the details. If logging fails,
+the request still returns **500** with the failed deployment id and the service is free for the next start:
 ```json
 {
   "detail": {
