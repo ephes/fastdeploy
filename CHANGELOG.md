@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Recheck orphaned deployment age against the current time after acquiring both cleanup locks.
 - Preserve orphaned deployment settlement and history reads when writing a cleanup warning fails.
 - Redact exception messages and tracebacks from unexpected step-report failure logs.
 - Return 404 for deployment detail IDs outside PostgreSQL's positive integer range.

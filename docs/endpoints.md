@@ -259,7 +259,9 @@ with state `failure` whose `message` records the reason. The step is returned wi
 shown as a failed step in the web frontend. A later `PUT /deployments/finish/` from the deploy task
 does not change the result. The cleanup, `PUT /deployments/finish/` and `POST /steps/` lock the deployment
 row, so a deploy task that finishes or reports a step at the same time is never marked as orphaned.
-On reads, the cleanup warning is best effort and emitted after the failure result is committed.
+On reads, the final inactivity check uses the time after both locks are held and the current
+steps have been loaded. Step activity reported during the wait counts toward the inactivity
+window. The cleanup warning is best effort and emitted after the failure result is committed.
 
 ### GET /deployments/
 **Purpose**: List a bounded history page; reconcile at most 50 oldest eligible
