@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable, Mapping
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 from uuid import UUID
 
@@ -242,8 +242,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
     except WebSocketDisconnect:
         pass
     except InadmissibleFrame as refusal:
-        logger.info("websocket client %s sent an inadmissible frame: %s", client_id, refusal.reason)
         close_code, close_reason = refusal.code, refusal.reason
+        with suppress(Exception):
+            logger.info("websocket client %s sent an inadmissible frame: %s", client_id, refusal.reason)
     finally:
         # always forget the connection, whatever ended the loop
         was_authenticated = connection_manager.disconnect(client_id, websocket)

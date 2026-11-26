@@ -12,6 +12,7 @@ Unreleased
 ### Fixed
 - Accept the terminal `{"event": "finish", ...}` record of Echoport backup runners without logging
   `step result not posted` on every backup run; other nameless JSON objects are still logged.
+- Preserve the WebSocket close code and reason for refused frames when logging fails.
 - Send the WebSocket authentication failure and close with code 1008 even when refusal logging fails.
 - Bind WebSocket authentication frames to the connection that sent them, even when a client id is reused.
 - Offer a retry while keeping the last visible service list when reconnect interrupts a refresh.

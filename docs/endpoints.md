@@ -526,7 +526,8 @@ the time of the read. Newer rows appear when traversal starts again.
    8 KiB (UTF-8) holding one JSON object without duplicate member names; an `access_token`
    member must be a nonempty string of at most 4,096 characters. Any other frame closes the
    connection before credential work: `1009` (`control message too large`) for an oversized
-   frame, otherwise `1008` (`text frames only` or `invalid control message`). The server
+   frame, otherwise `1008` (`text frames only` or `invalid control message`). The close
+   code and reason are sent even when refusal logging fails. The server
    receives a whole frame before this check, up to Uvicorn's `--ws-max-size` (16 MiB by
    default); deployments can lower that option to bound per-frame memory as well.
 4. Optionally re-authenticate on the same connection by sending a new access token for the
