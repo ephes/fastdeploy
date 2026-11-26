@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Stop a deployment detail refresh from retrying or joining a resync after its session ends.
 - Stop retired login setup from replacing clients or fetching service inventories for a later session.
 - Reject invalid UTF-8 in dashboard JSON responses and keep the last good snapshot; HTTP error responses keep their status.
 - Accept the terminal `{"event": "finish", ...}` record of Echoport backup runners without logging

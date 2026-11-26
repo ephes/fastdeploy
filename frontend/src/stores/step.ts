@@ -262,12 +262,14 @@ export const useSteps = defineStore("steps", {
       }
       // A cancellable refresh joins an in-flight resync instead of superseding it, so
       // cancelling the refresh never drops the resync's inventory. Until an inventory
-      // is published, or the caller cancels or loses ownership, the refresh joins the
-      // newest resync it has not joined yet or traverses again itself. An inventory
+      // is published or the caller loses ownership (including on session turnover),
+      // the refresh joins the newest resync it has not joined yet or traverses again. An inventory
       // published by a traversal that started after this refresh also completes it.
+      const isCurrentSession = rememberSession();
       const since = this.fetchSequence;
       let joined: Promise<boolean> | undefined;
-      while (!callerSignal.aborted && ownsRefresh() && (this.publishedGenerations[deploymentId] ?? 0) <= since) {
+      while (!callerSignal.aborted && isCurrentSession() && ownsRefresh()
+             && (this.publishedGenerations[deploymentId] ?? 0) <= since) {
         const resync = this.liveResyncs[deploymentId];
         if (resync && resync !== joined) {
           joined = resync;

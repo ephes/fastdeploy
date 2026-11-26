@@ -806,8 +806,8 @@ inventory is published, or the view cancels or loses ownership, the detail refre
 joins the newest resync it has not joined yet or traverses again itself, so a
 resync that ends without publishing never leaves the view looking loaded. An
 inventory published by a traversal that started after the detail refresh also
-completes it. Eviction or
-session reset clears the retained inventory and its completeness. A deployment
+completes it. A detail refresh can join or retry only within the session that
+started it. Eviction or session reset clears the retained inventory and its completeness. A deployment
 detail with a complete retained inventory keeps showing its rows and live updates
 during refresh and alongside a retry message if refresh fails. First loads still
 show the loading placeholder. One event fence spans the whole traversal, so
