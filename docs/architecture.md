@@ -799,15 +799,15 @@ a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or ob
 traversals preserve the previous inventory and its completeness. The `fetching` counter
 tracks refreshes in progress. Changing the deployment route or leaving its detail
 view cancels that view's traversal, releases its fetch bookkeeping, and discards
-unfinished pages. WebSocket resync owns its refreshes separately: a detail refresh
-started while a resync for the same deployment is in flight joins that resync
-instead of superseding it, so leaving the view never drops the resync. Until an
-inventory is published, or the view cancels or loses ownership, the detail refresh
+unfinished pages. A detail refresh joins any in-flight WebSocket resync for the
+same deployment. The resync keeps its own deadline and can still publish after
+the detail refresh is cancelled or times out. Until an inventory is published,
+the deadline expires, or the view cancels or loses ownership, the detail refresh
 joins the newest resync it has not joined yet or traverses again itself. A failed
 resync still reports the error to its owner, while the detail refresh can recover
-by fetching the inventory under its own ownership. An
-inventory published by a traversal that started after the detail refresh also
-completes it. A detail refresh can join or retry only within the session that
+by fetching the inventory under its own ownership. An inventory published by a
+traversal that started after the detail refresh also completes it. A detail
+refresh can join or retry only within the session that
 started it. Eviction or session reset clears the retained inventory and its completeness. A deployment
 detail with a complete retained inventory keeps showing its rows and live updates
 during refresh and alongside a retry message if refresh fails. First loads still
@@ -843,11 +843,13 @@ lifecycle, even when an earlier cleanup step raises. A later explicit connect
 starts a fresh lifecycle. Shared engines are never disposed by a non-owning
 request UoW.
 
-A complete step inventory is staged under one 30-second deadline, at most 1,000
-rows and 8 MiB of cumulative response bytes as received (counted per streamed chunk
-before JSON decoding, so whitespace or escapes cannot hide size). Oversize or timed-out traversals
-abort the pending request and preserve the last good rows and their completeness.
-Retry starts a fresh traversal; no partial inventory is published.
+Each step refresh has one 30-second deadline covering all pages, waits for resyncs,
+and any repeated traversals. Each traversal stages at most 1,000 rows and 8 MiB of
+cumulative response bytes as received (counted per streamed chunk before JSON
+decoding, so whitespace or escapes cannot hide size). Oversize or timed-out
+traversals abort their pending request and preserve the last good rows and their
+completeness. A new user-initiated refresh starts a fresh deadline. Only a
+complete inventory is published.
 
 A history page reconciles membership in one set before publishing the updated
 IDs. Accepted WebSocket updates and deletes take precedence over in-flight REST

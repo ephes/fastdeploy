@@ -3,7 +3,7 @@ import { pythonToJavascript } from "../src/converters";
 import { createWebsocketClient } from "../src/websocket";
 import { useAuth } from "../src/stores/auth";
 import { useDeployments } from "../src/stores/deployment";
-import { useSteps } from "../src/stores/step";
+import { INVENTORY_TIMEOUT_MS, useSteps } from "../src/stores/step";
 import { getClientWithoutAuth } from "../src/stores/httpClient";
 import { createEvent, initPinia } from "./conftest";
 
@@ -438,6 +438,57 @@ describe("Step inventory pages", () => {
     expect(get).toHaveBeenCalledTimes(2);
     expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
     expect(store.inventoryComplete[1]).toBe(true);
+  });
+
+  it.each(["joined resync", "owned retry"])("times out the detail refresh at its original deadline while awaiting: %s", async pending => {
+    vi.useFakeTimers();
+    try {
+      const store = useSteps();
+      const pages: { resolve: (rows: unknown) => void; signal: AbortSignal }[] = [];
+      const get = vi.fn((_url, { signal }: { signal: AbortSignal }) => new Promise(resolve => pages.push({ resolve, signal })));
+      store.client = { get } as any;
+      const view = new AbortController();
+      const settled = vi.fn();
+      const detail = store.fetchStepsFromDeployment(1, () => true, view.signal).then(
+        () => settled(), error => settled(error),
+      );
+      const interval = INVENTORY_TIMEOUT_MS / 3;
+
+      await vi.advanceTimersByTimeAsync(interval);
+      const firstResync = store.fetchStepsFromDeployment(1);
+      pages[0].resolve([apiStep]);
+      await vi.advanceTimersByTimeAsync(interval);
+      const lastResync = store.fetchStepsFromDeployment(1, () => pending === "joined resync");
+      pages[1].resolve([apiStep]);
+      await firstResync;
+      if (pending === "owned retry") {
+        pages[2].resolve([apiStep]);
+        await lastResync;
+      }
+
+      await vi.advanceTimersByTimeAsync(interval - 1);
+      expect(get).toHaveBeenCalledTimes(pending === "joined resync" ? 3 : 4);
+      expect(settled).not.toHaveBeenCalled();
+      expect(store.inventoryComplete[1]).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: "TimeoutError" }));
+      await detail;
+      expect(view.signal.aborted).toBe(false);
+
+      if (pending === "joined resync") {
+        expect(pages[2].signal.aborted).toBe(false);
+        pages[2].resolve([apiStep]);
+        await lastResync;
+        expect(store.getStepsByDeployment(1)).toEqual([step]);
+        expect(store.inventoryComplete[1]).toBe(true);
+      } else {
+        expect(pages[3].signal.aborted).toBe(true);
+        expect(store.getStepsByDeployment(1)).toEqual([]);
+      }
+      expect(store.fetching[1]).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("requests an empty final page when the last page was full", async () => {
