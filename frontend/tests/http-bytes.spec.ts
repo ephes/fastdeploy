@@ -37,6 +37,13 @@ it('reports invalid JSON encoding and preserves text and raw response modes', as
   expect(new Uint8Array(await raw.arrayBuffer())).toEqual(bytes);
 });
 
+it('keeps the status of an HTTP refusal whose JSON body is not valid UTF-8', async () => {
+  const bytes = new Uint8Array([0x7b, 0xff, 0x7d]);
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(bytes, { status: 429, statusText: 'Too Many Requests' }))));
+  const error = await getClientWithoutAuth().post('login/', {}).catch(e => e);
+  expect(error).toMatchObject({ message: 'Too Many Requests', response: { status: 429 }, body: null });
+});
+
 it('copies tiny fragments into a bounded number of buffers as they arrive', async () => {
   const payload = 'déploy 🚀 '.repeat(512);
   const bytes = new TextEncoder().encode(JSON.stringify(payload));

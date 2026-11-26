@@ -11,7 +11,7 @@ Unreleased
 
 ### Fixed
 - Stop retired login setup from replacing clients or fetching service inventories for a later session.
-- Reject invalid UTF-8 in dashboard JSON responses and keep the last good snapshot.
+- Reject invalid UTF-8 in dashboard JSON responses and keep the last good snapshot; HTTP error responses keep their status.
 - Accept the terminal `{"event": "finish", ...}` record of Echoport backup runners without logging
   `step result not posted` on every backup run; other nameless JSON objects are still logged.
 - Bound deployment admission to 50 orphan rechecks and direct larger backlogs to history repair before retrying.
