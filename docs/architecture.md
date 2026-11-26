@@ -408,6 +408,8 @@ Reloading the page fetches current state, and resetting the session clears the a
 If the connection drops again during a reconnect refresh, the Services view
 keeps the last visible service list and offers `Retry services` once the
 interrupted request settles. A newer refresh takes precedence.
+If the available-name refresh is interrupted, the view keeps the last available
+names and offers a separate `Retry service names` action.
 
 The Services view allows one sync action per login session at a time. The sync,
 force sync and retry sync controls are disabled while the action is pending,

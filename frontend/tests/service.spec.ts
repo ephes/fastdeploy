@@ -149,6 +149,60 @@ describe("Service inventory refresh", () => {
     expect(store.servicesLoading).toBe(false);
     expect(store.servicesError).toBe("");
   });
+
+  it.each(["resolves", "rejects"])("offers retry when a service name refresh loses its owner and %s", async outcome => {
+    const store = useServices();
+    const interrupted = deferred();
+    store.client.get = vi.fn()
+      .mockResolvedValueOnce(["available"])
+      .mockReturnValueOnce(interrupted.promise)
+      .mockResolvedValueOnce(["replacement"]);
+    await store.fetchServiceNames();
+
+    let ownsRefresh = true;
+    const refresh = store.fetchServiceNames(() => ownsRefresh);
+    ownsRefresh = false;
+    if (outcome === "resolves") interrupted.resolve([]);
+    else interrupted.reject(new Error("offline"));
+    await refresh;
+
+    expect(store.getAvailableServiceNames).toEqual(["available"]);
+    expect(store.serviceNamesLoading).toBe(false);
+    expect(store.serviceNamesError).toBe("Could not load service names. Try again.");
+
+    await store.fetchServiceNames();
+    expect(store.getAvailableServiceNames).toEqual(["replacement"]);
+    expect(store.serviceNamesLoading).toBe(false);
+    expect(store.serviceNamesError).toBe("");
+  });
+
+  it.each(["generation", "session"])("ignores owner loss from an obsolete service name %s", async scope => {
+    const store = useServices();
+    const obsolete = deferred();
+    const current = deferred();
+    store.client.get = vi.fn().mockReturnValueOnce(obsolete.promise);
+
+    let ownsRefresh = true;
+    const oldRefresh = store.fetchServiceNames(() => ownsRefresh);
+    if (scope === "session") {
+      useAuth().sessionId++;
+      store.$reset();
+    }
+    store.client.get = vi.fn().mockReturnValueOnce(current.promise);
+    const newRefresh = store.fetchServiceNames();
+    ownsRefresh = false;
+    obsolete.resolve(["obsolete"]);
+    await oldRefresh;
+    expect(store.getAvailableServiceNames).toEqual([]);
+    expect(store.serviceNamesLoading).toBe(true);
+    expect(store.serviceNamesError).toBe("");
+
+    current.resolve(["current"]);
+    await newRefresh;
+    expect(store.getAvailableServiceNames).toEqual(["current"]);
+    expect(store.serviceNamesLoading).toBe(false);
+    expect(store.serviceNamesError).toBe("");
+  });
 });
 
 describe("Services sync", () => {

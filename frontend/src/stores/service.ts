@@ -222,16 +222,22 @@ export const useServices = defineStore("services", {
     async fetchServiceNames(ownsRefresh: () => boolean = () => true) {
       const isCurrentSession = rememberSession();
       const generation = ++this.serviceNamesGeneration;
-      const isCurrent = () => isCurrentSession() && ownsRefresh() && generation === this.serviceNamesGeneration;
+      const ownsInventory = () => isCurrentSession() && generation === this.serviceNamesGeneration;
+      const retryError = "Could not load service names. Try again.";
       this.serviceNamesLoading = true;
       this.serviceNamesError = "";
       try {
         const names = await this.client.get<unknown>("services/names/");
-        if (isCurrent()) this.serviceNames = serviceNamesSnapshot(names);
+        if (!ownsInventory()) return;
+        if (!ownsRefresh()) {
+          this.serviceNamesError = retryError;
+          return;
+        }
+        this.serviceNames = serviceNamesSnapshot(names);
       } catch {
-        if (isCurrent()) this.serviceNamesError = "Could not load service names. Try again.";
+        if (ownsInventory()) this.serviceNamesError = retryError;
       } finally {
-        if (isCurrentSession() && generation === this.serviceNamesGeneration) this.serviceNamesLoading = false;
+        if (ownsInventory()) this.serviceNamesLoading = false;
       }
     },
     /**
