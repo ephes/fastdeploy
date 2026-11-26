@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Send the WebSocket authentication failure and close with code 1008 even when refusal logging fails.
+- Bind WebSocket authentication frames to the connection that sent them, even when a client id is reused.
 - Offer a retry while keeping the last visible service list when reconnect interrupts a refresh.
 - Offer a separate retry and retain the last available service names when a reconnect refresh is interrupted.
 - Cancel pending step inventory requests when changing or leaving a deployment detail route,

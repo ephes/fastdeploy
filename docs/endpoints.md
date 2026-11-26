@@ -512,6 +512,9 @@ the time of the read. Newer rows appear when traversal starts again.
    On failure (invalid or expired token, a service/deployment/config token, or a user that no
    longer exists) the server sends `{"type": "authentication", "status": "failure"}` and closes
    the connection with code `1008`. Reconnect with a new token to try again.
+   Failure diagnostics are best effort. A logging error during token verification
+   refusal or a different-user re-authentication refusal does not interrupt the
+   failure response or policy close.
    If the token expires during verification, the server follows the same failure path
    before registering the socket as authenticated or scheduling its expiry.
    The first authentication has to succeed within `WEBSOCKET_AUTH_TIMEOUT_SECONDS` (default 10)
@@ -528,7 +531,9 @@ the time of the read. Newer rows appear when traversal starts again.
    default); deployments can lower that option to bound per-frame memory as well.
 4. Optionally re-authenticate on the same connection by sending a new access token for the
    **same** user; this replaces the session expiry. A token for a different user is rejected and
-   closes the connection.
+   closes the connection. Authentication and re-authentication apply only to the socket
+   that sent the token. If that socket has been retired, the server discards the attempt
+   and leaves any connection that reused the client id untouched.
 5. Receive real-time events (only authenticated connections receive broadcasts):
    ```json
    {
