@@ -83,7 +83,6 @@ it("applies a refused finish to the stale REST row of an uncached older run", as
 
   expect(store.historyDeployments.map(({ id }) => id)).toEqual([1]);
   expect(store.deployments[1].finished).toEqual(finished);
-  expect(store.retiredFinishes.size).toBe(0);
 });
 
 it("keeps a buffered finish across a later start acknowledgement and delayed start event", async () => {
@@ -134,6 +133,35 @@ it("keeps a refused finish for a start acknowledged after the history page settl
   expect((await starting)!.finished).toEqual(finished);
   const lateStart = { ...row(1), type: "deployment" as const, serviceId: 1, started: new Date(row(1).started) };
   store.onMessage(lateStart);
+
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("keeps a refused finish after its acknowledged row is evicted again", async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services[2] = { id: 2, name: "other", data: {} } as any;
+  services.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(2);
+  // Finished rows of service 1 fill the inactive cache and advance the retirement fence.
+  for (let id = 2; id <= 102; id++) {
+    const finishEvent = { ...row(id), type: "deployment" as const, serviceId: 1, finished };
+    store.onMessage(finishEvent);
+  }
+  const finishEvent = { ...row(1, 2), type: "deployment" as const, serviceId: 2, finished };
+  store.onMessage(finishEvent);
+  expect(store.deployments[1]).toBeUndefined();
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(2);
+  const client = { post: vi.fn().mockResolvedValue(row(1, 2)), options: { headers: {} } } as any;
+  expect((await store.startDeployment("other", client))!.finished).toEqual(finished);
+  expect(store.deployments[1]).toBeUndefined();
+  respond([row(1, 2)]);
+  await refresh;
 
   expect(store.deployments[1].finished).toEqual(finished);
 });

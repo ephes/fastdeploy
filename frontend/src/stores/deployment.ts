@@ -104,8 +104,8 @@ export const useDeployments = defineStore("deployments", {
     /** A finish is terminal: admit a row with the finish the retirement fence refused for it. */
     withRetiredFinish(deployment: Deployment): Deployment {
       const finish = deployment.finished ? undefined : this.retiredFinishes.get(deployment.id);
+      // Kept after use: the admitted row can be evicted again before a stale page returns.
       if (!finish) return deployment;
-      this.retiredFinishes.delete(deployment.id);
       useSteps().finishDeployment(deployment.id);
       return finish;
     },
