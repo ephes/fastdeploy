@@ -10,7 +10,7 @@ export const INVENTORY_MAX_ROWS = 1000;
 export const INVENTORY_MAX_BYTES = 8 * 1024 * 1024;
 export const INVENTORY_TIMEOUT_MS = 30_000;
 
-/** Await a traversal until it settles or the caller cancels; resolves whether it published. */
+/** Await publication by a shared traversal, keeping caller cancellation independent. */
 async function joinTraversal(traversal: Promise<boolean>, signal: AbortSignal): Promise<boolean> {
   let cancel!: () => void;
   const cancelled = new Promise<never>((_resolve, reject) => {
@@ -18,7 +18,7 @@ async function joinTraversal(traversal: Promise<boolean>, signal: AbortSignal): 
     signal.addEventListener("abort", cancel, { once: true });
   });
   try {
-    return await Promise.race([traversal, cancelled]);
+    return await Promise.race([traversal.catch(() => false), cancelled]);
   } finally {
     signal.removeEventListener("abort", cancel);
   }
@@ -245,42 +245,53 @@ export const useSteps = defineStore("steps", {
      *
      * @param deploymentId {number} The deployment id
      * @param ownsRefresh Whether the caller still owns this traversal
-     * @param callerSignal Cancels the traversal and its active HTTP request
+     * @param callerSignal Cancels the detail refresh and any HTTP request it owns
      */
     async fetchStepsFromDeployment(
       deploymentId: number, ownsRefresh: () => boolean = () => true, callerSignal?: AbortSignal,
     ): Promise<void> {
-      if (!callerSignal) {
-        const traversal = this.traverseStepInventory(deploymentId, ownsRefresh);
-        const resyncs = this.liveResyncs;
-        resyncs[deploymentId] = traversal;
-        void traversal.catch(() => false).finally(() => {
-          if (resyncs[deploymentId] === traversal) delete resyncs[deploymentId];
-        });
-        await traversal;
-        return;
-      }
-      // A cancellable refresh joins an in-flight resync instead of superseding it, so
-      // cancelling the refresh never drops the resync's inventory. Until an inventory
-      // is published or the caller loses ownership (including on session turnover),
-      // the refresh joins the newest resync it has not joined yet or traverses again. An inventory
-      // published by a traversal that started after this refresh also completes it.
-      const isCurrentSession = rememberSession();
-      const since = this.fetchSequence;
-      let joined: Promise<boolean> | undefined;
-      while (!callerSignal.aborted && isCurrentSession() && ownsRefresh()
-             && (this.publishedGenerations[deploymentId] ?? 0) <= since) {
-        const resync = this.liveResyncs[deploymentId];
-        if (resync && resync !== joined) {
-          joined = resync;
-          if (await joinTraversal(resync, callerSignal)) return;
-        } else if (await this.traverseStepInventory(deploymentId, ownsRefresh, callerSignal)) {
+      if (callerSignal?.aborted) return;
+      const refresh = new AbortController();
+      const cancel = () => refresh.abort(callerSignal?.reason);
+      callerSignal?.addEventListener("abort", cancel, { once: true });
+      const timer = setTimeout(() => {
+        refresh.abort(new DOMException("Step inventory timed out. Try again.", "TimeoutError"));
+      }, INVENTORY_TIMEOUT_MS);
+      try {
+        if (!callerSignal) {
+          const traversal = this.traverseStepInventory(deploymentId, ownsRefresh, refresh.signal);
+          const resyncs = this.liveResyncs;
+          resyncs[deploymentId] = traversal;
+          void traversal.catch(() => false).finally(() => {
+            if (resyncs[deploymentId] === traversal) delete resyncs[deploymentId];
+          });
+          await traversal;
           return;
         }
+        // A detail refresh spends one deadline on joins and traversals it owns.
+        // Leaving a join keeps the resync's separate deadline and request active.
+        const isCurrentSession = rememberSession();
+        // Publication by a traversal that starts after this refresh also satisfies it.
+        const since = this.fetchSequence;
+        let joined: Promise<boolean> | undefined;
+        while (!callerSignal.aborted && isCurrentSession() && ownsRefresh()
+               && (this.publishedGenerations[deploymentId] ?? 0) <= since) {
+          refresh.signal.throwIfAborted();
+          const resync = this.liveResyncs[deploymentId];
+          if (resync && resync !== joined) {
+            joined = resync;
+            if (await joinTraversal(resync, refresh.signal)) return;
+          } else if (await this.traverseStepInventory(deploymentId, ownsRefresh, refresh.signal)) {
+            return;
+          }
+        }
+      } finally {
+        clearTimeout(timer);
+        callerSignal?.removeEventListener("abort", cancel);
       }
     },
     async traverseStepInventory(
-      deploymentId: number, ownsRefresh: () => boolean, callerSignal?: AbortSignal,
+      deploymentId: number, ownsRefresh: () => boolean, refreshSignal: AbortSignal,
     ): Promise<boolean> {
       const isCurrentSession = rememberSession();
       this.retainDeployment(deploymentId, true);
@@ -292,18 +303,13 @@ export const useSteps = defineStore("steps", {
       const pending = pendingFetches[deploymentId] ??= markRaw(new Set<Set<number>>());
       pending.add(changed);
       const controller = new AbortController();
-      let timer: ReturnType<typeof setTimeout> | undefined;
       let cancel!: () => void;
       const interrupted = new Promise<never>((_resolve, reject) => {
-        const abort = (reason: unknown) => {
-          reject(reason);
-          controller.abort(reason);
+        cancel = () => {
+          reject(refreshSignal.reason);
+          controller.abort(refreshSignal.reason);
         };
-        cancel = () => abort(callerSignal?.reason);
-        callerSignal?.addEventListener("abort", cancel, { once: true });
-        timer = setTimeout(() => {
-          abort(new DOMException("Step inventory timed out. Try again.", "TimeoutError"));
-        }, INVENTORY_TIMEOUT_MS);
+        refreshSignal.addEventListener("abort", cancel, { once: true });
       });
       try {
         this.inventoryComplete[deploymentId] ??= false;
@@ -320,7 +326,8 @@ export const useSteps = defineStore("steps", {
           if (beforeId !== null) params.set("before_id", beforeId.toString());
           const options: BoundedOptions<"json"> = { signal: controller.signal, onBodyBytes: countBytes };
           const response = await Promise.race([interrupted, this.client.get<unknown>("steps/?" + params, options)]);
-          if (controller.signal.aborted || !isCurrentSession() || !ownsRefresh() ||
+          refreshSignal.throwIfAborted();
+          if (!isCurrentSession() || !ownsRefresh() ||
               this.fetchGenerations[deploymentId] !== generation) return false;
           const page = stepPage(response, deploymentId, beforeId);
           if (steps.length + page.length > INVENTORY_MAX_ROWS) throw new Error("Step inventory is too large.");
@@ -351,8 +358,7 @@ export const useSteps = defineStore("steps", {
           if (--this.fetching[deploymentId] === 0) delete this.fetching[deploymentId];
           this.pruneHistory();
         }
-        clearTimeout(timer);
-        callerSignal?.removeEventListener("abort", cancel);
+        refreshSignal.removeEventListener("abort", cancel);
         controller.abort();
         pending.delete(changed);
         if (!pending.size) delete pendingFetches[deploymentId];
