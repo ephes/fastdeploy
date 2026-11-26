@@ -228,7 +228,8 @@ deployment is created or started. The response names the running deployment:
 ```
 Orphaned unfinished deployments of the service (see [Orphaned deployments](#orphaned-deployments))
 are reclassified after their deployment rows are locked, using the current time and steps.
-Rows that are still orphaned are finished as failed as part of a successful start. A row that
+Rows that are still orphaned are finished as failed as part of a successful start, even if
+orphan warning logging fails. A row that
 has become active blocks the start, and a rejected (409) start changes nothing. Other unfinished
 deployments that have reached the deployment token lifetime
 (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) are left untouched and allow the new start,

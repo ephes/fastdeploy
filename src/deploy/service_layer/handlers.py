@@ -259,7 +259,8 @@ async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitO
             locked.append(orphan)
 
     for orphan in locked:
-        logger.warning("Finishing orphaned deployment %s as failed before starting a new one", orphan.id)
+        with suppress(Exception):
+            logger.warning("Finishing orphaned deployment %s as failed before starting a new one", orphan.id)
         await stage_orphaned_deployment_finish(orphan, orphan.steps, uow)
 
 

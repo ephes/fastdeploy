@@ -674,6 +674,37 @@ async def test_deploy_start_reconciles_orphaned_deployment(popen, app, uow, serv
     assert_finished_as_orphaned(steps)
 
 
+@pytest.mark.db("in_memory")
+@patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_start_commits_orphan_and_launches_once_when_warning_fails(
+    popen, app, uow, publisher, service_in_db, valid_service_token_in_db, monkeypatch
+):
+    old = datetime.now(timezone.utc) - timedelta(minutes=10)
+    orphan = await add_unfinished_deployment(uow, service_in_db.id, old, step_states=("success",))
+    warning = Mock(side_effect=RuntimeError("synthetic warning failure"))
+    commit = AsyncMock(wraps=uow.commit)
+    monkeypatch.setattr(handlers.logger, "warning", warning)
+    monkeypatch.setattr(uow, "commit", commit)
+
+    response = await post_start_deployment(app, valid_service_token_in_db)
+    retry = await post_start_deployment(app, valid_service_token_in_db)
+
+    assert response.status_code == 200
+    started_id = response.json()["id"]
+    assert retry.status_code == 409
+    assert retry.json()["detail"]["deployment_id"] == started_id
+    warning.assert_called_once()
+    commit.assert_awaited_once()
+    popen.assert_called_once()
+    async with uow:
+        assert {d.id for d in await uow.deployments.list()} == {orphan.id, started_id}
+        assert (await uow.deployments.get(orphan.id)).finished is not None
+        steps = await uow.steps.get_steps_by_deployment(orphan.id)
+    assert_finished_as_orphaned(steps)
+    assert sum(step.name == model.ORPHANED_STEP_NAME for step in steps) == 1
+    assert [event.id for _, event in publisher.events if isinstance(event, events.DeploymentFinished)] == [orphan.id]
+
+
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
 @patch("deploy.tasks.subprocess.Popen")
 async def test_deploy_rejected_while_deployment_has_running_steps(

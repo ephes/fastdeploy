@@ -12,6 +12,7 @@ Unreleased
 ### Fixed
 - Accept the terminal `{"event": "finish", ...}` record of Echoport backup runners without logging
   `step result not posted` on every backup run; other nameless JSON objects are still logged.
+- Complete deployment admission and orphan settlement when orphan warning logging fails.
 - Return the generic HTTP 500 response and applicable private cache headers when error logging fails.
 - Preserve the WebSocket close code and reason for refused frames when logging fails.
 - Send the WebSocket authentication failure and close with code 1008 even when refusal logging fails.
