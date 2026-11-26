@@ -82,6 +82,36 @@ it.each([null, {}, [null], ['valid', 7], ['valid', {}], ['duplicate', 'duplicate
   expect(store.serviceNamesLoading).toBe(false);
 });
 
+it('retains the service snapshot for invalid UTF-8 and admits a split multibyte name', async () => {
+  const store = useServices();
+  store.services = { 1: service(1) };
+  const before = store.services;
+  const encoder = new TextEncoder();
+  const response = (nameBytes: number[][]) => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode('[{"id":2,"name":"caf'));
+      for (const chunk of nameBytes) controller.enqueue(new Uint8Array(chunk));
+      controller.enqueue(encoder.encode('","data":{}}]'));
+      controller.close();
+    },
+  }));
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(response([[0xff]]))
+    .mockResolvedValueOnce(response([[0xc3], [0xa9]])));
+
+  try {
+    await store.fetchServices();
+    expect(store.services).toBe(before);
+    expect(store.servicesError).toContain('Could not load');
+
+    await store.fetchServices();
+    expect(store.getServices.map(row => row.name)).toEqual(['café']);
+    expect(store.servicesError).toBe('');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it('refuses a step id already cached under another deployment before pruning', async () => {
   const store = useSteps();
   store.addStep({ id: 1, deploymentId: 1, name: 'old', state: 'running', message: '', started: null, finished: null });

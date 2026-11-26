@@ -108,11 +108,16 @@ export const useAuth = defineStore("auth", () => {
      * Functions that have to be called after successful authentication
      */
     async onLoginSuccess(): Promise<void> {
-      await useAuth(pinia).initWebsocketClient();
-      await useAuth(pinia).setAuthenticatedClients();
+      const auth = useAuth(pinia);
+      const sessionId = state.sessionId;
+      const isCurrent = () => state.sessionId === sessionId;
+      await auth.initWebsocketClient();
+      if (!isCurrent()) return;
+      await auth.setAuthenticatedClients();
+      if (!isCurrent()) return;
       const serviceStore = useServices(pinia);
       serviceStore.fetchServices();
-      serviceStore.fetchServiceNames();
+      if (isCurrent()) serviceStore.fetchServiceNames();
     },
     /**
      * Logs in the user with the given credentials. Need to use

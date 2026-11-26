@@ -27,6 +27,23 @@ it('admits exactly the byte limit, preserves bounded error JSON, and auth header
   await expect(client.get('services/')).rejects.toMatchObject({ response: { status: 409 }, body: { detail: 'refused' } });
 });
 
+it('reports invalid JSON encoding and preserves text and raw response modes', async () => {
+  const bytes = new Uint8Array([0x22, 0xff, 0x22]);
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(bytes))));
+  const client = getClientWithoutAuth();
+  await expect(client.get('services/')).rejects.toThrow('Server JSON response is not valid UTF-8.');
+  await expect(client.get('services/', { responseAs: 'text' })).resolves.toBe('"�"');
+  const raw = await client.get('services/', { responseAs: 'response' });
+  expect(new Uint8Array(await raw.arrayBuffer())).toEqual(bytes);
+});
+
+it('keeps the status of an HTTP refusal whose JSON body is not valid UTF-8', async () => {
+  const bytes = new Uint8Array([0x7b, 0xff, 0x7d]);
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(bytes, { status: 429, statusText: 'Too Many Requests' }))));
+  const error = await getClientWithoutAuth().post('login/', {}).catch(e => e);
+  expect(error).toMatchObject({ message: 'Too Many Requests', response: { status: 429 }, body: null });
+});
+
 it('copies tiny fragments into a bounded number of buffers as they arrive', async () => {
   const payload = 'déploy 🚀 '.repeat(512);
   const bytes = new TextEncoder().encode(JSON.stringify(payload));

@@ -432,6 +432,13 @@ authentication defaults.
 
 ### REST snapshot admission
 
+The dashboard decodes bounded JSON response bodies as strict UTF-8. Invalid
+encoding raises a protocol error before snapshot validation, preserving the last
+good snapshot and its retry path. An HTTP error response with a malformed body
+keeps its status (for example 429 on login) and carries no body. Explicit text
+responses still use replacement
+characters for malformed bytes, and raw responses preserve the bytes.
+
 Deployment history validates every row before modifying cached data or paging
 state. Pages have at most 50 unique positive safe integer ids in strictly descending
 order below `before_id`, and every row must belong to `service_id` when requested.

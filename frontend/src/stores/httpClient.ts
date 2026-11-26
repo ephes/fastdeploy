@@ -21,6 +21,11 @@ export const MAX_RESPONSE_BYTES = 1024 * 1024;
  */
 export type BoundedOptions<R extends ResponseAsTypes = ResponseAsTypes> = Options<R> & { onBodyBytes?: (bytes: number) => void };
 
+/** A JSON response body that is not valid UTF-8; never parsed. */
+class InvalidJsonEncodingError extends Error {
+  constructor() { super('Server JSON response is not valid UTF-8.'); }
+}
+
 async function decodeBounded(
   response: Response, signal: AbortSignal, responseAs: Options['responseAs'], onBodyBytes?: (bytes: number) => void,
 ) {
@@ -52,8 +57,13 @@ async function decodeBounded(
     }
     const bytes = buffer.subarray(0, length);
     if (responseAs === 'response') return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
-    const text = new TextDecoder().decode(bytes);
-    if (responseAs === 'text') return text;
+    if (responseAs === 'text') return new TextDecoder().decode(bytes);
+    let text: string;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      throw new InvalidJsonEncodingError();
+    }
     try { return JSON.parse(text); } catch { return null; }
   } catch (error) {
     cancel();
@@ -125,9 +135,16 @@ export const getClientWithoutAuth = (
           response = (error as Error & { response: Response }).response;
         }
         checkDestination(response);
-        const body = await decodeBounded(
-          response, signal, options?.responseAs ?? client.options.responseAs ?? 'json', onBodyBytes,
-        );
+        let body: unknown;
+        try {
+          body = await decodeBounded(
+            response, signal, options?.responseAs ?? client.options.responseAs ?? 'json', onBodyBytes,
+          );
+        } catch (error) {
+          // An HTTP refusal keeps its status even when its body is malformed; the body is dropped.
+          if (response.ok || !(error instanceof InvalidJsonEncodingError)) throw error;
+          body = null;
+        }
         checkDestination();
         if (!response.ok) {
           throw Object.assign(new Error(response.statusText), { response, body });

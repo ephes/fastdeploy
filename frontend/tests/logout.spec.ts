@@ -186,6 +186,49 @@ describe("Logout", () => {
     ]);
   });
 
+  it.each(["initWebsocketClient", "setAuthenticatedClients"] as const)(
+    "retires login initialization paused after %s",
+    async phase => {
+      const auth = useAuth();
+      const started = deferred<void>();
+      const resume = deferred<void>();
+      const action = auth[phase];
+      vi.spyOn(auth, phase).mockImplementationOnce(async () => {
+        await action();
+        started.resolve();
+        await resume.promise;
+      });
+      const initialize = vi.spyOn(auth, "onLoginSuccess");
+      const stores = [useServices(), useDeployments(), useSteps()];
+
+      await loginAs("first", "first-token");
+      await started.promise;
+      const firstSocket = FakeWebSocket.instances[0];
+      expect(firstSocket).toBeDefined();
+      expect(requests).toEqual([]);
+      auth.logout();
+
+      await loginAs("second", "second-token");
+      await initialize.mock.results[1].value;
+      const clients = stores.map(store => store.client);
+      const socket = auth.websocketClient;
+      resume.resolve();
+      await initialize.mock.results[0].value;
+
+      expect(firstSocket.closeCalls).toBe(1);
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(auth.websocketClient).toBe(socket);
+      stores.forEach((store, index) => {
+        expect(store.client).toBe(clients[index]);
+        expect(store.client.options.headers.Authorization).toBe("Bearer second-token");
+      });
+      expect(requests).toEqual([
+        "GET http://localhost:8000/services/ Bearer second-token",
+        "GET http://localhost:8000/services/names/ Bearer second-token",
+      ]);
+    },
+  );
+
   it("sends no request with the old token after logout", async () => {
     const { authStore } = await aliceSession();
     requests.length = 0;
