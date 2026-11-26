@@ -46,6 +46,8 @@ export const useSteps = defineStore("steps", {
       fetchGenerations: {} as Record<number, number>,
       /** The newest in-flight traversal without a caller signal (e.g. WebSocket resync), per deployment. */
       liveResyncs: {} as Partial<Record<number, Promise<boolean>>>,
+      /** Generation of the traversal that last published an inventory, per deployment. */
+      publishedGenerations: {} as Record<number, number>,
       fetchSequence: 0,
       retainedDeploymentIds: [] as number[],
       retiredThrough: 0,
@@ -134,6 +136,7 @@ export const useSteps = defineStore("steps", {
       delete this.inventoryComplete[id];
       delete this.finishedDeployments[id];
       delete this.fetchGenerations[id];
+      delete this.publishedGenerations[id];
       delete this.stepEventFloors[id];
       this.retainedDeploymentIds = this.retainedDeploymentIds.filter(existing => existing !== id);
     },
@@ -260,9 +263,11 @@ export const useSteps = defineStore("steps", {
       // A cancellable refresh joins an in-flight resync instead of superseding it, so
       // cancelling the refresh never drops the resync's inventory. Until an inventory
       // is published, or the caller cancels or loses ownership, the refresh joins the
-      // newest resync it has not joined yet or traverses again itself.
+      // newest resync it has not joined yet or traverses again itself. An inventory
+      // published by a traversal that started after this refresh also completes it.
+      const since = this.fetchSequence;
       let joined: Promise<boolean> | undefined;
-      while (!callerSignal.aborted && ownsRefresh()) {
+      while (!callerSignal.aborted && ownsRefresh() && (this.publishedGenerations[deploymentId] ?? 0) <= since) {
         const resync = this.liveResyncs[deploymentId];
         if (resync && resync !== joined) {
           joined = resync;
@@ -337,6 +342,7 @@ export const useSteps = defineStore("steps", {
           this.pruneSuspended--;
         }
         this.inventoryComplete[deploymentId] = true;
+        this.publishedGenerations[deploymentId] = generation;
         return true;
       } finally {
         if (isCurrentSession()) {

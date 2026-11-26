@@ -387,6 +387,23 @@ describe("Step inventory pages", () => {
     expect(store.inventoryComplete[1]).toBe(true);
   });
 
+  it("completes a refresh when a superseding resync publishes before the refresh page returns", async () => {
+    const store = useSteps();
+    const respond: ((rows: unknown) => void)[] = [];
+    const get = vi.fn(() => new Promise(resolve => respond.push(resolve)));
+    store.client = { get } as any;
+    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal);
+    const resync = store.fetchStepsFromDeployment(1);
+    respond[1]([apiStep]);
+    await resync;
+    respond[0]([]);
+    await detail;
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
+    expect(store.inventoryComplete[1]).toBe(true);
+  });
+
   it("requests an empty final page when the last page was full", async () => {
     const store = useSteps();
     const get = vi.fn().mockResolvedValueOnce(Array.from({ length: 25 }, (_, i) => row(25 - i)))
