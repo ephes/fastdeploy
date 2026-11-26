@@ -290,7 +290,8 @@ class ConnectionManager:
             if not username:
                 raise ValueError("user without name")
         except Exception:
-            logger.info("websocket access token verification failed for client %s", client_id, exc_info=True)
+            with contextlib.suppress(Exception):  # diagnostics are best effort
+                logger.info("websocket access token verification failed for client %s", client_id, exc_info=True)
             await self.reject(client_id, "access token verification failed", websocket)
             return False
 
@@ -299,7 +300,8 @@ class ConnectionManager:
             return False
         bound_user = self.principals.get(client_id)
         if bound_user is not None and bound_user != username:
-            logger.warning("websocket client %s tried to re-authenticate as a different user", client_id)
+            with contextlib.suppress(Exception):  # diagnostics are best effort
+                logger.warning("websocket client %s tried to re-authenticate as a different user", client_id)
             await self.reject(client_id, "client id is bound to a different user", websocket)
             return False
 

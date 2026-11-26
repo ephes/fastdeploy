@@ -2,6 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import ClassVar
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -300,6 +301,39 @@ async def test_websocket_refusal_closes_even_if_logging_fails(failing_websocket_
     assert not refused.accepted
     assert refused.close_code == 1008
     assert cm.all_connections[client_id] is existing
+
+
+@pytest.mark.parametrize(
+    ("verification_error", "detail"),
+    [
+        (True, "access token verification failed"),
+        (False, "client id is bound to a different user"),
+    ],
+)
+async def test_authentication_refusal_survives_logging_failure(
+    monkeypatch, failing_websocket_log_handler, in_memory_uow, verification_error, detail
+):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    socket = RecordingWebsocket()
+    await cm.connect(client_id, socket)
+    close = AsyncMock(wraps=socket.close)
+    monkeypatch.setattr(socket, "close", close)
+    expiry = (datetime.now(timezone.utc) + timedelta(minutes=1)).timestamp()
+    verify = AsyncMock(return_value=(model.User(name="synthetic"), expiry))
+    if verification_error:
+        verify.side_effect = ValueError("synthetic verification failure")
+    else:
+        cm.active_connections[client_id] = socket
+        cm.principals[client_id] = "original"
+    monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", verify)
+
+    assert not await cm.authenticate(client_id, "synthetic-token", in_memory_uow, websocket=socket)
+
+    assert socket.sent == [{"type": "authentication", "status": "failure", "detail": detail}]
+    close.assert_awaited_once_with(code=1008, reason="")
+    assert_forgotten(cm, client_id)
+    assert client_id not in cm.send_locks
 
 
 @pytest.mark.parametrize("failure", ["queue_timeout", "transport_error"])

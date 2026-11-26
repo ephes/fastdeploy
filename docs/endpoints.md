@@ -512,6 +512,9 @@ the time of the read. Newer rows appear when traversal starts again.
    On failure (invalid or expired token, a service/deployment/config token, or a user that no
    longer exists) the server sends `{"type": "authentication", "status": "failure"}` and closes
    the connection with code `1008`. Reconnect with a new token to try again.
+   Failure diagnostics are best effort. A logging error during token verification
+   refusal or a different-user re-authentication refusal does not interrupt the
+   failure response or policy close.
    If the token expires during verification, the server follows the same failure path
    before registering the socket as authenticated or scheduling its expiry.
    The first authentication has to succeed within `WEBSOCKET_AUTH_TIMEOUT_SECONDS` (default 10)
