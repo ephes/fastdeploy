@@ -342,6 +342,46 @@ async def test_deploy_steps_logs_nameless_result_bounded_without_values(task, ca
     assert len(line) < 1000
 
 
+@pytest.mark.parametrize(
+    "finish",
+    [
+        # Exact records printed by finish_stdout() of the ops-deploy Echoport runners.
+        {"event": "finish", "status": "success"},
+        {"event": "finish", "status": "success", "message": "Backup completed: backups/x/2026-11-26.tar.gz"},
+        {"event": "finish", "status": "failure", "message": "Backup failed: boom"},
+    ],
+)
+async def test_deploy_steps_accepts_echoport_finish_event_silently(task, capsys, finish):
+    stdout_lines = [
+        {"name": "init", "state": "success", "message": "Configuration validated"},
+        {"name": "result", "state": "success", "message": 'ECHOPORT_RESULT:{"success": true}'},
+        finish,
+        None,
+    ]
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=DeployProc(stdout_lines).create_subprocess_exec):
+        await task.deploy_steps()
+
+    assert [step["name"] for step in task.client.post_calls] == ["init", "result"]
+    assert capsys.readouterr().err == ""
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        {"event": "finish", "status": "done"},
+        {"event": "start", "status": "success"},
+        {"event": "finish", "status": "success", "extra": "x"},
+        {"event": "finish", "status": "success", "message": ["x"]},
+    ],
+)
+async def test_deploy_steps_still_logs_unknown_event_records(task, capsys, record):
+    with patch("deploy.tasks.asyncio.create_subprocess_exec", new=DeployProc([record, None]).create_subprocess_exec):
+        await task.deploy_steps()
+
+    assert task.client.post_calls == []
+    assert "step result not posted: no name in JSON object" in capsys.readouterr().err
+
+
 async def test_deploy_steps_keeps_draining_stdout_after_invalid_step(task, capsys):
     stdout_lines = [{"name": "step1", "state": "success"}, {"name": "step2", "state": "success"}, None]
     proc = DeployProc(stdout_lines)

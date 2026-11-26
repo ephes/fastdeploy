@@ -186,6 +186,11 @@ is rejected locally before HTTP or value-bearing diagnostics. Only the fixed `in
 protocol category is logged; the rejected name/state is never logged. Later output is still drained,
 but the run cannot finish successfully even if the script exits zero (see below).
 Scripts must therefore not print other JSON objects with a `name` member.
+A JSON object without `name` is not reported and is logged on stderr as `step result not posted`
+with its size and key names (never its values). The one exception is the terminal record of the
+Echoport backup runners, `{"event": "finish", "status": "success"|"failure", "message": "..."}`
+(`message` optional, no other members): its outcome is already reported as the named `result` step,
+so the task accepts it silently.
 JSON members must be unique at every depth. Records may contain at most 64 nested object/array levels;
 nonfinite numbers and integers beyond the interpreter's digit limit are refused. Duplicate members, excessive
 nesting, numeric/resource decoder errors and malformed lines that open a JSON object with a member name

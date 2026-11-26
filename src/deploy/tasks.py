@@ -172,6 +172,21 @@ MAX_RESULT_DEPTH = 64
 # "[WARNING]: ..." on the merged stderr or a bare "{" of pretty-printed JSON,
 # stays ordinary output.
 RUNNER_RECORD_PREFIX = re.compile(rb'\s*\{\s*"')
+# Echoport backup runners end with {"event": "finish", "status": ..., "message": ...}.
+# Their outcome is already reported as the named "result" step, so this record is
+# accepted without a report or a log line.
+RUNNER_FINISH_EVENT_KEYS = frozenset({"event", "status", "message"})
+RUNNER_FINISH_EVENT_STATUSES = ("success", "failure")
+
+
+def is_runner_finish_event(record: dict) -> bool:
+    """Whether a JSON object is the terminal finish event of an Echoport runner."""
+    return (
+        record.get("event") == "finish"
+        and record.get("status") in RUNNER_FINISH_EVENT_STATUSES
+        and set(record) <= RUNNER_FINISH_EVENT_KEYS
+        and isinstance(record.get("message", ""), str)
+    )
 
 
 def is_utf8_encodable(value: str) -> bool:
@@ -509,6 +524,8 @@ class DeployTask(BaseSettings):
                         # valid JSON, but not a step result (for example a list) -> skip
                         continue
                     if "name" not in step_result:
+                        if is_runner_finish_event(step_result):
+                            continue
                         self.log(f"step result not posted: {self.describe_nameless_result(step_result, len(data))}")
                         continue
                     result_name = step_result["name"]
