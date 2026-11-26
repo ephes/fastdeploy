@@ -52,8 +52,13 @@ async function decodeBounded(
     }
     const bytes = buffer.subarray(0, length);
     if (responseAs === 'response') return new Response(bytes, { status: response.status, statusText: response.statusText, headers: response.headers });
-    const text = new TextDecoder().decode(bytes);
-    if (responseAs === 'text') return text;
+    if (responseAs === 'text') return new TextDecoder().decode(bytes);
+    let text: string;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      throw new Error('Server JSON response is not valid UTF-8.');
+    }
     try { return JSON.parse(text); } catch { return null; }
   } catch (error) {
     cancel();

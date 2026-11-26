@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Reject invalid UTF-8 in dashboard JSON responses and keep the last good snapshot.
 - Accept the terminal `{"event": "finish", ...}` record of Echoport backup runners without logging
   `step result not posted` on every backup run; other nameless JSON objects are still logged.
 - Bound deployment admission to 50 orphan rechecks and direct larger backlogs to history repair before retrying.
