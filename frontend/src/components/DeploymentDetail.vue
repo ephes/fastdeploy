@@ -56,7 +56,10 @@ onBeforeUnmount(() => {
     <p v-else-if="!loading && !error">Deployment not found in loaded history.</p>
     <p v-if="loading" role="status">Loading steps…</p>
     <div v-else-if="error" role="alert">{{ error }} <button @click="fetchSteps">Retry</button></div>
-    <transition-group v-else name="list" tag="div">
+    <transition-group
+      v-if="stepsStore.inventoryComplete[deploymentId] || (!loading && !error)"
+      :key="deploymentId" name="list" tag="div"
+    >
       <div v-for="step of stepsStore.getStepsByDeployment(deploymentId)" :key="step.id" class="list-step">
         <step :step="step" />
       </div>

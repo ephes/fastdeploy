@@ -11,6 +11,7 @@ Unreleased
 
 ### Fixed
 - Cancel pending step inventory requests when changing or leaving a deployment detail route.
+- Keep loaded deployment steps and live updates visible while refreshing and when a refresh fails.
 - Preserve runner report acknowledgements and HTTP retry decisions when both response closure and stderr logging fail.
 - Preserve reverse-proxy prefixes and normalize trailing slashes in API bases for runner callbacks and service sync.
   Invalid settings are rejected without echoing the rejected value.
