@@ -184,14 +184,19 @@ export const useServices = defineStore("services", {
     async fetchServices(ownsRefresh: () => boolean = () => true) {
       const isCurrentSession = rememberSession();
       const generation = ++this.fetchGeneration;
-      const isCurrent = () => isCurrentSession() && ownsRefresh() && generation === this.fetchGeneration;
+      const ownsInventory = () => isCurrentSession() && generation === this.fetchGeneration;
+      const retryError = "Could not load services. Try again.";
       const changed = markRaw(new Set<number>());
       this.pendingFetches.push(changed);
       this.servicesLoading = true;
       this.servicesError = "";
       try {
         const services = await this.client.get<unknown>("services/");
-        if (!isCurrent()) return;
+        if (!ownsInventory()) return;
+        if (!ownsRefresh()) {
+          this.servicesError = retryError;
+          return;
+        }
         const snapshot: ServiceById = {};
         for (const service of Object.values(serviceSnapshot(services))) {
           if (!changed.has(service.id)) snapshot[service.id] = service;
@@ -204,10 +209,10 @@ export const useServices = defineStore("services", {
           if (!snapshot[Number(id)]) delete this.deleteErrors[Number(id)];
         }
       } catch {
-        if (isCurrent()) this.servicesError = "Could not load services. Try again.";
+        if (ownsInventory()) this.servicesError = retryError;
       } finally {
         this.pendingFetches = this.pendingFetches.filter(pending => pending !== changed);
-        if (isCurrentSession() && generation === this.fetchGeneration) this.servicesLoading = false;
+        if (ownsInventory()) this.servicesLoading = false;
       }
     },
     /**
@@ -217,16 +222,22 @@ export const useServices = defineStore("services", {
     async fetchServiceNames(ownsRefresh: () => boolean = () => true) {
       const isCurrentSession = rememberSession();
       const generation = ++this.serviceNamesGeneration;
-      const isCurrent = () => isCurrentSession() && ownsRefresh() && generation === this.serviceNamesGeneration;
+      const ownsInventory = () => isCurrentSession() && generation === this.serviceNamesGeneration;
+      const retryError = "Could not load service names. Try again.";
       this.serviceNamesLoading = true;
       this.serviceNamesError = "";
       try {
         const names = await this.client.get<unknown>("services/names/");
-        if (isCurrent()) this.serviceNames = serviceNamesSnapshot(names);
+        if (!ownsInventory()) return;
+        if (!ownsRefresh()) {
+          this.serviceNamesError = retryError;
+          return;
+        }
+        this.serviceNames = serviceNamesSnapshot(names);
       } catch {
-        if (isCurrent()) this.serviceNamesError = "Could not load service names. Try again.";
+        if (ownsInventory()) this.serviceNamesError = retryError;
       } finally {
-        if (isCurrentSession() && generation === this.serviceNamesGeneration) this.serviceNamesLoading = false;
+        if (ownsInventory()) this.serviceNamesLoading = false;
       }
     },
     /**

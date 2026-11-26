@@ -10,6 +10,8 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Offer a retry while keeping the last visible service list when reconnect interrupts a refresh.
+- Offer a separate retry and retain the last available service names when a reconnect refresh is interrupted.
 - Cancel pending step inventory requests when changing or leaving a deployment detail route,
   without dropping a WebSocket resync of the same deployment.
 - Keep loaded deployment steps and live updates visible while refreshing and when a refresh fails.
