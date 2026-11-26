@@ -784,7 +784,10 @@ cursor. It stages and validates pages within the traversal budgets below before
 publishing or removing cached rows;
 a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or obsolete
 traversals preserve the previous inventory and its completeness. The `fetching` counter
-tracks refreshes in progress. Eviction or session reset clears the retained inventory
+tracks refreshes in progress. Changing the deployment route or leaving its detail
+view cancels that view's traversal, releases its fetch bookkeeping, and discards
+unfinished pages. WebSocket resync owns its refreshes separately. Eviction or
+session reset clears the retained inventory
 and its completeness. One event fence spans the whole traversal, so intervening live
 updates/deletions win even when their row appears on a later page. Terminal/deletion
 lifecycle guards also apply to subsequent completed REST traversals. The API checks

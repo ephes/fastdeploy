@@ -225,8 +225,13 @@ export const useSteps = defineStore("steps", {
      * Accepted WebSocket changes remain authoritative throughout the traversal.
      *
      * @param deploymentId {number} The deployment id
+     * @param ownsRefresh Whether the caller still owns this traversal
+     * @param callerSignal Cancels the traversal and its active HTTP request
      */
-    async fetchStepsFromDeployment(deploymentId: number, ownsRefresh: () => boolean = () => true) {
+    async fetchStepsFromDeployment(
+      deploymentId: number, ownsRefresh: () => boolean = () => true, callerSignal?: AbortSignal,
+    ) {
+      if (callerSignal?.aborted) return;
       const isCurrentSession = rememberSession();
       this.retainDeployment(deploymentId, true);
       this.fetching[deploymentId] = (this.fetching[deploymentId] ?? 0) + 1;
@@ -238,10 +243,16 @@ export const useSteps = defineStore("steps", {
       pending.add(changed);
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const expired = new Promise<never>((_resolve, reject) => {
+      let cancel!: () => void;
+      const interrupted = new Promise<never>((_resolve, reject) => {
+        const abort = (reason: unknown) => {
+          reject(reason);
+          controller.abort(reason);
+        };
+        cancel = () => abort(callerSignal?.reason);
+        callerSignal?.addEventListener("abort", cancel, { once: true });
         timer = setTimeout(() => {
-          reject(new DOMException("Step inventory timed out. Try again.", "TimeoutError"));
-          controller.abort();
+          abort(new DOMException("Step inventory timed out. Try again.", "TimeoutError"));
         }, INVENTORY_TIMEOUT_MS);
       });
       try {
@@ -258,8 +269,9 @@ export const useSteps = defineStore("steps", {
           const params = new URLSearchParams({ deployment_id: deploymentId.toString(), limit: "25" });
           if (beforeId !== null) params.set("before_id", beforeId.toString());
           const options: BoundedOptions<"json"> = { signal: controller.signal, onBodyBytes: countBytes };
-          const response = await Promise.race([expired, this.client.get<unknown>("steps/?" + params, options)]);
-          if (!isCurrentSession() || !ownsRefresh() || this.fetchGenerations[deploymentId] !== generation) return;
+          const response = await Promise.race([interrupted, this.client.get<unknown>("steps/?" + params, options)]);
+          if (controller.signal.aborted || !isCurrentSession() || !ownsRefresh() ||
+              this.fetchGenerations[deploymentId] !== generation) return;
           const page = stepPage(response, deploymentId, beforeId);
           if (steps.length + page.length > INVENTORY_MAX_ROWS) throw new Error("Step inventory is too large.");
           if (page.some(step => this.steps[step.id] && this.steps[step.id].deploymentId !== deploymentId)) {
@@ -288,6 +300,7 @@ export const useSteps = defineStore("steps", {
           this.pruneHistory();
         }
         clearTimeout(timer);
+        callerSignal?.removeEventListener("abort", cancel);
         controller.abort();
         pending.delete(changed);
         if (!pending.size) delete pendingFetches[deploymentId];

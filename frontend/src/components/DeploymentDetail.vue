@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted } from 'vue';
+import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDeployments } from '../stores/deployment';
 import { useSteps } from '../stores/step';
@@ -13,28 +13,33 @@ const deployment = computed(() => deploymentStore.deployments[deploymentId.value
 const stepsStore = useSteps();
 const loading = ref(false);
 const error = ref('');
-let generation = 0;
+let refresh: AbortController | undefined;
 
 async function fetchSteps() {
   const id = deploymentId.value;
-  const current = ++generation;
+  refresh?.abort();
+  const controller = new AbortController();
+  refresh = controller;
   const isCurrentSession = rememberSession();
+  const ownsRefresh = () => !controller.signal.aborted && deploymentId.value === id && isCurrentSession();
   loading.value = true;
   error.value = '';
   try {
-    await stepsStore.fetchStepsFromDeployment(id);
+    await stepsStore.fetchStepsFromDeployment(id, ownsRefresh, controller.signal);
   } catch {
-    if (current === generation && isCurrentSession()) error.value = 'Could not load deployment steps. Try again.';
+    if (ownsRefresh()) error.value = 'Could not load deployment steps. Try again.';
   } finally {
-    if (current === generation && isCurrentSession()) loading.value = false;
+    if (ownsRefresh()) loading.value = false;
+    if (refresh === controller) refresh = undefined;
   }
 }
 watch(deploymentId, (id) => {
   deploymentStore.displayedDeploymentId = id;
   deploymentStore.pruneHistory();
   void fetchSteps();
-}, { immediate: true, flush: 'sync' });
-onUnmounted(() => {
+}, { immediate: true });
+onBeforeUnmount(() => {
+  refresh?.abort();
   deploymentStore.displayedDeploymentId = null;
   deploymentStore.pruneHistory();
 });

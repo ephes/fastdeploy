@@ -2,7 +2,7 @@ import type { ServiceWithId } from '../src/typings';
 import { vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { createMemoryHistory, createRouter } from 'vue-router';
+import { createMemoryHistory, createRouter, RouterView } from 'vue-router';
 import Login from '../src/components/Login.vue';
 import ServiceDetail from '../src/components/ServiceDetail.vue';
 import DeploymentDetail from '../src/components/DeploymentDetail.vue';
@@ -168,7 +168,41 @@ it('shows current token failure feedback without stale service details', async (
   wrapper.unmount();
 });
 
-it('ignores an older fetch of the same deployment while retaining other deployment results', async () => {
+it.each(['/deployments/2', '/'])('cancels a delayed step inventory when navigating to %s', async (destination) => {
+  const page = await setup(RouterView, '/deployments/1');
+  const store = useSteps();
+  const delayed = deferred<unknown>();
+  const get = vi.fn().mockReturnValueOnce(delayed.promise).mockResolvedValue([]);
+  store.client = { get } as any;
+  const wrapper = page.mount();
+
+  expect(store.fetching[1]).toBe(1);
+  const signal: AbortSignal = get.mock.calls[0][1].signal;
+  await page.router.push(destination);
+  await flushPromises();
+  const requestsAfterNavigation = get.mock.calls.map(([url]) => url);
+  const aborted = signal.aborted;
+  const fetching = store.fetching[1];
+  const pending = store.pendingFetches[1];
+
+  delayed.resolve(Array.from({ length: 25 }, (_, index) => ({
+    id: 25 - index, deployment_id: 1, name: 'obsolete', state: 'success',
+    message: '', started: null, finished: null,
+  })));
+  await flushPromises();
+  wrapper.unmount();
+
+  expect(get.mock.calls.map(([url]) => url)).toEqual(requestsAfterNavigation);
+  expect(requestsAfterNavigation).toEqual(destination === '/' ? ['steps/?deployment_id=1&limit=25'] :
+    ['steps/?deployment_id=1&limit=25', 'steps/?deployment_id=2&limit=25']);
+  expect(store.getStepsByDeployment(1)).toEqual([]);
+  expect(store.inventoryComplete[1]).toBeFalsy();
+  expect(aborted).toBe(true);
+  expect(fetching).toBeUndefined();
+  expect(pending).toBeUndefined();
+});
+
+it('publishes only the latest fetch when revisiting a deployment', async () => {
   const page = await setup(DeploymentDetail, '/deployments/1');
   const store = useSteps();
   const first = deferred<any[]>(); const second = deferred<any[]>(); const latest = deferred<any[]>();
@@ -182,7 +216,7 @@ it('ignores an older fetch of the same deployment while retaining other deployme
   expect(wrapper.text()).toContain('latest');
   expect(wrapper.text()).not.toContain('obsolete');
   expect(wrapper.text()).not.toContain('second-only');
-  expect(store.getStepsByDeployment(2)[0].name).toBe('second-only');
+  expect(store.getStepsByDeployment(2)).toEqual([]);
   wrapper.unmount();
 });
 
