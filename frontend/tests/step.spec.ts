@@ -290,6 +290,120 @@ describe("Step inventory pages", () => {
     expect(store.steps[step.id].message).toBe("newer websocket update");
   });
 
+  it.each(["before", "after"])("publishes an in-flight resync when a joined refresh is cancelled %s its page", async (order) => {
+    const store = useSteps();
+    const respond: ((rows: unknown) => void)[] = [];
+    const get = vi.fn(() => new Promise(resolve => respond.push(resolve)));
+    store.client = { get } as any;
+    const resync = store.fetchStepsFromDeployment(1);
+    const view = new AbortController();
+    const detail = store.fetchStepsFromDeployment(1, () => true, view.signal).catch(error => error);
+    if (order === "after") {
+      respond[0]([apiStep]);
+      await resync;
+    }
+    view.abort();
+    await detail;
+    if (order === "before") {
+      respond[0]([apiStep]);
+      await resync;
+    }
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
+    expect(store.inventoryComplete[1]).toBe(true);
+    expect(store.fetching[1]).toBeUndefined();
+  });
+
+  it("reports a joined resync failure to the refresh caller", async () => {
+    const store = useSteps();
+    let fail!: (error: Error) => void;
+    store.client = { get: () => new Promise((_resolve, reject) => { fail = reject; }) } as any;
+    const resync = store.fetchStepsFromDeployment(1).catch(error => error);
+    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal).catch(error => error);
+    fail(new Error("offline"));
+
+    expect((await detail).message).toBe("offline");
+    expect((await resync).message).toBe("offline");
+    expect(store.liveResyncs[1]).toBeUndefined();
+  });
+
+  it("traverses itself when a joined resync ends without publishing", async () => {
+    const store = useSteps();
+    const respond: ((rows: unknown) => void)[] = [];
+    const get = vi.fn(() => new Promise(resolve => respond.push(resolve)));
+    store.client = { get } as any;
+    let socketOwns = true;
+    const resync = store.fetchStepsFromDeployment(1, () => socketOwns);
+    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal);
+    socketOwns = false;
+    respond[0]([apiStep]);
+    await resync;
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    expect(store.inventoryComplete[1]).toBe(false);
+    respond[1]([apiStep]);
+    await detail;
+
+    expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
+    expect(store.inventoryComplete[1]).toBe(true);
+  });
+
+  it("joins a resync that superseded a refresh and traverses again if it does not publish", async () => {
+    const store = useSteps();
+    const respond: ((rows: unknown) => void)[] = [];
+    const get = vi.fn(() => new Promise(resolve => respond.push(resolve)));
+    store.client = { get } as any;
+    let socketOwns = true;
+    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal);
+    const resync = store.fetchStepsFromDeployment(1, () => socketOwns);
+    respond[0]([apiStep]);
+    socketOwns = false;
+    respond[1]([apiStep]);
+    await resync;
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(3));
+    respond[2]([apiStep]);
+    await detail;
+
+    expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
+    expect(store.inventoryComplete[1]).toBe(true);
+    expect(store.fetching[1]).toBeUndefined();
+  });
+
+  it("traverses again when a superseding resync fails before the refresh page returns", async () => {
+    const store = useSteps();
+    const pages: { resolve: (rows: unknown) => void; reject: (error: Error) => void }[] = [];
+    const get = vi.fn(() => new Promise((resolve, reject) => pages.push({ resolve, reject })));
+    store.client = { get } as any;
+    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal);
+    const resync = store.fetchStepsFromDeployment(1).catch(error => error);
+    pages[1].reject(new Error("offline"));
+    expect((await resync).message).toBe("offline");
+    pages[0].resolve([apiStep]);
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(3));
+    pages[2].resolve([apiStep]);
+    await detail;
+
+    expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
+    expect(store.inventoryComplete[1]).toBe(true);
+  });
+
+  it("completes a refresh when a superseding resync publishes before the refresh page returns", async () => {
+    const store = useSteps();
+    const respond: ((rows: unknown) => void)[] = [];
+    const get = vi.fn(() => new Promise(resolve => respond.push(resolve)));
+    store.client = { get } as any;
+    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal);
+    const resync = store.fetchStepsFromDeployment(1);
+    respond[1]([apiStep]);
+    await resync;
+    respond[0]([]);
+    await detail;
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
+    expect(store.inventoryComplete[1]).toBe(true);
+  });
+
   it("requests an empty final page when the last page was full", async () => {
     const store = useSteps();
     const get = vi.fn().mockResolvedValueOnce(Array.from({ length: 25 }, (_, i) => row(25 - i)))

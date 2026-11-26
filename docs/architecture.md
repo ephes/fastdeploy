@@ -784,10 +784,23 @@ cursor. It stages and validates pages within the traversal budgets below before
 publishing or removing cached rows;
 a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or obsolete
 traversals preserve the previous inventory and its completeness. The `fetching` counter
-tracks refreshes in progress. Eviction or session reset clears the retained inventory
-and its completeness. One event fence spans the whole traversal, so intervening live
-updates/deletions win even when their row appears on a later page. Terminal/deletion
-lifecycle guards also apply to subsequent completed REST traversals. The API checks
+tracks refreshes in progress. Changing the deployment route or leaving its detail
+view cancels that view's traversal, releases its fetch bookkeeping, and discards
+unfinished pages. WebSocket resync owns its refreshes separately: a detail refresh
+started while a resync for the same deployment is in flight joins that resync
+instead of superseding it, so leaving the view never drops the resync. Until an
+inventory is published, or the view cancels or loses ownership, the detail refresh
+joins the newest resync it has not joined yet or traverses again itself, so a
+resync that ends without publishing never leaves the view looking loaded. An
+inventory published by a traversal that started after the detail refresh also
+completes it. Eviction or
+session reset clears the retained inventory and its completeness. A deployment
+detail with a complete retained inventory keeps showing its rows and live updates
+during refresh and alongside a retry message if refresh fails. First loads still
+show the loading placeholder. One event fence spans the whole traversal, so
+intervening live updates/deletions win even when their row appears on a later page.
+Terminal/deletion lifecycle guards also apply to subsequent completed REST traversals.
+The API checks
 deployment existence without loading its entire step collection.
 
 ### Deployment classification under the service lock
