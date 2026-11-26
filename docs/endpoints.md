@@ -654,6 +654,7 @@ All endpoints may return these standard error responses:
   ```json
   {"detail": "Internal server error"}
   ```
+  The generic error and any applicable private cache headers are returned even if error logging fails.
 
 ### Mutation failures
 

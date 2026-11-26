@@ -115,7 +115,8 @@ async def private_responses(request: Request, call_next: Callable[[Request], Awa
     except Exception as exc:
         # Handle before ServerErrorMiddleware: its exception handler re-raises
         # and would let the ASGI server print backend exception text.
-        logger.error("request_failed category=%s", type(exc).__name__)
+        with suppress(Exception):
+            logger.error("request_failed category=%s", type(exc).__name__)
         response = JSONResponse(status_code=500, content={"detail": "Internal server error"})
     path = request.url.path.rstrip("/")
     if path in {"/token", "/service-token", "/services", "/deployed-services"} or any(
