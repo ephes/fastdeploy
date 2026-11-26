@@ -106,6 +106,51 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+describe("Service inventory refresh", () => {
+  beforeEach(() => {
+    initPinia();
+  });
+
+  it.each(["resolves", "rejects"])("offers retry when a service list refresh loses its owner and %s", async outcome => {
+    const store = useServices();
+    const interrupted = deferred();
+    const obsolete = deferred();
+    const retry = deferred();
+    const replacement = { ...service, name: "replacement" };
+    store.client.get = vi.fn()
+      .mockResolvedValueOnce([service])
+      .mockReturnValueOnce(interrupted.promise)
+      .mockReturnValueOnce(obsolete.promise)
+      .mockReturnValueOnce(retry.promise);
+    await store.fetchServices();
+
+    let ownsRefresh = true;
+    const refresh = store.fetchServices(() => ownsRefresh);
+    ownsRefresh = false;
+    if (outcome === "resolves") interrupted.resolve([]);
+    else interrupted.reject(new Error("offline"));
+    await refresh;
+
+    expect(store.getServices).toEqual([service]);
+    expect(store.servicesLoading).toBe(false);
+    expect(store.servicesError).toBe("Could not load services. Try again.");
+
+    const superseded = store.fetchServices(() => false);
+    const retrying = store.fetchServices();
+    obsolete.resolve([]);
+    await superseded;
+    expect(store.getServices).toEqual([service]);
+    expect(store.servicesLoading).toBe(true);
+    expect(store.servicesError).toBe("");
+
+    retry.resolve([replacement]);
+    await retrying;
+    expect(store.getServices).toEqual([replacement]);
+    expect(store.servicesLoading).toBe(false);
+    expect(store.servicesError).toBe("");
+  });
+});
+
 describe("Services sync", () => {
   beforeEach(() => {
     initPinia();
