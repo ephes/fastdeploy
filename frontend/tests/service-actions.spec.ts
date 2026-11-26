@@ -286,6 +286,33 @@ it.each(['success', 'transport loss', 'HTTP conflict'])('settles a socket-confir
   expect(store.pendingDeletes.has(1)).toBe(false);
 });
 
+it('settles a socket-confirmed deletion when HTTP returns 404 and a stale inventory is pending', async () => {
+  const store = useServices();
+  const service = { id: 1, name: 'first', data: {} };
+  store.services[1] = service;
+  const response = deferred<unknown>();
+  const inventory = deferred<typeof service[]>();
+  store.client.delete = vi.fn().mockReturnValue(response.promise);
+  store.client.get = vi.fn().mockReturnValue(inventory.promise);
+  const websocket = createWebsocketClient();
+  websocket.registerStore(store);
+  websocket.onAuthenticationMessage({ type: 'authentication', status: 'success' });
+
+  const deleting = store.deleteService(1);
+  const refreshing = store.fetchServices();
+  websocket.onMessage(createEvent({ ...service, type: 'service', deleted: true }));
+  expect(store.services[1]).toBeUndefined();
+  response.reject({ response: { status: 404 } });
+  await expect(deleting).resolves.toBe(true);
+  expect(store.pendingDeletes.has(1)).toBe(false);
+  expect(store.deleteErrors[1]).toBeUndefined();
+
+  inventory.resolve([service]);
+  await refreshing;
+  expect(store.services[1]).toBeUndefined();
+  expect(store.servicesError).toBe('');
+});
+
 it('keeps a transport failure unconfirmed when the socket deleted a different service', async () => {
   const { store, wrapper } = setup();
   const response = deferred<unknown>();

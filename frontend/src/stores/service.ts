@@ -166,10 +166,11 @@ export const useServices = defineStore("services", {
         return true;
       } catch (error: any) {
         if (!isCurrentSession() || !ownsAttempt()) return false;
-        if (attempt.removed) return error?.response == null;
-        this.deleteErrors[serviceId] = error?.response?.status === 409
+        const status = error?.response?.status;
+        if (attempt.removed) return error?.response == null || status === 404;
+        this.deleteErrors[serviceId] = status === 409
           ? "Cannot delete this service while a deployment is running. Wait for it to finish and retry."
-          : error?.response?.status === 404
+          : status === 404
             ? "This service no longer exists. Refresh services."
             : "Could not confirm deletion. Refresh services before retrying.";
         return false;

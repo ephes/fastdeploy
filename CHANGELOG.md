@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Treat HTTP 404 as a successful service deletion when a WebSocket event already confirmed the removal.
 - Ask for a new service selection before starting a deployment if the loaded service changes during token issuance.
 - Apply one 30-second deadline to a detail step refresh across joins and retries while letting independent WebSocket resyncs finish.
 - Let an active deployment detail refresh fetch steps itself after a joined WebSocket resync fails.
