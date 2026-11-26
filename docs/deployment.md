@@ -198,7 +198,9 @@ Each report/finish attempt streams at most 4096 response wire bytes and has a
 decoding or logging them. Error statuses are checked immediately without reading bodies and
 still determine retries if closing the response fails. A `2xx` response with a complete body
 within the byte limit still acknowledges the report if closing fails. The runner logs the close
-failure. Oversized bodies and timeouts before a verdict count as transport failures and follow
+failure on a best-effort basis. If writing to stderr fails, the acknowledgement or HTTP error still
+governs the result and retry policy. External cancellation still propagates. Oversized bodies and
+timeouts before a verdict count as transport failures and follow
 the same retries.
 Connection errors and `5xx` responses are retried with
 exponential backoff (4 attempts per step, 6 for finishing the deployment, starting at 3 seconds), so a short API
