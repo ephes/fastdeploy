@@ -64,6 +64,104 @@ it("reopens an evicted deployment from REST despite a refused late event", async
   expect(store.deployments[1].finished).toEqual(finished);
 });
 
+it("applies a refused finish to the stale REST row of an uncached older run", async () => {
+  const store = useDeployments();
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  // Deleting a newer run advances the retirement fence past the never-cached run 1.
+  store.onMessage({ ...row(2), serviceId: 1, deleted: true } as any);
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  const finishEvent = { ...row(1), type: "deployment" as const, serviceId: 1, finished };
+  store.onMessage(finishEvent);
+  expect(store.deployments[1]).toBeUndefined();
+  respond([row(1)]);
+  await refresh;
+
+  expect(store.historyDeployments.map(({ id }) => id)).toEqual([1]);
+  expect(store.deployments[1].finished).toEqual(finished);
+  expect(store.retiredFinishes.size).toBe(0);
+});
+
+it("keeps a buffered finish across a later start acknowledgement and delayed start event", async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services[1] = { id: 1, name: "fastdeploy", data: {} } as any;
+  services.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  store.onMessage({ ...row(2), serviceId: 1, deleted: true } as any);
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  const finishEvent = { ...row(1), type: "deployment" as const, serviceId: 1, finished };
+  store.onMessage(finishEvent);
+  const client = { post: vi.fn().mockResolvedValue(row(1)), options: { headers: {} } } as any;
+  await store.startDeployment("fastdeploy", client);
+  const lateStart = { ...row(1), type: "deployment" as const, serviceId: 1, started: new Date(row(1).started) };
+  store.onMessage(lateStart);
+  expect(store.deployments[1].finished).toEqual(finished);
+  respond([row(1)]);
+  await refresh;
+
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("keeps a refused finish for a start acknowledged after the history page settled", async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services[1] = { id: 1, name: "fastdeploy", data: {} } as any;
+  services.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  store.onMessage({ ...row(2), serviceId: 1, deleted: true } as any);
+
+  let acknowledge!: (value: unknown) => void;
+  const client = { post: vi.fn(() => new Promise(resolve => { acknowledge = resolve; })), options: { headers: {} } } as any;
+  const starting = store.startDeployment("fastdeploy", client);
+  await flushPromises();
+  const finishEvent = { ...row(1), type: "deployment" as const, serviceId: 1, finished };
+  store.onMessage(finishEvent);
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  acknowledge(row(1));
+  expect((await starting)!.finished).toEqual(finished);
+  const lateStart = { ...row(1), type: "deployment" as const, serviceId: 1, started: new Date(row(1).started) };
+  store.onMessage(lateStart);
+
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("bounds refused finishes kept for later admission", async () => {
+  const store = useDeployments();
+  store.onMessage({ ...row(500), serviceId: 1, deleted: true } as any);
+  const finished = new Date("2026-11-01T00:00:01Z");
+  for (let id = 1; id <= 150; id++) {
+    const finishEvent = { ...row(id), type: "deployment" as const, serviceId: 1, finished };
+    store.onMessage(finishEvent);
+  }
+  expect(store.retiredFinishes.size).toBe(100);
+  expect(store.retiredFinishes.has(50)).toBe(false);
+  expect(store.retiredFinishes.has(150)).toBe(true);
+});
+
+it("keeps a cached finish when a REST page returns the deployment unfinished", async () => {
+  const store = useDeployments();
+  const finished = "2026-11-01T00:00:01Z";
+  store.client.get = vi.fn().mockResolvedValue([{ ...row(1), finished }]);
+  await store.fetchDeployments(1);
+  store.client.get = vi.fn().mockResolvedValue([row(1)]);
+  await store.fetchDeployments(1);
+
+  expect(store.deployments[1].finished).toEqual(new Date(finished));
+});
+
 it("reconciles REST history despite a refused late start for a finished deployment", async () => {
   const store = useDeployments();
   const started = row(1);

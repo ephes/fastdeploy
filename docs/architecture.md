@@ -852,7 +852,10 @@ A history page reconciles membership in one set before publishing the updated
 IDs. Accepted WebSocket updates and deletes take precedence over in-flight REST
 history. Acknowledged starts protect cached rows against REST omissions. Events
 refused by the retirement or lifecycle fence leave REST free to restore or
-reconcile the row. The cursor follows the server page even when a deletion hides
+reconcile the row; a finish refused that way is kept (for the newest 100 such
+deployments, until logout) and finishes the row when a history page, a start
+acknowledgement or a later event admits it unfinished, and no page row reopens a deployment the store already has
+finished. The cursor follows the server page even when a deletion hides
 its last row. An authoritative omission evicts the cached deployment and its step
 inventory, invalidating any step refresh for that inventory. An omitted row for
 the open detail leaves the list but keeps its cached deployment and steps.
