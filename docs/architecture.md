@@ -803,8 +803,9 @@ unfinished pages. WebSocket resync owns its refreshes separately: a detail refre
 started while a resync for the same deployment is in flight joins that resync
 instead of superseding it, so leaving the view never drops the resync. Until an
 inventory is published, or the view cancels or loses ownership, the detail refresh
-joins the newest resync it has not joined yet or traverses again itself, so a
-resync that ends without publishing never leaves the view looking loaded. An
+joins the newest resync it has not joined yet or traverses again itself. A failed
+resync still reports the error to its owner, while the detail refresh can recover
+by fetching the inventory under its own ownership. An
 inventory published by a traversal that started after the detail refresh also
 completes it. A detail refresh can join or retry only within the session that
 started it. Eviction or session reset clears the retained inventory and its completeness. A deployment

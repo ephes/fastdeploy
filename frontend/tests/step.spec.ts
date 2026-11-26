@@ -338,16 +338,29 @@ describe("Step inventory pages", () => {
     expect(store.inventoryComplete[1]).toBe(true);
   });
 
-  it("reports a joined resync failure to the refresh caller", async () => {
+  it.each(["active", "cancelled", "signed out"])("handles a failed joined resync when the refresh is %s", async state => {
     const store = useSteps();
     let fail!: (error: Error) => void;
-    store.client = { get: () => new Promise((_resolve, reject) => { fail = reject; }) } as any;
+    const retry = vi.fn().mockResolvedValue([apiStep]);
+    const get = vi.fn(() => retry()).mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    store.client = { get } as any;
     const resync = store.fetchStepsFromDeployment(1).catch(error => error);
-    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal).catch(error => error);
-    fail(new Error("offline"));
+    const view = new AbortController();
+    const detail = store.fetchStepsFromDeployment(1, () => true, view.signal).catch(error => error);
+    expect(get).toHaveBeenCalledTimes(1);
 
-    expect((await detail).message).toBe("offline");
-    expect((await resync).message).toBe("offline");
+    if (state === "cancelled") view.abort();
+    if (state === "signed out") {
+      useAuth().endSession();
+      store.client = { get: retry } as any;
+    }
+    const offline = new Error("offline");
+    fail(offline);
+
+    expect(await resync).toBe(offline);
+    expect(await detail).toBe(state === "cancelled" ? view.signal.reason : undefined);
+    expect(retry).toHaveBeenCalledTimes(state === "active" ? 1 : 0);
+    expect(store.getStepsByDeployment(1)).toEqual(state === "active" ? [step] : []);
     expect(store.liveResyncs[1]).toBeUndefined();
   });
 

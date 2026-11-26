@@ -10,7 +10,7 @@ export const INVENTORY_MAX_ROWS = 1000;
 export const INVENTORY_MAX_BYTES = 8 * 1024 * 1024;
 export const INVENTORY_TIMEOUT_MS = 30_000;
 
-/** Await a traversal until it settles or the caller cancels; resolves whether it published. */
+/** Await publication by a shared traversal, keeping caller cancellation independent. */
 async function joinTraversal(traversal: Promise<boolean>, signal: AbortSignal): Promise<boolean> {
   let cancel!: () => void;
   const cancelled = new Promise<never>((_resolve, reject) => {
@@ -18,7 +18,7 @@ async function joinTraversal(traversal: Promise<boolean>, signal: AbortSignal): 
     signal.addEventListener("abort", cancel, { once: true });
   });
   try {
-    return await Promise.race([traversal, cancelled]);
+    return await Promise.race([traversal.catch(() => false), cancelled]);
   } finally {
     signal.removeEventListener("abort", cancel);
   }

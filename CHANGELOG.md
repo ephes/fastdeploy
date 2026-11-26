@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Let an active deployment detail refresh fetch steps itself after a joined WebSocket resync fails.
 - Let REST deployment history restore evicted rows and reconcile finished deployments when a stale live event is refused.
 - Keep finished deployments finished when an in-flight history page returns them still running.
 - Stop a deployment detail refresh from retrying or joining a resync after its session ends.
