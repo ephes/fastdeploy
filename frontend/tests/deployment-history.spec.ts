@@ -40,6 +40,50 @@ it("loads bounded pages explicitly and keeps events during load more", async () 
   expect(store.pendingFetches).toEqual([]);
 });
 
+it("reopens an evicted deployment from REST despite a refused late event", async () => {
+  const store = useDeployments();
+  const finished = new Date("2026-11-01T00:00:01Z");
+  const finishedEvent = (id: number) => ({ ...row(id), type: "deployment" as const, serviceId: 1, finished });
+  // Finished events outside the current service filter are eligible for eviction.
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(2);
+  for (let id = 1; id <= 101; id++) {
+    store.onMessage(finishedEvent(id));
+  }
+  expect(store.deployments[1]).toBeUndefined();
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  store.onMessage(finishedEvent(1));
+  expect(store.deployments[1]).toBeUndefined();
+  respond([{ ...row(1), finished: finished.toISOString() }]);
+  await refresh;
+
+  expect(store.historyDeployments.map(({ id }) => id)).toEqual([1]);
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("reconciles REST history despite a refused late start for a finished deployment", async () => {
+  const store = useDeployments();
+  const started = row(1);
+  const finished = "2026-11-01T00:00:01Z";
+  store.client.get = vi.fn().mockResolvedValue([{ ...started, finished }]);
+  await store.fetchDeployments(1);
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  const lateStart = { ...store.deployments[1], finished: null };
+  store.onMessage(lateStart);
+  expect(store.deployments[1].finished).toEqual(new Date(finished));
+  respond([]);
+  await refresh;
+
+  expect(store.historyIds).toEqual([]);
+  expect(store.deployments[1]).toBeUndefined();
+});
+
 it("ignores old filter pages and logout responses including paging metadata", async () => {
   const store = useDeployments();
   let respond!: (rows: any[]) => void;

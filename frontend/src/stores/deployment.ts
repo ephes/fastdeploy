@@ -323,6 +323,11 @@ export const useDeployments = defineStore("deployments", {
     onMessage(message: Message) {
       if (message.type === "deployment") {
         const deployment = message as Deployment;
+        if (!deployment.deleted) {
+          if (!this.deployments[deployment.id] && deployment.id <= this.retiredThrough) return;
+          // Starts can publish after another request has already committed/published a finish.
+          if (this.deployments[deployment.id]?.finished && !deployment.finished) return;
+        }
         for (const pending of this.pendingFetches) pending.add(deployment.id);
         if (deployment.deleted) {
           for (const pending of this.pendingStartDeletions) pending.add(deployment.id);
@@ -331,9 +336,6 @@ export const useDeployments = defineStore("deployments", {
           delete this.deployments[deployment.id];
           this.historyIds = this.historyIds.filter((id) => id !== deployment.id);
         } else {
-          if (!this.deployments[deployment.id] && deployment.id <= this.retiredThrough) return;
-          // Starts can publish after another request has already committed/published a finish.
-          if (this.deployments[deployment.id]?.finished && !deployment.finished) return;
           this.deployments[deployment.id] = deployment;
           if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
               && (this.historyBeforeId === null || deployment.id > this.historyBeforeId)

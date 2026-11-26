@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Let REST deployment history restore evicted rows and reconcile finished deployments when a stale live event is refused.
 - Stop a deployment detail refresh from retrying or joining a resync after its session ends.
 - Stop retired login setup from replacing clients or fetching service inventories for a later session.
 - Reject invalid UTF-8 in dashboard JSON responses and keep the last good snapshot; HTTP error responses keep their status.

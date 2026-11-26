@@ -849,9 +849,11 @@ abort the pending request and preserve the last good rows and their completeness
 Retry starts a fresh traversal; no partial inventory is published.
 
 A history page reconciles membership in one set before publishing the updated
-IDs. WebSocket changes and acknowledged starts during the request protect cached
-rows, and the cursor follows the server page even when a deletion hides its last
-row. An authoritative omission evicts the cached deployment and its step
+IDs. Accepted WebSocket updates and deletes take precedence over in-flight REST
+history. Acknowledged starts protect cached rows against REST omissions. Events
+refused by the retirement or lifecycle fence leave REST free to restore or
+reconcile the row. The cursor follows the server page even when a deletion hides
+its last row. An authoritative omission evicts the cached deployment and its step
 inventory, invalidating any step refresh for that inventory. An omitted row for
 the open detail leaves the list but keeps its cached deployment and steps.
 
