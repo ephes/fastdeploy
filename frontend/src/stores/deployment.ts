@@ -10,6 +10,7 @@ import { Deployment, Message, DeploymentById } from "../typings";
 
 const HISTORY_PAGE_SIZE = 50;
 const MAX_HISTORY_ROWS = 200;
+const MAX_RETIRED_FINISHES = 100;
 
 /**
  * This store can be used to start deployments and holds information
@@ -26,6 +27,8 @@ export const useDeployments = defineStore("deployments", {
       retiredThrough: 0,
       pendingFetches: [] as Set<number>[],
       pendingStarts: [] as Set<number>[],
+      /** Finishes refused by the retirement fence, kept for a row admitted later as unfinished. */
+      retiredFinishes: markRaw(new Map<number, Deployment>()),
       pendingStartDeletions: markRaw(new Set<Set<number>>()),
       historyIds: [] as number[],
       historyRestorePages: null as number | null,
@@ -98,6 +101,14 @@ export const useDeployments = defineStore("deployments", {
     }
   },
   actions: {
+    /** A finish is terminal: admit a row with the finish the retirement fence refused for it. */
+    withRetiredFinish(deployment: Deployment): Deployment {
+      const finish = deployment.finished ? undefined : this.retiredFinishes.get(deployment.id);
+      // Kept after use: the admitted row can be evicted again before a stale page returns.
+      if (!finish) return deployment;
+      useSteps().finishDeployment(deployment.id);
+      return finish;
+    },
     /** All pinned ids at once, so pruning checks membership without rescanning history. */
     pinnedIds(): Set<number> {
       const pinned = new Set(this.historyIds);
@@ -207,9 +218,10 @@ export const useDeployments = defineStore("deployments", {
       if (known) {
         return known;
       }
-      this.deployments[started.id] = started;
+      const admitted = this.withRetiredFinish(started);
+      this.deployments[started.id] = admitted;
       this.pruneHistory();
-      return started;
+      return admitted;
     },
     /** Restore the visible depth, retaining the target if a socket drops mid-refresh. */
     async restoreHistory(ownsRefresh: () => boolean) {
@@ -287,8 +299,10 @@ export const useDeployments = defineStore("deployments", {
             }
           }
         }
-        for (const deployment of deployments) {
-          if (!changed.has(deployment.id)) {
+        for (const page of deployments) {
+          // Neither a stale page row nor a refused event may reopen a finished deployment.
+          const deployment = changed.has(page.id) ? page : this.withRetiredFinish(page);
+          if (!changed.has(deployment.id) && !(this.deployments[deployment.id]?.finished && !deployment.finished)) {
             this.deployments[deployment.id] = deployment;
             if (deployment.finished) useSteps().finishDeployment(deployment.id);
           }
@@ -323,18 +337,33 @@ export const useDeployments = defineStore("deployments", {
     onMessage(message: Message) {
       if (message.type === "deployment") {
         const deployment = message as Deployment;
+        if (!deployment.deleted) {
+          if (!this.deployments[deployment.id] && deployment.id <= this.retiredThrough) {
+            // A pending page or start acknowledgement may still admit the row unfinished.
+            if (deployment.finished) {
+              this.retiredFinishes.delete(deployment.id);
+              this.retiredFinishes.set(deployment.id, deployment);
+              for (const id of this.retiredFinishes.keys()) {
+                if (this.retiredFinishes.size <= MAX_RETIRED_FINISHES) break;
+                this.retiredFinishes.delete(id);
+              }
+            }
+            return;
+          }
+          // Starts can publish after another request has already committed/published a finish.
+          if (this.deployments[deployment.id]?.finished && !deployment.finished) return;
+        }
         for (const pending of this.pendingFetches) pending.add(deployment.id);
         if (deployment.deleted) {
           for (const pending of this.pendingStartDeletions) pending.add(deployment.id);
+          this.retiredFinishes.delete(deployment.id);
           this.retiredThrough = Math.max(this.retiredThrough, deployment.id);
           useSteps().evictDeployment(deployment.id);
           delete this.deployments[deployment.id];
           this.historyIds = this.historyIds.filter((id) => id !== deployment.id);
         } else {
-          if (!this.deployments[deployment.id] && deployment.id <= this.retiredThrough) return;
-          // Starts can publish after another request has already committed/published a finish.
-          if (this.deployments[deployment.id]?.finished && !deployment.finished) return;
-          this.deployments[deployment.id] = deployment;
+          const admitted = this.withRetiredFinish(deployment);
+          this.deployments[deployment.id] = admitted;
           if ((this.historyServiceId === undefined || deployment.serviceId === this.historyServiceId)
               && (this.historyBeforeId === null || deployment.id > this.historyBeforeId)
               && !this.historyIds.includes(deployment.id)) {

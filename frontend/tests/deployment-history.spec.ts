@@ -40,6 +40,176 @@ it("loads bounded pages explicitly and keeps events during load more", async () 
   expect(store.pendingFetches).toEqual([]);
 });
 
+it("reopens an evicted deployment from REST despite a refused late event", async () => {
+  const store = useDeployments();
+  const finished = new Date("2026-11-01T00:00:01Z");
+  const finishedEvent = (id: number) => ({ ...row(id), type: "deployment" as const, serviceId: 1, finished });
+  // Finished events outside the current service filter are eligible for eviction.
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(2);
+  for (let id = 1; id <= 101; id++) {
+    store.onMessage(finishedEvent(id));
+  }
+  expect(store.deployments[1]).toBeUndefined();
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  store.onMessage(finishedEvent(1));
+  expect(store.deployments[1]).toBeUndefined();
+  respond([{ ...row(1), finished: finished.toISOString() }]);
+  await refresh;
+
+  expect(store.historyDeployments.map(({ id }) => id)).toEqual([1]);
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("applies a refused finish to the stale REST row of an uncached older run", async () => {
+  const store = useDeployments();
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  // Deleting a newer run advances the retirement fence past the never-cached run 1.
+  store.onMessage({ ...row(2), serviceId: 1, deleted: true } as any);
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  const finishEvent = { ...row(1), type: "deployment" as const, serviceId: 1, finished };
+  store.onMessage(finishEvent);
+  expect(store.deployments[1]).toBeUndefined();
+  respond([row(1)]);
+  await refresh;
+
+  expect(store.historyDeployments.map(({ id }) => id)).toEqual([1]);
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("keeps a buffered finish across a later start acknowledgement and delayed start event", async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services[1] = { id: 1, name: "fastdeploy", data: {} } as any;
+  services.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  store.onMessage({ ...row(2), serviceId: 1, deleted: true } as any);
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  const finishEvent = { ...row(1), type: "deployment" as const, serviceId: 1, finished };
+  store.onMessage(finishEvent);
+  const client = { post: vi.fn().mockResolvedValue(row(1)), options: { headers: {} } } as any;
+  await store.startDeployment("fastdeploy", client);
+  const lateStart = { ...row(1), type: "deployment" as const, serviceId: 1, started: new Date(row(1).started) };
+  store.onMessage(lateStart);
+  expect(store.deployments[1].finished).toEqual(finished);
+  respond([row(1)]);
+  await refresh;
+
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("keeps a refused finish for a start acknowledged after the history page settled", async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services[1] = { id: 1, name: "fastdeploy", data: {} } as any;
+  services.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  store.onMessage({ ...row(2), serviceId: 1, deleted: true } as any);
+
+  let acknowledge!: (value: unknown) => void;
+  const client = { post: vi.fn(() => new Promise(resolve => { acknowledge = resolve; })), options: { headers: {} } } as any;
+  const starting = store.startDeployment("fastdeploy", client);
+  await flushPromises();
+  const finishEvent = { ...row(1), type: "deployment" as const, serviceId: 1, finished };
+  store.onMessage(finishEvent);
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(1);
+  acknowledge(row(1));
+  expect((await starting)!.finished).toEqual(finished);
+  const lateStart = { ...row(1), type: "deployment" as const, serviceId: 1, started: new Date(row(1).started) };
+  store.onMessage(lateStart);
+
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("keeps a refused finish after its acknowledged row is evicted again", async () => {
+  const store = useDeployments();
+  const services = useServices();
+  services.services[2] = { id: 2, name: "other", data: {} } as any;
+  services.fetchServiceToken = vi.fn().mockResolvedValue("service-token");
+  const finished = new Date("2026-11-01T00:00:01Z");
+  store.client.get = vi.fn().mockResolvedValue([]);
+  await store.fetchDeployments(2);
+  // Finished rows of service 1 fill the inactive cache and advance the retirement fence.
+  for (let id = 2; id <= 102; id++) {
+    const finishEvent = { ...row(id), type: "deployment" as const, serviceId: 1, finished };
+    store.onMessage(finishEvent);
+  }
+  const finishEvent = { ...row(1, 2), type: "deployment" as const, serviceId: 2, finished };
+  store.onMessage(finishEvent);
+  expect(store.deployments[1]).toBeUndefined();
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(2);
+  const client = { post: vi.fn().mockResolvedValue(row(1, 2)), options: { headers: {} } } as any;
+  expect((await store.startDeployment("other", client))!.finished).toEqual(finished);
+  expect(store.deployments[1]).toBeUndefined();
+  respond([row(1, 2)]);
+  await refresh;
+
+  expect(store.deployments[1].finished).toEqual(finished);
+});
+
+it("bounds refused finishes kept for later admission", async () => {
+  const store = useDeployments();
+  store.onMessage({ ...row(500), serviceId: 1, deleted: true } as any);
+  const finished = new Date("2026-11-01T00:00:01Z");
+  for (let id = 1; id <= 150; id++) {
+    const finishEvent = { ...row(id), type: "deployment" as const, serviceId: 1, finished };
+    store.onMessage(finishEvent);
+  }
+  expect(store.retiredFinishes.size).toBe(100);
+  expect(store.retiredFinishes.has(50)).toBe(false);
+  expect(store.retiredFinishes.has(150)).toBe(true);
+});
+
+it("keeps a cached finish when a REST page returns the deployment unfinished", async () => {
+  const store = useDeployments();
+  const finished = "2026-11-01T00:00:01Z";
+  store.client.get = vi.fn().mockResolvedValue([{ ...row(1), finished }]);
+  await store.fetchDeployments(1);
+  store.client.get = vi.fn().mockResolvedValue([row(1)]);
+  await store.fetchDeployments(1);
+
+  expect(store.deployments[1].finished).toEqual(new Date(finished));
+});
+
+it("reconciles REST history despite a refused late start for a finished deployment", async () => {
+  const store = useDeployments();
+  const started = row(1);
+  const finished = "2026-11-01T00:00:01Z";
+  store.client.get = vi.fn().mockResolvedValue([{ ...started, finished }]);
+  await store.fetchDeployments(1);
+
+  let respond!: (rows: unknown) => void;
+  store.client.get = vi.fn(() => new Promise(resolve => { respond = resolve; })) as typeof store.client.get;
+  const refresh = store.fetchDeployments(1);
+  const lateStart = { ...store.deployments[1], finished: null };
+  store.onMessage(lateStart);
+  expect(store.deployments[1].finished).toEqual(new Date(finished));
+  respond([]);
+  await refresh;
+
+  expect(store.historyIds).toEqual([]);
+  expect(store.deployments[1]).toBeUndefined();
+});
+
 it("ignores old filter pages and logout responses including paging metadata", async () => {
   const store = useDeployments();
   let respond!: (rows: any[]) => void;

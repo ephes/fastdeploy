@@ -806,8 +806,8 @@ inventory is published, or the view cancels or loses ownership, the detail refre
 joins the newest resync it has not joined yet or traverses again itself, so a
 resync that ends without publishing never leaves the view looking loaded. An
 inventory published by a traversal that started after the detail refresh also
-completes it. Eviction or
-session reset clears the retained inventory and its completeness. A deployment
+completes it. A detail refresh can join or retry only within the session that
+started it. Eviction or session reset clears the retained inventory and its completeness. A deployment
 detail with a complete retained inventory keeps showing its rows and live updates
 during refresh and alongside a retry message if refresh fails. First loads still
 show the loading placeholder. One event fence spans the whole traversal, so
@@ -849,9 +849,14 @@ abort the pending request and preserve the last good rows and their completeness
 Retry starts a fresh traversal; no partial inventory is published.
 
 A history page reconciles membership in one set before publishing the updated
-IDs. WebSocket changes and acknowledged starts during the request protect cached
-rows, and the cursor follows the server page even when a deletion hides its last
-row. An authoritative omission evicts the cached deployment and its step
+IDs. Accepted WebSocket updates and deletes take precedence over in-flight REST
+history. Acknowledged starts protect cached rows against REST omissions. Events
+refused by the retirement or lifecycle fence leave REST free to restore or
+reconcile the row; a finish refused that way is kept (for the newest 100 such
+deployments, until logout) and finishes the row when a history page, a start
+acknowledgement or a later event admits it unfinished, and no page row reopens a deployment the store already has
+finished. The cursor follows the server page even when a deletion hides
+its last row. An authoritative omission evicts the cached deployment and its step
 inventory, invalidating any step refresh for that inventory. An omitted row for
 the open detail leaves the list but keeps its cached deployment and steps.
 

@@ -1,6 +1,7 @@
 import { Step } from "../src/typings";
 import { pythonToJavascript } from "../src/converters";
 import { createWebsocketClient } from "../src/websocket";
+import { useAuth } from "../src/stores/auth";
 import { useDeployments } from "../src/stores/deployment";
 import { useSteps } from "../src/stores/step";
 import { getClientWithoutAuth } from "../src/stores/httpClient";
@@ -313,6 +314,28 @@ describe("Step inventory pages", () => {
     expect(store.getStepsByDeployment(1).map(row => row.id)).toEqual([step.id]);
     expect(store.inventoryComplete[1]).toBe(true);
     expect(store.fetching[1]).toBeUndefined();
+  });
+
+  it.each(["traversing", "joining a resync"])("stops a detail refresh %s after session turnover", async (mode) => {
+    const store = useSteps();
+    let respond!: (rows: unknown) => void;
+    const oldGet = vi.fn(() => new Promise(resolve => { respond = resolve; }));
+    store.client = { get: oldGet } as any;
+    const resync = mode === "joining a resync" ? store.fetchStepsFromDeployment(1) : undefined;
+    const detail = store.fetchStepsFromDeployment(1, () => true, new AbortController().signal);
+    expect(oldGet).toHaveBeenCalledTimes(1);
+
+    useAuth().endSession();
+    const currentGet = vi.fn().mockResolvedValue([apiStep]);
+    store.client = { get: currentGet } as any;
+    respond([apiStep]);
+    await Promise.all([detail, resync]);
+
+    expect(currentGet).not.toHaveBeenCalled();
+    expect(store.getStepsByDeployment(1)).toEqual([]);
+    await store.fetchStepsFromDeployment(1, () => true, new AbortController().signal);
+    expect(currentGet).toHaveBeenCalledTimes(1);
+    expect(store.inventoryComplete[1]).toBe(true);
   });
 
   it("reports a joined resync failure to the refresh caller", async () => {
