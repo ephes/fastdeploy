@@ -788,9 +788,10 @@ tracks refreshes in progress. Changing the deployment route or leaving its detai
 view cancels that view's traversal, releases its fetch bookkeeping, and discards
 unfinished pages. WebSocket resync owns its refreshes separately: a detail refresh
 started while a resync for the same deployment is in flight joins that resync
-instead of superseding it, so leaving the view never drops the resync. If that
-resync, or a resync that superseded the detail refresh, ends without publishing,
-the detail refresh joins a newer resync or traverses again itself. Eviction or
+instead of superseding it, so leaving the view never drops the resync. Until an
+inventory is published, or the view cancels or loses ownership, the detail refresh
+joins the newest resync it has not joined yet or traverses again itself, so a
+resync that ends without publishing never leaves the view looking loaded. Eviction or
 session reset clears the retained inventory and its completeness. A deployment
 detail with a complete retained inventory keeps showing its rows and live updates
 during refresh and alongside a retry message if refresh fails. First loads still

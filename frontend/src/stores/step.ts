@@ -258,20 +258,18 @@ export const useSteps = defineStore("steps", {
         return;
       }
       // A cancellable refresh joins an in-flight resync instead of superseding it, so
-      // cancelling the refresh never drops the resync's inventory. When the resync (or
-      // a resync that superseded this refresh) ends without publishing, the refresh
-      // joins a newer resync or traverses again itself.
+      // cancelling the refresh never drops the resync's inventory. Until an inventory
+      // is published, or the caller cancels or loses ownership, the refresh joins the
+      // newest resync it has not joined yet or traverses again itself.
       let joined: Promise<boolean> | undefined;
       while (!callerSignal.aborted && ownsRefresh()) {
         const resync = this.liveResyncs[deploymentId];
         if (resync && resync !== joined) {
           joined = resync;
           if (await joinTraversal(resync, callerSignal)) return;
-          continue;
+        } else if (await this.traverseStepInventory(deploymentId, ownsRefresh, callerSignal)) {
+          return;
         }
-        if (await this.traverseStepInventory(deploymentId, ownsRefresh, callerSignal)) return;
-        const superseding = this.liveResyncs[deploymentId];
-        if (!superseding || superseding === joined) return;
       }
     },
     async traverseStepInventory(
