@@ -10,6 +10,7 @@ Unreleased
   Requests without either parameter continue to return the full JSON array.
 
 ### Fixed
+- Stop retired login setup from replacing clients or fetching service inventories for a later session.
 - Reject invalid UTF-8 in dashboard JSON responses and keep the last good snapshot.
 - Accept the terminal `{"event": "finish", ...}` record of Echoport backup runners without logging
   `step result not posted` on every backup run; other nameless JSON objects are still logged.

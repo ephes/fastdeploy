@@ -33,6 +33,9 @@ either effective destination clears the session, password, stores and socket.
 Sign in again to use the new configuration. In-flight login/REST results and
 cached authenticated clients from the old session are retired, including when
 switching away and back before completion.
+Initial client setup and service inventory requests belong to the admitted login
+session. If logout or another login replaces it during setup, the retired task
+stops before taking the next step.
 
 Login uses labeled username/password fields with credential autocomplete. Enter in
 either field submits the form; one request runs at a time and failures are announced
