@@ -102,7 +102,9 @@ fastdeploy_git_repo: https://github.com/ephes/fastdeploy.git  # for git
 
 FastDeploy also supports `DEPLOYMENT_ORPHAN_RECONCILE_DELAY_SECONDS` (default: `300`) in its `.env`. A deployment is only treated as orphaned once neither its start nor any step activity happened within this delay. This prevents brand-new deployments from being auto-finished before their steps are created, and deployments whose deploy task is still retrying to finish them from being finished early.
 
-Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Orphaned unfinished deployments do not block (they are finished as part of a successful start; a rejected start changes nothing), and deployments older than `DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES` (default: `480`) do not block.
+Deployments are single-flight per service: starting a deployment while the same service still has an active one returns `409 Conflict`. Other unfinished deployments that have reached the deployment token lifetime (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default `480`) allow a new start.
+
+A start rechecks up to 50 orphan candidates and finishes eligible orphans on success. If it finds a 51st candidate, it refuses admission without changes. Open deployment history or call `GET /deployments/` with a user token to reconcile the backlog in batches, then retry. See [deployment admission](endpoints.md#post-deployments).
 
 Private deployment configs are read from the validated descriptor with a 1 MiB
 UTF-8 byte limit (including growth after opening). The JSON root and `context`

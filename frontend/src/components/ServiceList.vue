@@ -50,9 +50,13 @@ async function startDeployment(id: number, serviceName: string) {
     await router.push({ name: 'deployment-detail', params: { id: deployment.id } });
   } catch (error: any) {
     if (!ownsView()) return;
-    startErrors[id] = error?.response?.status === 409
-      ? `A deployment is already running for ${serviceName}. Check its history before retrying.`
-      : `Could not confirm deployment start for ${serviceName}. Check its history before retrying.`;
+    if (error?.response?.status === 409) {
+      startErrors[id] = error.body?.detail?.code === 'orphan_backlog'
+        ? `Open deployment history to reconcile orphaned deployments, then retry starting ${serviceName}.`
+        : `A deployment is already running for ${serviceName}. Check its history before retrying.`;
+    } else {
+      startErrors[id] = `Could not confirm deployment start for ${serviceName}. Check its history before retrying.`;
+    }
   } finally {
     delete pendingStarts[id];
   }

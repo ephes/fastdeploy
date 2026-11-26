@@ -126,7 +126,7 @@ The runner also drains its owned process group after a successful script exit; s
 through their service manager. Repeated cancellation cannot interrupt bounded process cleanup or retire
 the private config early. Unconfirmed cleanup is a failure; see [runner lifetime and recovery](docs/deployment.md).
 
-Only one deployment per service runs at a time: `POST /deployments/` returns `409 Conflict` (naming the running deployment id) while the service has an active deployment. See [docs/endpoints.md](docs/endpoints.md#post-deployments).
+Only one deployment per service runs at a time: `POST /deployments/` returns `409 Conflict` (naming the running deployment id) while the service has an active deployment. Start admission also returns `409 Conflict` when it finds more than 50 orphan candidates. Read deployment history to reconcile the backlog in batches before retrying. See [docs/endpoints.md](docs/endpoints.md#post-deployments).
 
 Service tokens are issued by configured administrators via `POST /service-token` or `python commands.py issueservicetoken --service S --user U --days N`, and can be revoked by those administrators via `DELETE /service-token/{jti}` or `python commands.py revokeservicetoken <jti>`. Tokens issued before revocation support (without `jti`) are rejected unless `LEGACY_SERVICE_TOKENS_ACCEPTED_UNTIL` is set; see the cutover steps in [docs/auth.md](docs/auth.md#service-token). Records of tokens expired or revoked more than `SERVICE_TOKEN_RETENTION_DAYS` days ago are deleted on token issue or with `python commands.py purgeservicetokens`. See [docs/auth.md](docs/auth.md#service-token).
 

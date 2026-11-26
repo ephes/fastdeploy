@@ -1,12 +1,13 @@
 """Production HTTP mutation errors with synthetic in-memory records."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.exc import OperationalError
 
 from deploy.domain import commands
+from deploy.entrypoints import fastapi_app
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.db("in_memory")]
 
@@ -41,6 +42,25 @@ async def test_commit_failure_is_server_error(
     assert commit.await_count == 1  # the injected fault actually ran
     assert response.status_code == 500
     assert response.json() == {"detail": "Internal server error"}
+
+
+async def test_private_error_response_survives_logging_failure(app, monkeypatch):
+    async def broken_service():
+        raise RuntimeError("synthetic private backend detail")
+
+    monkeypatch.setattr(app.router, "routes", app.router.routes.copy())
+    app.add_api_route("/deployments/synthetic-error", broken_service, methods=["POST"])
+    error = Mock(side_effect=OSError("synthetic logging failure"))
+    monkeypatch.setattr(fastapi_app.logger, "error", error)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/deployments/synthetic-error")
+
+    error.assert_called_once_with("request_failed category=%s", "RuntimeError")
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Internal server error"}
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["Vary"] == "Authorization"
 
 
 async def test_delete_missing_service_is_still_404(app, valid_access_token_in_db):

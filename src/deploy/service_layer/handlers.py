@@ -225,9 +225,9 @@ async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitO
     """
     Must be called inside an open unit of work, after the service has been
     locked for deployment. Raises ``DeploymentAlreadyRunning`` if the service
-    has an active deployment; otherwise finishes its orphaned unfinished
-    deployments as failed (staged in the current transaction). Nothing is mutated when
-    the start is refused.
+    has an active deployment or ``DeploymentOrphanBacklog`` if the orphan
+    candidate budget is exhausted. Otherwise stages orphan settlement in the
+    current transaction. Nothing is mutated when the start is refused.
     """
     now = datetime.now(timezone.utc)
     orphan_ids: list[int] = []
@@ -238,6 +238,8 @@ async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitO
         if state == "active":
             raise model.DeploymentAlreadyRunning(service_id=service_id, deployment_id=activity.id)
         if state == "orphaned":
+            if len(orphan_ids) == views.ORPHAN_RECONCILE_BATCH_SIZE:
+                raise model.DeploymentOrphanBacklog
             orphan_ids.append(activity.id)
 
     # Lock and reload the orphans: the deploy task may have finished a deployment
@@ -259,7 +261,8 @@ async def finish_orphans_or_raise_if_running(service_id: int, uow: AbstractUnitO
             locked.append(orphan)
 
     for orphan in locked:
-        logger.warning("Finishing orphaned deployment %s as failed before starting a new one", orphan.id)
+        with suppress(Exception):
+            logger.warning("Finishing orphaned deployment %s as failed before starting a new one", orphan.id)
         await stage_orphaned_deployment_finish(orphan, orphan.steps, uow)
 
 

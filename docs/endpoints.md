@@ -228,12 +228,18 @@ deployment is created or started. The response names the running deployment:
 ```
 Orphaned unfinished deployments of the service (see [Orphaned deployments](#orphaned-deployments))
 are reclassified after their deployment rows are locked, using the current time and steps.
-Rows that are still orphaned are finished as failed as part of a successful start. A row that
-has become active blocks the start, and a rejected (409) start changes nothing. Other unfinished
-deployments that have reached the deployment token lifetime
+Rows that are still orphaned are finished as failed as part of a successful start, even if
+orphan warning logging fails. A row that has become active blocks the start, and a rejected
+(409) start changes nothing. Other unfinished deployments that have reached the deployment token lifetime
 (`DEPLOYMENT_ACCESS_TOKEN_EXPIRE_MINUTES`, default 480) are left untouched and allow the new start,
 even when a step has appeared since the first check. Concurrent starts for the same service are
 serialized by a database row lock on the service, so exactly one of them succeeds.
+
+A start admits up to 50 orphan candidates for locked rechecks. Finding a 51st candidate
+stops the scan before any candidate's steps are loaded or any changes are staged. The API
+returns `409 Conflict` with `detail.code` set to `orphan_backlog`. Open deployment history
+in the UI or call `GET /deployments/` with a user token to reconcile up to 50 eligible orphans
+per read. Repeat history reads as needed before retrying the start.
 
 Admission flush, planned-step insertion or commit failures roll back the entire
 admission and do not launch a task or publish a deployment start.
@@ -526,7 +532,8 @@ the time of the read. Newer rows appear when traversal starts again.
    8 KiB (UTF-8) holding one JSON object without duplicate member names; an `access_token`
    member must be a nonempty string of at most 4,096 characters. Any other frame closes the
    connection before credential work: `1009` (`control message too large`) for an oversized
-   frame, otherwise `1008` (`text frames only` or `invalid control message`). The server
+   frame, otherwise `1008` (`text frames only` or `invalid control message`). The close
+   code and reason are sent even when refusal logging fails. The server
    receives a whole frame before this check, up to Uvicorn's `--ws-max-size` (16 MiB by
    default); deployments can lower that option to bound per-frame memory as well.
 4. Optionally re-authenticate on the same connection by sending a new access token for the
@@ -617,7 +624,8 @@ All endpoints may return these standard error responses:
   ```
 
 - **409 Conflict** (`POST /deployments/`): Another deployment of the service is still running;
-  `detail.deployment_id` names it
+  `detail.deployment_id` names it. If admission reaches the orphan backlog limit,
+  `detail.code` is `orphan_backlog`; reconcile via `GET /deployments/` before retrying.
 
 - **413 Content Too Large** (`POST /deployments/`): The JSON encoded context is larger than
   `DEPLOYMENT_CONTEXT_MAX_BYTES`; no deployment was started
@@ -653,6 +661,7 @@ All endpoints may return these standard error responses:
   ```json
   {"detail": "Internal server error"}
   ```
+  The generic error and any applicable private cache headers are returned even if error logging fails.
 
 ### Mutation failures
 

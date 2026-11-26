@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock, Mock, call
 from uuid import uuid4
 
 import pytest
@@ -70,6 +70,38 @@ async def test_endpoint_passes_frame_socket_for_both_authentication_attempts(mon
         call(client_id, "first", bus.uow, websocket=socket),
         call(client_id, "renewal", bus.uow, websocket=socket),
     ]
+
+
+@pytest.mark.parametrize("authenticated", [False, True])
+async def test_frame_refusal_survives_logging_failure(monkeypatch, authenticated):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    socket = Socket()
+    socket.client_state = socket.application_state = WebSocketState.CONNECTED
+    socket.close = AsyncMock()
+    oversized = {"type": "websocket.receive", "text": "x" * (fastapi_app.WEBSOCKET_CONTROL_MAX_BYTES + 1)}
+    frames = [{"type": "websocket.receive", "text": '{"access_token":"synthetic"}'}] if authenticated else []
+    socket.receive = AsyncMock(side_effect=[*frames, oversized])
+    log = Mock(side_effect=RuntimeError("synthetic logging failure"))
+    broadcast = AsyncMock()
+
+    async def authenticate(*args, **kwargs):
+        cm.active_connections[client_id] = socket
+        return True
+
+    monkeypatch.setattr(cm, "authenticate", authenticate)
+    monkeypatch.setattr(cm, "broadcast", broadcast)
+    monkeypatch.setattr(fastapi_app.logger, "info", log)
+
+    await fastapi_app.websocket_endpoint(socket, client_id, SimpleNamespace(cm=cm, uow=object()))
+
+    log.assert_called_once()
+    socket.close.assert_awaited_once_with(code=1009, reason="control message too large")
+    assert client_id not in cm.all_connections and client_id not in cm.active_connections
+    if authenticated:
+        broadcast.assert_awaited_once_with(fastapi_app.Message(message="Client left"))
+    else:
+        broadcast.assert_not_awaited()
 
 
 @pytest.mark.parametrize("has_owner", [False, True])

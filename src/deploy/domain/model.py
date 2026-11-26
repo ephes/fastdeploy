@@ -247,6 +247,10 @@ class DeploymentAlreadyRunning(Exception):
         super().__init__(f"Deployment {deployment_id} is still running for service {service_id}")
 
 
+class DeploymentOrphanBacklog(Exception):
+    """The service has more orphan candidates than a start can reconcile."""
+
+
 class ServiceHasActiveDeployment(Exception):
     """
     Raised when a service is deleted while one of its deployments is still
