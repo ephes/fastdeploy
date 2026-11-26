@@ -200,12 +200,12 @@ async def _first_authentication(websocket: WebSocket, client_id: UUID, bus: Bus)
     """
     Wait for the first access token of a connection and verify it. Messages
     without a token are ignored. Returns whether the connection is
-    authenticated; a failed attempt has already closed it.
+    authenticated. A failed verification closes the connection.
     """
     while True:
         data = await receive_control(websocket)
         if data.get("access_token") is not None:
-            return await bus.cm.authenticate(client_id, data["access_token"], bus.uow)
+            return await bus.cm.authenticate(client_id, data["access_token"], bus.uow, websocket=websocket)
 
 
 # This only works with fastapi app not with api router
@@ -232,7 +232,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: UUID, bus: Bus = D
             data = await receive_control(websocket)
             if data.get("access_token") is not None:
                 # re-authentication, a failed attempt closes the connection
-                if not await connection_manager.authenticate(client_id, data["access_token"], bus.uow):
+                if not await connection_manager.authenticate(
+                    client_id, data["access_token"], bus.uow, websocket=websocket
+                ):
                     break
             elif connection_manager.is_authenticated(client_id, websocket):
                 message = Message(message="message from backend!")

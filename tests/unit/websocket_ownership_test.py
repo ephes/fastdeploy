@@ -2,10 +2,13 @@
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, call
 from uuid import uuid4
 
 import pytest
 from pydantic import BaseModel
+from starlette.websockets import WebSocketState
 
 from deploy.adapters import websocket as module
 from deploy.adapters.websocket import ConnectionManager
@@ -49,6 +52,47 @@ class Socket:
         self.closed = True
 
 
+async def test_endpoint_passes_frame_socket_for_both_authentication_attempts(monkeypatch):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    socket = Socket()
+    socket.client_state = socket.application_state = WebSocketState.CONNECTED
+    authenticate = AsyncMock(side_effect=[True, False])
+    receive = AsyncMock(side_effect=[{"access_token": "first"}, {"access_token": "renewal"}])
+    monkeypatch.setattr(cm, "authenticate", authenticate)
+    monkeypatch.setattr(fastapi_app, "receive_control", receive)
+    bus = SimpleNamespace(cm=cm, uow=object())
+
+    await fastapi_app.websocket_endpoint(socket, client_id, bus)
+
+    assert receive.await_args_list == [call(socket), call(socket)]
+    assert authenticate.await_args_list == [
+        call(client_id, "first", bus.uow, websocket=socket),
+        call(client_id, "renewal", bus.uow, websocket=socket),
+    ]
+
+
+@pytest.mark.parametrize("has_owner", [False, True])
+async def test_authentication_requires_the_registered_socket(monkeypatch, has_owner):
+    cm = ConnectionManager()
+    client_id = uuid4()
+    unrelated = Socket()
+    current = Socket() if has_owner else None
+    if current is not None:
+        await cm.connect(client_id, current)
+    verify = AsyncMock()
+    monkeypatch.setattr(module, "user_from_token_with_expiry", verify)
+
+    assert not await cm.authenticate(client_id, "synthetic", None, websocket=unrelated)
+
+    verify.assert_not_awaited()
+    assert cm.all_connections.get(client_id) is current
+    assert not cm.active_connections and not cm.principals and not cm.expiry_tasks
+    assert not unrelated.sent and not unrelated.closed
+    if current is not None:
+        assert not current.sent and not current.closed
+
+
 @pytest.mark.parametrize("second", ["broadcast", "send", "authentication", "reject", "close"])
 async def test_concurrent_sends_share_one_fifo(second, monkeypatch):
     cm = ConnectionManager()
@@ -69,7 +113,7 @@ async def test_concurrent_sends_share_one_fifo(second, monkeypatch):
             return type("User", (), {"name": "synthetic"})(), expiry
 
         monkeypatch.setattr(module, "user_from_token_with_expiry", user)
-        next_send = cm.authenticate(client_id, "synthetic", None)
+        next_send = cm.authenticate(client_id, "synthetic", None, websocket=socket)
     elif second == "reject":
         next_send = cm.reject(client_id, "synthetic")
     else:

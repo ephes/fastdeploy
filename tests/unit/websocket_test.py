@@ -77,7 +77,7 @@ async def test_websocket_authenticate_invalid_token(uow, invalid_access_token, s
     # make sure connection was not authenticated already
     assert client_id not in cm.active_connections
 
-    await cm.authenticate(client_id, invalid_access_token, uow)
+    await cm.authenticate(client_id, invalid_access_token, uow, websocket=stub_websocket)
 
     assert client_id not in cm.active_connections
     assert "failed" in stub_websocket.sent[0]["detail"]
@@ -93,7 +93,7 @@ async def test_websocket_authenticate_valid_token(uow, valid_access_token_in_db,
     assert client_id not in cm.active_connections
 
     try:
-        assert await cm.authenticate(client_id, valid_access_token_in_db, uow)
+        assert await cm.authenticate(client_id, valid_access_token_in_db, uow, websocket=stub_websocket)
         assert client_id in cm.active_connections
         assert client_id in cm.expiry_tasks
         assert "successful" in stub_websocket.sent[0]["detail"]
@@ -204,9 +204,10 @@ async def test_websocket_rejects_token_that_expires_during_verification(in_memor
 
     monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", verify)
     cm.active_connections = TrackedConnections()
-    assert await cm.connect(client_id, Socket())
+    socket = Socket()
+    assert await cm.connect(client_id, socket)
 
-    assert not await cm.authenticate(client_id, "synthetic-token", in_memory_uow)
+    assert not await cm.authenticate(client_id, "synthetic-token", in_memory_uow, websocket=socket)
     assert registrations == []
     assert_forgotten(cm, client_id)
     assert not cm.owned_timers
@@ -219,7 +220,7 @@ async def test_websocket_authenticate_with_service_token_closes_and_cleans_up(uo
     websocket = RecordingWebsocket()
     await cm.connect(client_id, websocket)
 
-    authenticated = await cm.authenticate(client_id, valid_service_token_in_db, uow)
+    authenticated = await cm.authenticate(client_id, valid_service_token_in_db, uow, websocket=websocket)
 
     assert not authenticated
     assert websocket.sent[0]["status"] == "failure"
@@ -235,7 +236,7 @@ async def test_websocket_authenticate_with_token_of_deleted_user_closes_and_clea
     websocket = RecordingWebsocket()
     await cm.connect(client_id, websocket)
 
-    authenticated = await cm.authenticate(client_id, valid_access_token, uow)
+    authenticated = await cm.authenticate(client_id, valid_access_token, uow, websocket=websocket)
 
     assert not authenticated
     assert websocket.sent[0]["status"] == "failure"
@@ -249,7 +250,7 @@ async def test_websocket_authenticate_with_garbage_token_closes_and_cleans_up(uo
     websocket = RecordingWebsocket()
     await cm.connect(client_id, websocket)
 
-    assert not await cm.authenticate(client_id, {"not": "a token"}, uow)  # type: ignore[arg-type]
+    assert not await cm.authenticate(client_id, {"not": "a token"}, uow, websocket=websocket)  # type: ignore[arg-type]
 
     assert websocket.closed
     assert_forgotten(cm, client_id)
@@ -358,10 +359,10 @@ async def test_websocket_reauthenticate_as_different_user_is_rejected(
     client_id = uuid4()
     websocket = RecordingWebsocket()
     await cm.connect(client_id, websocket)
-    assert await cm.authenticate(client_id, valid_access_token_in_db, uow)
+    assert await cm.authenticate(client_id, valid_access_token_in_db, uow, websocket=websocket)
     assert cm.principals[client_id] == "user"
 
-    assert not await cm.authenticate(client_id, other_user_token_in_db, uow)
+    assert not await cm.authenticate(client_id, other_user_token_in_db, uow, websocket=websocket)
 
     assert websocket.sent[-1]["status"] == "failure"
     assert websocket.closed
@@ -374,9 +375,9 @@ async def test_websocket_reauthenticate_replaces_expiry_timer(uow, valid_access_
     websocket = RecordingWebsocket()
     await cm.connect(client_id, websocket)
 
-    assert await cm.authenticate(client_id, valid_access_token_in_db, uow)
+    assert await cm.authenticate(client_id, valid_access_token_in_db, uow, websocket=websocket)
     first_timer = cm.expiry_tasks[client_id]
-    assert await cm.authenticate(client_id, valid_access_token_in_db, uow)
+    assert await cm.authenticate(client_id, valid_access_token_in_db, uow, websocket=websocket)
     second_timer = cm.expiry_tasks[client_id]
     await asyncio.sleep(0)  # let the cancellation happen
 
@@ -456,7 +457,7 @@ async def test_websocket_failing_authentication_does_not_touch_replacement_conne
 
     monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", authenticate_with_replacement)
 
-    assert not await cm.authenticate(client_id, valid_access_token, uow)
+    assert not await cm.authenticate(client_id, valid_access_token, uow, websocket=old)
 
     assert old.closed
     assert old.sent[-1]["type"] == "warning"  # stale rejection sends no further frame
@@ -481,7 +482,7 @@ async def test_websocket_successful_authentication_does_not_touch_replacement_co
 
     monkeypatch.setattr(websocket_module, "user_from_token_with_expiry", authenticate_with_replacement)
 
-    assert not await cm.authenticate(client_id, valid_access_token_in_db, uow)
+    assert not await cm.authenticate(client_id, valid_access_token_in_db, uow, websocket=old)
 
     assert not cm.is_authenticated(client_id)
     assert cm.all_connections[client_id] is new
@@ -701,10 +702,10 @@ async def test_reauthentication_success_send_is_bounded(uow, valid_access_token_
     socket = StuckControlWebsocket()
     client_id = uuid4()
     await cm.connect(client_id, socket)
-    assert await cm.authenticate(client_id, valid_access_token_in_db, uow)
+    assert await cm.authenticate(client_id, valid_access_token_in_db, uow, websocket=socket)
     first_expiry = cm.expiry_tasks[client_id]
     socket.stuck_send = socket.stuck_close = True
-    assert not await asyncio.wait_for(cm.authenticate(client_id, valid_access_token_in_db, uow), 0.5)
+    assert not await asyncio.wait_for(cm.authenticate(client_id, valid_access_token_in_db, uow, websocket=socket), 0.5)
     assert first_expiry.cancelled()
     assert socket.send_cancelled and not socket.close_cancelled
     socket.release_close.set()

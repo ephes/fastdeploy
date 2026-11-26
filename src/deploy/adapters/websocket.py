@@ -271,16 +271,17 @@ class ConnectionManager:
         finally:
             await self.close_socket(websocket, status.WS_1008_POLICY_VIOLATION)
 
-    async def authenticate(self, client_id: UUID, access_token: str, uow: AbstractUnitOfWork) -> bool:
+    async def authenticate(
+        self, client_id: UUID, access_token: str, uow: AbstractUnitOfWork, *, websocket: WebSocket
+    ) -> bool:
         """
-        Authenticate the connection with a user access token.
+        Authenticate the socket that supplied the user access token.
 
-        Any failure (invalid or expired token, a token that is not a user
-        token, unknown user, ...) rejects and closes the connection. Returns
-        whether the connection is authenticated afterwards.
+        A socket that no longer owns the client id is ignored. Verification
+        failures reject and close the connection. Returns whether the
+        connection is authenticated afterwards.
         """
-        websocket = self.all_connections.get(client_id)
-        if websocket is None:
+        if self.all_connections.get(client_id) is not websocket:
             return False
         try:
             user, expiry = await user_from_token_with_expiry(access_token, uow)

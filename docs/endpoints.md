@@ -528,7 +528,9 @@ the time of the read. Newer rows appear when traversal starts again.
    default); deployments can lower that option to bound per-frame memory as well.
 4. Optionally re-authenticate on the same connection by sending a new access token for the
    **same** user; this replaces the session expiry. A token for a different user is rejected and
-   closes the connection.
+   closes the connection. Authentication and re-authentication apply only to the socket
+   that sent the token. If that socket has been retired, the server discards the attempt
+   and leaves any connection that reused the client id untouched.
 5. Receive real-time events (only authenticated connections receive broadcasts):
    ```json
    {
