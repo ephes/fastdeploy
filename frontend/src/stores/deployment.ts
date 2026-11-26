@@ -12,6 +12,12 @@ const HISTORY_PAGE_SIZE = 50;
 const MAX_HISTORY_ROWS = 200;
 const MAX_RETIRED_FINISHES = 100;
 
+export class DeploymentServiceChangedError extends Error {
+  constructor() {
+    super("The service changed while preparing the deployment. Select the service again to retry.");
+  }
+}
+
 /**
  * This store can be used to start deployments and holds information
  * about deployments.
@@ -172,7 +178,8 @@ export const useDeployments = defineStore("deployments", {
     ): Promise<Deployment | null> {
       const isCurrentSession = rememberSession();
       const servicesStore = useServices();
-      const requestedServiceId = Object.values(servicesStore.services).find(service => service.name === serviceName)?.id;
+      const loadedServiceId = () => Object.values(servicesStore.services).find(service => service.name === serviceName)?.id;
+      const requestedServiceId = loadedServiceId();
       if (requestedServiceId === undefined) {
         // Without the service identity the started row cannot be admitted; never launch blind.
         throw new Error("Service is not loaded. Refresh services before deploying.");
@@ -185,6 +192,9 @@ export const useDeployments = defineStore("deployments", {
       );
       if (!isCurrentSession() || !serviceToken) {
         return null;
+      }
+      if (loadedServiceId() !== requestedServiceId) {
+        throw new DeploymentServiceChangedError();
       }
       const pending = this.pendingStartDeletions;
       const deletedMeanwhile = new Set<number>();

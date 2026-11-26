@@ -419,8 +419,9 @@ replacing the session releases the controls for the next session.
 A service deletion stays pending in the service store until its request settles.
 Remounting the list keeps the delete button disabled for that service. A WebSocket
 deletion for the same service removes the row immediately and retires the
-request's row and error updates. If the current session loses the HTTP
-response after receiving that event, the deletion completes successfully.
+request's row and error updates. After that event, the deletion completes
+successfully if the current session gets HTTP 404 or loses the HTTP response.
+An HTTP 404 without that event still asks the user to refresh the service list.
 
 The service detail clears token feedback and discards outstanding token results
 when the route changes or the selected service disappears or changes identity.
@@ -428,7 +429,10 @@ Updates to the same service ID and name keep the token form and result.
 
 A deployment start sends its service token in the Authorization header of
 `POST /deployments/`. Later requests on the same HTTP client use its original
-authentication defaults.
+authentication defaults. After token issuance, the browser checks that the
+loaded service name still resolves to the selected ID before sending the POST.
+If the service was removed or replaced, the Services view asks the user to select
+the service again. This message stays visible even if the original row is gone.
 
 ### REST snapshot admission
 
