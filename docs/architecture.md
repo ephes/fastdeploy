@@ -428,7 +428,10 @@ Updates to the same service ID and name keep the token form and result.
 
 A deployment start sends its service token in the Authorization header of
 `POST /deployments/`. Later requests on the same HTTP client use its original
-authentication defaults.
+authentication defaults. After token issuance, the browser checks that the
+loaded service name still resolves to the selected ID before sending the POST.
+If the service was removed or replaced, the Services view asks the user to select
+the service again. This message stays visible even if the original row is gone.
 
 ### REST snapshot admission
 

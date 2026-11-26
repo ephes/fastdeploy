@@ -114,6 +114,38 @@ it('bounds a pending launch per service and navigates only after confirmed succe
   wrapper.unmount();
 });
 
+it('asks for a new selection when a service is replaced during token issuance', async () => {
+  const { store, wrapper } = setup();
+  const credential = { token_type: 'bearer', service_token: 'synthetic-token' };
+  const token = deferred<typeof credential>();
+  store.client.post = vi.fn().mockReturnValueOnce(token.promise).mockResolvedValueOnce(credential);
+  const fetch = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+    id: 7, service_id: 3, origin: 'frontend', user: 'synthetic',
+    started: '2026-11-01T00:00:00Z', finished: null,
+  })));
+  vi.stubGlobal('fetch', fetch);
+  const websocket = createWebsocketClient();
+  websocket.registerStore(store);
+  websocket.onAuthenticationMessage({ type: 'authentication', status: 'success' });
+
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  expect(store.client.post).toHaveBeenCalledTimes(1);
+  websocket.onMessage(createEvent({ ...store.services[1], type: 'service', deleted: true }));
+  websocket.onMessage(createEvent({ type: 'service', id: 3, name: 'first', data: {} }));
+  token.resolve(credential);
+  await flushPromises();
+
+  expect(fetch).not.toHaveBeenCalled();
+  expect(push).not.toHaveBeenCalled();
+  expect(wrapper.get('[role="alert"]').text()).toContain('Select the service again');
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  await flushPromises();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(push).toHaveBeenCalledExactlyOnceWith({ name: 'deployment-detail', params: { id: 7 } });
+  expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  wrapper.unmount();
+});
+
 it('ignores a start acknowledgement for a deployment deleted while the POST was pending', async () => {
   const { store, wrapper } = setup();
   const deployments = useDeployments();

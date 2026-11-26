@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onBeforeUnmount, reactive } from 'vue';
+import { onBeforeUnmount, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useServices } from '../stores/service';
-import { useDeployments } from '../stores/deployment';
+import { DeploymentServiceChangedError, useDeployments } from '../stores/deployment';
 import { rememberSession } from '../stores/session';
 import ProgressCount from './ProgressCount.vue';
 
@@ -14,6 +14,7 @@ let viewActive = true;
 onBeforeUnmount(() => { viewActive = false; });
 const pendingStarts = reactive<Record<number, boolean>>({});
 const startErrors = reactive<Record<number, string>>({});
+const startSelectionError = ref('');
 
 async function deleteService(id: number, name: string) {
   if (serviceStore.pendingDeletes.has(id)) return;
@@ -35,6 +36,7 @@ async function startDeployment(id: number, serviceName: string) {
   if (pendingStarts[id]) return;
   pendingStarts[id] = true;
   startErrors[id] = '';
+  startSelectionError.value = '';
   const isCurrentSession = rememberSession();
   const launchRoute = router.currentRoute.value;
   const ownsView = () => viewActive && router.currentRoute.value === launchRoute && isCurrentSession();
@@ -50,7 +52,9 @@ async function startDeployment(id: number, serviceName: string) {
     await router.push({ name: 'deployment-detail', params: { id: deployment.id } });
   } catch (error: any) {
     if (!ownsView()) return;
-    if (error?.response?.status === 409) {
+    if (error instanceof DeploymentServiceChangedError) {
+      startSelectionError.value = `Could not start ${serviceName}: ${error.message}`;
+    } else if (error?.response?.status === 409) {
       startErrors[id] = error.body?.detail?.code === 'orphan_backlog'
         ? `Open deployment history to reconcile orphaned deployments, then retry starting ${serviceName}.`
         : `A deployment is already running for ${serviceName}. Check its history before retrying.`;
@@ -106,6 +110,7 @@ async function startDeployment(id: number, serviceName: string) {
     <div v-if="serviceStore.serviceTokenErrorMessage" role="alert">
       {{ serviceStore.serviceTokenErrorMessage }}
     </div>
+    <p v-if="startSelectionError" role="alert">{{ startSelectionError }}</p>
     <br />
     <table class="service-list">
       <tr>
