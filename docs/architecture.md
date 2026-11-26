@@ -786,7 +786,9 @@ a short/empty page sets `inventoryComplete[deploymentId]`. Failed, invalid or ob
 traversals preserve the previous inventory and its completeness. The `fetching` counter
 tracks refreshes in progress. Changing the deployment route or leaving its detail
 view cancels that view's traversal, releases its fetch bookkeeping, and discards
-unfinished pages. WebSocket resync owns its refreshes separately. Eviction or
+unfinished pages. WebSocket resync owns its refreshes separately: a detail refresh
+started while a resync for the same deployment is in flight joins that resync
+instead of superseding it, so leaving the view never drops the resync. Eviction or
 session reset clears the retained inventory and its completeness. A deployment
 detail with a complete retained inventory keeps showing its rows and live updates
 during refresh and alongside a retry message if refresh fails. First loads still

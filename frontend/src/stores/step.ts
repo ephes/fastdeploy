@@ -30,6 +30,8 @@ export const useSteps = defineStore("steps", {
       finishedDeployments: {} as Record<number, boolean>,
       pendingFetches: {} as Partial<Record<number, Set<Set<number>>>>,
       fetchGenerations: {} as Record<number, number>,
+      /** The newest in-flight traversal without a caller signal (e.g. WebSocket resync), per deployment. */
+      liveResyncs: {} as Partial<Record<number, Promise<void>>>,
       fetchSequence: 0,
       retainedDeploymentIds: [] as number[],
       retiredThrough: 0,
@@ -230,8 +232,37 @@ export const useSteps = defineStore("steps", {
      */
     async fetchStepsFromDeployment(
       deploymentId: number, ownsRefresh: () => boolean = () => true, callerSignal?: AbortSignal,
-    ) {
+    ): Promise<void> {
       if (callerSignal?.aborted) return;
+      const resync = this.liveResyncs[deploymentId];
+      if (callerSignal && resync) {
+        // A cancellable refresh joins an in-flight resync instead of superseding it,
+        // so cancelling the refresh never drops the resync's inventory.
+        let cancel!: () => void;
+        const cancelled = new Promise<never>((_resolve, reject) => {
+          cancel = () => reject(callerSignal.reason);
+          callerSignal.addEventListener("abort", cancel, { once: true });
+        });
+        try {
+          await Promise.race([resync, cancelled]);
+        } finally {
+          callerSignal.removeEventListener("abort", cancel);
+        }
+        return;
+      }
+      const traversal = this.traverseStepInventory(deploymentId, ownsRefresh, callerSignal);
+      if (!callerSignal) {
+        const resyncs = this.liveResyncs;
+        resyncs[deploymentId] = traversal;
+        void traversal.catch(() => undefined).finally(() => {
+          if (resyncs[deploymentId] === traversal) delete resyncs[deploymentId];
+        });
+      }
+      return traversal;
+    },
+    async traverseStepInventory(
+      deploymentId: number, ownsRefresh: () => boolean, callerSignal?: AbortSignal,
+    ): Promise<void> {
       const isCurrentSession = rememberSession();
       this.retainDeployment(deploymentId, true);
       this.fetching[deploymentId] = (this.fetching[deploymentId] ?? 0) + 1;
