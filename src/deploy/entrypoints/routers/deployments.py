@@ -114,7 +114,7 @@ async def finish_deployment(
 @router.post(
     "/",
     responses={
-        409: {"description": "Another deployment of this service is still running"},
+        409: {"description": "Another deployment is still running or the service has an orphan backlog"},
         413: {"description": "The deployment context is too large"},
         422: {"description": "Invalid context or restore input outside the service storage policy"},
         500: {"description": "The deploy task could not be started; the deployment was finished as failed"},
@@ -135,6 +135,10 @@ async def start_deployment(
     Only one deployment per service may run at a time: if the service still has
     an active deployment, the request is rejected with 409 Conflict and the
     response detail names the running deployment id.
+
+    If the service has more than one repair batch of orphan candidates, the
+    request is rejected with 409 Conflict. Reconcile them through deployment
+    history reads before retrying.
 
     If the deploy task cannot be started, the new deployment is finished as
     failed (it does not block the next start) and the request is answered with
@@ -191,6 +195,14 @@ async def start_deployment(
             detail={
                 "message": f"Deployment {e.deployment_id} is still running for service {service.name}",
                 "deployment_id": e.deployment_id,
+            },
+        ) from e
+    except model.DeploymentOrphanBacklog as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "orphan_backlog",
+                "message": "Reconcile orphaned deployments with GET /deployments/ using a user token, then retry.",
             },
         ) from e
     except model.DeploymentLaunchFailed as e:

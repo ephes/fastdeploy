@@ -705,6 +705,42 @@ async def test_deploy_start_commits_orphan_and_launches_once_when_warning_fails(
     assert [event.id for _, event in publisher.events if isinstance(event, events.DeploymentFinished)] == [orphan.id]
 
 
+@pytest.mark.db("in_memory")
+@pytest.mark.parametrize("with_active", [False, True], ids=["only-orphans", "later-active"])
+@patch("deploy.tasks.subprocess.Popen")
+async def test_deploy_start_refuses_orphan_backlog_before_full_reloads(
+    popen, app, uow, publisher, service_in_db, valid_service_token_in_db, monkeypatch, with_active
+):
+    now = datetime.now(timezone.utc)
+    old = now - views.ORPHAN_RECONCILE_DELAY - timedelta(seconds=1)
+    ids = []
+    for _ in range(max(views.DEPLOYMENT_ACTIVITY_BATCH_SIZE, views.ORPHAN_RECONCILE_BATCH_SIZE) + 1):
+        orphan = await add_unfinished_deployment(uow, service_in_db.id, old, step_states=("success",))
+        ids.append(orphan.id)
+    if with_active:
+        active = await add_unfinished_deployment(uow, service_in_db.id, now)
+        ids.append(active.id)
+    reload = AsyncMock(wraps=uow.deployments.get_for_update)
+    commit = AsyncMock(wraps=uow.commit)
+    monkeypatch.setattr(uow.deployments, "get_for_update", reload)
+    monkeypatch.setattr(uow, "commit", commit)
+
+    response = await post_start_deployment(app, valid_service_token_in_db)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "orphan_backlog"
+    assert "GET /deployments/" in response.json()["detail"]["message"]
+    reload.assert_not_awaited()
+    commit.assert_not_awaited()
+    popen.assert_not_called()
+    assert not publisher.events
+    async with uow:
+        remaining = await uow.deployments.list()
+        assert {deployment.id for deployment in remaining} == set(ids)
+        assert all(deployment.finished is None for deployment in remaining)
+        assert all(step.state == "success" for step in await uow.steps.list())
+
+
 @pytest.mark.parametrize("database_type", ["database_url", "in_memory"])
 @patch("deploy.tasks.subprocess.Popen")
 async def test_deploy_rejected_while_deployment_has_running_steps(

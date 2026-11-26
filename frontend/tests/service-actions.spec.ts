@@ -164,6 +164,23 @@ it.each(['conflict', 'network', 'token'])('shows safe launch feedback and permit
   wrapper.unmount();
 });
 
+it('directs refused starts with an orphan backlog to deployment history', async () => {
+  const { store, wrapper } = setup();
+  vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+    JSON.stringify({ detail: { code: 'orphan_backlog', message: 'synthetic-private-detail' } }),
+    { status: 409, headers: { 'Content-Type': 'application/json' } },
+  )));
+
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  await flushPromises();
+
+  expect(wrapper.get('[role="alert"]').text()).toContain('Open deployment history to reconcile orphaned deployments');
+  expect(wrapper.text()).not.toContain('synthetic-private-detail');
+  expect(push).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
 it('ignores a late launch success after logout even when supplied by a store mock', async () => {
   const { wrapper } = setup();
   const response = deferred<any>();
