@@ -242,6 +242,37 @@ it('directs refused starts with an orphan backlog to deployment history', async 
   wrapper.unmount();
 });
 
+it('names a running deployment only when the refusal says so', async () => {
+  const { store, wrapper } = setup();
+  vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+    JSON.stringify({ detail: { message: 'synthetic-private-detail', deployment_id: 9 } }),
+    { status: 409, headers: { 'Content-Type': 'application/json' } },
+  )));
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toContain('A deployment is already running for first');
+  expect(wrapper.text()).not.toContain('synthetic-private-detail');
+  wrapper.unmount();
+});
+
+it('gives generic refusal feedback when an oversized 409 body is discarded', async () => {
+  const { store, wrapper } = setup();
+  vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+    JSON.stringify({ detail: { code: 'orphan_backlog' } }),
+    { status: 409, headers: { 'Content-Type': 'application/json', 'Content-Length': String(64 * 1024 * 1024) } },
+  )));
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  await flushPromises();
+  const alert = wrapper.get('[role="alert"]').text();
+  expect(alert).toContain('The server refused to start first');
+  expect(alert).not.toContain('already running');
+  expect(alert).not.toContain('orphaned');
+  expect(push).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
 it('ignores a late launch success after logout even when supplied by a store mock', async () => {
   const { wrapper } = setup();
   const response = deferred<any>();

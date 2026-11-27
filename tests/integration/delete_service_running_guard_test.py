@@ -174,6 +174,27 @@ async def test_sync_skips_a_service_deleted_by_another_request(database, publish
             await bus.uow.close()
 
 
+async def test_deployment_lock_flushes_pending_service_edits_first(database, publisher, services_filesystem):
+    bus = await make_bus(publisher, services_filesystem)
+    try:
+        edited = model.Service(name="lock-flush-edited", data={})
+        locked = model.Service(name="lock-flush-locked", data={})
+        async with bus.uow as uow:
+            await uow.services.add(edited)
+            await uow.services.add(locked)
+            await uow.commit()
+        async with bus.uow as uow:
+            service = await uow.services.get_by_name(edited.name)
+            service.data = {"edited": True}
+            assert uow.session.dirty
+            assert await uow.services.lock_for_deployment(locked.id) is True
+            # Autoflush wrote the pending edit before the row lock statement ran.
+            assert not uow.session.dirty
+            await uow.rollback()
+    finally:
+        await bus.uow.close()
+
+
 @patch("deploy.tasks.subprocess.Popen")
 async def test_delete_racing_with_deployment_start_keeps_the_deployment(
     popen, database, publisher, services_filesystem, monkeypatch

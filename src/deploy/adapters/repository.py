@@ -88,6 +88,8 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
     async def lock_for_deployment(self, service_id: int) -> bool:
         # Row lock on the service (PostgreSQL ``SELECT ... FOR UPDATE``). Concurrent
         # starts for the same service block here until the holder's transaction ends.
+        # A Core column select skips autoflush; flush pending edits so they stay ahead of this lock.
+        await self.session.flush()
         row_id = orm.services.c.id
         stmt = select(row_id).where(row_id == service_id).with_for_update()
         result = await self.session.execute(stmt)

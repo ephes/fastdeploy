@@ -11,6 +11,7 @@ Unreleased
 
 ### Fixed
 - Preserve HTTP refusal status when the frontend discards an oversized body, so service deletion still shows the appropriate feedback.
+- Show generic refusal feedback for a deployment start HTTP 409 whose reason is unavailable, instead of claiming a deployment is running.
 - Report services removed by a concurrent request as skipped during sync and avoid duplicate deletion events and token revocation.
 - Treat HTTP 404 as a successful service deletion when a WebSocket event already confirmed the removal.
 - Ask for a new service selection before starting a deployment if the loaded service changes during token issuance.
