@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -75,6 +76,28 @@ def test_check_sync_deletions_force():
 
 
 # test the sync_services handler
+
+
+@pytest.mark.asyncio
+@pytest.mark.db("in_memory")
+async def test_sync_skips_a_candidate_removed_after_listing(bus, uow, service_in_db, publisher, monkeypatch):
+    original_list = uow.services.list
+    revoke = AsyncMock(wraps=uow.service_tokens.revoke_for_service)
+
+    async def list_before_removal():
+        candidates = await original_list()
+        await uow.services.delete(service_in_db)
+        return candidates
+
+    monkeypatch.setattr(uow.services, "list", list_before_removal)
+    monkeypatch.setattr(uow.service_tokens, "revoke_for_service", revoke)
+
+    result = await bus.handle(commands.SyncServices(force=True))
+
+    assert result.deleted == []
+    assert result.skipped == [model.SkippedService(name=service_in_db.name, reason="service already removed")]
+    revoke.assert_not_awaited()
+    assert publisher.events == []
 
 
 @pytest.fixture
@@ -239,8 +262,6 @@ async def test_sync_services_keeps_service_whose_deployment_reported_recently(bu
 
 @pytest.mark.asyncio
 async def test_sync_acquires_ownership_before_reading_source(in_memory_uow, monkeypatch):
-    from unittest.mock import AsyncMock
-
     from deploy import views
     from deploy.service_layer.handlers import sync_services
 

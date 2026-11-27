@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from deploy.adapters import repository
 from deploy.bootstrap import bootstrap
 from deploy.config import settings
-from deploy.domain import commands, model
+from deploy.domain import commands, events, model
 from deploy.service_layer import unit_of_work
 
 pytestmark = pytest.mark.asyncio
@@ -131,6 +131,47 @@ async def make_bus(publisher, services_filesystem):
     return await bootstrap(
         start_orm=False, create_db_and_tables=False, uow=uow, publish=publisher, fs=services_filesystem
     )
+
+
+async def test_sync_skips_a_service_deleted_by_another_request(database, publisher, services_filesystem, monkeypatch):
+    sync_bus = await make_bus(publisher, services_filesystem)
+    delete_bus = await make_bus(publisher, services_filesystem)
+    try:
+        service = model.Service(name="sync-delete-race", data={})
+        async with sync_bus.uow as uow:
+            await uow.services.add(service)
+            await uow.commit()
+        service_id = service.id
+        assert service_id is not None
+
+        original_list = repository.SqlAlchemyServiceRepository.list
+        original_revoke = repository.SqlAlchemyServiceTokenRepository.revoke_for_service
+        revocations = []
+
+        async def list_before_delete(repository):
+            candidates = await original_list(repository)
+            # Pause the sync after enumeration until the other transaction commits.
+            await asyncio.wait_for(delete_bus.handle(commands.DeleteService(service_id=service_id)), timeout=10)
+            return candidates
+
+        async def record_revoke(repository, name, revoked_at):
+            revocations.append(name)
+            await original_revoke(repository, name, revoked_at)
+
+        monkeypatch.setattr(repository.SqlAlchemyServiceRepository, "list", list_before_delete)
+        monkeypatch.setattr(repository.SqlAlchemyServiceTokenRepository, "revoke_for_service", record_revoke)
+
+        result = await sync_bus.handle(commands.SyncServices(force=True))
+
+        assert result.deleted == []
+        assert result.skipped == [model.SkippedService(name=service.name, reason="service already removed")]
+        assert revocations == [service.name]
+        assert [
+            (event.id, event.name) for _, event in publisher.events if isinstance(event, events.ServiceDeleted)
+        ] == [(service_id, service.name)]
+    finally:
+        for bus in (delete_bus, sync_bus):
+            await bus.uow.close()
 
 
 @patch("deploy.tasks.subprocess.Popen")
