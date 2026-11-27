@@ -7,6 +7,7 @@ import { useServices } from '../src/stores/service';
 import { useDeployments } from '../src/stores/deployment';
 import { useAuth } from '../src/stores/auth';
 import { createWebsocketClient } from '../src/websocket';
+import { MAX_RESPONSE_BYTES } from '../src/stores/httpClient';
 
 const originalConfirm = window.confirm;
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -94,6 +95,34 @@ it.each([409, 404, 0])('keeps deletion refusal/transport failure visible and ret
   await button.trigger('click'); await flushPromises();
   expect(store.services[1]).toBeUndefined();
   wrapper.unmount();
+});
+
+it.each([
+  [409, 'deployment is running'],
+  [404, 'no longer exists'],
+  [200, 'Could not confirm deletion'],
+])('shows deletion feedback for HTTP %i with an oversized body', async (status, feedback) => {
+  const { store, wrapper } = setup();
+  window.confirm = vi.fn().mockReturnValue(true);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('x'.repeat(MAX_RESPONSE_BYTES + 1), { status })));
+
+  await action(wrapper, 'Delete', 'first').trigger('click');
+  await flushPromises();
+
+  expect(store.services[1]).toBeDefined();
+  expect(wrapper.get('[role="alert"]').text()).toContain(feedback);
+  wrapper.unmount();
+});
+
+it('does not offer force confirmation for a sync refusal with an oversized body', async () => {
+  const store = useServices();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('x'.repeat(MAX_RESPONSE_BYTES + 1), { status: 409 })));
+
+  await expect(store.syncServices()).resolves.toBe(false);
+
+  expect(store.syncRefusal).toBeNull();
+  expect(store.syncReceipt).toBeNull();
+  expect(store.syncErrorMessage).toBe('Services sync failed');
 });
 
 it('bounds a pending launch per service and navigates only after confirmed success', async () => {

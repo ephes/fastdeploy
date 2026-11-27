@@ -26,16 +26,19 @@ class InvalidJsonEncodingError extends Error {
   constructor() { super('Server JSON response is not valid UTF-8.'); }
 }
 
+class ResponseTooLargeError extends Error {
+  constructor() { super('Server response is too large. Refresh before retrying.'); }
+}
+
 async function decodeBounded(
   response: Response, signal: AbortSignal, responseAs: Options['responseAs'], onBodyBytes?: (bytes: number) => void,
 ) {
   const reader = response.body?.getReader();
-  const overflow = () => new Error('Server response is too large. Refresh before retrying.');
   if (!reader) return responseAs === 'response' ? response : null;
   const cancel = () => { void reader.cancel().catch(() => {}); };
   signal.addEventListener('abort', cancel, { once: true });
   try {
-    if (Number(response.headers.get('Content-Length')) > MAX_RESPONSE_BYTES) throw overflow();
+    if (Number(response.headers.get('Content-Length')) > MAX_RESPONSE_BYTES) throw new ResponseTooLargeError();
     let buffer = new Uint8Array(0);
     let length = 0;
     while (true) {
@@ -44,7 +47,7 @@ async function decodeBounded(
       signal.throwIfAborted();
       if (done) break;
       const nextLength = length + value.byteLength;
-      if (nextLength > MAX_RESPONSE_BYTES) throw overflow();
+      if (nextLength > MAX_RESPONSE_BYTES) throw new ResponseTooLargeError();
       onBodyBytes?.(value.byteLength);
       if (nextLength > buffer.length) {
         const capacity = Math.min(MAX_RESPONSE_BYTES, Math.max(nextLength, buffer.length * 2));
@@ -141,8 +144,10 @@ export const getClientWithoutAuth = (
             response, signal, options?.responseAs ?? client.options.responseAs ?? 'json', onBodyBytes,
           );
         } catch (error) {
-          // An HTTP refusal keeps its status even when its body is malformed; the body is dropped.
-          if (response.ok || !(error instanceof InvalidJsonEncodingError)) throw error;
+          // An HTTP refusal keeps its status when its body has to be discarded.
+          if (response.ok || !(error instanceof InvalidJsonEncodingError || error instanceof ResponseTooLargeError)) {
+            throw error;
+          }
           body = null;
         }
         checkDestination();
