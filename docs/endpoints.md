@@ -120,6 +120,11 @@ deployments and steps. Two guards protect against wiping the history by accident
 - A service with a running deployment is never deleted, not even with `force=true`. It is reported
   in `skipped` and removed by a later sync once the deployment has finished.
 
+If another request removes a candidate after enumeration and before sync locks
+its row, sync reports it in `skipped` with reason `service already removed`.
+Only the request that removes the row revokes its tokens and publishes the
+deletion event.
+
 All additions, edits and deletions in a sync commit together. A database failure
 rolls back service changes and history cascades, and publishes no success events;
 a later request can retry the entire sync.

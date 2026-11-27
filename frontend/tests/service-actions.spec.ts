@@ -7,6 +7,7 @@ import { useServices } from '../src/stores/service';
 import { useDeployments } from '../src/stores/deployment';
 import { useAuth } from '../src/stores/auth';
 import { createWebsocketClient } from '../src/websocket';
+import { MAX_RESPONSE_BYTES } from '../src/stores/httpClient';
 
 const originalConfirm = window.confirm;
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -94,6 +95,34 @@ it.each([409, 404, 0])('keeps deletion refusal/transport failure visible and ret
   await button.trigger('click'); await flushPromises();
   expect(store.services[1]).toBeUndefined();
   wrapper.unmount();
+});
+
+it.each([
+  [409, 'deployment is running'],
+  [404, 'no longer exists'],
+  [200, 'Could not confirm deletion'],
+])('shows deletion feedback for HTTP %i with an oversized body', async (status, feedback) => {
+  const { store, wrapper } = setup();
+  window.confirm = vi.fn().mockReturnValue(true);
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('x'.repeat(MAX_RESPONSE_BYTES + 1), { status })));
+
+  await action(wrapper, 'Delete', 'first').trigger('click');
+  await flushPromises();
+
+  expect(store.services[1]).toBeDefined();
+  expect(wrapper.get('[role="alert"]').text()).toContain(feedback);
+  wrapper.unmount();
+});
+
+it('does not offer force confirmation for a sync refusal with an oversized body', async () => {
+  const store = useServices();
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('x'.repeat(MAX_RESPONSE_BYTES + 1), { status: 409 })));
+
+  await expect(store.syncServices()).resolves.toBe(false);
+
+  expect(store.syncRefusal).toBeNull();
+  expect(store.syncReceipt).toBeNull();
+  expect(store.syncErrorMessage).toBe('Services sync failed');
 });
 
 it('bounds a pending launch per service and navigates only after confirmed success', async () => {
@@ -209,6 +238,37 @@ it('directs refused starts with an orphan backlog to deployment history', async 
 
   expect(wrapper.get('[role="alert"]').text()).toContain('Open deployment history to reconcile orphaned deployments');
   expect(wrapper.text()).not.toContain('synthetic-private-detail');
+  expect(push).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
+it('names a running deployment only when the refusal says so', async () => {
+  const { store, wrapper } = setup();
+  vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+    JSON.stringify({ detail: { message: 'synthetic-private-detail', deployment_id: 9 } }),
+    { status: 409, headers: { 'Content-Type': 'application/json' } },
+  )));
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toContain('A deployment is already running for first');
+  expect(wrapper.text()).not.toContain('synthetic-private-detail');
+  wrapper.unmount();
+});
+
+it('gives generic refusal feedback when an oversized 409 body is discarded', async () => {
+  const { store, wrapper } = setup();
+  vi.spyOn(store, 'fetchServiceToken').mockResolvedValue('synthetic-credential');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+    JSON.stringify({ detail: { code: 'orphan_backlog' } }),
+    { status: 409, headers: { 'Content-Type': 'application/json', 'Content-Length': String(64 * 1024 * 1024) } },
+  )));
+  await action(wrapper, 'Deploy', 'first').trigger('click');
+  await flushPromises();
+  const alert = wrapper.get('[role="alert"]').text();
+  expect(alert).toContain('The server refused to start first');
+  expect(alert).not.toContain('already running');
+  expect(alert).not.toContain('orphaned');
   expect(push).not.toHaveBeenCalled();
   wrapper.unmount();
 });

@@ -5,15 +5,20 @@ const limit = 1024 * 1024;
 beforeEach(() => initPinia());
 afterEach(() => vi.unstubAllGlobals());
 it.each([{}, { 'Content-Length': '1' }, { 'Content-Length': String(limit + 1) }])('bounds streamed success/error bodies despite headers: %j', async headers => {
-  for (const status of [200, 400]) {
+  for (const status of [200, 409, 404]) {
     let reads = 0;
     const cancel = vi.fn();
     const body = new ReadableStream({
       pull(controller) { if (reads === 20) { controller.close(); return; } reads++; controller.enqueue(new Uint8Array(64 * 1024)); }, cancel,
     }, { highWaterMark: 0 });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, { status, headers: headers as Record<string, string> })));
-    await expect(getClientWithoutAuth().get('deployments/')).rejects.toThrow(/response.*large/i);
-    expect(reads).toBeLessThanOrEqual(17);
+    const deletion = getClientWithoutAuth().delete('services/1');
+    if (status === 200) {
+      await expect(deletion).rejects.toThrow(/response.*large/i);
+    } else {
+      await expect(deletion).rejects.toMatchObject({ response: { status }, body: null });
+    }
+    expect(reads).toBe(headers['Content-Length'] === String(limit + 1) ? 0 : 17);
     expect(cancel).toHaveBeenCalledTimes(1);
   }
 });

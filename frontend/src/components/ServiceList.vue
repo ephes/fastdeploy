@@ -55,9 +55,13 @@ async function startDeployment(id: number, serviceName: string) {
     if (error instanceof DeploymentServiceChangedError) {
       startSelectionError.value = `Could not start ${serviceName}: ${error.message}`;
     } else if (error?.response?.status === 409) {
-      startErrors[id] = error.body?.detail?.code === 'orphan_backlog'
+      // 409 covers a running deployment and an orphan backlog; without a readable reason say neither.
+      const detail = error.body?.detail;
+      startErrors[id] = detail?.code === 'orphan_backlog'
         ? `Open deployment history to reconcile orphaned deployments, then retry starting ${serviceName}.`
-        : `A deployment is already running for ${serviceName}. Check its history before retrying.`;
+        : Number.isInteger(detail?.deployment_id)
+          ? `A deployment is already running for ${serviceName}. Check its history before retrying.`
+          : `The server refused to start ${serviceName}. Check its history before retrying.`;
     } else {
       startErrors[id] = `Could not confirm deployment start for ${serviceName}. Check its history before retrying.`;
     }

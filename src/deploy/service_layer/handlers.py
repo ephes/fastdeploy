@@ -52,7 +52,7 @@ async def sync_services(
     Raises ``ServiceSyncRefused`` (and changes nothing) when the sync would
     delete all or more than half of the services without force, or when the
     supplied confirmation differs from the current candidates. Services with
-    an active deployment are reported as skipped.
+    an active deployment and candidates already removed are reported as skipped.
     """
     async with uow:
         await uow.services.lock_for_sync()
@@ -71,7 +71,9 @@ async def sync_services(
                 continue
             # Serialize with deployment starts: a start that already holds the
             # lock has committed its deployment once we get the lock.
-            await uow.services.lock_for_deployment(service.id)
+            if not await uow.services.lock_for_deployment(service.id):
+                skipped.append(model.SkippedService(name=service.name, reason="service already removed"))
+                continue
             active_id = await first_active_deployment_id(service.id, uow, now)
             if active_id is not None:
                 logger.warning("Not deleting service %s: deployment %s is still running", service.name, active_id)

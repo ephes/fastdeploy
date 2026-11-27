@@ -387,9 +387,13 @@ It checks ownership again after decoding. Content-Length only enables early
 rejection; every chunk is counted even when the header is absent or incorrect.
 Chunks are copied as they arrive into one geometrically growing buffer capped at
 1 MiB. The client retains no list of fragments and decodes only the bytes received.
-Overflow cancels the reader and raises a fixed, payload-free error. A private AbortController forwards caller cancellation
-to fetch. Both cancellation and deadline expiry settle the call even if the
-transport ignores abort; timers and caller listeners are retired on every outcome.
+Overflow cancels the reader. An oversized success response raises a fixed,
+payload-free error. An oversized HTTP refusal keeps its status and carries no
+decoded body, so a service deletion can still show the appropriate 409 or 404 feedback.
+Force sync requires a valid confirmation from the refusal body.
+A private AbortController forwards caller cancellation to fetch. Both
+cancellation and deadline expiry settle the call even if the transport ignores
+abort; timers and caller listeners are retired on every outcome.
 Expiry is reported as `TimeoutError`, caller cancellation as `AbortError` (or the
 caller's supplied reason). Store loading flags and pending event fences are then
 released by their existing completion paths. No request is automatically retried.

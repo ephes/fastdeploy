@@ -47,10 +47,10 @@ class AbstractServiceRepository(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def lock_for_deployment(self, service_id: int) -> None:
+    async def lock_for_deployment(self, service_id: int) -> bool:
         """
-        Serialize deployment starts for a service until the current
-        transaction ends (commit or rollback).
+        Lock the service row until the current transaction ends.
+        Return whether the row exists and was locked.
         """
         raise NotImplementedError
 
@@ -85,11 +85,15 @@ class SqlAlchemyServiceRepository(AbstractServiceRepository):
         # Stable application namespace; transaction-scoped, including empty tables.
         await self.session.execute(text("SELECT pg_advisory_xact_lock(17012017, 1)"))
 
-    async def lock_for_deployment(self, service_id):
+    async def lock_for_deployment(self, service_id: int) -> bool:
         # Row lock on the service (PostgreSQL ``SELECT ... FOR UPDATE``). Concurrent
         # starts for the same service block here until the holder's transaction ends.
-        stmt = select(model.Service).where(model.Service.id == service_id).with_for_update()
-        await self.session.execute(stmt)
+        # A Core column select skips autoflush; flush pending edits so they stay ahead of this lock.
+        await self.session.flush()
+        row_id = orm.services.c.id
+        stmt = select(row_id).where(row_id == service_id).with_for_update()
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
 
 class InMemoryServiceRepository(AbstractServiceRepository):
@@ -132,9 +136,9 @@ class InMemoryServiceRepository(AbstractServiceRepository):
     async def lock_for_sync(self) -> None:
         return None
 
-    async def lock_for_deployment(self, service_id: int) -> None:  # noqa: ARG002
+    async def lock_for_deployment(self, service_id: int) -> bool:
         # In-memory repositories never suspend, so check and insert cannot interleave.
-        return None
+        return any(service.id == service_id for service in self._services)
 
 
 class AbstractUserRepository(abc.ABC):
