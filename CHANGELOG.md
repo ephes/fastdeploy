@@ -9,6 +9,14 @@ Unreleased
 - Opt-in cursor pagination for `GET /deployed-services/` with `limit` and `before_id`.
   Requests without either parameter continue to return the full JSON array.
 
+### Changed
+- Redesign the web interface with its own plain CSS (no UI framework, no new dependency): a
+  left-aligned layout that follows the system light or dark setting and folds its tables into
+  stacked rows on phones, a primary deploy button per service with delete set apart as a quiet
+  red action, a progress bar for running deployments in the services list, readable start times
+  and durations in the deployment history, and a deployment page with a state badge, one progress
+  segment per step and a step timeline that shows failure output in place.
+
 ### Fixed
 - Preserve HTTP refusal status when the frontend discards an oversized body, so service deletion still shows the appropriate feedback.
 - Show generic refusal feedback for a deployment start HTTP 409 whose reason is unavailable, instead of claiming a deployment is running.
